@@ -153,7 +153,7 @@ over 60 days old and not scoped to invoicing.
       single-select is byte-identical in behaviour; multi-select returns an id array.
       *Depends on:* nothing. Independent of T1-T6.
 
-- [ ] **T8 — Wizard shell + step 1 (Scope).** New `components/admin/invoices/billing-run-wizard/`.
+- [x] **T8 — Wizard shell + step 1 (Scope).** New `components/admin/invoices/billing-run-wizard/`.
       Build the step indicator from vendored primitives (none exists). Step 1: periode, jatuh tempo,
       tahun ajaran, class multi-select (T7), student add/remove via the Cycle A `StudentPicker`, and a
       live in-scope count. "Lanjutkan" creates the draft. Cross-check
@@ -261,6 +261,19 @@ over 60 days old and not scoped to invoicing.
   blocks on the row lock, re-evaluates the predicate after the first commits, matches nothing, and
   drops the row. Only claim winners get an invoice. This also removed the createMany-then-re-query
   dance the batch route needs.
+- Task 8: Wizard shell + step 1 — `components/admin/invoices/billing-run-wizard/` (`billing-defaults.ts`,
+  `types.ts`, `step-indicator.tsx`, `step-1-scope.tsx`, `billing-run-wizard.tsx`),
+  `app/admin/invoices/invoices-client.tsx` (additive only — new wizard button + resumable-draft banner;
+  the old dialog is untouched, T10 removes it). The step indicator is an `<ol>` with `aria-current="step"`
+  on the current item only, and state is never colour-only — each step also carries an icon and an
+  `sr-only` status suffix. Step changes move focus to the new step's heading so the change is announced.
+  The 409 branches inside the same dialog rather than stacking a second overlay, offering Lanjutkan
+  Draf / Buang & Mulai Baru / Kembali, with the entered scope preserved on the Kembali path.
+  **Review fix:** "Buang & Mulai Baru" cancels the old draft then re-creates. If the cancel succeeded
+  but the create then failed, the panel stayed up pointing at a now-`CANCELLED` run — "Lanjutkan Draf"
+  would open a dead run and "Buang" would 409 forever, with no way back except closing the dialog,
+  which unmounts the step and discards the scope just entered. The handler now tracks whether the
+  cancel landed and clears the panel on a subsequent failure, handing the admin back their populated form.
 
 ## Verification
 
@@ -303,5 +316,12 @@ over 60 days old and not scoped to invoicing.
   `superpowers:code-reviewer` confirmed tenant isolation, transaction boundary, `reserveInvoiceNumbers`
   receiving the tx client, and that the duplicate re-check uses the same `periodLabel` the invoice is
   written with (no trim mismatch).
+- Task 8: gates passed — `npm run build` exit 0, `npx vitest run` 299 files / 2873 tests passed;
+  `npx eslint` clean on the wizard directory. The subagent's own full-repo lint caught a real
+  `react-hooks/set-state-in-effect` error it had introduced and fixed it before reporting.
+  The reviewer had no shell access and so could not byte-diff the extracted default-derivation helper;
+  that claim was verified directly instead — `git show HEAD:app/admin/invoices/invoices-client.tsx`'s
+  `openGenerateDialog` body is line-for-line identical to `computeDefaultBillingForm`, so the legacy
+  dialog's behaviour is unchanged and the two call sites now share one function by construction.
 
 ## Ship Notes

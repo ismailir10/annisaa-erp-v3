@@ -33,17 +33,20 @@ import {
 } from "@/components/ui/sheet";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
+import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
+import { computeDefaultBillingForm, type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
-import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
+import { formatRupiah, formatDateShort } from "@/lib/format";
 import {
   runBulkGenerate,
   type BatchProgressSnapshot,
@@ -81,7 +84,12 @@ type Invoice = {
   _count: { payments: number };
 };
 
-type AcademicYear = { id: string; name: string; status: string };
+// `AcademicYear` + `computeDefaultBillingForm` now live in
+// components/admin/invoices/billing-run-wizard/billing-defaults.ts (Cycle
+// B1, Task T8), imported above — shared by this dialog and the wizard's
+// step 1 rather than defined twice. Re-exported here for any code that
+// still imports the type from this module.
+export type { AcademicYear };
 
 type Pagination = {
   page: number;
@@ -273,6 +281,40 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
   // so no list refresh is needed on success (the user leaves the list view).
   const [manualDialog, setManualDialog] = useState(false);
 
+  // Billing Run wizard (bulk invoice wizard arc, Cycle B1, Task T8). Lives
+  // alongside the legacy "Buat Tagihan" dialog above — retiring that dialog
+  // is Task T10, out of scope here. `wizardResumeId` is set when the entry
+  // point is the resumable-draft banner rather than the "new run" button, so
+  // the wizard opens straight into the existing draft instead of step 1.
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardResumeId, setWizardResumeId] = useState<string | null>(null);
+  const [draftRun, setDraftRun] = useState<{ id: string; periodLabel: string } | null>(null);
+
+  const fetchDraftRun = useCallback(() => {
+    fetch("/api/billing-runs?status=DRAFT&pageSize=1")
+      .then((r) => r.json())
+      .then((json) => {
+        const run = json?.data?.[0];
+        setDraftRun(run ? { id: run.id, periodLabel: run.periodLabel } : null);
+      })
+      .catch((err) => console.error("[invoices] draft billing run fetch failed", err));
+  }, []);
+
+  useEffect(() => {
+    fetchDraftRun();
+  }, [fetchDraftRun]);
+
+  function openWizard() {
+    setWizardResumeId(null);
+    setWizardOpen(true);
+  }
+
+  function resumeWizard() {
+    if (!draftRun) return;
+    setWizardResumeId(draftRun.id);
+    setWizardOpen(true);
+  }
+
   // Bulk-generate + bulk-retry orchestration state (shared progress card).
   // The two flows never overlap on screen — bulk-create runs to completion or
   // is cancelled before bulk-retry can be triggered.
@@ -404,12 +446,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
   }, []);
 
   function openGenerateDialog() {
-    const now = new Date();
-    const monthName = formatMonthLabel(now.getFullYear(), now.getMonth() + 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const dueDate = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
-    const activeYear = years.find((y) => y.status === "ACTIVE");
-    setGenForm({ periodLabel: monthName, dueDate, academicYearId: activeYear?.id ?? "" });
+    setGenForm(computeDefaultBillingForm(years));
     setGenerateDialog(true);
   }
 
@@ -691,9 +728,31 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
             <Button size="sm" variant="outline" onClick={openGenerateDialog} disabled={generating}>
               <Plus size={14} className="mr-1.5" /> Buat Tagihan
             </Button>
+            <Button size="sm" onClick={openWizard}>
+              <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan (Wizard)
+            </Button>
           </div>
         }
       />
+
+      {/* Resumable draft banner (Cycle B1, Task T8) — a DRAFT billing run
+          persists across refreshes; this is how an admin picks it back up
+          instead of it silently sitting invisible until they happen to
+          re-open the wizard fresh and hit the 409. */}
+      {draftRun && (
+        <Alert>
+          <AlertTriangle className="size-4" />
+          <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
+          <AlertDescription>
+            Periode {draftRun.periodLabel} punya draf yang belum dikomit.
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={resumeWizard}>
+              Lanjutkan draf
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
 
       {progress && progress.phase !== "idle" && (
         <BatchProgressCard
@@ -910,6 +969,16 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Billing Run wizard (Cycle B1, Task T8) — new entry point alongside
+          the legacy dialog above. Retiring the legacy dialog is Task T10. */}
+      <BillingRunWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        resumeRunId={wizardResumeId}
+        years={years}
+        onDraftChanged={fetchDraftRun}
+      />
 
     </>
   );
