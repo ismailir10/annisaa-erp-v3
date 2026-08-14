@@ -52,17 +52,19 @@ test.describe("Admin /admin/fees — Keringanan tab", () => {
     test.setTimeout(90_000);
 
     // Resolve a real ACTIVE student, an enabled fee component, and an
-    // academic year via the API — same resolve-then-skip pattern as
-    // admin.spec.ts's combobox test and admin-classes.spec.ts.
+    // academic year via the API. These are hard assertions, not skips: the
+    // demo seed creates all three, so their absence is a broken environment
+    // or a broken seed — either way a failure worth surfacing, not a silently
+    // green test.
     const [studentsRes, feesRes, yearsRes] = await Promise.all([
       page.request.get("/api/students?status=ACTIVE&pageSize=1"),
       page.request.get("/api/fee-components"),
       page.request.get("/api/academic-years"),
     ]);
-    if (!studentsRes.ok() || !feesRes.ok() || !yearsRes.ok()) {
-      test.skip(true, "Reference data endpoints unavailable in this env");
-      return;
-    }
+    expect(studentsRes.ok(), "GET /api/students must succeed").toBeTruthy();
+    expect(feesRes.ok(), "GET /api/fee-components must succeed").toBeTruthy();
+    expect(yearsRes.ok(), "GET /api/academic-years must succeed").toBeTruthy();
+
     const studentsJson = await studentsRes.json();
     const student = studentsJson.data?.[0] as { id: string; name: string } | undefined;
     const fees = (await feesRes.json()) as Array<{
@@ -74,10 +76,10 @@ test.describe("Admin /admin/fees — Keringanan tab", () => {
     const fee = fees.find((f) => f.status === "ACTIVE" && f.isEnabled);
     const years = (await yearsRes.json()) as Array<{ id: string; name: string; status: string }>;
     const year = years.find((y) => y.status === "ACTIVE") ?? years[0];
-    if (!student || !fee || !year) {
-      test.skip(true, "Demo seed missing a required reference row (student/fee component/academic year)");
-      return;
-    }
+    expect(student, "demo seed must provide an ACTIVE student").toBeTruthy();
+    expect(fee, "demo seed must provide an enabled fee component").toBeTruthy();
+    expect(year, "demo seed must provide an academic year").toBeTruthy();
+    if (!student || !fee || !year) return; // narrowing only — the expects above already failed
     const firstLetter = student.name.slice(0, 1);
 
     const uniquePercent = (Date.now() % 89) + 1; // 1-89 — always under the PERCENT ≤ 100 cap

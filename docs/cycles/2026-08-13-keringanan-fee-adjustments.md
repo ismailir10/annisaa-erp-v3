@@ -28,14 +28,14 @@ over 60 days old and not scoped to fees or invoicing.
 
 ### Acceptance criteria
 
-- [ ] New `StudentFeeAdjustment` model: `tenantId`, `studentId`, `academicYearId`, `feeComponentId?`,
+- [x] New `StudentFeeAdjustment` model: `tenantId`, `studentId`, `academicYearId`, `feeComponentId?`,
       `type` (`DISCOUNT` | `SURCHARGE`), `mode` (`PERCENT` | `FIXED`), `value` `Decimal(15,2)`,
       `reason` (required), `validFrom?` / `validTo?` (`YYYY-MM-DD`), `status` (`ACTIVE` | `INACTIVE`),
       `createdBy`, `createdAt`.
-- [ ] Hand-authored `migration.sql` matching house style: `CREATE TABLE`, `ALTER TABLE … ENABLE ROW LEVEL
+- [x] Hand-authored `migration.sql` matching house style: `CREATE TABLE`, `ALTER TABLE … ENABLE ROW LEVEL
       SECURITY`, permissive `service_role` policy, FK indexes — same shape as
       `prisma/migrations/20260731100000_add_raport_narrative_templates/migration.sql`.
-- [ ] Pure resolver `lib/finance/applyAdjustments` computes adjusted lines from base lines + adjustments,
+- [x] Pure resolver `lib/finance/applyAdjustments` computes adjusted lines from base lines + adjustments,
       with these rules made explicit and unit-tested:
   - Validity gate: adjustment applies when `status === "ACTIVE"`, `academicYearId` matches the run, and
     the run's `dueDate` falls inside `[validFrom, validTo]` (either bound null = open).
@@ -46,19 +46,21 @@ over 60 days old and not scoped to fees or invoicing.
     but never make it negative. `totalDue` clamps at 0.
   - An adjustment naming a component the student has no base line for is ignored — no phantom line.
   - `adjustmentNote` on the line is the adjustment `reason`; multiple reasons on one line join with ` · `.
-- [ ] `POST /api/invoices/generate/batch` writes real `adjustmentAmount` / `adjustmentNote` / `finalAmount`
+- [x] `POST /api/invoices/generate/batch` writes real `adjustmentAmount` / `adjustmentNote` / `finalAmount`
       per line and a `totalDue` that reflects them. These columns stop being permanently zero.
-- [ ] `POST /api/invoices/generate/plan` additionally returns `withAdjustments` (count of eligible students
+- [x] `POST /api/invoices/generate/plan` additionally returns `withAdjustments` (count of eligible students
       carrying at least one applicable adjustment), and the bulk confirm dialog surfaces it.
-- [ ] Admin CRUD at `/admin/fees` as a third tab, "Keringanan", following the **Category A** pattern in
+- [x] Admin CRUD at `/admin/fees` as a third tab, "Keringanan", following the **Category A** pattern in
       `.claude/standards/crud.md`: `DataTableToolbar` (search + status filter) → `DataTable` → row actions
       with edit / deactivate / reactivate → `ResponsiveFormDialog` for create+edit → `AlertDialog`
       confirm before deactivate → soft delete via `status`, never a hard delete.
-- [ ] Admin picks the student with a real async search, not a raw id field.
-- [ ] All new API routes are admin-only and tenant-scoped, matching the guard already used by the
+- [x] Admin picks the student with a real async search, not a raw id field.
+- [x] All new API routes are admin-only and tenant-scoped, matching the guard already used by the
       sibling fee routes (`getSession()` + `isAdminRole(session.role)` + `session.tenantId`).
-- [ ] Existing invoice generation tests stay green — a student with no adjustments produces byte-identical
-      invoice lines to today.
+- [x] Existing invoice generation tests stay green — a student with no adjustments produces byte-identical
+      invoice lines to today. *(Met in substance: the batch and `run-bulk-generate` suites, which are what
+      prove this, are untouched and green. Three whole-envelope `toEqual` assertions in the plan suite did
+      have to gain `withAdjustments: 0` — see the T7 note in Implementation.)*
 
 ### Non-goals
 
@@ -178,7 +180,7 @@ over 60 days old and not scoped to fees or invoicing.
       *Acceptance:* `/audit-docs` reports zero `fail` findings.
       *Depends on:* T1-T7.
 
-- [~] **T9 — (Droppable) Invoice duplicate guard. DROPPED — see Ship Notes.** Query staging and prod via Supabase MCP for existing
+- [x] **T9 — (Droppable) Invoice duplicate guard. DROPPED — see Ship Notes.** Query staging and prod via Supabase MCP for existing
       duplicate `(tenantId, studentId, periodLabel)` rows on `Invoice`. If zero, add
       `@@unique([tenantId, studentId, periodLabel])` plus migration, and let the batch route's existing
       `P2002` handling cover the race. If any duplicates exist, **drop this task** and record the finding
@@ -321,6 +323,11 @@ over 60 days old and not scoped to fees or invoicing.
   The guard was left in place rather than overridden with `E2E_ALLOW_REMOTE_DB=1`, since these specs
   create and mutate rows through the API). Required CI check `Playwright E2E` gates the merge; CTO
   will not merge on red.
+- `/ship` Step 1c soft-skip delta: the e2e spec first shipped with a resolve-then-skip guard, which
+  put the delta at +2 against `origin/staging` and blocked the ship. Correctly so — a test that
+  skips itself when the seed looks empty is vacuously green. The three fixture lookups are hard
+  assertions now: the demo seed creates a student, a fee component and an academic year, so their
+  absence is a broken environment, not a reason to pass. Delta back to 0.
 - T9 duplicate precheck, run against both databases via Supabase MCP before deciding:
   staging (`udbivhchbizpxoryejgz`) returned 2 duplicate `(tenantId, studentId, periodLabel)` groups —
   "Juli 2026" and "Agustus 2026", each a pair created hours apart, consistent with repeat bulk runs
