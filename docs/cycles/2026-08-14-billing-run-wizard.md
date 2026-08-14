@@ -180,7 +180,7 @@ over 60 days old and not scoped to invoicing.
       abort behaviours still have equivalent test coverage — verify by name, not by count.
       *Depends on:* T9.
 
-- [ ] **T11 — E2E.** Extend `e2e/admin.spec.ts`'s bulk section (currently drives the retired dialog) to
+- [x] **T11 — E2E.** Extend `e2e/admin.spec.ts`'s bulk section (currently drives the retired dialog) to
       walk the wizard: scope one class → draft → step 2 shows rows → commit → toast. Keep it lean per
       the testing-gate policy; hard assertions only, no seed-conditional skips — `/ship`'s soft-skip
       delta check blocks net growth.
@@ -307,6 +307,16 @@ over 60 days old and not scoped to invoicing.
   inside that sweep.
   Dead code spotted and left for a later pass: `generatePlanSchema` / `generateBatchSchema` in
   `lib/validations/invoice.ts` now have no importers.
+- Task 11: E2E — `e2e/admin.spec.ts` — the bulk test was rewritten in place rather than moved to its
+  own file. The repo convention is that a single-feature admin flow gets its own spec, but this test
+  already existed in the cross-cutting suite as the bulk-generate smoke, and the wizard replaces
+  exactly that path; a new file would have meant deleting a test here and adding an equivalent one
+  next door. It resolves a class with active enrollments via the API first (a class with no students
+  would produce a zero-row draft), scopes the run to that one class so the committed invoice count
+  stays small, and uses a timestamped period label so it never collides with a leaked run. It also
+  handles the leftover-DRAFT case explicitly — on a shared DB that is a real possibility, so the test
+  discards the stale draft and proceeds with its own scope rather than resuming someone else's run.
+  The now-stale header comment about the two toolbar buttons was corrected.
 
 ## Verification
 
@@ -379,5 +389,19 @@ over 60 days old and not scoped to invoicing.
   **Process note:** no separate code-reviewer agent ran on this task. The session was near its usage
   limit, and the criterion that mattered — coverage survival — is the one I verified directly against
   the test file. Recorded rather than left implicit.
+- Task 11: gates passed — `npm run build` exit 0, `npx vitest run` 297 files / 2851 tests passed,
+  `npx eslint e2e/admin.spec.ts` clean. Every selector the spec uses was verified to exist in the
+  components rather than taken on trust — `Buat Tagihan (Wizard)` dialog title, the `Pilih kelas...`
+  trigger and `Cari kelas...` search, `Langkah 2: Tinjau` / `Langkah 3: Komit` headings, the
+  `Komit N Tagihan` button, the `Sudah ada draf tagihan` conflict panel and its
+  `Buang & Mulai Baru` action, and the `tagihan berhasil dibuat` toast.
+  Soft-skip delta is **0** (31 on this branch, 31 on `origin/staging`) — the rewritten test adds no
+  skips, which is the gate Cycle A tripped.
+- Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses a
+  non-local `DATABASE_URL` and this worktree points at shared staging; the guard was left in place
+  rather than overridden). Verbatim: `Error: Refusing to run e2e against non-local DATABASE_URL host
+  "aws-1-ap-southeast-1.pooler.supabase.com"`. Required CI check `Playwright E2E` gates the merge;
+  CTO will not merge on red. **This cycle deletes the old bulk path, so that CI run is the first real
+  execution of the rewritten wizard spec — treat a red Playwright check as a blocker, not a flake.**
 
 ## Ship Notes
