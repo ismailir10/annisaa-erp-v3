@@ -413,6 +413,39 @@ over 60 days old and not scoped to invoicing.
   2 skipped, 42 todo; `npm run lint` 0 errors, 59 warnings, all pre-existing and none in this cycle's
   files.
 
+- Preview-verify iteration 1
+  (`https://annisaa-erp-v3-git-feat-billin-eb85e0-ismails-projects-196d40d3.vercel.app`):
+  flows=[full wizard walk: scope → draft → review → commit; draft-survives-refresh], **blockers=0,
+  minors=1**. Signed in as `ismailir10@gmail.com` per `.claude/verify-accounts.json`.
+  The migration was applied to staging first (`npx prisma migrate deploy`) for the same reason as
+  Cycle A — previews share the staging DB and skip migrate deploy, so the three tables would not have
+  existed. Verified after: all three present, RLS on, one `service_role` policy each, recorded in
+  `_prisma_migrations` so the post-merge deploy skips it.
+  - **The whole chain works end to end.** Scoped to one class (DCARE, 5 students). Step 2 rendered one
+    row per student; Abdullah Faris Siregar carried the "Keringanan" badge at Rp 1.460.000 against his
+    classmates' Rp 1.700.000 — that is Cycle A's grant flowing through the *new* draft builder, not
+    the retired batch route. Expanding him showed `Penyesuaian: Rp -240.000 (Diskon saudara kandung …)`
+    on SPP → Rp 960.000, with no "Penyesuaian: Rp 0" noise on the two unadjusted lines, summing to
+    exactly the row total.
+  - **Exclude works and feeds the totals.** Toggling one student off dimmed the row and struck the
+    amount; step 3 then read 4 billed / 1 excluded / Rp 6.560.000 — exactly
+    1.460.000 + 3 × 1.700.000, with the excluded 1.700.000 correctly absent. Draft age was shown.
+  - **Commit** produced "4 tagihan berhasil dibuat", closed the wizard, refreshed the list 290 → 294,
+    and the four invoices landed with payment links. The excluded student was not billed.
+  - **Draft survives a refresh** — the headline claim. Created a second draft, did a full page
+    reload, and `/admin/invoices` showed "Ada draf tagihan yang belum selesai · Periode Wizard Resume
+    Test" with a "Lanjutkan draf" action.
+  - No console errors on any page walked. The 503s on `/.well-known/vercel/jwe`, an OPTIONS and a HEAD
+    are the same Vercel preview infra noise seen last cycle; every real page GET was 200.
+  - **Minor — and a correction to this doc.** The acceptance criterion "A draft survives a page
+    refresh and can be resumed **or cancelled** from `/admin/invoices`" is only half met: the banner
+    offers "Lanjutkan draf" and no discard. Cancelling is still reachable — starting a new run
+    surfaces the conflict panel with "Buang & Mulai Baru", and `PATCH /api/billing-runs/[id]` exists
+    and is tested — but not from where the criterion says. I ticked that criterion during `/build`
+    having verified only the resume half; that was premature. Not a blocker (nothing is broken and the
+    capability exists), but the banner should get a discard action in B2.
+- Preview-verify converged on iteration 1 (clean): 1 iteration, 0 fix commits.
+
 ## Ship Notes
 
 - **Migrations:** one, additive — `prisma/migrations/20260814000000_add_billing_run/migration.sql`.
@@ -443,4 +476,11 @@ over 60 days old and not scoped to invoicing.
   in application code. Staging holds 2 duplicate groups blocking the index; prod is clean.
 - **Dead code left behind:** `generatePlanSchema` / `generateBatchSchema` in `lib/validations/invoice.ts`
   now have no importers. Harmless, worth a cleanup pass.
+- **The migration is already applied to staging** — run during preview-verify so the preview could
+  exercise the feature. `_prisma_migrations` carries the row, so the post-merge deploy skips it. Prod
+  is untouched and applies it normally on the first promotion.
+- **Preview-verify left fixtures on staging** — 4 invoices under period "Wizard Verify B1" and one
+  open `DRAFT` under "Wizard Resume Test". The open draft is worth knowing about: the one-draft-per-
+  tenant rule means the next admin to start a run will meet the conflict panel and have to discard it.
+  Clean it up with `PATCH /api/billing-runs/<id> {"status":"CANCELLED"}` if that is a nuisance.
 - **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.
