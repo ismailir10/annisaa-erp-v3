@@ -225,6 +225,30 @@ over 60 days old and not scoped to invoicing.
   already-invoiced query keys off that exact string and a trim mismatch there would silently stop
   detecting duplicates.
 
+- Task 3: Line mutation routes — `app/api/billing-runs/[id]/rows/[rowId]/lines/route.ts` (POST) and
+  `.../lines/[lineId]/route.ts` (PATCH + DELETE), `app/api/__tests__/billing-run-lines.test.ts`. Three
+  ownership hops per call, then the DRAFT + row-status allowlist, then the T1 math, then the row-total
+  re-sum — mutation and re-sum share one transaction so a row can never be left with lines that don't
+  match its `totalDue`. The catalog path refuses a duplicate component on a row (a doubled fee is a
+  support call); the discount path get-or-creates the `penyesuaian_manual` system component with a
+  `P2002` catch that re-finds, so two concurrent discount adds produce one component rather than a 500.
+  PATCH never writes `amount` and surfaces `resolveLineEdit`'s rejection as a 400 rather than clamping.
+- Task 4: Rebuild route — `app/api/billing-runs/[id]/rebuild/route.ts`,
+  `app/api/__tests__/billing-runs-rebuild.test.ts`. Reads (including `materializeBillingRun`) outside
+  the transaction, delete-then-recreate inside it, mirroring the create route's split. `run.scope` is a
+  `Json` column and is shape-validated rather than cast — a present-but-malformed field throws instead
+  of silently rebuilding the run down to nothing. The builder's `summary.excluded` is always 0 by
+  construction, so it is corrected to the re-applied count (and `pending` reduced) before returning, or
+  the UI would report 0 excluded immediately after preserving several.
+  **Driver fix after review: the DRAFT and COMMITTED-row guards were check-then-act.** They ran outside
+  the transaction, and the commit route flips a run `DRAFT` → `COMMITTING` and then claims rows inside
+  *its* transaction — so a commit starting between the rebuild's check and its `deleteMany` would have
+  had its rows deleted from under it, leaving invoices written against rows that no longer exist. Both
+  conditions are now re-checked under the run's row lock: a conditional `updateMany` on
+  `{ id, status: "DRAFT" }` is the first statement in the transaction, and the COMMITTED count is
+  re-run after it. Same claim-first shape B1 used for its rows. Two tests cover the lost-race paths and
+  assert nothing was deleted.
+
 ## Verification
 
 - Tasks 1 + 2 (built in parallel, so the suite below covers both): gates passed — `npm run build`
@@ -237,6 +261,17 @@ over 60 days old and not scoped to invoicing.
   summary} =` → `return`), and `diff -u` then reported zero differences. `billing-runs.test.ts`
   (27 tests) passes with the file unedited, which is the real proof the create route's behaviour is
   unchanged.
+- Tasks 3 + 4 (built in parallel): gates passed — `npm run build` exit 0; `npx vitest run`
+  **300 files passed / 2 skipped (302), 2929 tests passed / 42 todo (2971)**. That is +2 files and
+  +36 tests over the T1/T2 point (298 / 2893). `npx eslint` clean on all five touched files.
+  21 line-route tests and 15 rebuild tests. The guard tests assert the write was never attempted
+  (`deleteMany` / `create` `not.toHaveBeenCalled()`), not merely the status code — the repo convention,
+  and the only form that would actually catch a guard that returns 409 after mutating.
+  **The two subagents' reports disagreed and I resolved it against the real output rather than picking
+  one.** T4's run showed `billing-run-lines.test.ts` failing on its P2002 re-find test; T3's later run
+  showed it green. Re-running all three billing-run suites myself returned `Test Files 3 passed (3) /
+  Tests 61 passed (61)` — T3 had fixed the failure after T4 took its snapshot. Worth recording because
+  concurrent subagents in one worktree make every "full suite" number a snapshot of a moving tree.
 
 ## Ship Notes
 
