@@ -210,6 +210,14 @@ over 60 days old and not scoped to invoicing.
   is the one input where the two plausible readings ("bill nobody" vs "bill everybody") differ by ~200
   invoices, so it is rejected rather than guessed. Commit chunk capped at 25, matching `BATCH_SIZE` in
   the existing orchestrator.
+- Task 3: Draft builder — `lib/finance/build-billing-run.ts`,
+  `lib/finance/__tests__/build-billing-run.test.ts` — `buildBillingRunRows()` takes already-fetched
+  data and returns materialized rows + lines + a summary. Deliberately pure: the DB reads stay in the
+  route (T4), so the logic deciding who gets billed is unit-testable without mocking Prisma. Line and
+  total maths are `applyAdjustments` from Cycle A, called not copied, so Cycle A's status /
+  academic-year / validity gate still applies and `totalDue` is the resolver's rather than a re-sum.
+  Scope resolution is class-match ∪ explicit-include, deduped by student (first in-scope enrollment
+  wins, matching the batch route it replaces), with excludes applied last so they win over both.
 
 ## Verification
 
@@ -221,5 +229,10 @@ over 60 days old and not scoped to invoicing.
 - Task 2: gates passed — same build + vitest run as Task 1. 26 schema tests, including the
   empty-scope rejection from both directions (classes-only empty, students-only empty) and the
   commit-cap boundary at 25 accepted / 26 rejected.
+- Task 3: gates passed — same build + vitest run. 16 builder tests covering each of the spec's seven
+  rules plus dedup across two in-scope classes, include-without-class-match, exclude beating both
+  admission paths, and the two skip reasons producing no lines and a zero total. The reviewer was
+  asked specifically whether any rule would still pass if broken; it confirmed the tests assert
+  line-level breakdown (amount / adjustmentAmount / finalAmount / note), not just row counts.
 
 ## Ship Notes
