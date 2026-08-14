@@ -100,19 +100,19 @@ over 60 days old and not scoped to invoicing.
 
 ## Tasks
 
-- [ ] **T1 — Schema + migration.** Add `BillingRun`, `BillingRunRow`, `BillingRunLine` to
+- [x] **T1 — Schema + migration.** Add `BillingRun`, `BillingRunRow`, `BillingRunLine` to
       `prisma/schema.prisma` with `Restrict` FKs, `@@index([tenantId, status])`,
       `@@index([billingRunId, status])`, and `@@unique([billingRunId, studentId])` (a student appears
       once per run). Hand-author the migration with RLS enable + `service_role` policy.
       *Acceptance:* `npx prisma validate` clean, `scripts/verify-rls-coverage.sh` passes with all three
       new tables. *Depends on:* nothing.
 
-- [ ] **T2 — Validation schemas.** `lib/validations/billing-run.ts` — create (scope), row-exclude
+- [x] **T2 — Validation schemas.** `lib/validations/billing-run.ts` — create (scope), row-exclude
       toggle, commit-chunk. Follow the conventions in `lib/validations/student-fee-adjustment.ts`.
       *Acceptance:* unit tests reject an empty scope, a commit chunk over the cap, and a malformed
       `dueDate`. *Depends on:* T1.
 
-- [ ] **T3 — Draft builder.** `lib/finance/build-billing-run.ts` — given scope + tenant + year +
+- [x] **T3 — Draft builder.** `lib/finance/build-billing-run.ts` — given scope + tenant + year +
       dueDate, resolve in-scope students (class multi-select ∪ explicit includes, minus excludes),
       classify each into eligible / already-invoiced / no-fee-structure, and materialize rows + lines
       through `applyAdjustments` (reuse from Cycle A, unchanged). Keep the DB reads at the edges so
@@ -145,7 +145,7 @@ over 60 days old and not scoped to invoicing.
       exactly as drafted, and a payment-link failure leaves the invoice `PENDING_PAYMENT_LINK` without
       failing the row. *Depends on:* T4.
 
-- [ ] **T7 — Extract + extend the class picker.** Move `ClassSectionCombobox` out of
+- [x] **T7 — Extract + extend the class picker.** Move `ClassSectionCombobox` out of
       `app/admin/students/[id]/page.tsx:73-170` into `components/admin/class-section-picker.tsx`,
       preserving today's single-select behaviour for the existing caller, and add a multi-select
       variant grouped by campus. Same shape as Cycle A's `StudentPicker` extraction.
@@ -195,6 +195,22 @@ over 60 days old and not scoped to invoicing.
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-4-6; T1 ∥ T7 parallel, then T2 ∥ T3,
+  then T4, then T5 ∥ T6, then T8, T9, T10, T11, T12 sequential (each depends on the last).
+- Task 1: Schema + migration — `prisma/schema.prisma`,
+  `prisma/migrations/20260814000000_add_billing_run/migration.sql` — three models. The cascade split is
+  the load-bearing part: rows and lines `Cascade` from their parent so deleting a run cleans up after
+  itself, while `student` and `feeComponent` stay `Restrict`. `BillingRunRow.invoiceId` is a plain
+  nullable column rather than a relation, deliberately — it is the commit idempotency guard, and
+  keeping it unrelated means voiding an invoice can never block deleting the run that produced it.
+  Diff is 73 insertions, 0 deletions; `prisma format` was explicitly not run.
+
 ## Verification
+
+- Task 1: gates passed — `npm run build` exit 0, `npx vitest run` 297 files / 2825 tests passed,
+  2 skipped, 42 todo. `npx prisma validate` valid, `scripts/verify-rls-coverage.sh` → 41/41.
+  Whitespace-churn guard: `git diff --stat` and `git diff -w --stat` both report 73 insertions, so the
+  change is additions-only. `feature-dev:code-reviewer` compared the migration to the models column by
+  column, including the cascade/restrict split, and found no drift.
 
 ## Ship Notes
