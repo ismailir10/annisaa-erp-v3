@@ -134,7 +134,7 @@ over 60 days old and not scoped to invoicing.
       *Acceptance:* tests for tenant scoping, 404 cross-tenant, pagination, and that exclude flips
       status without touching lines. *Depends on:* T4.
 
-- [ ] **T6 — Commit route.** `POST /api/billing-runs/[id]/commit` taking a chunk of row ids. Per chunk,
+- [x] **T6 — Commit route.** `POST /api/billing-runs/[id]/commit` taking a chunk of row ids. Per chunk,
       inside one transaction: re-check the already-invoiced condition, reserve invoice numbers
       (`reserveInvoiceNumbers`), create invoices + lines **from the draft rows verbatim**, set
       `BillingRunRow.invoiceId`. Then the post-commit payment-session fan-out, reusing the existing
@@ -244,6 +244,23 @@ over 60 days old and not scoped to invoicing.
   - **Cancel denylisted `COMMITTED` instead of allowlisting `DRAFT`**, so a `COMMITTING` run could be
     cancelled with a commit in flight, leaving invoices written against a run marked `CANCELLED`.
     Inverted, so any status added later is refused by default instead of silently becoming cancellable.
+- Task 6: Commit route — `app/api/billing-runs/[id]/commit/route.ts`,
+  `app/api/__tests__/billing-runs-commit.test.ts` — takes a chunk of row ids, re-checks duplicates
+  against live `Invoice` data, then in one transaction reserves invoice numbers and writes invoices +
+  lines **verbatim from the draft**. Payment-session fan-out reuses the batch route's `limit(2)` and
+  `formatPaymentLinkError`, outside the transaction, so a gateway failure leaves
+  `PENDING_PAYMENT_LINK` without rolling anything back.
+  **The critical fix in this task: rows are now claimed inside the transaction.** As first written,
+  the `PENDING && invoiceId == null` guard ran outside the transaction — classic check-then-act. Two
+  overlapping commits naming the same rows would both see PENDING, both find no live duplicate, and
+  both create an invoice, leaving the family with two payable links. Not hypothetical:
+  `run-bulk-generate` retries a chunk with an identical body on any 5xx or network error, so a
+  client-perceived timeout mid-commit is exactly that race. The claim is now the first write in the
+  transaction — a conditional `updateMany` on `{ id, status: "PENDING", invoiceId: null }` — with
+  invoice ids pre-generated so the claim can carry the real `invoiceId`. A concurrent transaction
+  blocks on the row lock, re-evaluates the predicate after the first commits, matches nothing, and
+  drops the row. Only claim winners get an invoice. This also removed the createMany-then-re-query
+  dance the batch route needs.
 
 ## Verification
 
@@ -275,5 +292,16 @@ over 60 days old and not scoped to invoicing.
   on security-sensitive diffs. Only the security reviewer ran on this pair — the session hit its
   usage limit mid-cycle and the second pass was dropped deliberately to keep budget for the commit
   route, which is the higher-risk diff. Recorded here rather than left implicit.
+- Task 6: gates passed — `npm run build` exit 0, `npx vitest run` 299 files / 2873 tests passed,
+  2 skipped, 42 todo. 21 commit tests. Two were added or strengthened after review:
+  - a **lost-claim test** — the row looked PENDING on read but the in-transaction `updateMany` matches
+    0 rows, asserting no invoice and no line is written. This is the retry path.
+  - the **verbatim-amounts test was weak and is now real.** Its fixture had `totalDue` equal to the
+    sum of its lines, so a recomputing implementation would have passed it — the assertion proved
+    nothing. The fixture now models a stale draft (`totalDue: 999_000` against a single 450_000 line),
+    which is the only shape that can distinguish "trusts the draft" from "re-sums the lines".
+  `superpowers:code-reviewer` confirmed tenant isolation, transaction boundary, `reserveInvoiceNumbers`
+  receiving the tx client, and that the duplicate re-check uses the same `periodLabel` the invoice is
+  written with (no trim mismatch).
 
 ## Ship Notes
