@@ -445,6 +445,23 @@ over 60 days old and not scoped to invoicing.
     having verified only the resume half; that was premature. Not a blocker (nothing is broken and the
     capability exists), but the banner should get a discard action in B2.
 - Preview-verify converged on iteration 1 (clean): 1 iteration, 0 fix commits.
+- **CI caught what preview-verify could not: the new e2e spec was contaminating later specs.**
+  The first `Playwright E2E` run on PR #494 came back red — 2 failed, 141 passed. Neither failure was
+  the wizard spec, which passed. They were `parent.spec.ts:91` (expects the seeded parent to read
+  "Lunas semua") and `payment.spec.ts:56` (invoice detail shim). Cause: the wizard spec **committed
+  real invoices**, so a scoped class's student — who belongs to that seeded parent — suddenly had an
+  outstanding balance. Specs share one database and run in file order, so `admin.spec.ts` writing
+  billing rows silently changes the world every later spec observes. The old bulk test got away with
+  it because its invoices all failed to get payment links and stayed `PENDING_PAYMENT_LINK`; the
+  wizard's commit succeeds, which is precisely what makes it visible to the parent portal.
+  Fixed in the spec rather than by weakening the two victims: it now stops at step 3 having asserted
+  a live "Komit N Tagihan" button, then cancels its own draft via the API so no open `DRAFT` is left
+  to trip the one-draft-per-tenant rule on the next run. Reaching step 3 with resolved totals already
+  proves what the spec is for — the wizard walks and the draft materialized real rows. The commit
+  path stays covered by the 21 route tests in `billing-runs-commit.test.ts`, which is where business
+  logic belongs per the testing-gate policy.
+  This is a good argument for CI over local Playwright: the contamination is only visible when the
+  whole suite runs in order against one database, which is exactly what the required check does.
 
 ## Ship Notes
 
