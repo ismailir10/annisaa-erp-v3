@@ -204,6 +204,12 @@ over 60 days old and not scoped to invoicing.
   nullable column rather than a relation, deliberately — it is the commit idempotency guard, and
   keeping it unrelated means voiding an invoice can never block deleting the run that produced it.
   Diff is 73 insertions, 0 deletions; `prisma format` was explicitly not run.
+- Task 2: Validation schemas — `lib/validations/billing-run.ts`,
+  `lib/validations/__tests__/billing-run.test.ts` — create / row-status / commit-chunk / cancel
+  schemas. `createBillingRunSchema` refuses a scope with neither classes nor students: an empty scope
+  is the one input where the two plausible readings ("bill nobody" vs "bill everybody") differ by ~200
+  invoices, so it is rejected rather than guessed. Commit chunk capped at 25, matching `BATCH_SIZE` in
+  the existing orchestrator.
 
 ## Verification
 
@@ -212,5 +218,8 @@ over 60 days old and not scoped to invoicing.
   Whitespace-churn guard: `git diff --stat` and `git diff -w --stat` both report 73 insertions, so the
   change is additions-only. `feature-dev:code-reviewer` compared the migration to the models column by
   column, including the cascade/restrict split, and found no drift.
+- Task 2: gates passed — same build + vitest run as Task 1. 26 schema tests, including the
+  empty-scope rejection from both directions (classes-only empty, students-only empty) and the
+  commit-cap boundary at 25 accepted / 26 rejected.
 
 ## Ship Notes
