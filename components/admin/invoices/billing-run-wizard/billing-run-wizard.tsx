@@ -117,6 +117,14 @@ export function BillingRunWizard({
     handleClose();
   }
 
+  // Mirror image of handleReviewAdvance — step 3's "Hitung ulang" (Cycle B2,
+  // Task T6) rebuilds the draft's rows from current data and sends the admin
+  // back to step 2 so the rebuilt rows get reviewed before a re-commit.
+  // `billingRunId` is untouched: it is the same run, just rematerialized.
+  function handleRebuilt() {
+    setStep(2);
+  }
+
   const body = (
     <>
       <StepIndicator steps={STEPS} current={step} />
@@ -142,7 +150,12 @@ export function BillingRunWizard({
           <ReviewStep runId={billingRunId} onAdvance={handleReviewAdvance} onClose={handleClose} />
         )}
         {step === 3 && billingRunId && (
-          <CommitStep runId={billingRunId} onClose={handleClose} onCommitted={handleCommitted} />
+          <CommitStep
+            runId={billingRunId}
+            onClose={handleClose}
+            onCommitted={handleCommitted}
+            onRebuilt={handleRebuilt}
+          />
         )}
       </div>
     </>

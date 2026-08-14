@@ -175,7 +175,7 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 **1. Create**
 - Fee/charge types ("Komponen Biaya") — code, label, category, recurring vs one-time, display order.
 - Fee amounts per program & year ("Struktur Biaya") — what invoices calculate from.
-- Invoices — bulk generate via the three-step Billing Run wizard (scope by class and/or individual students → review the materialized rows with keringanan already applied, dropping anyone who should not be billed → commit, which creates the invoices and auto-tries an online payment link), or manual single invoice (hand-pick components/amounts for one student).
+- Invoices — bulk generate via the three-step Billing Run wizard (scope by class and/or individual students → review and edit the materialized rows: keringanan is already applied, and an admin can change a component's amount, add an ad-hoc potongan, add a component from the catalog, remove a line, or drop anyone who should not be billed → commit, which creates the invoices and auto-tries an online payment link). A stale draft can be recomputed from current fee data with "Hitung Ulang" (manual edits are discarded, exclusions are kept), and an abandoned draft discarded from the banner on `/admin/invoices`. Or manual single invoice (hand-pick components/amounts for one student).
 - Payments against an invoice — amount, method (cash/bank/virtual account/other), reference, notes. Partial payments supported.
 - Online payment links (Xendit) generatable per invoice.
 

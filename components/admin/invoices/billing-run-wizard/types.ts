@@ -123,3 +123,51 @@ export type CommitBillingRunResponse = {
   skipped: number;
   results: CommitBillingRunResultRow[];
 };
+
+// ------------------------------------------------------------------
+// Line mutations (Cycle B2, Task T5) — mirror `createBillingRunLineSchema`
+// / `updateBillingRunLineSchema` in lib/validations/billing-run.ts and the
+// POST/PATCH/DELETE responses on
+// app/api/billing-runs/[id]/rows/[rowId]/lines/route.ts and
+// .../lines/[lineId]/route.ts.
+// ------------------------------------------------------------------
+
+// Mirrors `LineSource` in lib/finance/billing-run-lines.ts as a plain type,
+// same convention as `BillingRunRowStatus` above.
+export type BillingRunLineSource = "BASE" | "ADJUSTMENT" | "EDITED" | "MANUAL";
+
+export type CreateBillingRunLinePayload = {
+  mode: "CATALOG" | "DISCOUNT";
+  feeComponentId?: string;
+  label: string;
+  amount: number;
+};
+
+export type UpdateBillingRunLinePayload = {
+  finalAmount: number;
+  label?: string;
+  note?: string | null;
+};
+
+// POST and PATCH both return the affected line plus the row's re-summed
+// `totalDue` — step 2 patches local state from this response rather than
+// refetching the page, same pattern as `handleToggleInclude` in
+// step-2-review.tsx.
+export type MutateBillingRunLineResponse = {
+  line: BillingRunLineData;
+  totalDue: number;
+};
+
+export type DeleteBillingRunLineResponse = {
+  totalDue: number;
+};
+
+// `GET /api/fee-components` — the shape line-editor.tsx's catalog picker
+// needs. The route returns every FeeComponentDef field for the tenant;
+// this is the subset the picker filters and renders on.
+export type FeeComponentOption = {
+  id: string;
+  label: string;
+  isEnabled: boolean;
+  status: string;
+};

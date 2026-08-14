@@ -22,7 +22,7 @@ import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
 import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
-import { userMessage } from "@/lib/api/client-errors";
+import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import {
@@ -196,6 +196,13 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
   const [wizardResumeId, setWizardResumeId] = useState<string | null>(null);
   const [draftRun, setDraftRun] = useState<{ id: string; periodLabel: string } | null>(null);
 
+  // Resume-banner discard (Cycle B2, Task T6) — closes B1's half-shipped
+  // acceptance criterion: the banner offered "Lanjutkan draf" only, so a
+  // draft was reachable to cancel only via the step-1 409 conflict panel's
+  // "Buang & Mulai Baru". Drives the same PATCH /api/billing-runs/[id]
+  // { status: "CANCELLED" } that panel uses.
+  const [discardDraftOpen, setDiscardDraftOpen] = useState(false);
+
   const fetchDraftRun = useCallback(() => {
     fetch("/api/billing-runs?status=DRAFT&pageSize=1")
       .then((r) => r.json())
@@ -219,6 +226,29 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
     if (!draftRun) return;
     setWizardResumeId(draftRun.id);
     setWizardOpen(true);
+  }
+
+  // Cancels the DRAFT run behind the banner, then refetches so the banner
+  // disappears — the same effect a fully-committed run has on this state.
+  // After this, opening a fresh wizard must NOT hit the 409 conflict panel,
+  // since the only DRAFT run is now CANCELLED.
+  async function handleDiscardDraft() {
+    if (!draftRun) return;
+    try {
+      const res = await fetch(`/api/billing-runs/${draftRun.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new ApiError(body?.error ?? "Gagal membuang draf");
+      }
+      toast.success("Draf tagihan dibuang");
+      fetchDraftRun();
+    } catch (err) {
+      toast.error(userMessage(err, "Gagal membuang draf"));
+    }
   }
 
   // Bulk-retry orchestration state (pending-payment-link retry, unrelated to
@@ -556,13 +586,33 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
           <AlertDescription>
             Periode {draftRun.periodLabel} punya draf yang belum dikomit.
           </AlertDescription>
-          <AlertAction>
+          <AlertAction className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
+              Buang draf
+            </Button>
             <Button size="sm" variant="outline" onClick={resumeWizard}>
               Lanjutkan draf
             </Button>
           </AlertAction>
         </Alert>
       )}
+
+      {/* Discard-draft confirm (Cycle B2, Task T6) — names the period and
+          the consequence per .claude/standards/voice.md's destructive-
+          confirmations table, never a bare "are you sure?". */}
+      <ConfirmDialog
+        open={discardDraftOpen}
+        onOpenChange={setDiscardDraftOpen}
+        title="Buang draf tagihan ini?"
+        description={
+          draftRun
+            ? `Draf periode ${draftRun.periodLabel} akan dibatalkan dan tidak bisa dilanjutkan lagi. Anda bisa membuat draf baru kapan saja.`
+            : ""
+        }
+        confirmLabel="Buang Draf"
+        onConfirm={handleDiscardDraft}
+        destructive
+      />
 
       {retryProgress && (
         <BatchProgressCard

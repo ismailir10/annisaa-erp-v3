@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   cancelBillingRunSchema,
   commitBillingRunSchema,
+  createBillingRunLineSchema,
   createBillingRunSchema,
+  rebuildBillingRunSchema,
+  updateBillingRunLineSchema,
   updateBillingRunRowSchema,
 } from "../billing-run";
 
@@ -142,6 +145,145 @@ describe("cancelBillingRunSchema", () => {
 
   it("rejects a missing status", () => {
     const r = cancelBillingRunSchema.safeParse({});
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("createBillingRunLineSchema", () => {
+  const validCatalog = {
+    mode: "CATALOG" as const,
+    feeComponentId: "comp-1",
+    label: "Uang Gedung",
+    amount: 500_000,
+  };
+
+  it("accepts a valid CATALOG line", () => {
+    const r = createBillingRunLineSchema.safeParse(validCatalog);
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects a CATALOG line without feeComponentId", () => {
+    const r = createBillingRunLineSchema.safeParse({
+      mode: "CATALOG",
+      label: "Uang Gedung",
+      amount: 500_000,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts a valid DISCOUNT line with no feeComponentId", () => {
+    const r = createBillingRunLineSchema.safeParse({
+      mode: "DISCOUNT",
+      label: "Potongan yatim",
+      amount: 50_000,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects a DISCOUNT line that supplies a feeComponentId", () => {
+    const r = createBillingRunLineSchema.safeParse({
+      mode: "DISCOUNT",
+      feeComponentId: "comp-1",
+      label: "Potongan yatim",
+      amount: 50_000,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a negative amount on a DISCOUNT line (amount is always a positive magnitude)", () => {
+    const r = createBillingRunLineSchema.safeParse({
+      mode: "DISCOUNT",
+      label: "Potongan yatim",
+      amount: -50_000,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a negative amount on a CATALOG line", () => {
+    const r = createBillingRunLineSchema.safeParse({ ...validCatalog, amount: -1 });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a non-integer amount", () => {
+    const r = createBillingRunLineSchema.safeParse({ ...validCatalog, amount: 500_000.5 });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects an empty label", () => {
+    const r = createBillingRunLineSchema.safeParse({ ...validCatalog, label: "" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a missing mode", () => {
+    const r = createBillingRunLineSchema.safeParse({
+      label: "Uang Gedung",
+      amount: 500_000,
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("updateBillingRunLineSchema", () => {
+  it("accepts a valid payload with a positive finalAmount", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000 });
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts a negative finalAmount (e.g. a MANUAL discount line)", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: -50_000 });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects a non-integer finalAmount", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000.25 });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a missing finalAmount", () => {
+    const r = updateBillingRunLineSchema.safeParse({});
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts note: null so a note can be cleared", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000, note: null });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.note).toBeNull();
+    }
+  });
+
+  it("accepts a payload omitting note entirely", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000 });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.note).toBeUndefined();
+    }
+  });
+
+  it("accepts an optional label", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000, label: "Uang SPP" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects an empty label when supplied", () => {
+    const r = updateBillingRunLineSchema.safeParse({ finalAmount: 400_000, label: "" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("rebuildBillingRunSchema", () => {
+  it("accepts confirm: true", () => {
+    const r = rebuildBillingRunSchema.safeParse({ confirm: true });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects confirm: false", () => {
+    const r = rebuildBillingRunSchema.safeParse({ confirm: false });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects an empty POST body (no confirm field)", () => {
+    const r = rebuildBillingRunSchema.safeParse({});
     expect(r.success).toBe(false);
   });
 });

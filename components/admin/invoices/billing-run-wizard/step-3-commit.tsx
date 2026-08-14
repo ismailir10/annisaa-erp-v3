@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah, formatRelativeTime } from "@/lib/format";
-import { userMessage } from "@/lib/api/client-errors";
+import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { runBulkCommit } from "@/lib/finance/run-bulk-generate";
+import { rowHasKeringanan } from "@/lib/finance/billing-run-line-source";
 import type { BillingRunDetail, BillingRunRowData } from "./types";
 
 // Step 3 — Commit (Cycle B1, Task T9; repointed onto the shared bulk-commit
@@ -32,10 +34,14 @@ import type { BillingRunDetail, BillingRunRowData } from "./types";
 // 25 has to know all 200 before it can start.
 const FETCH_ALL_PAGE_SIZE = 100;
 
-// Draft staleness threshold (Cycle B1 spec Assumption 2). Purely informational
-// this cycle — no "hitung ulang" rebuild action; that is Cycle B2. 24h is a
-// judgment call: a same-day draft is very unlikely to have a fee-structure or
-// keringanan change under it, a multi-day-old one plausibly does.
+// Draft staleness threshold (Cycle B1 spec Assumption 2). Surfaces the
+// "Hitung ulang" rebuild prompt inside the stale-draft Alert (Cycle B2, Task
+// T6 — POST /api/billing-runs/[id]/rebuild). 24h is a judgment call: a
+// same-day draft is very unlikely to have a fee-structure or keringanan
+// change under it, a multi-day-old one plausibly does. It is a heuristic, not
+// a guarantee — the rebuild control itself is always offered below,
+// regardless of age, since a draft can go stale in an hour if someone edits a
+// fee structure mid-session.
 const STALE_DRAFT_MS = 24 * 60 * 60 * 1000;
 
 type CommitPhase = "idle" | "running" | "sweeping" | "done" | "aborted" | "error";
@@ -59,7 +65,9 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
     (r) => r.status === "SKIPPED_ALREADY_INVOICED" || r.status === "SKIPPED_NO_FEE_STRUCTURE",
   );
   const alreadyCommitted = rows.filter((r) => r.status === "COMMITTED");
-  const withAdjustments = pending.filter((r) => r.lines.some((l) => Number(l.adjustmentAmount) !== 0));
+  // Same predicate as step 2's badge — shared so the two can never disagree
+  // about what counts as a keringanan. See rowHasKeringanan's doc comment.
+  const withAdjustments = pending.filter((r) => rowHasKeringanan(r.lines));
 
   return {
     createdAt: run.createdAt,
@@ -91,16 +99,36 @@ function useBeforeUnloadWhileRunning(running: boolean) {
   }, [running]);
 }
 
+/** POST /api/billing-runs/[id]/rebuild success body — mirrors
+ *  CreateBillingRunResponse's `summary` shape (materializeBillingRun is
+ *  shared by both routes) plus the rebuild-only `reappliedExclusions` count. */
+type RebuildResponse = {
+  id: string;
+  summary: {
+    total: number;
+    pending: number;
+    excluded: number;
+    skippedAlreadyInvoiced: number;
+    skippedNoFeeStructure: number;
+    withAdjustments: number;
+  };
+  reappliedExclusions: number;
+};
+
 export function CommitStep({
   runId,
   onClose,
   onCommitted,
+  onRebuilt,
 }: {
   runId: string;
   onClose: () => void;
   /** Fired once the run has nothing left to commit — parent refreshes the
    *  invoice list + closes the wizard. */
   onCommitted: () => void;
+  /** Fired once "Hitung ulang" succeeds — parent sends the wizard back to
+   *  step 2 so the rebuilt rows get reviewed before a re-commit. */
+  onRebuilt: () => void;
 }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +138,13 @@ export function CommitStep({
   const [progress, setProgress] = useState({ done: 0, total: 0, created: 0, skipped: 0 });
   const [phase, setPhase] = useState<CommitPhase>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // "Hitung ulang" (Cycle B2, Task T6) — rebuild confirm dialog + in-flight
+  // state. Kept separate from `phase`/`isRunning` (the commit loop's state
+  // machine) since a rebuild is a different request entirely and must stay
+  // disabled *while a commit is running* without itself being mistaken for one.
+  const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
@@ -261,6 +296,45 @@ export function CommitStep({
     abortRef.current?.abort();
   }
 
+  // "Hitung ulang" (Cycle B2, Task T6) — rebuilds the draft's rows + lines
+  // from current fee structures/keringanan via POST
+  // /api/billing-runs/[id]/rebuild. Discards every manual line edit; keeps
+  // EXCLUDED rows excluded by studentId (server-side, Assumption 5). Never
+  // called while a commit is running — the "Hitung Ulang" triggers are both
+  // disabled via `isRunning` below, and the confirm dialog itself only opens
+  // from those triggers.
+  async function handleRebuild() {
+    setRebuilding(true);
+    try {
+      const res = await fetch(`/api/billing-runs/${runId}/rebuild`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        // Surface the server's own message verbatim — it already names the
+        // exact reason (draf bukan DRAFT / sebagian sudah dikomit) rather
+        // than a generic fallback.
+        throw new ApiError(body?.error ?? "Gagal menghitung ulang draf");
+      }
+      const out = (await res.json()) as RebuildResponse;
+      if (!mountedRef.current) return;
+      toast.success(
+        `${out.summary.pending} siswa akan ditagih setelah dihitung ulang` +
+          (out.reappliedExclusions > 0
+            ? `, ${out.reappliedExclusions} pengecualian dipertahankan.`
+            : "."),
+      );
+      onRebuilt();
+    } catch (err) {
+      if (!mountedRef.current) return;
+      toast.error(userMessage(err, "Gagal menghitung ulang draf"));
+    } finally {
+      if (mountedRef.current) setRebuilding(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-field">
@@ -347,9 +421,19 @@ export function CommitStep({
           <AlertTitle>Draf ini sudah agak lama</AlertTitle>
           <AlertDescription>
             Struktur biaya atau keringanan mungkin sudah berubah sejak draf ini dibuat. Nilai
-            tagihan di atas tetap memakai angka draf — pertimbangkan membuat draf baru jika data
-            sudah berubah signifikan.
+            tagihan di atas tetap memakai angka draf — hitung ulang untuk memakai data terkini.
           </AlertDescription>
+          <AlertAction>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRebuildConfirmOpen(true)}
+              disabled={isRunning || rebuilding}
+            >
+              Hitung Ulang
+            </Button>
+          </AlertAction>
         </Alert>
       ) : null}
 
@@ -389,7 +473,21 @@ export function CommitStep({
         </Card>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
+        {/* Secondary rebuild control — offered regardless of draft age
+            (Task T6), not just from the stale-draft Alert above. A draft can
+            go stale in an hour if someone edits a fee structure mid-session;
+            STALE_DRAFT_MS is a 24h heuristic, not a guarantee. */}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setRebuildConfirmOpen(true)}
+          disabled={isRunning || rebuilding}
+          className="sm:mr-auto"
+        >
+          <RotateCcw size={14} aria-hidden />
+          Hitung Ulang
+        </Button>
         <Button type="button" variant="ghost" onClick={onClose} disabled={isRunning}>
           Tutup
         </Button>
@@ -409,6 +507,21 @@ export function CommitStep({
           </Button>
         )}
       </div>
+
+      {/* "Hitung ulang" confirm (Task T6) — names exactly what is lost, per
+          .claude/standards/voice.md's destructive-confirmations table: name
+          the record, describe what happens, never "are you sure?". Shared by
+          both triggers above (the stale-Alert action and the always-on
+          secondary control). */}
+      <ConfirmDialog
+        open={rebuildConfirmOpen}
+        onOpenChange={setRebuildConfirmOpen}
+        title="Hitung ulang draf ini?"
+        description="Baris dan nominal tagihan akan dihitung ulang dari struktur biaya dan keringanan terkini. Semua perubahan manual pada baris — nominal yang diubah, potongan, dan komponen tambahan — akan hilang. Siswa yang sudah dikecualikan tetap dikecualikan."
+        confirmLabel="Hitung Ulang"
+        onConfirm={handleRebuild}
+        destructive
+      />
     </div>
   );
 }

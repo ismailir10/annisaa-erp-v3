@@ -527,6 +527,71 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await expect(dialog.getByText(/Draf tidak menghasilkan baris tagihan/)).not.toBeVisible();
     await expect(dialog.getByRole("listitem").first()).toBeVisible({ timeout: 15_000 });
 
+    // Cycle B2 (docs/cycles/2026-08-14-billing-run-wizard-b2.md, Task T7):
+    // expand a row, edit one line's final amount, and confirm the row total
+    // re-sums to match. Selectors read directly off line-editor.tsx and
+    // step-2-review.tsx, not guessed:
+    //   - the row's expand button aria-label is "Tampilkan rincian tagihan
+    //     {student}" while collapsed (step-2-review.tsx:154-158); a row with
+    //     no materialized lines (SKIPPED_*) instead gets the disabled
+    //     "Tidak ada rincian" label, so filtering on this pattern lands on a
+    //     row EditableRowLines will actually mount for (PENDING/EXCLUDED).
+    //   - the row total is the "font-currency" span rendered in the row
+    //     header regardless of expand state (step-2-review.tsx:198-206).
+    //   - the per-line edit trigger's aria-label is "Edit baris
+    //     {labelSnapshot}" (line-editor.tsx:650).
+    //   - the amount field is labelled "Jumlah Akhir" via a real
+    //     <label htmlFor> (line-editor.tsx:207-225, components/ui/field.tsx
+    //     FieldLabel → components/ui/label.tsx <label>).
+    // Filter on the state-INDEPENDENT part of the label. Playwright locators
+    // are lazy and re-resolve on every use, so filtering on
+    // /^Tampilkan rincian tagihan/ made this row stop matching the moment the
+    // click below expanded it and flipped its aria-label to "Sembunyikan…" —
+    // every later `editableRow.…` then resolved to nothing. That is exactly
+    // how CI failed the first time this block ran. /rincian tagihan/ matches
+    // both states while still excluding SKIPPED_* rows, whose expand button is
+    // disabled and labelled "Tidak ada rincian".
+    const editableRow = dialog
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("button", { name: /rincian tagihan/ }) })
+      .first();
+    await expect(editableRow, "no row with expandable lines in this draft").toBeVisible({
+      timeout: 15_000,
+    });
+
+    const rowTotal = editableRow.locator("span.font-currency").first();
+    const totalBeforeText = await rowTotal.innerText();
+    const totalBefore = Number(totalBeforeText.replace(/[^\d]/g, ""));
+    expect(Number.isFinite(totalBefore), `unparsable row total "${totalBeforeText}"`).toBe(true);
+
+    await editableRow.getByRole("button", { name: /^Tampilkan rincian tagihan/ }).click();
+
+    const editButton = editableRow.getByRole("button", { name: /^Edit baris / }).first();
+    await expect(editButton, "expanded row has no editable line — not PENDING/EXCLUDED").toBeVisible({
+      timeout: 10_000,
+    });
+    await editButton.click();
+
+    const editDialog = page.getByRole("dialog", { name: /Edit Baris Tagihan/ });
+    await expect(editDialog).toBeVisible({ timeout: 10_000 });
+
+    const amountInput = editDialog.getByLabel("Jumlah Akhir");
+    const currentAmount = Number(await amountInput.inputValue());
+    expect(Number.isFinite(currentAmount), "unparsable line amount input value").toBe(true);
+    const delta = 1_000; // distinct from the current value; always legal (increase, never negative)
+    const nextAmount = currentAmount + delta;
+    await amountInput.fill(String(nextAmount));
+    await editDialog.getByRole("button", { name: /^Simpan$/ }).click();
+    await expect(editDialog).not.toBeVisible({ timeout: 10_000 });
+
+    // BillingRunRow.totalDue is re-summed server-side on every line mutation
+    // (Spec acceptance) and handleLineUpdated (step-2-review.tsx) patches the
+    // response straight into rowsPage state — the row total must move by
+    // exactly the edit's delta, with no page reload.
+    await expect(rowTotal).toHaveText(`Rp ${(totalBefore + delta).toLocaleString("id-ID")}`, {
+      timeout: 10_000,
+    });
+
     await dialog.getByRole("button", { name: /^Lanjutkan$/ }).click();
 
     // Step 3 — Commit (step-3-commit.tsx). The commit button's label
