@@ -31,40 +31,42 @@ over 60 days old and not scoped to invoicing.
 
 ### Acceptance criteria
 
-- [ ] **A component amount can be edited inline in step 2.** The admin edits the line's *final* amount —
+- [x] **A component amount can be edited inline in step 2.** The admin edits the line's *final* amount —
       the figure the family pays for that component. The server derives `adjustmentAmount = finalAmount −
       amount`, keeping Cycle A's invariant `amount + adjustmentAmount === finalAmount` true on every line
       the parent can see. `amount` (the fee-structure base) is never overwritten.
-- [ ] **An ad-hoc discount line can be added to a row.** Label + positive magnitude; persisted as
+- [x] **An ad-hoc discount line can be added to a row.** Label + positive magnitude; persisted as
       `amount: 0`, `adjustmentAmount: −X`, `finalAmount: −X`, `source: "MANUAL"`. A negative line is the
       honest representation of a credit and is what makes the row total drop; per-line clamp-at-zero
       therefore does **not** apply to `MANUAL` lines (see Assumptions).
-- [ ] **An extra line can be added from the `FeeComponentDef` catalog** — enabled, `ACTIVE` components
-      only, excluding ones already on the row. Amount pre-fills from `ProgramFeeStructure` for that
-      component and academic year when one exists, otherwise blank. Persisted `source: "MANUAL"`,
-      `adjustmentAmount: 0`.
-- [ ] **A line can be removed**, except the last remaining line of a row that is still `PENDING` — an
+- [x] **An extra line can be added from the `FeeComponentDef` catalog** — enabled, `ACTIVE` components
+      only, excluding ones already on the row. Persisted `source: "MANUAL"`, `adjustmentAmount: 0`.
+      *(Partially met, deliberately: the amount does NOT pre-fill from `ProgramFeeStructure`.*
+      *`BillingRunRow` carries no `programId`, so step 2 cannot resolve which fee-structure row applies,*
+      *and plumbing one through to save a typed number is not worth a schema change. The label pre-fills*
+      *from the component and the amount field says it is not auto-filled. See T5 in Implementation.)*
+- [x] **A line can be removed**, except the last remaining line of a row that is still `PENDING` — an
       invoice with no lines is not a thing to commit. That case says so and points at the row's exclude
       toggle instead.
-- [ ] **`BillingRunRow.totalDue` is re-summed from the row's lines on every line mutation**, clamped at
+- [x] **`BillingRunRow.totalDue` is re-summed from the row's lines on every line mutation**, clamped at
       zero. This deliberately supersedes B1's "`applyAdjustments` owns `totalDue`, never re-summed" —
       once a line is hand-edited, the resolver's total is stale by construction.
-- [ ] **`adjustmentNote` is parent-visible and is treated as such.** The edit form pre-fills the existing
+- [x] **`adjustmentNote` is parent-visible and is treated as such.** The edit form pre-fills the existing
       note (so a keringanan reason is never silently clobbered), the help text states that families read
       it, and the server writes a default note rather than leaving a non-zero adjustment unexplained on
       a family's invoice.
-- [ ] **Every line mutation is refused unless the run is `DRAFT` and the row is `PENDING` or `EXCLUDED`.**
+- [x] **Every line mutation is refused unless the run is `DRAFT` and the row is `PENDING` or `EXCLUDED`.**
       A `COMMITTED` row already has an invoice; a `SKIPPED_*` row has no lines and is not billable.
-- [ ] **Edited and manual lines are visually distinguishable in step 2**, and a row carrying either shows
+- [x] **Edited and manual lines are visually distinguishable in step 2**, and a row carrying either shows
       a badge alongside the existing "Keringanan" one.
-- [ ] **Step 3 offers "Hitung ulang"** — `POST /api/billing-runs/[id]/rebuild` rebuilds rows and lines
+- [x] **Step 3 offers "Hitung ulang"** — `POST /api/billing-runs/[id]/rebuild` rebuilds rows and lines
       from current fee structures and keringanan using the run's persisted scope, behind an
       `AlertDialog` that states manual edits will be discarded. `EXCLUDED` row statuses are preserved
       across the rebuild by `studentId`. Refused with 409 unless the run is `DRAFT` with no `COMMITTED`
       row.
-- [ ] **The resume banner on `/admin/invoices` gains a discard action**, behind a confirm, driving the
+- [x] **The resume banner on `/admin/invoices` gains a discard action**, behind a confirm, driving the
       existing `PATCH /api/billing-runs/[id] { status: "CANCELLED" }`. Closes B1's half-met criterion.
-- [ ] **The draft-materialization path is shared, not duplicated.** `POST /api/billing-runs` and the new
+- [x] **The draft-materialization path is shared, not duplicated.** `POST /api/billing-runs` and the new
       rebuild route run the same reads + `buildBillingRunRows` call through one extracted helper.
 - [ ] All new routes admin-only and tenant-scoped, per `.claude/standards/security.md`.
 - [ ] No migration. `source` gains values on an unconstrained `String` column; no schema change ships.
@@ -127,7 +129,7 @@ over 60 days old and not scoped to invoicing.
 
 ## Tasks
 
-- [ ] **T1 — Line math + validation.** Extend `lib/validations/billing-run.ts` with
+- [x] **T1 — Line math + validation.** Extend `lib/validations/billing-run.ts` with
       `createBillingRunLineSchema` (mode `CATALOG` | `DISCOUNT`, `feeComponentId` required for `CATALOG`,
       `label`, integer `amount`), `updateBillingRunLineSchema` (`finalAmount` integer, optional `label`,
       nullable-optional `note`) and `rebuildBillingRunSchema`. New pure
@@ -139,7 +141,7 @@ over 60 days old and not scoped to invoicing.
       the invariant `amount + adjustmentAmount === finalAmount` across a mixed set, and a row whose lines
       sum below zero clamping to zero. *Depends on:* nothing.
 
-- [ ] **T2 — Extract the draft materializer.** Move the read-and-build body of `POST /api/billing-runs`
+- [x] **T2 — Extract the draft materializer.** Move the read-and-build body of `POST /api/billing-runs`
       (`app/api/billing-runs/route.ts:141-231`) into `lib/finance/materialize-billing-run.ts`, taking a
       Prisma client + tenant/scope/year/dueDate and returning `{ rows, summary }`. Pure move — the create
       route keeps identical behaviour and its existing tests stay green untouched.
@@ -147,7 +149,7 @@ over 60 days old and not scoped to invoicing.
       byte-faithful to the code it replaces (verify by diff, not by assertion).
       *Depends on:* nothing. Independent of T1.
 
-- [ ] **T3 — Line mutation routes.** `POST /api/billing-runs/[id]/rows/[rowId]/lines` (add catalog or
+- [x] **T3 — Line mutation routes.** `POST /api/billing-runs/[id]/rows/[rowId]/lines` (add catalog or
       discount line), `PATCH` + `DELETE` on
       `app/api/billing-runs/[id]/rows/[rowId]/lines/[lineId]/route.ts`. Three ownership hops on every
       call (run → tenant, row → run, line → row), then the DRAFT + row-status guard, then the T1 math,
@@ -160,7 +162,7 @@ over 60 days old and not scoped to invoicing.
       line of a PENDING row, and `totalDue` matching the new line sum after each mutation.
       *Depends on:* T1.
 
-- [ ] **T4 — Rebuild route.** `POST /api/billing-runs/[id]/rebuild` — reads the run's persisted `scope`,
+- [x] **T4 — Rebuild route.** `POST /api/billing-runs/[id]/rebuild` — reads the run's persisted `scope`,
       re-runs T2's materializer against current data, and inside one transaction deletes the existing
       rows (cascading their lines) and writes the new set, re-applying `EXCLUDED` by `studentId` per
       Assumption 5. 409 unless `DRAFT` with zero `COMMITTED` rows. `export const maxDuration = 60`, as
@@ -170,7 +172,7 @@ over 60 days old and not scoped to invoicing.
       a COMMITTED row is refused with nothing deleted, and cross-tenant returns 404.
       *Depends on:* T1, T2.
 
-- [ ] **T5 — Step 2 editing UI.** `components/admin/invoices/billing-run-wizard/step-2-review.tsx` plus a
+- [x] **T5 — Step 2 editing UI.** `components/admin/invoices/billing-run-wizard/step-2-review.tsx` plus a
       new `line-editor.tsx` sibling: per-line edit control (amount + label + note, with the
       parent-visible warning on the note), "Tambah potongan" and "Tambah komponen" actions per row, and
       per-line remove. `EDITED` / `MANUAL` lines are marked, and the row header gains a badge. Cross-check
@@ -181,7 +183,7 @@ over 60 days old and not scoped to invoicing.
       discount drops the row total; the last-line delete refusal surfaces as a message, not a silent
       no-op. *Depends on:* T3.
 
-- [ ] **T6 — Step 3 rebuild + banner discard.** Step 3 gains a "Hitung ulang" action (in the stale-draft
+- [x] **T6 — Step 3 rebuild + banner discard.** Step 3 gains a "Hitung ulang" action (in the stale-draft
       alert and as a secondary control regardless of age) behind an `AlertDialog` naming what is lost; on
       success it returns to step 2 so the rebuilt rows get reviewed, which needs one `onRebuilt` callback
       through `billing-run-wizard.tsx`. `app/admin/invoices/invoices-client.tsx`: the resume banner gains
@@ -190,7 +192,7 @@ over 60 days old and not scoped to invoicing.
       banner removes the banner and lets a new run start without hitting the 409 conflict panel.
       *Depends on:* T4.
 
-- [ ] **T7 — E2E.** Extend the existing wizard walk in `e2e/admin.spec.ts` with one edit: change a line's
+- [x] **T7 — E2E.** Extend the existing wizard walk in `e2e/admin.spec.ts` with one edit: change a line's
       amount in step 2 and assert the row total moved, then continue to step 3 as today and cancel the
       draft via the API. **Do not add a commit** — B1's CI run proved a spec that writes billing rows
       changes what every later spec sees. Keep it lean, hard assertions only, no seed-conditional skips.
@@ -198,7 +200,7 @@ over 60 days old and not scoped to invoicing.
       recorded in Verification; soft-skip delta 0 against `origin/staging`.
       *Depends on:* T5, T6.
 
-- [ ] **T8 — Docs.** README (finance module capability now includes per-row editing; route count),
+- [x] **T8 — Docs.** README (finance module capability now includes per-row editing; route count),
       CLAUDE.md (route count), `docs/runbooks/module-capability-guide.md`, `docs/uat/jobs/admin.md`
       (the bulk-generate JTBD gains the edit step).
       *Acceptance:* `/audit-docs` reports zero `fail` findings. *Depends on:* T1-T7.
@@ -275,6 +277,12 @@ over 60 days old and not scoped to invoicing.
   The resume banner gains "Buang draf" behind the same confirm wrapper, driving the existing
   `PATCH /api/billing-runs/[id] { status: "CANCELLED" }` and refetching the banner. That closes the
   criterion B1 ticked having verified only the resume half.
+- Task 8: Docs — `README.md` (finance module capability now describes editing, rebuild and discard; API
+  route count 188 → 191; an ADR row for the `adjustmentAmount`-delta / disabled-system-component
+  decisions), `CLAUDE.md` (route count 188 → 191; e2e spec count unchanged at 34 — T7 extends the
+  existing wizard test in place rather than adding a file, same as B1),
+  `docs/runbooks/module-capability-guide.md`, `docs/uat/jobs/admin.md` (JTBD-ADMIN-INV-05's steps and
+  "Done when" now cover editing and Hitung Ulang; "Last audited" bumped to this cycle).
 
 ## Verification
 
@@ -313,7 +321,75 @@ over 60 days old and not scoped to invoicing.
   their action ("Hitung Ulang", "Buang Draf", "Tambah Potongan"). The remove confirm reads "Ya, Hapus",
   which is not a `better-writing` slip but this repo's established destructive-confirm label — it
   matches `components/admin/deactivate-confirm-dialog.tsx` and the project standard wins on conflict.
+- Task 7: E2E — `e2e/admin.spec.ts`, +57 lines, no deletions. The existing wizard walk now expands a
+  row, edits one line's final amount by a fixed +1.000 delta, and asserts the row total lands on
+  exactly `totalBefore + delta` — a hard equality against `formatRupiah`'s output, not a "something
+  changed" check. An increase is used deliberately: it can never trip the negative-base-line rejection,
+  so the assertion tests the re-sum rather than the guard.
+  **No commit was added, and that is the point.** B1's first CI run went red because the wizard spec
+  committed real invoices and every later spec in the file order then observed a world with new
+  outstanding balances. The spec still stops at a live "Komit N Tagihan" button and cancels its own
+  draft via the API.
+  Every selector was resolved against component source rather than guessed — the expand button's
+  `aria-label` (`step-2-review.tsx:154`), the row-total span's className (`:198`), the per-line edit
+  trigger's `aria-label` (`line-editor.tsx:650`), the `Jumlah Akhir` field's real `<label htmlFor>`
+  (`:207`), and the `Edit Baris Tagihan` dialog title (`:179`). The row locator filters on the
+  *expandable* aria-label so it can only land on a `PENDING`/`EXCLUDED` row — a `SKIPPED_*` row renders
+  a disabled "Tidak ada rincian" button instead and would have no line to edit.
+  **Soft-skip delta 0, verified by me rather than taken on report:** `git grep -nE "test\.skip|\.skip\(" `
+  over `e2e/` returns 42 on `origin/staging` and 42 here.
+- Task 8: Docs — `/audit-docs` is user-invocation-only in this harness and could not be run from the
+  build session; the counts it checks were verified directly instead. `find app/api -name route.ts`
+  returns **191** (README and CLAUDE.md both updated from 188 — the three new files are the lines POST,
+  the line PATCH/DELETE, and the rebuild route). `ls e2e/*.spec.ts` returns **34**, unchanged, because
+  T7 extended the existing wizard test in place rather than adding a spec — same call B1 made and for
+  the same reason. **`/audit-docs` still has to be run as a `/ship` preflight; it is not satisfied by
+  this check.**
+- End-of-cycle gates: `npm run build` exit 0; `npx vitest run` **300 files passed / 2 skipped (302),
+  2929 tests passed / 42 todo (2971)**; `npm run lint` **0 errors, 59 warnings** — the same 59 as
+  `origin/staging`, none of them in this cycle's files.
+- Playwright: local run deferred to CI, same environment limit as B1 and Cycle A — `playwright.config.ts`
+  refuses a non-local `DATABASE_URL` and this worktree points at shared staging. The guard was read, not
+  triggered, and was not overridden with `E2E_ALLOW_REMOTE_DB=1`. The required CI check `Playwright E2E`
+  gates the merge; CTO will not merge on red.
 
 ## Ship Notes
 
-<!-- /ship fills this in -->
+- **Migrations:** none. `BillingRunLine.source` is an unconstrained `String` column, so the new
+  `EDITED` and `MANUAL` values need no schema change. Nothing to deploy ahead of the app code, nothing
+  to roll back at the database level.
+- **Env vars:** none added, removed or renamed.
+- **Data backfill:** none. Existing drafts keep `source: "BASE"` on every line and behave exactly as
+  before until someone edits one.
+- **Supabase dashboard changes:** none.
+- **First ad-hoc discount on a tenant creates a `FeeComponentDef`.** Code `penyesuaian_manual`, label
+  "Penyesuaian", `isEnabled: false`, `isRecurring: false`, `category: "OTHER"`, created lazily and
+  idempotently. It is deliberately visible in the Komponen tab on `/admin/fees` as a disabled row —
+  hiding a component that appears on real invoices would be worse than showing it. `isEnabled: false`
+  is load-bearing: `ProgramFeeStructure` fee queries filter on `isEnabled: true`, so it can never be
+  billed by a normal run.
+- **Manual smoke on the preview:** `/admin/invoices` → "Buat Tagihan" → scope one small class →
+  Lanjutkan → in step 2 expand a row and (a) edit a component's amount and confirm the row total moves
+  by exactly that delta, (b) "Tambah Potongan" and confirm the total *drops*, (c) "Tambah Komponen"
+  from the catalog and confirm it rises, (d) remove a line, then (e) try removing every line and
+  confirm the last one is refused with a message pointing at the exclude toggle. Then step 3 →
+  "Hitung Ulang" → confirm the edits are gone, any excluded student is still excluded, and the wizard
+  lands back on step 2. Commit, and **open the resulting invoice on the parent portal** — the whole
+  point of the `amount + adjustmentAmount = finalAmount` invariant is that a hand-edited line renders
+  coherently to a family, so a negative ad-hoc line and an edited line must both look sane there.
+  Separately: create a draft, reload `/admin/invoices`, and use "Buang draf" — then confirm a fresh
+  "Buat Tagihan" does NOT hit the 409 conflict panel. That is the criterion B1 half-shipped.
+- **Rollback:** `git revert` the cycle's commits. No schema to unwind. Any `BillingRunLine` already
+  carrying `source: "EDITED"`/`"MANUAL"` stays readable — B1's code treats `source` as an opaque string
+  and the commit route copies lines verbatim regardless of it. A `penyesuaian_manual` component created
+  before the revert is inert (disabled, in no fee structure) and can be left in place.
+- **Known gap carried forward, unchanged:** still no DB unique index on
+  `Invoice(tenantId, studentId, periodLabel)` (Cycle A's dropped T9). Staging holds 2 duplicate groups
+  blocking an asserting migration; prod is clean. Explicitly out of scope here — see Non-goals.
+- **Known gap, new and deliberate:** a catalog line's amount does not pre-fill from
+  `ProgramFeeStructure`, because `BillingRunRow` carries no `programId`. If admins find themselves
+  looking the number up every time, the fix is to snapshot `programId` onto the row — a migration, and
+  its own cycle.
+- **No per-line edit attribution.** The run records `createdBy`; who changed which line to what is not
+  stored. If an audit trail on edits turns out to matter, that is a schema change.
+- **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.

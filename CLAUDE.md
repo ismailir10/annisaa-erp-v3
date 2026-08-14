@@ -294,7 +294,7 @@ The `.claude/standards/*` files above cover **this product** — Talib's tokens,
 
 ```
 app/{admin,teacher,parent}/  41 / 13 / 8 portal pages
-app/api/                     188 routes (organized by domain)
+app/api/                     191 routes (organized by domain)
 components/ui/               65 Shadcn components (+ 8 __tests__)
 lib/{api,validations,payroll,email}/  business logic, retry, integrations
 lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`, `session.ts`, `webhook-processor.ts`, `health.ts`, `with-retry.ts`, `error-prefix.ts`) with `xendit/` and `doku/` adapters behind it; `lib/xendit/*` are now thin re-export shims (~60 lines total) kept for import-path compatibility
