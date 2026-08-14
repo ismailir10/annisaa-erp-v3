@@ -30,35 +30,35 @@ over 60 days old and not scoped to invoicing.
 
 ### Acceptance criteria
 
-- [ ] Three new models — `BillingRun`, `BillingRunRow`, `BillingRunLine` — with hand-authored
+- [x] Three new models — `BillingRun`, `BillingRunRow`, `BillingRunLine` — with hand-authored
       migration carrying `ENABLE ROW LEVEL SECURITY` + a permissive `service_role` policy, per the
       house style in `20260813000000_add_student_fee_adjustment`.
-- [ ] `BillingRun.status`: `DRAFT` → `COMMITTING` → `COMMITTED`, plus `CANCELLED`. `BillingRunRow.status`:
+- [x] `BillingRun.status`: `DRAFT` → `COMMITTING` → `COMMITTED`, plus `CANCELLED`. `BillingRunRow.status`:
       `PENDING` | `EXCLUDED` | `SKIPPED_ALREADY_INVOICED` | `SKIPPED_NO_FEE_STRUCTURE` | `COMMITTED` | `FAILED`.
-- [ ] Creating a draft materializes one `BillingRunRow` per in-scope student and one `BillingRunLine`
+- [x] Creating a draft materializes one `BillingRunRow` per in-scope student and one `BillingRunLine`
       per fee component, with keringanan already resolved through `applyAdjustments` — reused
       unchanged from Cycle A, not reimplemented.
-- [ ] **Commit writes the draft verbatim.** It does not re-derive amounts. Rationale below under
+- [x] **Commit writes the draft verbatim.** It does not re-derive amounts. Rationale below under
       Assumptions — this is a deliberate change from today's batch route, which treats its payload as
       untrusted and recomputes.
-- [ ] **Commit re-checks duplicates at commit time**, regardless of the draft. A row whose student
+- [x] **Commit re-checks duplicates at commit time**, regardless of the draft. A row whose student
       already has an invoice for that `periodLabel` flips to `SKIPPED_ALREADY_INVOICED` and writes
       nothing. Staleness is acceptable for amounts; it is not acceptable for double-billing a family.
-- [ ] Commit is **resumable and idempotent**: a row with `invoiceId` set is never committed twice.
+- [x] Commit is **resumable and idempotent**: a row with `invoiceId` set is never committed twice.
       Re-running commit on a partially-committed run picks up only `PENDING` rows.
-- [ ] Step 1 scopes by class (multi-select) with individual student add/remove on top, and reports
+- [x] Step 1 scopes by class (multi-select) with individual student add/remove on top, and reports
       counts before the draft is built.
-- [ ] Step 2 lists **one row per student** — name, class, total, and a badge when keringanan applied —
+- [x] Step 2 lists **one row per student** — name, class, total, and a badge when keringanan applied —
       expandable to show that student's lines with the adjustment and its reason. Read-only this cycle.
-- [ ] A row can be excluded from the run in step 2 without cancelling the run or affecting later runs.
-- [ ] Step 3 shows run totals (students, invoices, grand total, count carrying keringanan) and commits
+- [x] A row can be excluded from the run in step 2 without cancelling the run or affecting later runs.
+- [x] Step 3 shows run totals (students, invoices, grand total, count carrying keringanan) and commits
       via chunked calls with live progress, reusing the chunk/retry/pacing/auto-sweep logic in
       `lib/finance/run-bulk-generate.ts` rather than a second orchestrator.
-- [ ] **One bulk path.** The three-field "Buat Tagihan" dialog is removed. `/api/invoices/generate/plan`
+- [x] **One bulk path.** The three-field "Buat Tagihan" dialog is removed. `/api/invoices/generate/plan`
       and `/api/invoices/generate/batch` are retired along with it, and their tests are replaced rather
       than left asserting dead routes.
-- [ ] A draft survives a page refresh and can be resumed or cancelled from `/admin/invoices`.
-- [ ] All new routes admin-only and tenant-scoped, per `.claude/standards/security.md`.
+- [x] A draft survives a page refresh and can be resumed or cancelled from `/admin/invoices`.
+- [x] All new routes admin-only and tenant-scoped, per `.claude/standards/security.md`.
 
 ### Non-goals
 
@@ -187,7 +187,7 @@ over 60 days old and not scoped to invoicing.
       *Acceptance:* spec green locally, or deferred to the required CI `Playwright E2E` check and
       recorded in Verification. *Depends on:* T10.
 
-- [ ] **T12 — Docs.** README (finance module capability, route count, an ADR row for the
+- [x] **T12 — Docs.** README (finance module capability, route count, an ADR row for the
       draft-then-commit decision and the trust-the-draft trade-off), CLAUDE.md (route + e2e counts),
       `docs/runbooks/module-capability-guide.md`, `docs/uat/jobs/admin.md` (the bulk-generate JTBD now
       describes a wizard).
@@ -404,4 +404,43 @@ over 60 days old and not scoped to invoicing.
   CTO will not merge on red. **This cycle deletes the old bulk path, so that CI run is the first real
   execution of the rewritten wizard spec — treat a red Playwright check as a blocker, not a flake.**
 
+- Task 12: Docs — `README.md` (finance module capability, route count 186 → 188, ADR row for the
+  draft-then-commit decision and the trust-the-draft trade-off), `CLAUDE.md` (route count; e2e spec
+  count unchanged at 34 since the bulk test was rewritten in place, not added),
+  `docs/runbooks/module-capability-guide.md`, `docs/uat/jobs/admin.md` (new JTBD-ADMIN-INV-05,
+  "Last audited" bumped).
+- End-of-cycle gates: `npm run build` exit 0; `npx vitest run` 297 files / 2851 tests passed,
+  2 skipped, 42 todo; `npm run lint` 0 errors, 59 warnings, all pre-existing and none in this cycle's
+  files.
+
 ## Ship Notes
+
+- **Migrations:** one, additive — `prisma/migrations/20260814000000_add_billing_run/migration.sql`.
+  Three new tables with RLS enabled and a `service_role` policy each. No `ALTER` on existing tables,
+  no backfill. Safe to deploy ahead of the app code; nothing reads them until the new routes exist.
+- **Env vars:** none added, removed or renamed.
+- **Data backfill:** none.
+- **Supabase dashboard changes:** none.
+- **This cycle deletes the bulk path that currently bills every family.** `/api/invoices/generate/plan`
+  and `/api/invoices/generate/batch` are gone and the three-field dialog with them. There is no
+  fallback: if the wizard is broken on staging, bulk invoicing is unavailable until it is fixed or
+  the cycle is reverted. Preview-verify should treat the full wizard walk as the gating check, not a
+  nice-to-have.
+- **Manual smoke on the preview:** open `/admin/invoices` → "Buat Tagihan" → scope **one small class**
+  → Lanjutkan → confirm step 2 lists that class's students with a keringanan badge where one applies,
+  expand a row and check the `Penyesuaian` line → exclude one student and confirm the step 3 total
+  drops → commit → confirm the toast count matches and the invoices appear in the list. Then reopen
+  the wizard and confirm it offers to resume nothing (the run is COMMITTED, not DRAFT). Separately:
+  create a draft, close the browser tab, reopen `/admin/invoices` and confirm the resume banner
+  appears — that is the headline claim of the cycle.
+- **Also verify the retry surface still works** — "Coba Lagi Link" on the invoice list drives
+  `runBulkRetry`, which is called from inside the orchestrator's auto-sweep that T10 repointed.
+- **Rollback:** `git revert` the cycle's commits. The three tables can be left in place — additive,
+  and nothing else references them. Reverting restores the old dialog and both generate routes.
+- **Known gap carried forward:** still no DB unique index on `Invoice(tenantId, studentId, periodLabel)`
+  (Cycle A's dropped T9). The commit route's live duplicate re-check plus the atomic row claim narrow
+  the window considerably, but two *independent* runs racing on the same period is still only guarded
+  in application code. Staging holds 2 duplicate groups blocking the index; prod is clean.
+- **Dead code left behind:** `generatePlanSchema` / `generateBatchSchema` in `lib/validations/invoice.ts`
+  now have no importers. Harmless, worth a cleanup pass.
+- **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.

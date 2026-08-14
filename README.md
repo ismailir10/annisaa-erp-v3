@@ -27,7 +27,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 ## Modules
 
-Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cutover for the July 2026 PROMES/Penilaian/Raport switch. Parent Portal is a view *across* students + finance + learning, not its own module. They are served by 186 routes under `app/api/`, organised by the domains below.
+Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cutover for the July 2026 PROMES/Penilaian/Raport switch. Parent Portal is a view *across* students + finance + learning, not its own module. They are served by 188 routes under `app/api/`, organised by the domains below.
 
 | Module | Domain |
 |--------|--------|
@@ -68,6 +68,7 @@ Constraints actively shaping work in the last 60 days. Cells ≤ 2 sentences + c
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-08-14 | Bulk invoicing runs on a persisted `BillingRun` draft — scope, materialize rows, commit — and commit writes the draft verbatim instead of re-deriving. The three-field dialog and `/api/invoices/generate/{plan,batch}` are retired, leaving one bulk path | A run held in browser memory cannot survive a refresh, resume after a partial failure, or be reviewed before it bills. Re-deriving at commit would discard Cycle B2's per-row edits; the duplicate check stays live because stale amounts are tolerable and double-billing is not — see [cycle](docs/cycles/2026-08-14-billing-run-wizard.md) |
 | 2026-08-13 | Fee waivers become durable policy (`StudentFeeAdjustment`) instead of per-invoice line edits, and `lib/finance/apply-adjustments.ts` owns the whole eligibility gate — status, academic year and validity window — rather than trusting callers to pre-filter | An admin should type a beasiswa or sibling discount once a year, not re-enter it every month; and a missing `where` clause at one call site should not bill a family from a revoked grant — see [cycle](docs/cycles/2026-08-13-keringanan-fee-adjustments.md) |
 | 2026-07-29 | Class pickers scope by `AcademicYear.status`, not `ClassSection.status`: `GET /api/class-sections` takes an opt-in `yearStatus` allowlist, write-path pickers request `ACTIVE,PLANNING`, and enroll / promote / bulk-promote reject an archived-year target server-side with 403 `YEAR_ARCHIVED` | Every prod class row is `status: ACTIVE` regardless of year, so the picker listed all 53 sections across 5 years when only 16 were valid targets; a client-side year selector is not an enforcement boundary — pilot feedback 2026-07-29 — see [cycle](docs/cycles/2026-07-29-class-picker-year-scoping.md) |
 | 2026-07-28 | Manual payment reconciliation ("Perbarui pembayaran") polls the gateway and replays `processPaymentEvent` rather than owning its own transitions; the poll is added to the `PaymentGateway` port as `fetchPaymentStatus`, and the synthesized `eventId` is `manual:<provider>:<invoiceId>:<state>[:<paymentId>]` | Manual fallback and webhook must never drift, so there can only be one crediting implementation; a deterministic (un-hashed) eventId makes repeat clicks dedup at the existing `WebhookEvent` unique index instead of needing new locking — see [cycle](docs/cycles/2026-07-28-manual-payment-refresh.md) |
