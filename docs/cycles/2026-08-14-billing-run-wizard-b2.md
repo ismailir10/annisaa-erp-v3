@@ -248,6 +248,33 @@ over 60 days old and not scoped to invoicing.
   `{ id, status: "DRAFT" }` is the first statement in the transaction, and the COMMITTED count is
   re-run after it. Same claim-first shape B1 used for its rows. Two tests cover the lost-race paths and
   assert nothing was deleted.
+- Task 5: Step 2 editing UI — `components/admin/invoices/billing-run-wizard/line-editor.tsx` (new),
+  `step-2-review.tsx`, `types.ts`. `EditableRowLines` replaces the read-only line list for rows whose
+  status is `PENDING`/`EXCLUDED`, mirroring the route's allowlist so the UI never offers an action the
+  server would refuse. Four surfaces: edit a line (label + final amount + note), "Tambah Potongan",
+  "Tambah Komponen" (catalog filtered to `isEnabled && ACTIVE`, minus components already on the row, so
+  the route's duplicate 409 is unreachable by normal use), and remove behind an `AlertDialog`. Every
+  mutation patches the parent's `rowsPage` state from the response rather than refetching, following
+  the exclude toggle that was already there. The note field is **pre-filled from the line's existing
+  `adjustmentNote`** and carries "Orang tua akan melihat catatan ini pada tagihan mereka" — Cycle A's
+  preview-verify caught an admin writing an internal note the family then reads, and this is the one
+  place in the product where that mistake is easiest to make.
+  **Deviation from an acceptance criterion, deliberate:** the catalog line's amount does NOT pre-fill
+  from `ProgramFeeStructure`. `BillingRunRow` carries no `programId`, so step 2 cannot resolve which
+  fee-structure row applies, and plumbing `programId` through the row to save one typed number is not
+  worth a schema change. The field starts blank and says so in its help text.
+- Task 6: Step 3 rebuild + banner discard — `step-3-commit.tsx`, `billing-run-wizard.tsx`,
+  `app/admin/invoices/invoices-client.tsx`. "Hitung Ulang" is offered twice from one `ConfirmDialog`:
+  inside the stale-draft `Alert` and as a footer control regardless of age, because `STALE_DRAFT_MS` is
+  a 24h heuristic and a fee structure edited an hour ago staled the draft just as thoroughly. The
+  confirm names what is lost and what survives ("nominal yang diubah, potongan, dan komponen tambahan —
+  akan hilang. Siswa yang sudah dikecualikan tetap dikecualikan") rather than asking "are you sure".
+  On success it toasts the new billable count plus `reappliedExclusions` and routes back to step 2 via a
+  new `onRebuilt` prop — a rebuild that dropped the admin straight at "Komit" would be asking them to
+  commit numbers they have not seen.
+  The resume banner gains "Buang draf" behind the same confirm wrapper, driving the existing
+  `PATCH /api/billing-runs/[id] { status: "CANCELLED" }` and refetching the banner. That closes the
+  criterion B1 ticked having verified only the resume half.
 
 ## Verification
 
@@ -272,6 +299,20 @@ over 60 days old and not scoped to invoicing.
   showed it green. Re-running all three billing-run suites myself returned `Test Files 3 passed (3) /
   Tests 61 passed (61)` — T3 had fixed the failure after T4 took its snapshot. Worth recording because
   concurrent subagents in one worktree make every "full suite" number a snapshot of a moving tree.
+- Tasks 5 + 6 (built in parallel): gates passed — `npm run build` exit 0; `npx vitest run`
+  **300 files passed / 2 skipped (302), 2929 tests passed / 42 todo (2971)** — unchanged from the T3/T4
+  checkpoint, as expected for UI-only work that adds no test infrastructure (Assumption 8).
+  `npx eslint` clean across the whole wizard directory plus `invoices-client.tsx`. Verified by me
+  directly, not taken from the subagents' reports.
+  Cross-checked `design-system.html` §07 Forms (`Field`/`FieldLabel`/`FieldDescription`/`FieldError`,
+  errors under the field) and §13 Overlays (`ResponsiveFormDialog` → Dialog on desktop, Sheet on
+  mobile; `AlertDialog` for destructive confirms). `better-accessibility`: editing is a real labelled
+  form with a real submit rather than a click-to-edit cell, both destructive paths are true
+  `AlertDialog`s so Escape and click-outside cannot bypass the explicit Cancel, and busy state is
+  carried by text ("Menyimpan…", "Memproses…") not colour alone. `better-writing`: action buttons name
+  their action ("Hitung Ulang", "Buang Draf", "Tambah Potongan"). The remove confirm reads "Ya, Hapus",
+  which is not a `better-writing` slip but this repo's established destructive-confirm label — it
+  matches `components/admin/deactivate-confirm-dialog.tsx` and the project standard wins on conflict.
 
 ## Ship Notes
 

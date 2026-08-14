@@ -13,12 +13,23 @@ import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { formatRupiah } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { cn } from "@/lib/utils";
-import type { BillingRunRowData, BillingRunRowsPage } from "./types";
+import { EditableRowLines } from "./line-editor";
+import type {
+  BillingRunLineData,
+  BillingRunRowData,
+  BillingRunRowsPage,
+  FeeComponentOption,
+} from "./types";
 
-// Step 2 — Review (Cycle B1, Task T9). Read-only this cycle (Cycle B1 spec
-// non-goal — no inline amount edits, no ad-hoc lines; that is Cycle B2). The
-// only mutation exposed here is the per-row exclude/include toggle via
-// `PATCH /api/billing-runs/[id]/rows/[rowId]`.
+// Step 2 — Review (Cycle B1, Task T9; made editable in Cycle B2, Task T5).
+// The read-only line list from B1 is now editable on rows whose status is
+// PENDING or EXCLUDED (see `EDITABLE_ROW_STATUSES` below, mirroring the
+// line-mutation routes' `MUTABLE_ROW_STATUSES` allowlist) — a component
+// amount can be edited, an ad-hoc discount or catalog line can be added, and
+// a line can be removed, via `line-editor.tsx`. Other rows (COMMITTED,
+// SKIPPED_*, FAILED) keep the plain read-only list, since nothing there can
+// be edited anyway. The per-row exclude/include toggle
+// (`PATCH /api/billing-runs/[id]/rows/[rowId]`) is unchanged from B1.
 //
 // Server-paginated against `GET /api/billing-runs/[id]` (Assumption 4) — a
 // run is ~200 students x ~3 lines, so this fetches one page at a time as the
@@ -40,6 +51,15 @@ const SKIP_REASON_LABEL: Partial<Record<BillingRunRowData["status"], string>> = 
 
 function hasAdjustment(row: BillingRunRowData): boolean {
   return row.lines.some((l) => Number(l.adjustmentAmount) !== 0);
+}
+
+// Rows editable from step 2 (Cycle B2) — mirrors `MUTABLE_ROW_STATUSES` in
+// app/api/billing-runs/[id]/rows/[rowId]/lines/route.ts exactly, so the UI
+// never offers an edit/add/remove action the server will refuse with a 409.
+const EDITABLE_ROW_STATUSES = new Set<BillingRunRowData["status"]>(["PENDING", "EXCLUDED"]);
+
+function hasLineSource(row: BillingRunRowData, source: string): boolean {
+  return row.lines.some((l) => l.source === source);
 }
 
 function RowSkeleton() {
@@ -86,23 +106,36 @@ function RowLines({ row }: { row: BillingRunRowData }) {
 }
 
 function RunRow({
+  runId,
   row,
   expanded,
   onToggleExpand,
   onToggleInclude,
   toggling,
+  feeComponents,
+  onLineUpdated,
+  onLineAdded,
+  onLineRemoved,
 }: {
+  runId: string;
   row: BillingRunRowData;
   expanded: boolean;
   onToggleExpand: () => void;
   onToggleInclude: () => void;
   toggling: boolean;
+  feeComponents: FeeComponentOption[];
+  onLineUpdated: (rowId: string, line: BillingRunLineData, totalDue: number) => void;
+  onLineAdded: (rowId: string, line: BillingRunLineData, totalDue: number) => void;
+  onLineRemoved: (rowId: string, lineId: string, totalDue: number) => void;
 }) {
   const skipReason = SKIP_REASON_LABEL[row.status];
   const excluded = row.status === "EXCLUDED";
   const toggleable = row.status === "PENDING" || row.status === "EXCLUDED";
   const canExpand = row.lines.length > 0;
   const adjustmentBadge = hasAdjustment(row);
+  const editable = EDITABLE_ROW_STATUSES.has(row.status);
+  const editedBadge = hasLineSource(row, "EDITED");
+  const manualBadge = hasLineSource(row, "MANUAL");
 
   return (
     <li
@@ -147,6 +180,18 @@ function RunRow({
           </Badge>
         ) : null}
 
+        {editedBadge && !skipReason ? (
+          <Badge variant="outline" className="shrink-0 text-xs">
+            Diedit
+          </Badge>
+        ) : null}
+
+        {manualBadge && !skipReason ? (
+          <Badge variant="outline" className="shrink-0 text-xs">
+            Manual
+          </Badge>
+        ) : null}
+
         {skipReason ? (
           <span className="shrink-0 text-caption text-muted-foreground">{skipReason}</span>
         ) : (
@@ -176,7 +221,18 @@ function RunRow({
 
       {expanded && canExpand ? (
         <div id={`billing-run-row-${row.id}-lines`}>
-          <RowLines row={row} />
+          {editable ? (
+            <EditableRowLines
+              runId={runId}
+              row={row}
+              feeComponents={feeComponents}
+              onLineUpdated={(line, totalDue) => onLineUpdated(row.id, line, totalDue)}
+              onLineAdded={(line, totalDue) => onLineAdded(row.id, line, totalDue)}
+              onLineRemoved={(lineId, totalDue) => onLineRemoved(row.id, lineId, totalDue)}
+            />
+          ) : (
+            <RowLines row={row} />
+          )}
         </div>
       ) : null}
     </li>
@@ -199,6 +255,28 @@ export function ReviewStep({
   const [loadError, setLoadError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [feeComponents, setFeeComponents] = useState<FeeComponentOption[]>([]);
+
+  // Reference data for the "Tambah komponen" catalog picker (line-editor.tsx)
+  // — fetched once per step-2 mount, shared across every row rather than
+  // each row's editor fetching its own copy. Filtering to
+  // isEnabled/ACTIVE/not-already-on-the-row happens per-row in line-editor.tsx
+  // since that depends on each row's current lines.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/fee-components")
+      .then(async (res) => {
+        if (cancelled || !res.ok) return;
+        const json = await res.json();
+        if (!cancelled && Array.isArray(json)) setFeeComponents(json as FeeComponentOption[]);
+      })
+      .catch((err) => {
+        console.error("[billing-run-wizard] fee components fetch failed", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadPage = useCallback(
     async (targetPage: number, targetPageSize: number) => {
@@ -259,6 +337,38 @@ export function ReviewStep({
     }
   }
 
+  // The three line-mutation outcomes from line-editor.tsx. Each patches
+  // local state from the mutation route's response (line + row totalDue)
+  // rather than refetching the page — same pattern as `handleToggleInclude`
+  // above.
+  function patchRowLines(rowId: string, updater: (row: BillingRunRowData) => BillingRunRowData) {
+    setRowsPage((prev) =>
+      prev
+        ? { ...prev, data: prev.data.map((r) => (r.id === rowId ? updater(r) : r)) }
+        : prev,
+    );
+  }
+
+  function handleLineUpdated(rowId: string, line: BillingRunLineData, totalDue: number) {
+    patchRowLines(rowId, (r) => ({
+      ...r,
+      totalDue,
+      lines: r.lines.map((l) => (l.id === line.id ? line : l)),
+    }));
+  }
+
+  function handleLineAdded(rowId: string, line: BillingRunLineData, totalDue: number) {
+    patchRowLines(rowId, (r) => ({ ...r, totalDue, lines: [...r.lines, line] }));
+  }
+
+  function handleLineRemoved(rowId: string, lineId: string, totalDue: number) {
+    patchRowLines(rowId, (r) => ({
+      ...r,
+      totalDue,
+      lines: r.lines.filter((l) => l.id !== lineId),
+    }));
+  }
+
   if (loading && !rowsPage) {
     return (
       <div className="space-y-field">
@@ -312,11 +422,16 @@ export function ReviewStep({
             {rows.map((row) => (
               <RunRow
                 key={row.id}
+                runId={runId}
                 row={row}
                 expanded={expandedId === row.id}
                 onToggleExpand={() => setExpandedId((cur) => (cur === row.id ? null : row.id))}
                 onToggleInclude={() => handleToggleInclude(row)}
                 toggling={togglingId === row.id}
+                feeComponents={feeComponents}
+                onLineUpdated={handleLineUpdated}
+                onLineAdded={handleLineAdded}
+                onLineRemoved={handleLineRemoved}
               />
             ))}
           </ul>
