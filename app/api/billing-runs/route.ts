@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { Prisma } from "@/lib/generated/prisma/client";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { createBillingRunSchema } from "@/lib/validations/billing-run";
-import { buildBillingRunRows, type BuildEnrollment } from "@/lib/finance/build-billing-run";
-import type { AdjustmentInput } from "@/lib/finance/apply-adjustments";
+import { materializeBillingRun } from "@/lib/finance/materialize-billing-run";
 
 // Billing Run wizard (bulk invoice wizard arc, Cycle B1 —
 // docs/cycles/2026-08-14-billing-run-wizard.md, Task T4).
@@ -135,98 +133,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Fetch the data buildBillingRunRows needs — same query shapes as
-  // app/api/invoices/generate/batch/route.ts, scoped by class-section ∪
-  // explicit-include instead of an explicit studentIds list.
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: {
-      status: "ACTIVE",
-      OR: [
-        classSectionIds.length > 0 ? { classSectionId: { in: classSectionIds } } : undefined,
-        includeStudentIds.length > 0 ? { studentId: { in: includeStudentIds } } : undefined,
-      ].filter(Boolean) as Prisma.StudentEnrollmentWhereInput[],
-      classSection: { tenantId },
-    },
-    select: {
-      studentId: true,
-      classSectionId: true,
-      student: { select: { id: true, name: true } },
-      classSection: { select: { name: true, programId: true } },
-    },
-  });
-
-  const buildEnrollments: BuildEnrollment[] = enrollments.map((e) => ({
-    studentId: e.studentId,
-    studentName: e.student.name,
-    classLabel: e.classSection.name,
-    programId: e.classSection.programId,
-    classSectionId: e.classSectionId,
-  }));
-
-  const candidateStudentIds = [...new Set(enrollments.map((e) => e.studentId))];
-  const programIds = [...new Set(enrollments.map((e) => e.classSection.programId))];
-
-  const [feeStructures, existingInvoices, primaryGuardians, candidateAdjustments] = await Promise.all([
-    prisma.programFeeStructure.findMany({
-      where: {
-        programId: { in: programIds },
-        academicYearId,
-        feeComponent: { isEnabled: true, isRecurring: true },
-      },
-      include: { feeComponent: true },
-    }),
-    prisma.invoice.findMany({
-      where: { tenantId, periodLabel: trimmedLabel, studentId: { in: candidateStudentIds } },
-      select: { studentId: true },
-    }),
-    prisma.studentGuardian.findMany({
-      where: { studentId: { in: candidateStudentIds }, isPrimary: true },
-      select: { studentId: true, parentId: true },
-    }),
-    // Candidate keringanan grants — narrowed here for efficiency;
-    // applyAdjustments() re-checks status/academicYearId/validity itself.
-    prisma.studentFeeAdjustment.findMany({
-      where: { tenantId, studentId: { in: candidateStudentIds }, academicYearId, status: "ACTIVE" },
-    }),
-  ]);
-
-  const feesByProgram = new Map<string, { feeComponentId: string; label: string; amount: Prisma.Decimal }[]>();
-  for (const fs of feeStructures) {
-    const list = feesByProgram.get(fs.programId) ?? [];
-    list.push({ feeComponentId: fs.feeComponentId, label: fs.feeComponent.label, amount: fs.amount });
-    feesByProgram.set(fs.programId, list);
-  }
-
-  const alreadyInvoicedStudentIds = new Set(existingInvoices.map((i) => i.studentId));
-  const parentByStudent = new Map(primaryGuardians.map((g) => [g.studentId, g.parentId]));
-
-  const adjustmentsByStudent = new Map<string, AdjustmentInput[]>();
-  for (const adj of candidateAdjustments) {
-    const list = adjustmentsByStudent.get(adj.studentId) ?? [];
-    list.push({
-      id: adj.id,
-      academicYearId: adj.academicYearId,
-      feeComponentId: adj.feeComponentId,
-      type: adj.type as AdjustmentInput["type"],
-      mode: adj.mode as AdjustmentInput["mode"],
-      value: adj.value,
-      reason: adj.reason,
-      status: adj.status,
-      validFrom: adj.validFrom,
-      validTo: adj.validTo,
-    });
-    adjustmentsByStudent.set(adj.studentId, list);
-  }
-
-  const { rows, summary } = buildBillingRunRows({
-    enrollments: buildEnrollments,
-    scope: { classSectionIds, includeStudentIds, excludeStudentIds },
-    feesByProgram,
-    adjustmentsByStudent,
-    alreadyInvoicedStudentIds,
-    parentByStudent,
+  // Draft-materialization path is shared with the rebuild route (Task T4) —
+  // see lib/finance/materialize-billing-run.ts.
+  const { rows, summary } = await materializeBillingRun(prisma, {
+    tenantId,
     academicYearId,
+    periodLabel: trimmedLabel,
     dueDate,
+    scope: { classSectionIds, includeStudentIds, excludeStudentIds },
   });
 
   const rowsWithIds = rows.map((r) => ({ ...r, id: crypto.randomUUID() }));

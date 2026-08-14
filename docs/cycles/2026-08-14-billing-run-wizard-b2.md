@@ -205,11 +205,38 @@ over 60 days old and not scoped to invoicing.
 
 ## Implementation
 
-<!-- /build fills this in per task -->
+- Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-4-6; T1 ∥ T2 parallel (disjoint files),
+  then T3 ∥ T4, then T5, T6, T7, T8 sequential.
+- Task 1: Line math + validation — `lib/validations/billing-run.ts`,
+  `lib/validations/__tests__/billing-run.test.ts`, `lib/finance/billing-run-lines.ts` (new),
+  `lib/finance/__tests__/billing-run-lines.test.ts` (new). `resolveLineEdit()` derives
+  `adjustmentAmount = finalAmount − amount` and flips a `BASE`/`ADJUSTMENT` line to `EDITED`;
+  `buildManualLineFields()` builds the two `MANUAL` shapes (catalog: positive `amount`, zero
+  adjustment; discount: zero `amount`, negative adjustment and final); `sumRowTotal()` re-sums a row
+  clamped at zero. A negative result on a non-`MANUAL` line is **rejected rather than clamped** — the
+  admin typed a number and silently substituting a different one is worse than refusing it. `note` on
+  the update schema is `.nullable().optional()`, not `.optional()`: Cycle A shipped the `.optional()`
+  version for its validity dates and discovered a bound could never be cleared once set.
+- Task 2: Extract the draft materializer — `lib/finance/materialize-billing-run.ts` (new),
+  `app/api/billing-runs/route.ts`. Pure move of the read-and-build body so the rebuild route (T4) runs
+  the identical queries instead of a second copy that can drift. `db` is typed
+  `Prisma.TransactionClient` per `reserveInvoiceNumbers`' convention, so T4 can call it inside its
+  transaction. `periodLabel` is passed already-trimmed, matching the create route — the
+  already-invoiced query keys off that exact string and a trim mismatch there would silently stop
+  detecting duplicates.
 
 ## Verification
 
-<!-- /build fills this in per task -->
+- Tasks 1 + 2 (built in parallel, so the suite below covers both): gates passed — `npm run build`
+  exit 0; `npx vitest run` **298 files passed / 2 skipped (300), 2893 tests passed / 42 todo (2935)**.
+  Baseline on `origin/staging` is 297 files / 2851 tests, so this is +1 file (the new line-math suite)
+  and +42 tests. `npx eslint` clean on all six touched files.
+  T2's fidelity was verified by diff rather than asserted: the extracted region was pulled out of
+  `git show HEAD:app/api/billing-runs/route.ts`, the three expected substitutions applied
+  (`prisma.` → `db.`, `trimmedLabel` → the `periodLabel` input field, and the terminal `const {rows,
+  summary} =` → `return`), and `diff -u` then reported zero differences. `billing-runs.test.ts`
+  (27 tests) passes with the file unedited, which is the real proof the create route's behaviour is
+  unchanged.
 
 ## Ship Notes
 
