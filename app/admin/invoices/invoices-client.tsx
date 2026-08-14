@@ -707,6 +707,17 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
     [router, retryingRowId],
   );
 
+  // Billing Run wizard (Cycle B1, Task T9) — fired once step 3's commit loop
+  // has nothing left to commit. Refreshes everything the wizard's writes can
+  // have touched: the invoice list itself, the header stats, and the
+  // resumable-draft banner (a fully-committed run is no longer a DRAFT, so
+  // the banner should disappear).
+  const handleWizardCommitted = useCallback(() => {
+    fetchInvoices();
+    fetchStats();
+    fetchDraftRun();
+  }, [fetchInvoices, fetchStats, fetchDraftRun]);
+
   return (
     <>
       <PageHeader
@@ -978,6 +989,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         resumeRunId={wizardResumeId}
         years={years}
         onDraftChanged={fetchDraftRun}
+        onCommitted={handleWizardCommitted}
       />
 
     </>

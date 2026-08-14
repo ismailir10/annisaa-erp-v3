@@ -15,18 +15,19 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { AcademicYear } from "./billing-defaults";
 import { StepIndicator, type StepIndicatorItem } from "./step-indicator";
 import { ScopeStep } from "./step-1-scope";
+import { ReviewStep } from "./step-2-review";
+import { CommitStep } from "./step-3-commit";
 import type { WizardStep } from "./types";
 
 // Billing Run wizard shell (bulk invoice wizard arc, Cycle B1 —
 // docs/cycles/2026-08-14-billing-run-wizard.md, Task T8). Steps 2 (Tinjau)
-// and 3 (Komit) are Task T9's — they render as a clearly-marked placeholder
-// here so the shell (step routing + persisted draft id + resume) is
-// testable end-to-end before T9 fills in their interiors.
+// and 3 (Komit) are Task T9's — the shell's step routing, focus management
+// and step indicator are unchanged from T8; only the step bodies below moved
+// from placeholders to the real components.
 
 const STEPS: StepIndicatorItem[] = [
   { step: 1, label: "Cakupan" },
@@ -46,30 +47,13 @@ const STEP_DESCRIPTIONS: Record<WizardStep, string> = {
   3: "Komit draf menjadi tagihan resmi.",
 };
 
-function StepPlaceholder({ step, runId, onClose }: { step: 2 | 3; runId: string; onClose: () => void }) {
-  return (
-    <div className="rounded-lg border border-dashed p-card text-center">
-      <p className="text-body text-muted-foreground">
-        {step === 2
-          ? "Daftar baris per siswa akan tampil di sini (Task T9)."
-          : "Ringkasan total dan tombol komit akan tampil di sini (Task T9)."}
-      </p>
-      <p className="mt-2 text-caption text-muted-foreground">ID draf: {runId}</p>
-      <div className="mt-4 flex justify-center">
-        <Button type="button" variant="outline" onClick={onClose}>
-          Tutup
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function BillingRunWizard({
   open,
   onOpenChange,
   resumeRunId,
   years,
   onDraftChanged,
+  onCommitted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -77,6 +61,9 @@ export function BillingRunWizard({
   resumeRunId: string | null;
   years: AcademicYear[];
   onDraftChanged?: () => void;
+  /** Fired once step 3 has nothing left to commit — the caller refreshes the
+   *  invoice list (and its stats + draft banner) before the wizard closes. */
+  onCommitted?: () => void;
 }) {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<WizardStep>(1);
@@ -121,6 +108,15 @@ export function BillingRunWizard({
     onOpenChange(false);
   }
 
+  function handleReviewAdvance() {
+    setStep(3);
+  }
+
+  function handleCommitted() {
+    onCommitted?.();
+    handleClose();
+  }
+
   const body = (
     <>
       <StepIndicator steps={STEPS} current={step} />
@@ -142,8 +138,11 @@ export function BillingRunWizard({
             notifyDraftChanged={onDraftChanged}
           />
         )}
-        {step !== 1 && billingRunId && (
-          <StepPlaceholder step={step === 2 ? 2 : 3} runId={billingRunId} onClose={handleClose} />
+        {step === 2 && billingRunId && (
+          <ReviewStep runId={billingRunId} onAdvance={handleReviewAdvance} onClose={handleClose} />
+        )}
+        {step === 3 && billingRunId && (
+          <CommitStep runId={billingRunId} onClose={handleClose} onCommitted={handleCommitted} />
         )}
       </div>
     </>

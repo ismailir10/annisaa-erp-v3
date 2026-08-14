@@ -162,7 +162,7 @@ over 60 days old and not scoped to invoicing.
       *Acceptance:* scope selections produce the expected draft; refreshing mid-wizard resumes from the
       persisted draft. *Depends on:* T4, T7.
 
-- [ ] **T9 — Steps 2 and 3.** Step 2: per-student rows (name, class, total, keringanan badge),
+- [x] **T9 — Steps 2 and 3.** Step 2: per-student rows (name, class, total, keringanan badge),
       expandable to lines showing `Penyesuaian` + reason, server-paginated, with an exclude toggle
       per row. Read-only otherwise. Step 3: run totals + commit with live progress, driving the
       repointed chunk loop. Indonesian copy per `.claude/standards/voice.md`.
@@ -274,6 +274,27 @@ over 60 days old and not scoped to invoicing.
   would open a dead run and "Buang" would 409 forever, with no way back except closing the dialog,
   which unmounts the step and discards the scope just entered. The handler now tracks whether the
   cancel landed and clears the panel on a subsequent failure, handing the admin back their populated form.
+- Task 9: Steps 2 and 3 — `step-2-review.tsx`, `step-3-commit.tsx` (both new), `types.ts`,
+  `billing-run-wizard.tsx`, `app/admin/invoices/invoices-client.tsx` (refresh-after-commit hook).
+  Step 2 is one row per student with a keringanan badge, expandable to lines; `Penyesuaian` renders
+  only when non-zero, following the parent invoice sheet rather than the admin detail page, which
+  prints "Penyesuaian: Rp 0" on every unadjusted line. Excluded rows are visibly de-emphasised and
+  drop out of the totals; `SKIPPED_*` rows show their reason and cannot be re-included.
+  Step 3 computes totals from its own bounded fetch-all (`pageSize=100`, 2-3 requests for a
+  ~200-student run) because totals cannot be derived from a single page, then commits in 25-id chunks
+  with live progress. `remainingIds` shrinks only on a chunk's success, so a failure or a cancel
+  leaves those ids retryable and "Lanjutkan Komit" resumes — safe because the server claims rows
+  atomically. Draft age is surfaced; the "hitung ulang" rebuild from Assumption 2 is deferred to B2
+  and marked as such in a comment.
+  Two review fixes:
+  - **`runCommit` had no synchronous re-entry guard.** `disabled={isRunning}` only applies after React
+    commits, so a fast double-click could enter twice, read the same `remainingIds` closure, and send
+    the same chunks. No family would be double-billed — the server's row claim handles that — but the
+    loser returns `created: 0` for a chunk it "processed" and its progress writes race the winner's,
+    so `done` could exceed `total` and the final "N dibuat" could under-report. A `useRef` now flips
+    before any await, with the loop extracted so `finally` can clear it past the several early returns.
+  - **The commit progress had no live region.** A ~200-student run ticks for minutes with no feedback
+    for a screen-reader user; the status card is now `role="status" aria-live="polite"`.
 
 ## Verification
 
@@ -323,5 +344,11 @@ over 60 days old and not scoped to invoicing.
   that claim was verified directly instead — `git show HEAD:app/admin/invoices/invoices-client.tsx`'s
   `openGenerateDialog` body is line-for-line identical to `computeDefaultBillingForm`, so the legacy
   dialog's behaviour is unchanged and the two call sites now share one function by construction.
+- Task 9: gates passed — `npm run build` exit 0, `npx vitest run` 299 files / 2873 tests passed,
+  `npx eslint` clean on the wizard directory. My first attempt at the live-region fix put a JSX
+  comment in expression position inside a ternary, which broke the parse; caught by typecheck before
+  the build ran. The reviewer confirmed the chunk loop's shrink-on-success bookkeeping, the bounded
+  totals loop (`pagination.totalPages` is always computed server-side, so it cannot spin), the
+  `beforeunload` teardown, and the expander's `aria-expanded`/`aria-controls` wiring.
 
 ## Ship Notes
