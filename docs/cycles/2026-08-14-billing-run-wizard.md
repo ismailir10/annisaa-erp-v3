@@ -121,13 +121,13 @@ over 60 days old and not scoped to invoicing.
       classes, the two skip reasons, and keringanan landing on the right line with the right note.
       *Depends on:* T1.
 
-- [ ] **T4 — Create-draft route.** `POST /api/billing-runs` — builds and persists the draft in one
+- [x] **T4 — Create-draft route.** `POST /api/billing-runs` — builds and persists the draft in one
       transaction. `export const maxDuration = 60` as the batch route does. Rejects a second open
       `DRAFT` with a 409 naming the existing run.
       *Acceptance:* API tests for 403 non-admin, tenant-scoped class ids, the 409 on a second draft,
       and a 200 materializing the expected row/line counts. *Depends on:* T2, T3.
 
-- [ ] **T5 — Read / mutate / cancel routes.** `GET /api/billing-runs/[id]` (paginated rows per
+- [x] **T5 — Read / mutate / cancel routes.** `GET /api/billing-runs/[id]` (paginated rows per
       `api.md`, with lines for expanded rows), `GET /api/billing-runs?status=DRAFT` (resume lookup),
       `PATCH /api/billing-runs/[id]/rows/[rowId]` (exclude / re-include only this cycle),
       `PATCH /api/billing-runs/[id]` (cancel). No `DELETE` — cancel is a status flip.
@@ -226,6 +226,24 @@ over 60 days old and not scoped to invoicing.
   Checkbox per option, summarises as "N kelas dipilih", and carries `role="listbox"` +
   `aria-multiselectable` — cmdk renders no ARIA roles of its own, so there was no convention to
   inherit and they were added explicitly.
+- Tasks 4 + 5: Billing-run routes — `app/api/billing-runs/route.ts` (POST create + GET list),
+  `app/api/billing-runs/[id]/route.ts` (GET run + paginated rows, PATCH cancel),
+  `app/api/billing-runs/[id]/rows/[rowId]/route.ts` (PATCH exclude/re-include),
+  `app/api/__tests__/billing-runs.test.ts` — admin-gated and tenant-scoped throughout. Reads happen
+  outside the transaction, persistence inside it, with `createMany` for rows and lines rather than
+  looped inserts. The single-open-draft guard runs the duplicate check and the insert inside one
+  `Serializable` transaction, so two concurrent POSTs cannot both pass it — a plain pre-check would
+  leave a race window. `GET [id]` nests the standard `api.md` pagination envelope under `rows` since
+  the endpoint returns one run plus a paginated sub-list rather than a flat list. No `revalidate` on
+  any of them; draft state is mutable and per-request.
+  Two security findings from review, both fixed rather than deferred:
+  - **`academicYearId` was not tenant-verified.** The scope arrays were, but the year — which selects
+    the fee structures and keringanan the entire run is priced from, and which gets persisted onto the
+    run — was passed straight through. A foreign year would have priced this tenant's invoices off
+    another tenant's fee table. Now checked before any pricing data is read.
+  - **Cancel denylisted `COMMITTED` instead of allowlisting `DRAFT`**, so a `COMMITTING` run could be
+    cancelled with a commit in flight, leaving invoices written against a run marked `CANCELLED`.
+    Inverted, so any status added later is refused by default instead of silently becoming cancellable.
 
 ## Verification
 
@@ -248,5 +266,14 @@ over 60 days old and not scoped to invoicing.
   `git show HEAD:` and diffed against the new one — the only differences are the added `export` and
   the two lifted helpers, and an isolated diff of the JSX return blocks prints identical. Both call
   sites (enroll + promote dialogs) show zero diff hunks.
+- Tasks 4 + 5: gates passed — `npm run build` exit 0, `npx vitest run` 298 files / 2852 tests passed,
+  2 skipped, 42 todo. 27 route tests; the auth, cross-tenant and state-machine tests all assert the
+  write was never attempted rather than only the status code. Two tests were added for the review
+  fixes: a foreign `academicYearId` returns 404 with no pricing data read, and cancelling a
+  `COMMITTING` run returns 409.
+  **Process note:** `/build` asks for both `feature-dev:code-reviewer` and `superpowers:code-reviewer`
+  on security-sensitive diffs. Only the security reviewer ran on this pair — the session hit its
+  usage limit mid-cycle and the second pass was dropped deliberately to keep budget for the commit
+  route, which is the higher-risk diff. Recorded here rather than left implicit.
 
 ## Ship Notes
