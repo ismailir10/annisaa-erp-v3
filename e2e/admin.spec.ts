@@ -543,9 +543,17 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     //   - the amount field is labelled "Jumlah Akhir" via a real
     //     <label htmlFor> (line-editor.tsx:207-225, components/ui/field.tsx
     //     FieldLabel → components/ui/label.tsx <label>).
+    // Filter on the state-INDEPENDENT part of the label. Playwright locators
+    // are lazy and re-resolve on every use, so filtering on
+    // /^Tampilkan rincian tagihan/ made this row stop matching the moment the
+    // click below expanded it and flipped its aria-label to "Sembunyikan…" —
+    // every later `editableRow.…` then resolved to nothing. That is exactly
+    // how CI failed the first time this block ran. /rincian tagihan/ matches
+    // both states while still excluding SKIPPED_* rows, whose expand button is
+    // disabled and labelled "Tidak ada rincian".
     const editableRow = dialog
       .getByRole("listitem")
-      .filter({ has: page.getByRole("button", { name: /^Tampilkan rincian tagihan/ }) })
+      .filter({ has: page.getByRole("button", { name: /rincian tagihan/ }) })
       .first();
     await expect(editableRow, "no row with expandable lines in this draft").toBeVisible({
       timeout: 15_000,

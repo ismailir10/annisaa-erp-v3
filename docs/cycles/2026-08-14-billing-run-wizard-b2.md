@@ -442,6 +442,16 @@ over 60 days old and not scoped to invoicing.
     a pre-existing repo-wide pattern, not a B2 regression.
 - Preview-verify converged on iteration 2 (clean): 2 iterations, 1 fix commit, final preview
   `https://annisaa-erp-v3-git-feat-billin-232741-ismails-projects-196d40d3.vercel.app`.
+- **CI caught a bug in the new e2e block that preview-verify could not.** The first `Playwright E2E`
+  run on PR #495 came back red — 1 failed, and it was the wizard spec itself, failing both attempts at
+  `admin.spec.ts:562` with "expanded row has no editable line". Not a product defect: T7 located the
+  row with `.filter({ has: … /^Tampilkan rincian tagihan/ })`, and Playwright locators re-resolve
+  lazily on every use, so the moment the test clicked that button and the aria-label flipped to
+  "Sembunyikan rincian tagihan" the row locator matched nothing and every subsequent
+  `editableRow.…` resolved to an empty set. Manual preview-verify never hits this because a human
+  clicking a row does not re-run a stale selector.
+  Fixed by filtering on the state-independent `/rincian tagihan/`, which still excludes `SKIPPED_*`
+  rows (their expand button is disabled and labelled "Tidak ada rincian"). Soft-skip delta stays 0.
 
 ## Ship Notes
 
