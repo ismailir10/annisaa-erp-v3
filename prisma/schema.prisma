@@ -50,6 +50,7 @@ model Tenant {
   reportNarrativeTemplates ReportNarrativeTemplate[]
   reportClosingTemplates   ReportClosingTemplate[]
   studentMeasurements    StudentMeasurement[]
+  billingRuns BillingRun[]
 }
 
 // ── USER ─────────────────────────────────────────────────────
@@ -404,6 +405,7 @@ model AcademicYear {
   feeStructures ProgramFeeStructure[]
   feeAdjustments StudentFeeAdjustment[]
   semesters     Semester[]
+  billingRuns BillingRun[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -553,6 +555,7 @@ model Student {
   reportCardEntries   ReportCardEntry[]
   studentMeasurements StudentMeasurement[]
   feeAdjustments      StudentFeeAdjustment[]
+  billingRunRows      BillingRunRow[]
 
   @@index([tenantId, status])
   @@index([nis], map: "Student_nis_idx")
@@ -737,6 +740,7 @@ model FeeComponentDef {
   feeStructures ProgramFeeStructure[]
   invoiceLines  InvoiceLine[]
   feeAdjustments StudentFeeAdjustment[]
+  billingRunLines BillingRunLine[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -795,6 +799,75 @@ model StudentFeeAdjustment {
   @@index([tenantId, status])
   @@index([studentId, academicYearId])
   @@index([feeComponentId])
+}
+
+// ── BILLING RUN (bulk invoice wizard draft) ──────────────────
+// Cycle B1 of the bulk invoice wizard arc (docs/cycles/2026-08-14-billing-run-wizard.md).
+// A persisted draft between scope selection and commit — replaces the
+// three-field "Buat Tagihan" dialog's in-memory plan. Restrict on tenant +
+// academicYear: a run is a record of billing intent, never silently dropped.
+model BillingRun {
+  id             String    @id @default(cuid())
+  tenantId       String
+  academicYearId String
+  periodLabel    String // "April 2026" or "Semester 1 2025/2026"
+  dueDate        String // YYYY-MM-DD
+  status         String    @default("DRAFT") // DRAFT | COMMITTING | COMMITTED | CANCELLED
+  scope          Json // resolved scope: { classSectionIds, includeStudentIds, excludeStudentIds }
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  committedAt    DateTime?
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYear AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  rows         BillingRunRow[]
+
+  @@index([tenantId, status])
+}
+
+// ── BILLING RUN ROW (one per in-scope student) ────────────────
+// Cascade from BillingRun — rows die with the run. Restrict on Student.
+// invoiceId is a plain nullable column, NOT a relation: it is the
+// idempotency guard set on commit, and keeping it un-related means a
+// voided invoice never blocks deletion of the run it came from.
+model BillingRunRow {
+  id                  String  @id @default(cuid())
+  billingRunId        String
+  studentId           String
+  studentNameSnapshot String
+  classLabelSnapshot  String?
+  parentId            String?
+  totalDue            Decimal @default(0) @db.Decimal(15, 2)
+  status              String  @default("PENDING") // PENDING | EXCLUDED | SKIPPED_ALREADY_INVOICED | SKIPPED_NO_FEE_STRUCTURE | COMMITTED | FAILED
+  invoiceId           String? // set on commit; idempotency guard — not a relation on purpose (see above)
+  error               String?
+
+  billingRun BillingRun       @relation(fields: [billingRunId], references: [id], onDelete: Cascade)
+  student    Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  lines      BillingRunLine[]
+
+  @@unique([billingRunId, studentId])
+  @@index([billingRunId, status])
+}
+
+// ── BILLING RUN LINE (one per fee component per row) ───────────
+// Cascade from BillingRunRow. Restrict on FeeComponentDef — mirrors
+// InvoiceLine's field shape so commit can copy a line verbatim.
+model BillingRunLine {
+  id               String  @id @default(cuid())
+  billingRunRowId  String
+  feeComponentId   String
+  labelSnapshot    String
+  amount           Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentAmount Decimal @default(0) @db.Decimal(15, 2)
+  adjustmentNote   String?
+  finalAmount      Decimal @default(0) @db.Decimal(15, 2)
+  source           String  @default("BASE") // BASE | ADJUSTMENT (Cycle B2 adds MANUAL)
+
+  billingRunRow BillingRunRow   @relation(fields: [billingRunRowId], references: [id], onDelete: Cascade)
+  feeComponent  FeeComponentDef @relation(fields: [feeComponentId], references: [id], onDelete: Restrict)
+
+  @@index([billingRunRowId])
 }
 
 // ── INVOICE NUMBER SEQUENCE ──────────────────────────────────

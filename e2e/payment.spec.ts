@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { ensureParentHasInvoice } from "./ensure-parent-invoice";
 
 // /payment/success and /payment/cancel are thin server-side redirect shims
 // that forward to /parent/invoices?invoice=<id>&paymentStatus=paid|cancel.
@@ -22,6 +23,11 @@ test.describe("Payment return shims", () => {
     const parent = users.find((u: { role: string }) => u.role === "GUARDIAN");
     if (!parent) throw new Error("No GUARDIAN user found in demo DB");
     parentUserId = parent.id;
+
+    // The AC-24 test below clicks the first invoice row in the parent's list,
+    // so an invoice has to exist. It used to be supplied incidentally by
+    // admin.spec's bulk-generate smoke — see e2e/ensure-parent-invoice.ts.
+    await ensureParentHasInvoice(request, parentUserId);
   });
 
   test.beforeEach(async ({ page }) => {

@@ -11,44 +11,20 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { Alert, AlertTitle, AlertDescription, AlertAction } from "@/components/ui/alert";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { BatchProgressCard } from "@/components/admin/invoices/batch-progress-card";
 import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-dialog";
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw } from "lucide-react";
+import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
+import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
-import { formatRupiah, formatDateShort, formatMonthLabel } from "@/lib/format";
-import {
-  runBulkGenerate,
-  type BatchProgressSnapshot,
-  type PlanResponse,
-} from "@/lib/finance/run-bulk-generate";
+import { formatRupiah, formatDateShort } from "@/lib/format";
 import {
   runBulkRetry,
   type BulkRetrySnapshot,
@@ -81,7 +57,11 @@ type Invoice = {
   _count: { payments: number };
 };
 
-type AcademicYear = { id: string; name: string; status: string };
+// `AcademicYear` lives in
+// components/admin/invoices/billing-run-wizard/billing-defaults.ts (Cycle
+// B1, Task T8). Re-exported here for any code that still imports the type
+// from this module.
+export type { AcademicYear };
 
 type Pagination = {
   page: number;
@@ -183,70 +163,8 @@ const columns: ColumnDef<Invoice>[] = [
 // Page
 // ------------------------------------------------------------------
 
-// ------------------------------------------------------------------
-// Generate Invoice Form Body (shared between Dialog + Sheet)
-// ------------------------------------------------------------------
-
-function GenerateInvoiceFormBody({
-  genForm,
-  setGenForm,
-  years,
-}: {
-  genForm: { periodLabel: string; dueDate: string; academicYearId: string };
-  setGenForm: (v: { periodLabel: string; dueDate: string; academicYearId: string }) => void;
-  years: AcademicYear[];
-}) {
-  return (
-    <>
-      <Field>
-        <FieldLabel required htmlFor="invoices-generate-period">Periode</FieldLabel>
-        <Input
-          id="invoices-generate-period"
-          required
-          aria-required="true"
-          value={genForm.periodLabel}
-          onChange={(e) => setGenForm({ ...genForm, periodLabel: e.target.value })}
-          placeholder="April 2026"
-        />
-        <FieldDescription>Contoh: April 2026</FieldDescription>
-      </Field>
-      <Field>
-        <FieldLabel required htmlFor="invoices-generate-due-date">Tanggal Jatuh Tempo</FieldLabel>
-        <Input
-          id="invoices-generate-due-date"
-          required
-          aria-required="true"
-          type="date"
-          value={genForm.dueDate}
-          onChange={(e) => setGenForm({ ...genForm, dueDate: e.target.value })}
-        />
-      </Field>
-      <Field>
-        <FieldLabel required htmlFor="invoices-generate-academic-year">Tahun Ajaran</FieldLabel>
-        <Select
-          value={genForm.academicYearId}
-          onValueChange={(v) => v && setGenForm({ ...genForm, academicYearId: v })}
-        >
-          <SelectTrigger id="invoices-generate-academic-year" aria-required="true">
-            <SelectValue placeholder="Pilih tahun ajaran" />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y.id} value={y.id}>
-                {y.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <FieldDescription>Periode tagihan akan terikat ke tahun ajaran ini.</FieldDescription>
-      </Field>
-    </>
-  );
-}
-
 export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) {
   const router = useRouter();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -264,39 +182,60 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
 
   const [voidTarget, setVoidTarget] = useState<Invoice | null>(null);
 
-  // Dialog state
-  const [generateDialog, setGenerateDialog] = useState(false);
-  const [genForm, setGenForm] = useState({ periodLabel: "", dueDate: "", academicYearId: "" });
-  const [generating, setGenerating] = useState(false);
-
   // Manual single-invoice dialog — submission redirects to the detail page,
   // so no list refresh is needed on success (the user leaves the list view).
   const [manualDialog, setManualDialog] = useState(false);
 
-  // Bulk-generate + bulk-retry orchestration state (shared progress card).
-  // The two flows never overlap on screen — bulk-create runs to completion or
-  // is cancelled before bulk-retry can be triggered.
-  const [progress, setProgress] = useState<BatchProgressSnapshot | null>(null);
-  const [planConfirm, setPlanConfirm] = useState<{
-    plan: PlanResponse;
-    resolve: (proceed: boolean) => void;
-  } | null>(null);
+  // Billing Run wizard (bulk invoice wizard arc, Cycle B1, Task T8) — the
+  // only bulk-generate entry point since Task T10 retired the legacy
+  // "Buat Tagihan Bulanan" dialog and its plan/batch routes. `wizardResumeId`
+  // is set when the entry point is the resumable-draft banner rather than
+  // the "new run" button, so the wizard opens straight into the existing
+  // draft instead of step 1.
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardResumeId, setWizardResumeId] = useState<string | null>(null);
+  const [draftRun, setDraftRun] = useState<{ id: string; periodLabel: string } | null>(null);
+
+  const fetchDraftRun = useCallback(() => {
+    fetch("/api/billing-runs?status=DRAFT&pageSize=1")
+      .then((r) => r.json())
+      .then((json) => {
+        const run = json?.data?.[0];
+        setDraftRun(run ? { id: run.id, periodLabel: run.periodLabel } : null);
+      })
+      .catch((err) => console.error("[invoices] draft billing run fetch failed", err));
+  }, []);
+
+  useEffect(() => {
+    fetchDraftRun();
+  }, [fetchDraftRun]);
+
+  function openWizard() {
+    setWizardResumeId(null);
+    setWizardOpen(true);
+  }
+
+  function resumeWizard() {
+    if (!draftRun) return;
+    setWizardResumeId(draftRun.id);
+    setWizardOpen(true);
+  }
+
+  // Bulk-retry orchestration state (pending-payment-link retry, unrelated to
+  // the retired bulk-generate dialog — this is the "Coba Lagi Link" surface
+  // driven by lib/finance/run-bulk-retry.ts, which Task T10 leaves untouched).
   const [retryConfirmOpen, setRetryConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryingRowId, setRetryingRowId] = useState<string | null>(null);
-  // Bulk-retry orchestrator state. The retry progress is rendered through
-  // the same `<BatchProgressCard>` shell as bulk-generate (different mode).
   const [retryProgress, setRetryProgress] = useState<BulkRetrySnapshot | null>(null);
   const [overflowConfirm, setOverflowConfirm] = useState<{
     total: number;
     resolve: (proceed: boolean) => void;
   } | null>(null);
   const retryDoneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const doneAutoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // AbortControllers for the two orchestrators — driven by the
+  // AbortController for the retry orchestrator — driven by the
   // BatchProgressCard "Batalkan" button. Reset to null when the run finishes
   // or is cancelled so the next click starts fresh.
-  const generateAbortRef = useRef<AbortController | null>(null);
   const retryAbortRef = useRef<AbortController | null>(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -369,13 +308,12 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
   }, [fetchInvoices]);
 
   // Cleanup the auto-hide timer on unmount + flip mountedRef so any in-flight
-  // runBulkGenerate callbacks (onProgress, onPauseDecision, post-run toasts)
-  // can short-circuit and avoid setting state on an unmounted component.
+  // runBulkRetry callbacks (onProgress, onOverflow, post-run toasts) can
+  // short-circuit and avoid setting state on an unmounted component.
   const mountedRef = useRef(true);
   useEffect(() => {
     return () => {
       mountedRef.current = false;
-      if (doneAutoHideRef.current) clearTimeout(doneAutoHideRef.current);
       if (retryDoneAutoHideRef.current) clearTimeout(retryDoneAutoHideRef.current);
     };
   }, []);
@@ -402,105 +340,6 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
     setSortOrder(order);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-
-  function openGenerateDialog() {
-    const now = new Date();
-    const monthName = formatMonthLabel(now.getFullYear(), now.getMonth() + 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const dueDate = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
-    const activeYear = years.find((y) => y.status === "ACTIVE");
-    setGenForm({ periodLabel: monthName, dueDate, academicYearId: activeYear?.id ?? "" });
-    setGenerateDialog(true);
-  }
-
-  async function handleGenerate() {
-    if (!genForm.periodLabel || !genForm.dueDate || !genForm.academicYearId) {
-      toast.error("Lengkapi semua field");
-      return;
-    }
-    setGenerating(true);
-    setGenerateDialog(false);
-
-    // Cancel any pending auto-hide timer from a prior run.
-    if (doneAutoHideRef.current) {
-      clearTimeout(doneAutoHideRef.current);
-      doneAutoHideRef.current = null;
-    }
-
-    // Fresh AbortController per run — wired to the card's Batalkan button.
-    generateAbortRef.current = new AbortController();
-
-    try {
-      const out = await runBulkGenerate({
-        planRequest: genForm,
-        signal: generateAbortRef.current.signal,
-        // Promise-based hook: opens the confirm dialog, resolves on user click.
-        onPlan: (plan) =>
-          new Promise<boolean>((resolve) => {
-            if (!mountedRef.current) return resolve(false);
-            if (plan.eligible === 0) {
-              // Belt-and-suspenders — runBulkGenerate short-circuits no-eligible
-              // before calling onPlan, but if a future change wires it here,
-              // surface the error and bail.
-              resolve(false);
-              return;
-            }
-            setPlanConfirm({ plan, resolve });
-          }),
-        onProgress: (snapshot) => {
-          if (!mountedRef.current) return;
-          setProgress({ ...snapshot });
-        },
-      });
-
-      if (!mountedRef.current) return;
-
-      if (out.phase === "no-eligible") {
-        const msg =
-          out.plan.skippedAlreadyInvoiced + out.plan.skippedNoFeeStructure > 0
-            ? `Tidak ada siswa yang memenuhi syarat (${out.plan.skippedAlreadyInvoiced} sudah punya tagihan, ${out.plan.skippedNoFeeStructure} belum ada struktur biaya)`
-            : "Tidak ada siswa yang memenuhi syarat";
-        toast.error(msg);
-      } else if (out.phase === "user-cancelled") {
-        // No toast — confirm dialog Cancel button is the user-visible signal.
-        setProgress(null);
-      } else if (out.phase === "aborted") {
-        toast.error(`Dibatalkan setelah ${out.final.done}/${out.final.total} tagihan dibuat`);
-      } else if (out.phase === "done") {
-        const { created, xenditOk, xenditFailed } = out.final;
-        const tail = xenditFailed > 0 ? `, ${xenditFailed} link gagal — bisa di-retry dari list` : "";
-        toast.success(`${created} tagihan dibuat (${xenditOk} link berhasil${tail})`);
-        fetchInvoices();
-        fetchStats();
-
-        // Auto-hide the progress card 5s after completion (Spec §11 task 11).
-        doneAutoHideRef.current = setTimeout(() => {
-          setProgress(null);
-          doneAutoHideRef.current = null;
-        }, 5000);
-      }
-    } catch (e) {
-      toast.error(userMessage(e, "Gagal membuat tagihan"));
-      setProgress(null);
-    } finally {
-      setGenerating(false);
-      generateAbortRef.current = null;
-    }
-  }
-
-  function handlePlanConfirm() {
-    if (!planConfirm) return;
-    const { resolve } = planConfirm;
-    setPlanConfirm(null);
-    resolve(true);
-  }
-
-  function handlePlanCancel() {
-    if (!planConfirm) return;
-    const { resolve } = planConfirm;
-    setPlanConfirm(null);
-    resolve(false);
-  }
 
   // Bulk retry — drives the runBulkRetry orchestrator end-to-end. The
   // orchestrator pre-fetches all PENDING_PAYMENT_LINK invoices, chunks them
@@ -670,6 +509,17 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
     [router, retryingRowId],
   );
 
+  // Billing Run wizard (Cycle B1, Task T9) — fired once step 3's commit loop
+  // has nothing left to commit. Refreshes everything the wizard's writes can
+  // have touched: the invoice list itself, the header stats, and the
+  // resumable-draft banner (a fully-committed run is no longer a DRAFT, so
+  // the banner should disappear).
+  const handleWizardCommitted = useCallback(() => {
+    fetchInvoices();
+    fetchStats();
+    fetchDraftRun();
+  }, [fetchInvoices, fetchStats, fetchDraftRun]);
+
   return (
     <>
       <PageHeader
@@ -688,18 +538,30 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
             <Button size="sm" variant="outline" onClick={() => setManualDialog(true)}>
               <Plus size={14} className="mr-1.5" /> Tagihan Manual
             </Button>
-            <Button size="sm" variant="outline" onClick={openGenerateDialog} disabled={generating}>
-              <Plus size={14} className="mr-1.5" /> Buat Tagihan
+            <Button size="sm" onClick={openWizard}>
+              <FilePlus2 size={14} className="mr-1.5" /> Buat Tagihan
             </Button>
           </div>
         }
       />
 
-      {progress && progress.phase !== "idle" && (
-        <BatchProgressCard
-          progress={progress}
-          onCancel={() => generateAbortRef.current?.abort()}
-        />
+      {/* Resumable draft banner (Cycle B1, Task T8) — a DRAFT billing run
+          persists across refreshes; this is how an admin picks it back up
+          instead of it silently sitting invisible until they happen to
+          re-open the wizard fresh and hit the 409. */}
+      {draftRun && (
+        <Alert>
+          <AlertTriangle className="size-4" />
+          <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
+          <AlertDescription>
+            Periode {draftRun.periodLabel} punya draf yang belum dikomit.
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={resumeWizard}>
+              Lanjutkan draf
+            </Button>
+          </AlertAction>
+        </Alert>
       )}
 
       {retryProgress && (
@@ -813,32 +675,6 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         confirmLabel="Lanjutkan"
       />
 
-      {/* Bulk-generate plan confirmation — shows eligibility breakdown before
-          the batch loop kicks off. Uses ConfirmDialog so the description can
-          inline the skipped counts. Cancel resolves the orchestrator's onPlan
-          promise with `false`, ending the run before any batch is posted. */}
-      <ConfirmDialog
-        open={!!planConfirm}
-        onOpenChange={(o) => {
-          if (!o && planConfirm) handlePlanCancel();
-        }}
-        title="Buat Tagihan"
-        description={
-          planConfirm
-            ? `${planConfirm.plan.eligible} siswa akan ditagih.` +
-              (planConfirm.plan.skippedAlreadyInvoiced > 0 || planConfirm.plan.skippedNoFeeStructure > 0
-                ? ` Dilewati: ${planConfirm.plan.skippedAlreadyInvoiced} sudah punya tagihan, ${planConfirm.plan.skippedNoFeeStructure} belum ada struktur biaya.`
-                : "") +
-              (planConfirm.plan.withAdjustments && planConfirm.plan.withAdjustments > 0
-                ? ` Termasuk ${planConfirm.plan.withAdjustments} siswa dengan keringanan.`
-                : "") +
-              " Lanjutkan?"
-            : ""
-        }
-        onConfirm={handlePlanConfirm}
-        confirmLabel="Lanjutkan"
-      />
-
       {/* Void Confirmation */}
       <ConfirmDialog
         open={!!voidTarget}
@@ -866,50 +702,17 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         }}
       />
 
-      {/* Generate Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
-      {isMobile ? (
-        <Sheet open={generateDialog} onOpenChange={setGenerateDialog}>
-          <SheetContent side="bottom" className="overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Buat Tagihan Bulanan</SheetTitle>
-              <SheetDescription>
-                Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="space-y-field px-4 pb-4">
-              <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
-            </div>
-            <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Membuat..." : "Buat Tagihan"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={generateDialog} onOpenChange={setGenerateDialog}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Buat Tagihan Bulanan</DialogTitle>
-              <DialogDescription>
-                Sistem akan membuat tagihan untuk semua siswa aktif berdasarkan struktur biaya program.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-field">
-              <GenerateInvoiceFormBody genForm={genForm} setGenForm={setGenForm} years={years} />
-            </div>
-            <DialogFooter>
-              <DialogClose>
-                <Button variant="ghost">Batal</Button>
-              </DialogClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Membuat..." : "Buat Tagihan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Billing Run wizard (Cycle B1, Tasks T8-T9) — the sole bulk-generate
+          entry point since Task T10 retired the legacy "Buat Tagihan
+          Bulanan" dialog/sheet and its plan/batch routes. */}
+      <BillingRunWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        resumeRunId={wizardResumeId}
+        years={years}
+        onDraftChanged={fetchDraftRun}
+        onCommitted={handleWizardCommitted}
+      />
 
     </>
   );

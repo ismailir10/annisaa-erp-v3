@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { ensureParentHasInvoice } from "./ensure-parent-invoice";
 
 // Demo mode E2E — discovers guardian user ID from /api/auth/users and sets
 // session cookie directly to avoid rate limit on repeated logins.
@@ -12,6 +13,11 @@ test.describe("Parent flows", () => {
     const parent = users.find((u: { role: string }) => u.role === "GUARDIAN");
     if (!parent) throw new Error("No GUARDIAN user found in demo DB");
     parentUserId = parent.id;
+
+    // Own the fixture rather than inheriting it. These specs previously
+    // relied on admin.spec's bulk-generate smoke billing every student — see
+    // e2e/ensure-parent-invoice.ts for the full story.
+    await ensureParentHasInvoice(request, parentUserId);
   });
 
   test.beforeEach(async ({ page }) => {
