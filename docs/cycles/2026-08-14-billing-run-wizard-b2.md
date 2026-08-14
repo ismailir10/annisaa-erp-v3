@@ -401,6 +401,16 @@ over 60 days old and not scoped to invoicing.
     beneath auto-fills with the human name the moment a component is picked, so the admin still sees
     what they chose. Fixing it properly means touching the shared primitive, which is wider than this
     cycle.
+  - **Fix-commit note.** The first cut of the fix put `rowHasKeringanan()` in
+    `lib/finance/billing-run-lines.ts` and imported it from the two client components — which pulled
+    `@/lib/generated/prisma/client` into the browser bundle and failed the build with
+    `the chunking context (unknown) does not support external modules (request: node:module)`. Caught
+    by the gate, not shipped. The `source` vocabulary and its predicates now live in
+    `lib/finance/billing-run-line-source.ts`, which imports nothing; `billing-run-lines.ts` re-exports
+    them so server callers keep a single import site.
+  - Gates after the fix: `npm run build` exit 0; `npx vitest run` **2935 passed / 42 todo (2977)** —
+    +6 over the pre-fix 2929, the six `rowHasKeringanan` cases, which include the upward-edit that
+    produced the wrong badge. `npx eslint` clean on every touched file.
 
 ## Ship Notes
 
