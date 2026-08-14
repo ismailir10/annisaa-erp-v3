@@ -68,8 +68,8 @@ over 60 days old and not scoped to invoicing.
       existing `PATCH /api/billing-runs/[id] { status: "CANCELLED" }`. Closes B1's half-met criterion.
 - [x] **The draft-materialization path is shared, not duplicated.** `POST /api/billing-runs` and the new
       rebuild route run the same reads + `buildBillingRunRows` call through one extracted helper.
-- [ ] All new routes admin-only and tenant-scoped, per `.claude/standards/security.md`.
-- [ ] No migration. `source` gains values on an unconstrained `String` column; no schema change ships.
+- [x] All new routes admin-only and tenant-scoped, per `.claude/standards/security.md`.
+- [x] No migration. `source` gains values on an unconstrained `String` column; no schema change ships.
 
 ### Non-goals
 
