@@ -218,6 +218,14 @@ over 60 days old and not scoped to invoicing.
   academic-year / validity gate still applies and `totalDue` is the resolver's rather than a re-sum.
   Scope resolution is class-match ∪ explicit-include, deduped by student (first in-scope enrollment
   wins, matching the batch route it replaces), with excludes applied last so they win over both.
+- Task 7: Extract + extend the class picker — `components/admin/class-section-picker.tsx` (new),
+  `app/admin/students/[id]/page.tsx` — `ClassSectionCombobox` was module-private inside the students
+  page; it is now exported, with a `ClassSectionMultiPicker` sibling for the wizard's step 1. The
+  single-select's JSX is byte-identical; `label()` and campus grouping were lifted to module-level
+  helpers so both variants share them. Multi-select keeps the popover open on select, shows a
+  Checkbox per option, summarises as "N kelas dipilih", and carries `role="listbox"` +
+  `aria-multiselectable` — cmdk renders no ARIA roles of its own, so there was no convention to
+  inherit and they were added explicitly.
 
 ## Verification
 
@@ -234,5 +242,11 @@ over 60 days old and not scoped to invoicing.
   admission paths, and the two skip reasons producing no lines and a zero total. The reviewer was
   asked specifically whether any rule would still pass if broken; it confirmed the tests assert
   line-level breakdown (amount / adjustmentAmount / finalAmount / note), not just row counts.
+- Task 7: gates passed — same build + vitest run; `npm run lint` clean on the new file, and the two
+  warnings on the students page were confirmed pre-existing by linting `git show HEAD:` of it.
+  Faithfulness verified rather than asserted: the old inline function was extracted from
+  `git show HEAD:` and diffed against the new one — the only differences are the added `export` and
+  the two lifted helpers, and an isolated diff of the JSX return blocks prints identical. Both call
+  sites (enroll + promote dialogs) show zero diff hunks.
 
 ## Ship Notes
