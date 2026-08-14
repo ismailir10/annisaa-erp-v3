@@ -170,7 +170,7 @@ over 60 days old and not scoped to invoicing.
       excluding a row drops it from the step 3 totals; commit reports per-row results.
       *Depends on:* T5, T6.
 
-- [ ] **T10 — Retire the old path.** Delete the three-field dialog from
+- [x] **T10 — Retire the old path.** Delete the three-field dialog from
       `app/admin/invoices/invoices-client.tsx`, delete `app/api/invoices/generate/{plan,batch}`, and
       repoint `lib/finance/run-bulk-generate.ts` at the commit endpoint — keep its chunking, retry,
       backoff, inter-chunk pacing and pending-link auto-sweep. Rewrite
@@ -295,6 +295,18 @@ over 60 days old and not scoped to invoicing.
     before any await, with the loop extracted so `finally` can clear it past the several early returns.
   - **The commit progress had no live region.** A ~200-student run ticks for minutes with no feedback
     for a screen-reader user; the status card is now `role="status" aria-live="polite"`.
+- Task 10: Retire the old bulk path — deleted `app/api/invoices/generate/{plan,batch}/` and their two
+  test files; removed the three-field dialog, its confirm dialog and all its now-dead state and
+  imports from `app/admin/invoices/invoices-client.tsx`; renamed the wizard button to plain
+  "Buat Tagihan" since it is the only path now. `BatchProgressCard` stays — its `mode="retry"` still
+  drives "Coba Lagi Link".
+  `run-bulk-generate.ts` was **repointed, not deleted** (Assumption 7): it now exports
+  `runBulkCommit({ runId, rowIds, … })` against the commit endpoint, and `step-3-commit.tsx` drives it
+  instead of the local loop T9 wrote as a placeholder. Deleting it would have meant either
+  reimplementing the pending-link auto-sweep inline or losing it, since `runBulkRetry` is invoked from
+  inside that sweep.
+  Dead code spotted and left for a later pass: `generatePlanSchema` / `generateBatchSchema` in
+  `lib/validations/invoice.ts` now have no importers.
 
 ## Verification
 
@@ -350,5 +362,22 @@ over 60 days old and not scoped to invoicing.
   the build ran. The reviewer confirmed the chunk loop's shrink-on-success bookkeeping, the bounded
   totals loop (`pagination.totalPages` is always computed server-side, so it cannot spin), the
   `beforeunload` teardown, and the expander's `aria-expanded`/`aria-controls` wiring.
+- Task 10: gates passed — `npm run build` exit 0, `npx vitest run` 297 files / 2851 tests passed,
+  `npx eslint` clean on every touched file. The test count drops because two whole test files were
+  deleted with their routes; the orchestrator suite is 19 tests before and after.
+  **The acceptance criterion here was surviving coverage by test name, so I verified it myself rather
+  than taking the subagent's table on trust.** Every behaviour has a named successor in
+  `run-bulk-generate.test.ts`: chunking (single + multi), 5xx retry-then-abort, inter-chunk pacing
+  (3 tests including the M2 regression guard), abort mid-run (2), failure-row accumulation, and
+  auto-sweep (3 — fires once, cannot clear hard failures, skipped on user-abort). Two old tests were
+  dropped, both plan-specific (`eligible=0`, `onPlan returns false`); that eligibility logic now lives
+  server-side and is covered by `build-billing-run.test.ts` and `billing-runs-commit.test.ts`, so it
+  is a relocation rather than a loss. One genuine gap was closed: 4xx fail-fast had no dedicated test
+  before and now does.
+  `grep -rn "invoices/generate"` returns only comment prose — zero live imports, fetches or route
+  references. `e2e/admin.spec.ts:456,467` still drives the deleted dialog; that is T11's work.
+  **Process note:** no separate code-reviewer agent ran on this task. The session was near its usage
+  limit, and the criterion that mattered — coverage survival — is the one I verified directly against
+  the test file. Recorded rather than left implicit.
 
 ## Ship Notes

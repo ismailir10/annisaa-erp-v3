@@ -10,17 +10,18 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah, formatRelativeTime } from "@/lib/format";
-import { userMessage, ApiError } from "@/lib/api/client-errors";
-import type { BillingRunDetail, BillingRunRowData, CommitBillingRunResponse } from "./types";
+import { userMessage } from "@/lib/api/client-errors";
+import { runBulkCommit } from "@/lib/finance/run-bulk-generate";
+import type { BillingRunDetail, BillingRunRowData } from "./types";
 
-// Step 3 — Commit (Cycle B1, Task T9). Drives the commit with a small local
-// chunk loop rather than reusing lib/finance/run-bulk-generate.ts — that
-// module is wired to /api/invoices/generate/{plan,batch} and repointing it
-// at /api/billing-runs/[id]/commit is Task T10's job (consolidating the
-// retry/backoff/pacing it already has, not re-deriving it here). Chunk size
-// (25) matches `commitBillingRunSchema`'s cap in lib/validations/billing-run.ts.
-
-const COMMIT_CHUNK_SIZE = 25;
+// Step 3 — Commit (Cycle B1, Task T9; repointed onto the shared bulk-commit
+// orchestrator in Task T10 — docs/cycles/2026-08-14-billing-run-wizard.md).
+// Chunking, 5xx retry+backoff, inter-chunk pacing, abort, and the
+// pending-payment-link auto-sweep all live in lib/finance/run-bulk-generate.ts
+// (originally wired to the retired /api/invoices/generate/{plan,batch} flow,
+// repointed at POST /api/billing-runs/[id]/commit). This component drives
+// that module rather than re-deriving the same retry/backoff/pacing logic
+// locally — Assumption 7 in the cycle doc.
 
 // Server max page size (lib/api/pagination.ts MAX_PAGE_SIZE) — used to pull
 // every row of the run in as few requests as possible for step 3's totals
@@ -37,13 +38,7 @@ const FETCH_ALL_PAGE_SIZE = 100;
 // keringanan change under it, a multi-day-old one plausibly does.
 const STALE_DRAFT_MS = 24 * 60 * 60 * 1000;
 
-function chunkIds(ids: string[], size: number): string[][] {
-  const out: string[][] = [];
-  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
-  return out;
-}
-
-type CommitPhase = "idle" | "running" | "done" | "aborted" | "error";
+type CommitPhase = "idle" | "running" | "sweeping" | "done" | "aborted" | "error";
 
 type Summary = {
   createdAt: string;
@@ -116,7 +111,7 @@ export function CommitStep({
   const [phase, setPhase] = useState<CommitPhase>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const cancelRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   const committingRef = useRef(false);
   useEffect(() => {
@@ -125,7 +120,7 @@ export function CommitStep({
     };
   }, []);
 
-  useBeforeUnloadWhileRunning(phase === "running");
+  useBeforeUnloadWhileRunning(phase === "running" || phase === "sweeping");
 
   async function loadSummary() {
     setLoading(true);
@@ -182,64 +177,88 @@ export function CommitStep({
     if (committingRef.current) return;
     committingRef.current = true;
     try {
-      await runCommitChunks();
+      await runCommitOnce();
     } finally {
       committingRef.current = false;
     }
   }
 
-  async function runCommitChunks() {
-    cancelRef.current = false;
+  async function runCommitOnce() {
     setPhase("running");
     setErrorMessage(null);
 
-    const chunks = chunkIds(remainingIds, COMMIT_CHUNK_SIZE);
-    let done = progress.done;
-    let created = progress.created;
-    let skipped = progress.skipped;
+    // Cumulative totals carried across "Lanjutkan Komit" resumes — the
+    // orchestrator's snapshot is scoped to THIS call's rowIds only, so a
+    // continuation's progress is added on top of what earlier calls already
+    // landed, not reset.
+    const baseline = { done: progress.done, created: progress.created, skipped: progress.skipped };
+    const callRowIds = remainingIds;
 
-    for (const chunk of chunks) {
-      if (cancelRef.current) {
-        setPhase("aborted");
-        return;
-      }
-      try {
-        const res = await fetch(`/api/billing-runs/${runId}/commit`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rowIds: chunk }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new ApiError(body?.error || "Gagal mengomit sebagian tagihan");
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const out = await runBulkCommit({
+        runId,
+        rowIds: callRowIds,
+        signal: controller.signal,
+        onProgress: (snapshot) => {
+          if (!mountedRef.current) return;
+          setProgress({
+            done: baseline.done + snapshot.done,
+            total: progress.total,
+            created: baseline.created + snapshot.created,
+            skipped: baseline.skipped + snapshot.skipped,
+          });
+          if (snapshot.phase === "sweeping") setPhase("sweeping");
+        },
+      });
+
+      if (!mountedRef.current) return;
+
+      // chunk() preserves input order and `done` only advances past a chunk
+      // once it fully succeeds, so the un-advanced tail of THIS call's
+      // rowIds is exactly what's still committable.
+      const newRemaining = callRowIds.slice(out.final.done);
+      setRemainingIds(newRemaining);
+
+      if (out.phase === "aborted") {
+        if (out.final.lastError) {
+          // Three-strike chunk failure — a real infrastructure issue.
+          setPhase("error");
+          setErrorMessage(out.final.lastError);
+          toast.error(
+            "Sebagian tagihan sudah dibuat, tapi terjadi kegagalan. Baris yang sudah dikomit tidak akan diduplikasi — klik Lanjutkan Komit untuk melanjutkan sisanya.",
+          );
+        } else {
+          // User clicked Batalkan — no error, just stopped mid-run.
+          setPhase("aborted");
         }
-        const body = (await res.json()) as CommitBillingRunResponse;
-        done += chunk.length;
-        created += body.created;
-        skipped += body.skipped;
-        if (!mountedRef.current) return;
-        setRemainingIds((prev) => prev.filter((id) => !chunk.includes(id)));
-        setProgress({ done, total: progress.total, created, skipped });
-      } catch (err) {
-        if (!mountedRef.current) return;
-        setPhase("error");
-        setErrorMessage(userMessage(err, "Gagal mengomit tagihan"));
-        toast.error(
-          "Sebagian tagihan sudah dibuat, tapi terjadi kegagalan. Baris yang sudah dikomit tidak akan diduplikasi — klik Lanjutkan Komit untuk melanjutkan sisanya.",
-        );
         return;
       }
-    }
 
-    if (!mountedRef.current) return;
-    setPhase("done");
-    const skippedNote = skipped > 0 ? `, ${skipped} dilewati (sudah tertagih)` : "";
-    toast.success(`${created} tagihan berhasil dibuat${skippedNote}.`);
-    onCommitted();
+      setPhase("done");
+      // Cumulative across every call in this run (including earlier
+      // "Lanjutkan Komit" resumes), matching the summary card's running total.
+      const totalCreated = baseline.created + out.final.created;
+      const totalSkipped = baseline.skipped + out.final.skipped;
+      const skippedNote = totalSkipped > 0 ? `, ${totalSkipped} dilewati (sudah tertagih)` : "";
+      toast.success(`${totalCreated} tagihan berhasil dibuat${skippedNote}.`);
+      onCommitted();
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setPhase("error");
+      setErrorMessage(userMessage(err, "Gagal mengomit tagihan"));
+      toast.error(
+        "Sebagian tagihan sudah dibuat, tapi terjadi kegagalan. Baris yang sudah dikomit tidak akan diduplikasi — klik Lanjutkan Komit untuk melanjutkan sisanya.",
+      );
+    } finally {
+      abortRef.current = null;
+    }
   }
 
   function handleCancel() {
-    cancelRef.current = true;
+    abortRef.current?.abort();
   }
 
   if (loading) {
@@ -269,7 +288,7 @@ export function CommitStep({
   const ageMs = Date.now() - new Date(summary.createdAt).getTime();
   const isStale = Number.isFinite(ageMs) && ageMs > STALE_DRAFT_MS;
   const nothingLeftToCommit = remainingIds.length === 0;
-  const isRunning = phase === "running";
+  const isRunning = phase === "running" || phase === "sweeping";
   const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
@@ -351,7 +370,8 @@ export function CommitStep({
             {isRunning ? <Loader2 size={16} className="animate-spin text-primary" aria-hidden /> : null}
             {phase === "done" ? <CheckCircle2 size={16} className="text-success" aria-hidden /> : null}
             <span className="text-small font-medium">
-              {isRunning && `Mengomit tagihan… ${progress.done}/${progress.total}`}
+              {phase === "running" && `Mengomit tagihan… ${progress.done}/${progress.total}`}
+              {phase === "sweeping" && "Memeriksa link pembayaran yang gagal…"}
               {phase === "done" &&
                 `Selesai: ${progress.created} dibuat${progress.skipped > 0 ? `, ${progress.skipped} dilewati` : ""}`}
               {phase === "aborted" &&
