@@ -348,6 +348,24 @@ over 60 days old and not scoped to fees or invoicing.
   fixed as described above. The second — that nothing yet enforces the PERCENT cap on a value-only
   update — is correct and is T4's job; it is called out in T4's acceptance criteria.
 
+- Preview-verify iteration 1
+  (`https://annisaa-erp-v3-git-feat-bulk-i-fc2470-ismails-projects-196d40d3.vercel.app`):
+  flows=[admin /admin/fees Keringanan tab], blockers=1, minors=0. Signed in as
+  `ismailir10@gmail.com` per `.claude/verify-accounts.json`.
+  - **Blocker (fixed):** the tab rendered the error toast "Gagal memuat data keringanan" *and* the
+    empty state "Belum ada keringanan" at the same time. A failed load presenting as "no keringanan
+    granted" is how a family gets billed the full amount — the admin has no way to tell the
+    difference. `fetchAdjustments` now sets a `loadError` flag and the tab renders an explicit error
+    card with a "Muat Ulang" action instead of the empty state. `portal.md`'s Error Handling Standard
+    mandates the toast, which was present; it is silent on the empty-vs-error render, which was the
+    actual gap.
+  - **Environment limit, not a code defect:** the 500 behind that toast is because Vercel preview
+    branches share the *staging* database and skip `prisma migrate deploy` (README:134), so
+    `StudentFeeAdjustment` does not exist there yet — confirmed with
+    `SELECT to_regclass('public."StudentFeeAdjustment"')` against `udbivhchbizpxoryejgz`, which
+    returned null. Any cycle adding a table hits this: the migration only lands when the PR merges,
+    but preview-verify runs before the merge.
+
 ## Ship Notes
 
 - **Migrations:** one, additive —

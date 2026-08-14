@@ -27,6 +27,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -175,6 +176,10 @@ export function KeringananTab() {
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
+  // Distinct from "no rows". A failed load must never render as "Belum ada
+  // keringanan" — an admin reading that would conclude the student has no
+  // discount and bill them the full amount.
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ACTIVE");
   const [sortBy, setSortBy] = useState("createdAt");
@@ -216,13 +221,18 @@ export function KeringananTab() {
 
       const res = await fetch(`/api/student-fee-adjustments?${params}`);
       if (!res.ok) {
+        setLoadError(true);
+        setAdjustments([]);
         toast.error("Gagal memuat data keringanan");
         return;
       }
       const json = await res.json();
+      setLoadError(false);
       setAdjustments(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
+      setLoadError(true);
+      setAdjustments([]);
       toast.error("Gagal memuat data keringanan");
     } finally {
       setLoading(false);
@@ -510,18 +520,31 @@ export function KeringananTab() {
         ]}
       />
 
-      <DataTable
-        columns={columns}
-        data={adjustments}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        onSortChange={handleSortChange}
-        defaultSort={{ field: "createdAt", order: "desc" }}
-        loading={loading}
-        emptyTitle="Belum ada keringanan"
-        emptyDescription="Tambahkan diskon atau tambahan biaya untuk siswa tertentu, misalnya potongan sibling atau beasiswa."
-      />
+      {loadError && !loading ? (
+        <Card className="flex flex-col items-center gap-3 p-10 text-center">
+          <p className="text-sm font-medium">Data keringanan tidak bisa dimuat</p>
+          <p className="text-muted-foreground max-w-md text-sm">
+            Jangan buat tagihan sebelum daftar ini tampil — keringanan yang tersimpan tidak
+            terlihat di sini, jadi tagihan bisa keluar tanpa potongan.
+          </p>
+          <Button size="sm" variant="outline" onClick={fetchAdjustments}>
+            Muat Ulang
+          </Button>
+        </Card>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={adjustments}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          onSortChange={handleSortChange}
+          defaultSort={{ field: "createdAt", order: "desc" }}
+          loading={loading}
+          emptyTitle="Belum ada keringanan"
+          emptyDescription="Tambahkan diskon atau tambahan biaya untuk siswa tertentu, misalnya potongan sibling atau beasiswa."
+        />
+      )}
 
       <ResponsiveFormDialog
         open={dialogOpen}
