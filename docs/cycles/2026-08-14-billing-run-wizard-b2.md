@@ -412,6 +412,37 @@ over 60 days old and not scoped to invoicing.
     +6 over the pre-fix 2929, the six `rowHasKeringanan` cases, which include the upward-edit that
     produced the wrong badge. `npx eslint` clean on every touched file.
 
+- Preview-verify iteration 2 (same preview alias, on the fix commit `791840c6`):
+  flows=[resume draft; exclude 3 rows; edit a line upward with a custom note; add an ad-hoc potongan;
+  step 3 totals; **commit**; admin invoice detail], **blockers=0, minors=1**. Converged.
+  - **The blocker is fixed.** Edited Abdullah Ibrahim Wijaya's SPP up to 1.500.000 again — the exact
+    case that produced the wrong badge. His row now shows only `Diedit`, and after the potongan
+    `Diedit` + `Manual`; no `Keringanan`. Abdullah Faris Siregar still shows `Keringanan` for his
+    genuine Cycle A grant. Step 3 read "Dengan keringanan: 1 siswa" where iteration 1 said 2.
+  - **Exclusions and totals.** Excluded 3 of 5 rows (rendered struck-through and dimmed), and they
+    survived closing and resuming the wizard. Step 3 read 2 billed / 3 excluded / Rp 3.210.000 =
+    1.460.000 + 1.750.000 exactly.
+  - **Commit writes the hand-edited draft verbatim — the headline claim of the arc.** "2 tagihan
+    berhasil dibuat", list 294 → 296, and Ibrahim's invoice is **Rp 1.750.000**, not the 1.700.000 the
+    fee structure would have produced. The three excluded students were not billed. Both invoices got
+    payment links.
+  - **A negative `MANUAL` line renders sanely on a real invoice**, which was the open question in Ship
+    Notes. `INV-2026-0057` shows `Potongan promo Agustus … Rp -250.000` as its own credit line with
+    `Penyesuaian: Rp -250.000 (Penyesuaian manual)`, the edited SPP at Rp 1.500.000 carrying the
+    admin's own note `(Tambahan kegiatan renang semester ini)` rather than the default, and
+    `Total Tagihan Rp 1.750.000` — the four lines sum to the header exactly.
+  - **Not walked: the parent-side render of a negative line.** The billed student's guardian is
+    `parent-83@example.test`, not the parent account in `.claude/verify-accounts.json`, so there is no
+    signed-in identity that can open that invoice. The admin detail proves the underlying
+    `InvoiceLine` data, and the parent sheet renders the same fields through the same `formatRupiah`,
+    but the parent view of a negative line remains unobserved. It stays in Ship Notes as a manual
+    smoke step rather than being claimed here.
+  - No console errors on any page walked, including the invoice detail.
+  - Minor carried from iteration 1 (the catalog `Select` showing a raw cuid) is unchanged and remains
+    a pre-existing repo-wide pattern, not a B2 regression.
+- Preview-verify converged on iteration 2 (clean): 2 iterations, 1 fix commit, final preview
+  `https://annisaa-erp-v3-git-feat-billin-232741-ismails-projects-196d40d3.vercel.app`.
+
 ## Ship Notes
 
 - **Migrations:** none. `BillingRunLine.source` is an unconstrained `String` column, so the new
@@ -451,4 +482,12 @@ over 60 days old and not scoped to invoicing.
   its own cycle.
 - **No per-line edit attribution.** The run records `createdBy`; who changed which line to what is not
   stored. If an audit trail on edits turns out to matter, that is a schema change.
+- **Preview-verify left fixtures on staging** — 2 committed invoices under period "Verify B2 Edit"
+  (`INV-2026-0056` Rp 1.460.000, `INV-2026-0057` Rp 1.750.000, the latter carrying a hand-edited SPP
+  and a −250.000 ad-hoc potongan), plus the `penyesuaian_manual` fee component created on first use.
+  It also **cancelled B1's leftover "Wizard Resume Test" draft** — that was the fixture B1's own Ship
+  Notes flagged as a nuisance, and discarding it was how the new "Buang draf" action got verified.
+  No open `DRAFT` remains, so the next admin to start a run will not meet the conflict panel.
+- **Parent-side render of a negative line is still unobserved** — see Verification, iteration 2. Worth
+  one look on staging as part of the smoke above.
 - **Prod:** not shipped by this cycle. Staging only unless the owner says otherwise.
