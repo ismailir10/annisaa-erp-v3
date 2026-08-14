@@ -400,6 +400,8 @@ over 60 days old and not scoped to fees or invoicing.
   - Preview 503s on `/.well-known/vercel/jwe`, an OPTIONS, a HEAD, and one RSC prefetch. Vercel
     preview infra noise, not application errors — every real page GET was 200, and the prefetched
     route was opened directly and renders fine.
+- Post-rebase doc catch: `README.md` carries its own API route count separate from `CLAUDE.md`'s
+  File Structure block, and only the latter had been updated. Both now read 186.
 - Preview-verify converged on iteration 2 (clean): 2 iterations, 1 fix commit, final preview
   `https://annisaa-erp-v3-git-feat-bulk-i-fc2470-ismails-projects-196d40d3.vercel.app`.
 

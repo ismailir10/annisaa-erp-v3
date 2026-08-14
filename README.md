@@ -27,7 +27,7 @@ School management platform for **An Nisaa' Sekolahku** — Islamic PAUD/TKIT in 
 
 ## Modules
 
-Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cutover for the July 2026 PROMES/Penilaian/Raport switch. Parent Portal is a view *across* students + finance + learning, not its own module. They are served by 184 routes under `app/api/`, organised by the domains below.
+Nine domain modules — seven stable, plus `curriculum` and `reportCard` mid-cutover for the July 2026 PROMES/Penilaian/Raport switch. Parent Portal is a view *across* students + finance + learning, not its own module. They are served by 186 routes under `app/api/`, organised by the domains below.
 
 | Module | Domain |
 |--------|--------|
