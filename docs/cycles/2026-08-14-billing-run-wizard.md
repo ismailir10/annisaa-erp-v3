@@ -460,8 +460,19 @@ over 60 days old and not scoped to invoicing.
   proves what the spec is for — the wizard walks and the draft materialized real rows. The commit
   path stays covered by the 21 route tests in `billing-runs-commit.test.ts`, which is where business
   logic belongs per the testing-gate policy.
-  This is a good argument for CI over local Playwright: the contamination is only visible when the
-  whole suite runs in order against one database, which is exactly what the required check does.
+  This is a good argument for CI over local Playwright: the coupling is only visible when the whole
+  suite runs in order against one database, which is exactly what the required check does.
+  **That first diagnosis was wrong, and the second CI run proved it.** Removing the commit did not
+  fix either spec. The actual cause: the demo guardian has **no invoices of their own**, and the old
+  bulk test had been supplying them by billing every eligible student. `payment.spec.ts:56` clicks
+  the first row in that parent's invoice list, and `parent.spec.ts:91` only reaches its strict branch
+  when the parent is fully paid — both were passing on a side effect nobody had written down. (The
+  commit in run 1 never helped because it billed DCARE, which does not contain that parent's child.)
+  Fixed properly per the owner's call: new `e2e/ensure-parent-invoice.ts`, called from both specs'
+  `beforeAll`, creates one invoice for the demo guardian's first child through the manual-invoice API.
+  The dependency is now explicit and local to the specs that need it, instead of being an accident of
+  test ordering. The wizard spec keeps its no-commit form — that change was right for its own reason
+  (a spec that writes billing rows changes what every later spec sees), just not the fix for this.
 
 ## Ship Notes
 
