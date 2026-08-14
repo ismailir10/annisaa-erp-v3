@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { generatePlanSchema } from "@/lib/validations/invoice";
+import { isWithinValidity } from "@/lib/finance/apply-adjustments";
 
 /**
  * POST /api/invoices/generate/plan
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { periodLabel, dueDate: _dueDate, academicYearId } = parsed.data;
+  const { periodLabel, dueDate, academicYearId } = parsed.data;
   const tenantId = session.tenantId;
   const trimmedLabel = periodLabel.trim();
 
@@ -57,13 +58,14 @@ export async function POST(req: NextRequest) {
       skippedNoFeeStructure: 0,
       total: 0,
       eligible: 0,
+      withAdjustments: 0,
     });
   }
 
   const programIds = [...new Set(enrollments.map((e) => e.classSection.programId))];
   const studentIds = enrollments.map((e) => e.student.id);
 
-  const [feeStructures, existingInvoices] = await Promise.all([
+  const [feeStructures, existingInvoices, candidateAdjustments] = await Promise.all([
     prisma.programFeeStructure.findMany({
       where: {
         programId: { in: programIds },
@@ -75,7 +77,22 @@ export async function POST(req: NextRequest) {
       where: { tenantId, periodLabel: trimmedLabel, studentId: { in: studentIds } },
       select: { studentId: true },
     }),
+    // Same resolver-eligibility notion as the batch route: active + matching
+    // year narrowed in the query, validity window checked below via the
+    // shared `isWithinValidity` helper. No base lines here (plan doesn't
+    // resolve line items), so this only answers "does the student carry at
+    // least one applicable grant" — not which fee component it hits.
+    prisma.studentFeeAdjustment.findMany({
+      where: { tenantId, studentId: { in: studentIds }, academicYearId, status: "ACTIVE" },
+      select: { studentId: true, validFrom: true, validTo: true },
+    }),
   ]);
+
+  const studentIdsWithApplicableAdjustment = new Set(
+    candidateAdjustments
+      .filter((a) => isWithinValidity(dueDate, a.validFrom, a.validTo))
+      .map((a) => a.studentId)
+  );
 
   // Build the per-program fee-structure presence set. We only need
   // "does this program have any active recurring component?" for the
@@ -108,11 +125,16 @@ export async function POST(req: NextRequest) {
     eligibleStudentIds.push(studentId);
   }
 
+  const withAdjustments = eligibleStudentIds.filter((id) =>
+    studentIdsWithApplicableAdjustment.has(id)
+  ).length;
+
   return NextResponse.json({
     eligibleStudentIds,
     skippedAlreadyInvoiced,
     skippedNoFeeStructure,
     total: seenStudentIds.size,
     eligible: eligibleStudentIds.length,
+    withAdjustments,
   });
 }

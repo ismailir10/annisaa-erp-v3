@@ -201,13 +201,17 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 - Retry failed payment links (individually or in bulk, capped + confirmed for large batches).
 - Manual cash/bank recording alongside automatic online (Xendit) — not forced online.
 - CSV export of payments ledger.
-- Fee waivers/discounts handled as manual line adjustments (no dedicated approval workflow).
+- Keringanan (fee waivers/discounts/surcharges) are durable per-student policy, not per-invoice edits:
+  granted once on the Keringanan tab of `/admin/fees` against an academic year and one fee component,
+  as a percentage or fixed rupiah amount with an optional validity window and a required reason.
+  Every bulk run applies them automatically. No approval workflow — whoever administers fees grants them.
 
 **6. Business rules**
 - Online and manual payment channels coexist; online payments auto-update via secure webhook.
 - Double-crediting and overpayment are guarded against (overpayment flagged for review, not silently accepted).
 - Expired payment links auto-revert the invoice for retry (unless already paid/voided).
-- Bulk generation auto-skips inactive students, already-invoiced periods, and missing fee structures — admin sees counts before confirming.
+- Bulk generation auto-skips inactive students, already-invoiced periods, and missing fee structures — admin sees counts before confirming, including how many carry a keringanan.
+- A keringanan may zero a line but never drives it negative, and a grant only applies inside its own academic year and validity window.
 - A voided invoice's payment link becomes unusable.
 
 ---

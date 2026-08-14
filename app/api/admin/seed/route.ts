@@ -366,6 +366,39 @@ export async function POST(req: NextRequest) {
     admissionCount++;
   }
 
+  // ── 11. Student Fee Adjustments (Keringanan) ──────────────
+  // One sample sibling discount so demo mode + e2e have data.
+  let feeAdjustmentCount = 0;
+  const seedAdjustmentStudent = allStudents[0];
+  const sppComponentId = feeComponentIdMap["spp"];
+  if (seedAdjustmentStudent && sppComponentId) {
+    const existingAdjustment = await prisma.studentFeeAdjustment.findFirst({
+      where: {
+        tenantId,
+        studentId: seedAdjustmentStudent.id,
+        academicYearId: academicYear.id,
+        feeComponentId: sppComponentId,
+        reason: "Diskon saudara kandung",
+      },
+    });
+    if (!existingAdjustment) {
+      await prisma.studentFeeAdjustment.create({
+        data: {
+          tenantId,
+          studentId: seedAdjustmentStudent.id,
+          academicYearId: academicYear.id,
+          feeComponentId: sppComponentId,
+          type: "DISCOUNT",
+          mode: "PERCENT",
+          value: 20,
+          reason: "Diskon saudara kandung",
+          createdBy: adminUserId,
+        },
+      });
+    }
+    feeAdjustmentCount = 1;
+  }
+
   // ── 12. Leave Requests ────────────────────────────────────
   const leaveRequestDefs = [
     { empKode: "E002", leaveType: "ANNUAL", startDate: "2026-04-01", endDate: "2026-04-03", days: 3, reason: "Urusan keluarga", status: "APPROVED" },
@@ -418,6 +451,7 @@ export async function POST(req: NextRequest) {
       feeStructures: feeStructureCount,
       invoices: invoiceCount,
       admissions: admissionCount,
+      feeAdjustments: feeAdjustmentCount,
       leaveRequests: leaveCount,
     },
   });
