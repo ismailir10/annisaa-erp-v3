@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah, formatRelativeTime } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { runBulkCommit } from "@/lib/finance/run-bulk-generate";
+import { rowHasKeringanan } from "@/lib/finance/billing-run-line-source";
 import type { BillingRunDetail, BillingRunRowData } from "./types";
 
 // Step 3 — Commit (Cycle B1, Task T9; repointed onto the shared bulk-commit
@@ -64,7 +65,9 @@ function summarize(run: BillingRunDetail, rows: BillingRunRowData[]): Summary {
     (r) => r.status === "SKIPPED_ALREADY_INVOICED" || r.status === "SKIPPED_NO_FEE_STRUCTURE",
   );
   const alreadyCommitted = rows.filter((r) => r.status === "COMMITTED");
-  const withAdjustments = pending.filter((r) => r.lines.some((l) => Number(l.adjustmentAmount) !== 0));
+  // Same predicate as step 2's badge — shared so the two can never disagree
+  // about what counts as a keringanan. See rowHasKeringanan's doc comment.
+  const withAdjustments = pending.filter((r) => rowHasKeringanan(r.lines));
 
   return {
     createdAt: run.createdAt,

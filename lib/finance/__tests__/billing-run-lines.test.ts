@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { buildManualLineFields, resolveLineEdit, sumRowTotal } from "../billing-run-lines";
+// Imported from its own module rather than through billing-run-lines' re-export,
+// so the test exercises the same Prisma-free entry point the client components use.
+import { rowHasKeringanan } from "../billing-run-line-source";
 
 describe("resolveLineEdit", () => {
   it("edits a BASE line's finalAmount up and derives a positive adjustmentAmount", () => {
@@ -188,5 +191,48 @@ describe("sumRowTotal", () => {
   it("does not clamp a positive total", () => {
     const total = sumRowTotal([{ finalAmount: 100_000 }, { finalAmount: 50_000 }]);
     expect(total.toString()).toBe("150000");
+  });
+});
+
+// Regression guard for the defect preview-verify caught on PR #495: the
+// "Keringanan" badge in step 2 and the "Dengan keringanan" count in step 3
+// both tested `adjustmentAmount !== 0`, which a Cycle B2 hand-edit also
+// satisfies (Assumption 1 writes the edit's delta into adjustmentAmount).
+// A student whose SPP was edited UPWARD was badged as having a fee waiver,
+// on the screen the admin approves the billing run from.
+describe("rowHasKeringanan", () => {
+  it("is true for a BASE line carrying a resolver-applied adjustment", () => {
+    expect(rowHasKeringanan([{ adjustmentAmount: -240_000, source: "BASE" }])).toBe(true);
+  });
+
+  it("is true for an ADJUSTMENT-source line", () => {
+    expect(rowHasKeringanan([{ adjustmentAmount: -50_000, source: "ADJUSTMENT" }])).toBe(true);
+  });
+
+  it("is FALSE for a hand-edited line, even though its adjustmentAmount is non-zero", () => {
+    expect(rowHasKeringanan([{ adjustmentAmount: 300_000, source: "EDITED" }])).toBe(false);
+  });
+
+  it("is FALSE for an ad-hoc MANUAL discount line", () => {
+    expect(rowHasKeringanan([{ adjustmentAmount: -250_000, source: "MANUAL" }])).toBe(false);
+  });
+
+  it("is false for an unadjusted row", () => {
+    expect(
+      rowHasKeringanan([
+        { adjustmentAmount: 0, source: "BASE" },
+        { adjustmentAmount: 0, source: "BASE" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("is true when a keringanan line sits alongside hand-edited ones", () => {
+    expect(
+      rowHasKeringanan([
+        { adjustmentAmount: -240_000, source: "BASE" },
+        { adjustmentAmount: 300_000, source: "EDITED" },
+        { adjustmentAmount: -250_000, source: "MANUAL" },
+      ]),
+    ).toBe(true);
   });
 });

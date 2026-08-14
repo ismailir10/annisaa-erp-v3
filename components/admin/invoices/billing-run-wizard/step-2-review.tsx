@@ -13,6 +13,7 @@ import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { formatRupiah } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { cn } from "@/lib/utils";
+import { rowHasKeringanan } from "@/lib/finance/billing-run-line-source";
 import { EditableRowLines } from "./line-editor";
 import type {
   BillingRunLineData,
@@ -49,8 +50,12 @@ const SKIP_REASON_LABEL: Partial<Record<BillingRunRowData["status"], string>> = 
   SKIPPED_NO_FEE_STRUCTURE: "Tidak ada struktur biaya berlaku",
 };
 
+// Shared with step 3's "Dengan keringanan" count via
+// lib/finance/billing-run-line-source.ts, so the badge and the count can never
+// disagree about what a keringanan is. See rowHasKeringanan's doc comment for
+// why `adjustmentAmount !== 0` alone is the wrong test.
 function hasAdjustment(row: BillingRunRowData): boolean {
-  return row.lines.some((l) => Number(l.adjustmentAmount) !== 0);
+  return rowHasKeringanan(row.lines);
 }
 
 // Rows editable from step 2 (Cycle B2) — mirrors `MUTABLE_ROW_STATUSES` in

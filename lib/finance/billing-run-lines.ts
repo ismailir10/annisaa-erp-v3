@@ -14,12 +14,12 @@ import { sumDecimals } from "./invoice-numbers";
  * uses — never float arithmetic, never a second rounding helper.
  */
 
-// BASE / ADJUSTMENT are pre-existing (BASE from `build-billing-run.ts`;
-// ADJUSTMENT reserved for a base line a keringanan touched — see the
-// `BillingRunLine.source` schema comment). This cycle adds EDITED (a
-// BASE/ADJUSTMENT line the admin hand-edited) and MANUAL (an admin-invented
-// line with no fee-structure amount behind it) per Assumption 4.
-export type LineSource = "BASE" | "ADJUSTMENT" | "EDITED" | "MANUAL";
+// The `source` vocabulary and its predicates live in a Prisma-free module
+// so the wizard's client components can import them without pulling
+// @/lib/generated/prisma/client into the browser bundle.
+export type { LineSource } from "./billing-run-line-source";
+export { isKeringananLine, rowHasKeringanan } from "./billing-run-line-source";
+import type { LineSource } from "./billing-run-line-source";
 
 type Money = Prisma.Decimal | number | string;
 

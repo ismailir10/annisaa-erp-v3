@@ -353,6 +353,55 @@ over 60 days old and not scoped to invoicing.
   triggered, and was not overridden with `E2E_ALLOW_REMOTE_DB=1`. The required CI check `Playwright E2E`
   gates the merge; CTO will not merge on red.
 
+- Preview-verify iteration 1
+  (`https://annisaa-erp-v3-git-feat-billin-232741-ismails-projects-196d40d3.vercel.app`):
+  flows=[banner discard → fresh run with no 409; step 2 edit / add potongan / add komponen / remove
+  line; step 3 totals; Hitung Ulang], **blockers=1, minors=1**. Signed in as `ismailir10@gmail.com`
+  per `.claude/verify-accounts.json`. No migration to pre-apply this cycle, so unlike Cycle A and B1
+  the preview needed no `prisma migrate deploy` against staging first.
+  - **"Buang draf" works end to end.** Discarded B1's leftover staging draft ("Wizard Resume Test" —
+    the fixture B1's Ship Notes flagged), banner disappeared with a "Draf tagihan dibuang" toast, and
+    opening "Buat Tagihan" immediately after went straight to step 1 with **no 409 conflict panel**.
+    That is precisely the criterion B1 ticked having verified only the resume half.
+  - **Editing works and the arithmetic is right at every step.** Scoped to DCARE (5 students). Edited
+    Abdullah Ibrahim Wijaya's SPP 1.200.000 → 1.500.000: the line gained a `Diedit` badge and
+    `Penyesuaian: Rp 300.000 (Penyesuaian manual)` — the default note firing exactly where the spec
+    says, and the invariant holding (1.200.000 + 300.000 = 1.500.000). Row total re-summed to
+    2.000.000. Added "Potongan promo Agustus" −250.000 → 1.750.000, rendered as a negative
+    `Rp -250.000` line with a `Manual` badge. Removed Uang Kegiatan → 1.650.000. Re-added it from the
+    catalog at 150.000 → 1.800.000. Step 3 then read Rp 8.360.000, which is
+    1.460.000 + 1.800.000 + 3 × 1.700.000 exactly.
+  - **The catalog picker's exclusion logic is right in both directions.** With all three components on
+    the row it hid "Tambah Komponen" and said "Semua komponen aktif sudah dipakai pada baris ini";
+    deleting Uang Kegiatan brought the button back offering exactly that one component. The lazily
+    created `penyesuaian_manual` system component — which by then existed, since I had added a
+    discount — was **not** offered, confirming `isEnabled: false` keeps it out of the picker as
+    Assumption 3 requires.
+  - **"Hitung Ulang" does exactly what its confirm promises.** The dialog names what is lost ("nominal
+    yang diubah, potongan, dan komponen tambahan — akan hilang") and what survives ("Siswa yang sudah
+    dikecualikan tetap dikecualikan"). After confirming, Ibrahim was back to a clean Rp 1.700.000 with
+    no badges, Faris still carried his Rp 1.460.000 keringanan (re-resolved from the durable grant,
+    not preserved from the old rows), the wizard returned to step 2, and the toast reported "5 siswa
+    akan ditagih setelah dihitung ulang."
+  - No console errors on anything walked.
+  - **Blocker (fixed): a hand-edited row was badged "Keringanan".** Both the step 2 badge and step 3's
+    "Dengan keringanan" count tested `adjustmentAmount !== 0`. Assumption 1 has a manual edit write
+    its delta into `adjustmentAmount`, so every edited row read as a fee waiver — Ibrahim, whose bill
+    I had just raised by 300.000, was badged "Keringanan" and step 3 reported "Dengan keringanan: 2
+    siswa" when only one student had a grant. Wrong in the most expensive direction: it labels an
+    admin's own surcharge as a discount on the screen they approve the billing run from. Fixed by
+    extracting `rowHasKeringanan()` into `lib/finance/billing-run-lines.ts`, discriminating on `source`
+    (`BASE`/`ADJUSTMENT` are the resolver's, `EDITED`/`MANUAL` are the admin's), and having both
+    components call it so the badge and the count can never drift apart. Six unit tests guard it,
+    including the upward-edit case that produced the wrong badge.
+  - **Minor: the catalog component `Select` renders the raw cuid** in its trigger after a selection
+    instead of the component label. Not introduced by this cycle — `components/ui/select.tsx`'s
+    `SelectValue` has no children mapping and `components/admin/fees/keringanan-tab.tsx:613` uses the
+    identical pattern on the shipped Keringanan tab. Low impact here because the Label field directly
+    beneath auto-fills with the human name the moment a component is picked, so the admin still sees
+    what they chose. Fixing it properly means touching the shared primitive, which is wider than this
+    cycle.
+
 ## Ship Notes
 
 - **Migrations:** none. `BillingRunLine.source` is an unconstrained `String` column, so the new
