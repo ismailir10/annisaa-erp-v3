@@ -137,7 +137,7 @@ input; findings there must be re-verified if they resurface.
       PASS/FAIL with the resulting totals; the keringanan row left in place for T7 to observe from the
       parent side.
 
-- [ ] **T5 — Admin sweep D: Kepegawaian, Pengaturan Sekolah, Keluar.**
+- [x] **T5 — Admin sweep D: Kepegawaian, Pengaturan Sekolah, Keluar.**
       Walk 1.16–1.20. Verify employee list/detail, leave approve+reject, daily and monthly employee
       attendance (including the **"Timpa"** row action and whether its dialog still says
       "Tidak Hadir" where the manual says "Alpa"), holidays, users, roles (delete confirm now names the
@@ -486,5 +486,46 @@ flows.
 
 **Left on staging deliberately:** invoice INV-2026-0059 and the 25% keringanan for Hafizh, so T7 can
 observe the "Penyesuaian" line from the parent side. No draft left behind.
+
+### Task 5 — Admin sweep D (manual topics 1.16–1.20)
+
+| Topic | Verdict | Evidence |
+|---|---|---|
+| 1.16 Karyawan | PASS | "Karyawan", 29 terdaftar; columns Nama/Jabatan/Kampus/Rekening/Dibuat/Status; detail tabs Profil/Gaji/Kehadiran, actions "Ubah"/"Nonaktifkan" |
+| 1.17 Pengajuan Cuti | PASS | Approved one and rejected one live. "Setujui" → dialog "Setujui Cuti" (notes it will auto-create a LEAVE attendance record) → toast "Cuti disetujui". "Tolak" → dialog "Tolak Cuti" with a **mandatory** "Alasan penolakan *". Counters moved Menunggu 3→1, Disetujui 14→15, Ditolak 0→1 |
+| 1.18 Kehadiran Karyawan | PASS (with F10) | Daily "Kehadiran Hari Ini"; monthly "Kehadiran Bulanan" with "Klik sel untuk override"; row action is labelled **"Timpa"**; cells are buttons with accessible names |
+| 1.19 Penggajian | PASS | **"Kirim Slip" confirmed gone** from both a Draft and an approved run detail. Draft header offers "Edit" / "Setujui"; approved header offers "Ekspor BSI" only |
+| 1.20 Pengaturan | PASS / one BLOCKED | Kampus, Jam Kerja ("Konfigurasi": Hari Kerja, Jam Mulai/Selesai, Toleransi Keterlambatan, Zona Waktu, periode gaji), Hari Libur, Pengguna (9 users) all render |
+| Peran & Izin — delete confirm | BLOCKED-BY-DATA | Staging has **zero custom roles** ("Belum ada peran kustom"); the four built-in roles are marked "Bawaan" and expose no delete control. The change-map's claim that the delete confirm now names the affected user count could not be exercised |
+| Keluar | UNVERIFIED by design | Control located in the sidebar footer ("Keluar"); not clicked, because T6/T7 own the account switch |
+
+**F10 — the employee attendance module is the last place still speaking English. Severity: MINOR,
+and it makes the manual wrong.** Verified in code, not just on screen: student attendance renders
+`title="Timpa Kehadiran"` (`app/admin/student-attendance/page.tsx:523`) while the employee override
+modal still renders `title="Override Kehadiran"` (`components/attendance/override-modal.tsx:94`). Its
+status options are verbatim **Hadir / Terlambat / Tidak Hadir / Izin/Cuti / Setengah Hari** — so #457's
+"Alpa" relabel really did stop at the student module. **The manual is wrong here in three ways**: it
+says the options are "(Hadir/Terlambat/Alpa/Izin)", but employees see "Tidak Hadir" not "Alpa",
+"Izin/Cuti" not "Izin", and there is a fifth option — "Setengah Hari" — the manual never mentions.
+Corrected in T9.
+
+**F11 — weekend cells in the monthly grid are editable. Severity: MINOR / needs a product decision.**
+Clicking a cell labelled "Akhir pekan" opens the same override dialog as a working day. This may well be
+deliberate (recording weekend duty), but it contradicts the assumption that non-working cells are
+locked. Flagged for the owner rather than treated as a defect.
+
+**A subagent claim I could not reproduce — recorded as unconfirmed, not as a finding.** The sweep
+reported that the Hari Libur *form* still offers "Islam" while the list badge says "Keagamaan". The code
+contradicts this: `app/admin/settings/holidays/page.tsx:199` builds the Select from
+`{ NATIONAL: "Nasional", ISLAMIC: "Keagamaan", SCHOOL_CLOSURE: "Penutupan Sekolah" }`, the same map used
+for the badges at line 34, and the database holds only `ISLAMIC` (10) and `NATIONAL` (13) rows. Both
+surfaces should therefore read "Keagamaan". Treated as a probable misread; to be settled visually when
+T9 recaptures this screen rather than asserted either way now.
+
+**Staging fixture gap for future cycles:** seed one throwaway custom role so the role-delete
+confirmation can actually be verified.
+
+**Console:** no new errors during this walk; the buffer only carried the two already-explained errors
+from T4.
 
 ## Ship Notes
