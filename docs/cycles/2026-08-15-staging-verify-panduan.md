@@ -181,7 +181,8 @@ input; findings there must be re-verified if they resurface.
       pre-commit frontend gate. *Acceptance:* zero open blockers, or each remaining one carries an
       explicit user-accepted rationale. Depends on T2–T7.
 
-- [ ] **T9 — Recapture screenshots + rewrite the manual.**
+- [~] **T9 — Recapture screenshots + rewrite the manual.** Text rewrite COMPLETE; screenshot recapture
+      only PARTLY done — see the tooling limit recorded in Verification.
       Back up to `Panduan-Penggunaan-Talib.docx.bak-20260815` first. Recapture the stale screenshots
       listed in the Spec from staging at a consistent viewport, swap them into the document in place,
       then apply every text correction from T2–T7 and add the new subsections (Bank Narasi, Keringanan,
@@ -730,5 +731,65 @@ surface.
 an Indonesian element name rather than a SCREAMING_SNAKE enum — consistent with `design-system.html`'s
 voice guidance and `.claude/standards/voice.md`. No tokens, spacing, colour or component structure were
 touched.
+
+### Task 9 — Manual rewrite (text complete) + screenshots (partial)
+
+Backup taken first: `Panduan-Penggunaan-Talib.docx.bak-20260816` (the pre-existing `.bak-20260729` is
+untouched). The manual stays untracked, per the cycle decision.
+
+**Text rewrite — complete.** Grew from 286 to **314 paragraphs**; all 69 media relationships intact;
+the file re-opens cleanly (`zipfile.testzip()` clean, pandoc round-trip OK).
+
+Corrections applied:
+
+| Where | Was | Now |
+|---|---|---|
+| Cover | "Juli 2026" | "Agustus 2026" |
+| Sebelum Mulai | Google login described as "cara paling mudah" (one option among several) | stated as the **only** way in; no email/password login exists |
+| Daftar Isi | "Formulir Pendaftaran Online", "Pemantauan & Raport", "Keuangan: Biaya", "Capaian & Rapor", guru/wali tab names | renamed throughout, plus new "Lainnya" entries for both portals |
+| 1.4 | 'Buka "Kesiswaan" → "Formulir Pendaftaran"' | **"Berkas Pendaftaran Online"**, notes the page title still reads "Formulir Pendaftaran", documents the new search / filter / pagination |
+| 1.11 | 'Tab "Pemantauan" pada menu yang sama…' — an instruction that cannot be followed | rewritten to say the monitoring view is a **separate page with no menu link**, and how the back-links work (F4) |
+| 1.12 | "Raport" | "Rapor" throughout; plus a warning that leaving the rapor editor via the left menu **loses unsaved edits** (F6) |
+| 1.14 | '"Buat Tagihan", isi periode dan tanggal jatuh tempo' | now describes the three-step wizard; the old sentence covered only step 1 of 3 |
+| 1.18 | "(Hadir/Terlambat/Alpa/Izin)" | the real five: Hadir, Terlambat, **Tidak Hadir**, Izin/Cuti, Setengah Hari — and notes the dialog is titled "Override Kehadiran" (F10) |
+| 2.3 / 2.7 / 2.8 | "tab Kehadiran", "tab Slip Gaji", profil | all three now reached via **"Lainnya"** |
+| 2.4 | 'Tab "Kelas"' | **"Absensi"**, with the "Menyimpan… / Tersimpan" feedback |
+| 2.5 / 3.5 | 'tab "Penghubung"' | **"Jurnal"** |
+| 2.6 | "Sentra Harian" as one thing | a section of **eight** sentra cards, with the Mampu/Belum/Perlu chips (F14) |
+| 2.9 | confirm button "Ya, Keluar" | **"Keluar dari akun"** |
+| 3.3 | payment methods listed as the old Xendit set | the real DOKU set — VA/banks, e-Wallet, QRIS, minimarket, cards, digital & internet banking, direct debit, PayLater (F17) |
+| 3.3 note | "otomatis berubah menjadi Lunas dalam waktu singkat" | honest: no manual receipt needed, but some methods only reconcile on a daily sweep, so it can take up to a day — contact admin with the invoice number beyond that |
+| 3.5 note | — | added the real edit window: Monday of last week through today, out-of-range dates greyed out |
+| 3.6 | 'Tab "Capaian"' | **"Perkembangan"**, and both it and Rapor now live under "Lainnya" |
+| 3.7 | one logout path | **both** paths documented — the Profil button (immediate) and the header icon (asks first) |
+
+New subsections written from the sweep (these features did not exist in the July manual):
+**Bank Narasi** (triwulan × kelompok usia, five capaian sections × three levels + Penutup = the 18
+fields, "Simpan semua", "Susun Rapor", cross-triwulan copy); **Keringanan** (full field list, plus an
+explicit warning that the "Alasan" text is shown verbatim to parents — F15 turned into user guidance);
+**the billing wizard** (Cakupan → Tinjau → Komit, step-2 editing, the last-line rule, "Hitung Ulang"
+wiping manual edits, the resume banner); and a **"Menu bawah dan tombol Lainnya"** subsection for each
+of the guru and wali-murid sections.
+
+**Screenshots — 1 of ~15 replaced. This is the part of the cycle that did not get finished, and the
+reason is a tooling limit, not an oversight.** The manual's 69 images are all 1491×812. The login
+screenshot in §1.1 was recaptured at exactly that size and swapped in
+(`word/media/601a877ae776c2bfed7ca8de3b048ae6a50da36f.jpg`) — the highest-value one, since it showed a
+dark magic-link screen that no longer exists.
+
+The remaining stale screenshots are all of **signed-in** pages, and neither browser tool can produce
+them as files:
+- Chrome MCP holds the three Google sessions but **cannot write images to disk** (`save_to_disk` returns
+  no path), so its captures cannot be swapped into the .docx.
+- Playwright MCP **can** write files but runs a clean browser with no Google session, so it can only
+  reach unauthenticated pages — which is exactly why the login shot worked and nothing else can.
+
+Bridging them needs a Playwright `storageState` exported from the signed-in profile (or an equivalent
+authenticated capture path). That is a real piece of setup, not something to improvise at the end of a
+long cycle. **Still outstanding**, in priority order: teacher bottom nav + "Lainnya" sheet; parent
+bottom nav + "Lainnya" sheet; Keuangan → Biaya "Keringanan" tab; the wizard's three steps; a parent
+invoice showing the "Penyesuaian" line; Bank Narasi; Penilaian Pekanan with the IKTP picker open; the
+admin sidebar showing the renamed items. The text now describes all of these correctly, so the manual
+is usable in the meantime — the screenshots simply lag the words.
 
 ## Ship Notes
