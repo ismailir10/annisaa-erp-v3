@@ -192,7 +192,7 @@ input; findings there must be re-verified if they resurface.
       WRONG" line from the sweep is resolved or explicitly deferred; media count reconciles.
       Depends on T8.
 
-- [ ] **T10 — Promotion verdict + end-of-cycle gates.**
+- [x] **T10 — Promotion verdict + end-of-cycle gates.**
       Run `npm run build && npx vitest run` and Playwright (locally or deferred to the required CI
       check, recorded). Write the **PROMOTE / DO NOT PROMOTE** verdict into Ship Notes with the
       evidence, the accepted-known-issues list, and — if PROMOTE — the exact `/ship --to-main` command
@@ -792,4 +792,98 @@ invoice showing the "Penyesuaian" line; Bank Narasi; Penilaian Pekanan with the 
 admin sidebar showing the renamed items. The text now describes all of these correctly, so the manual
 is usable in the meantime — the screenshots simply lag the words.
 
+### Task 10 — End-of-cycle gates
+
+- `npm run build` — **green** (final run, after all commits).
+- `npx vitest run` — **green**: `Test Files 300 passed | 2 skipped (302)`,
+  `Tests 2935 passed | 42 todo (2977)`.
+- Playwright: **local run deferred to CI (env cannot execute it).** `playwright.config.ts` refuses to
+  start: *"Refusing to run e2e against non-local DATABASE_URL host
+  `aws-1-ap-southeast-1.pooler.supabase.com`. These specs create + mutate data via the API and would
+  pollute that database."* The worktree's `.env` is symlinked to the main checkout and points at the
+  remote staging Supabase, so this guard is doing exactly its job. Required CI check `Playwright E2E`
+  gates the merge; the CTO will not merge on red.
+
 ## Ship Notes
+
+### Verdict: **PROMOTE** — staging is fit for production, with one decision to make first
+
+**Zero blockers.** Both findings reported as blockers during the sweep were investigated by the driver
+and refuted: the "Konversi ke Siswa has no confirmation" claim describes deliberate behaviour dating to
+#294 (2026-05-19), and the "Penilaian Pekanan is completely unusable" claim came from testing five
+dates that are all legitimately empty (two Saturdays, three outside the semester) — driving a weekday
+inside a configured week showed the feature working fully.
+
+**The four unpromoted commits were each verified end to end:**
+
+- **#493 Keringanan** — created a 25% SPP discount through the UI, watched it apply automatically during
+  a billing run, and confirmed the committed invoice in Postgres: `INV-2026-0059`, SPP line
+  `amount 550000 / adjustment -137500 / final 412500`, invoice `totalDue 662500`. The parent then saw
+  `Penyesuaian: Rp -137.500` on their own invoice. Whole chain correct.
+- **#494 Billing Run wizard** — draft survived navigation and reload with every edit intact; the resume
+  banner and "Lanjutkan draf" / "Buang draf" work.
+- **#495 editable step 2** — amount edit, "Tambah Potongan", "Tambah Komponen", exclusion and the
+  last-line guard all behaved correctly, every delta checked by hand.
+- **#492 Parent Buku Penghubung** — the pilot blocker is genuinely gone: the "Di Rumah" grid renders for
+  a child with **zero** journal entries, so a parent can now make the first tick; edit window spans
+  Monday-of-last-week through today with distinct, descriptive disabled states.
+
+**Every other MAJOR finding is pre-existing** — none is a regression introduced by the four commits, so
+none of them is a reason to withhold this promotion. They are listed in T8 and should become their own
+cycles: F8 (class roster count mismatch in the billing scope picker), F1b (archiving a year doesn't
+close its enrolments — 16 of 29 students affected on staging), F6 (unsaved rapor edits lost via sidebar
+nav), F4 (journal monitoring page has no menu link), F2 (two ACTIVE semesters), F3 (one-click
+irreversible admission conversion).
+
+**One decision belongs to you before real use — F15.** The keringanan "Alasan" field is rendered
+verbatim on the family's invoice with no redaction layer. This ships *with* #493, so it arrives in
+production with this promotion. It is not a malfunction — the feature does what it was built to do —
+but discounts are often granted for financially or personally sensitive reasons, and nothing stops an
+admin's internal note reaching the parent. Three options, in the order I'd recommend them:
+1. Split the field into an internal note and a parent-facing note (a small follow-up cycle).
+2. Constrain "Alasan" to a curated list of reasons.
+3. Accept as-is and rely on admin discipline — the manual now carries an explicit warning
+   ("Isi 'Alasan' dengan kalimat yang pantas dibaca orang tua… Jangan menulis catatan internal di kolom
+   ini."), which is why this is a *decision* rather than a blocker.
+
+Worth checking before the school starts entering real keringanan: whether production already holds any
+`StudentFeeAdjustment` rows whose reason text was written as an internal note. I could not check —
+this harness has no production credentials.
+
+### Migrations, env vars, rollback
+
+- **Migrations:** none in this cycle. The code changes are a Prisma `orderBy` on an existing read and
+  two label formatters.
+- **Env vars:** none added, removed or renamed.
+- **Rollback:** trivial — the cycle's only code commit (`fix(students,teacher): …`) can be reverted on
+  its own with no data implications.
+
+### Manual smoke on the preview (for the reviewer of this PR)
+
+1. `/admin/students` — find a student with more than one ACTIVE enrolment and confirm the class in the
+   list now matches the class on their detail page.
+2. `/teacher/assessments/weekly?date=2026-08-13` (as the teacher account) — the IKTP picker should read
+   "Nilai Agama & Budi Pekerti · …", not "RELIGIOUS_MORAL · …".
+
+### Test data left on staging by this cycle
+
+Deliberately not cleaned up, so the evidence stays inspectable — remove when convenient:
+- Student **Khadijah Naila** (`cmsugt1ux000004judls97a98`), created by exercising "Konversi ke Siswa".
+- Invoice **INV-2026-0059** (Rp 662.500) and the 25% keringanan on *Hafizh Umar Ramadhan*
+  (alasan "Verifikasi panduan 2026-08-15").
+- One approved and one rejected leave request; some teacher attendance marks, journal ticks and a
+  parent "Di Rumah" tick.
+
+### The manual
+
+`Panduan-Penggunaan-Talib.docx` is updated in place in the main checkout and remains **untracked**, with
+`Panduan-Penggunaan-Talib.docx.bak-20260816` alongside the older `.bak-20260729`. Text is fully current;
+**screenshots still lag** — one of roughly fifteen was replaced, and the reason (Chrome MCP holds the
+sessions but cannot write files; Playwright can write files but has no session) plus the outstanding
+list is recorded in T9. Finishing them needs a Playwright `storageState` exported from the signed-in
+profile.
+
+### Promotion command (after this PR merges to staging)
+
+`/ship --to-main` — and note the standing rule: a promotion **merges, never squashes**
+(`gh pr merge <number> --merge`), or staging stops being an ancestor of main.
