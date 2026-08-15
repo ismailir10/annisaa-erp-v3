@@ -123,7 +123,7 @@ input; findings there must be re-verified if they resurface.
       *Acceptance:* topics marked; the monitoring-reachability claim resolved to a severity with the
       navigation path (or absence of one) recorded.
 
-- [ ] **T4 — Admin sweep C: Keuangan (Biaya + Keringanan + Billing Run wizard + Penerimaan).**
+- [x] **T4 — Admin sweep C: Keuangan (Biaya + Keringanan + Billing Run wizard + Penerimaan).**
       Walk 1.13–1.15. Verify the third **"Keringanan"** tab on `/admin/fees` and create one durable
       per-student discount through the dialog (Siswa / Komponen Biaya / Jenis / Cara Hitung / Nilai /
       Alasan / Berlaku). Then run **"Buat Tagihan"** through all three wizard steps —
@@ -397,5 +397,94 @@ new subsection from the walkthrough above.
 
 **Console errors:** none observed, but the subagent only started the console listener late in the walk,
 so earlier pages are not covered by that signal. Treated as "no evidence of errors", not "no errors".
+
+### Task 4 — Admin sweep C: Keuangan (the promotion-critical one)
+
+All three unpromoted finance PRs (#493 Keringanan, #494 wizard, #495 editable step 2) were exercised
+end to end on staging, and **every arithmetic result was re-verified by the driver directly against the
+database**, not taken from the subagent's report.
+
+**Keringanan (#493) — PASS.** `/admin/fees` has the three tabs "Komponen Biaya" / "Struktur per
+Program" / **"Keringanan"**. Dialog fields: Siswa* (search combobox), Tahun Ajaran*, Komponen Biaya*,
+Jenis* (default Diskon), Mode* (default Persen (%)), Nilai*, Alasan*, Berlaku Dari / Berlaku Sampai
+(optional). Created: *Hafizh Umar Ramadhan · SPP Bulanan · Diskon · Persen · 25 · "Verifikasi panduan
+2026-08-15" · TA 2025/2026*, rendering as `Hafizh Umar Ramadhan | SPP Bulanan | Diskon | 25% | Tidak
+terbatas | Aktif`.
+
+**Billing Run wizard (#494 / #495) — PASS on every checked behaviour.** Steps render as
+"1 Cakupan" / "2 Tinjau" / "3 Komit". Figures, all hand-checked:
+
+| Check | Before | After | Expected delta | Correct? |
+|---|---|---|---|---|
+| Keringanan pre-applied (Hafizh) | SPP base 550.000 | 412.500 + badge "Keringanan" | −137.500 (25%) | yes |
+| Edit a component (Uang Makan) | row 662.500 | 712.500, badge "Diedit" | +50.000 | yes |
+| "Tambah Potongan" 30.000 | 712.500 | 682.500, badge "Manual" | −30.000 | yes |
+| "Tambah Komponen" 50.000 (Bilal) | 750.000 | 800.000, badge "Manual" | +50.000 | yes |
+| Exclude a student (Alia) | 4 siswa | 3 siswa, row struck through | −1 student, −800.000 | yes |
+| Step 3 grand total | — | Rp 1.532.500 (50.000 + 800.000 + 682.500) | sums | yes |
+
+**Last-line guard works.** Deleting down to one line then attempting the final removal is refused:
+*"Baris ini hanya punya satu baris tagihan yang tersisa. Gunakan tombol kecualikan pada baris jika
+ingin mengosongkannya, bukan menghapus baris tagihan terakhir."*
+
+**Draft persistence (#494's core claim) — PASS, nothing lost.** Navigating away and back raised the
+banner *"Ada draf tagihan yang belum selesai" / "Periode Verifikasi Agustus 2026 punya draf yang belum
+dikomit."* with **"Buang draf"** / **"Lanjutkan draf"**. Resuming restored all four students' states
+verbatim — the edited amount, the added potongan, the added komponen and the exclusion all survived.
+
+**"Hitung Ulang" — PASS, behaves exactly as its own warning says.** Lives on step 3. Confirms with
+*"…Semua perubahan manual pada baris — nominal yang diubah, potongan, dan komponen tambahan — akan
+hilang. Siswa yang sudah dikecualikan tetap dikecualikan."* Observed: manual edits wiped, keringanan
+recomputed, exclusions preserved; toast *"3 siswa akan ditagih setelah dihitung ulang, 1 pengecualian
+dipertahankan."*
+
+**Commit — PASS, verified in the database by the driver.** Scope narrowed to one student, button read
+**"Komit 1 Tagihan"**. Resulting row, read straight from Postgres:
+
+```
+INV-2026-0059  status SENT  totalDue 662500.00  student Hafizh Umar Ramadhan
+  SPP Bulanan    amount 550000  adjustment -137500  note "Verifikasi panduan 2026-08-15"  final 412500
+  Uang Makan     amount 200000  adjustment 0                                              final 200000
+  Uang Kegiatan  amount  50000  adjustment 0                                              final  50000
+```
+
+412 500 + 200 000 + 50 000 = 662 500. The keringanan survives all the way onto the committed invoice
+with the correct amount and the reason text attached. **This is the evidence the promotion rests on.**
+
+**Status labels + Penerimaan — PASS.** Invoice status filter offers Draft / Link Dibuat / Lunas /
+Dibayar Sebagian / Lewat Tempo / **Dibatalkan** / Link Gagal. Penerimaan lists 28 transactions totalling
+Rp 25.490.000 across 4 methods.
+
+**F7 — the Keringanan list hides Tahun Ajaran, so per-year rows look like duplicates. Severity: MINOR
+(but it caused a real error during this very test).** The subagent reported two "byte-identical"
+Abdullah Faris Siregar rows as a possible double-discount money risk. **That is wrong and I checked:**
+the two rows carry different `academicYearId` — one for **2025/2026 (ACTIVE)**, one for **2026/2027
+(PLANNING)**. One adjustment per year is the intended design and there is no stacking risk. The defect
+is presentational: the list renders no Tahun Ajaran column, so legitimate per-year rows are
+indistinguishable. This directly misled the walk — the first keringanan was created against the wrong
+year (2026/2027) and, because **Tahun Ajaran is read-only in the edit dialog**, it had to be
+deactivated and recreated rather than corrected. Adding the column is the fix.
+
+**F8 — class roster counts disagree between `/admin/classes` and the wizard's Kelas picker.
+Severity: MAJOR, and most likely the same root cause as F1b.** `/admin/classes` showed KB Taman Aster
+at 4/20 and KB Metland at 1/20; minutes later the wizard's picker showed the same classes as 5/20 and
+4/20, and selecting "KB · TA 2025/2026 · 5/20" resolved to only **4** students in step 2
+("Menampilkan 1–4 dari 4"). No enrolment was changed in between. Given F1b — 16 students hold ACTIVE
+enrolments against the **archived** 2024/2025 year — the most probable explanation is that the picker's
+occupancy count and the scope-resolution query disagree about which enrolments are in scope. An admin
+who scopes a run by class can therefore expect N invoices and get N−1. **Not fixed this cycle** (needs
+a query-level investigation across three call sites, which is its own slice), but it is the single
+finance-adjacent finding that most deserves a follow-up cycle.
+
+**F9 — Keringanan row for the newly-created record omits the NIS line the other rows show.
+Severity: MINOR, cosmetic.**
+
+**Console:** two errors, both explained — the expected last-line-removal `ApiError` (validation
+surfaced via console.error, a code-quality nit rather than a defect) and one self-inflicted malformed
+date entry on `/admin/payments`. No unexplained JavaScript errors anywhere in the keringanan or wizard
+flows.
+
+**Left on staging deliberately:** invoice INV-2026-0059 and the 25% keringanan for Hafizh, so T7 can
+observe the "Penyesuaian" line from the parent side. No draft left behind.
 
 ## Ship Notes
