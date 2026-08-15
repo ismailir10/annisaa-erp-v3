@@ -173,7 +173,7 @@ input; findings there must be re-verified if they resurface.
       *Acceptance:* all 7 topics marked; the DOKU channel list captured as evidence; the Penyesuaian
       reason-exposure classified.
 
-- [ ] **T8 — Triage + blocker fixes.**
+- [x] **T8 — Triage + blocker fixes.**
       Consolidate T2–T7 findings into one severity-ranked table. Fix every **blocker** on this branch
       (plus majors whose fix is small and low-risk), each with its own commit and a re-walk of the
       affected screen. Anything not fixed is written up with a reason. If a frontend file is touched,
@@ -672,5 +672,63 @@ sweep did legitimately observe is that the parent status filter offers only Semu
 minor gap.
 
 **Console:** no errors at any checkpoint across the parent walk.
+
+### Task 8 — Triage + fixes
+
+**Severity-ranked findings from the whole sweep. Zero blockers.**
+
+| # | Finding | Severity | Regression in this window? | Action |
+|---|---|---|---|---|
+| F15 | Admin's free-text keringanan reason printed verbatim on the family's invoice | MAJOR (policy) | new with #493 | **user decision needed** — not fixed |
+| F8 | Class roster counts disagree between `/admin/classes` and the billing wizard picker; a "5/20" class resolved 4 students | MAJOR | no | follow-up cycle |
+| F1b | 16 of 29 students hold ACTIVE enrolments in an ARCHIVED year — archiving a year does not close them | MAJOR (product) | no | follow-up cycle |
+| F6 | Unsaved rapor narrative lost silently when leaving via the sidebar | MAJOR | guard shipped #457, incomplete | follow-up cycle |
+| F4 | Journal monitoring page unreachable by clicking — manual instruction un-followable | MAJOR | no | manual corrected in T9; nav link is a user call |
+| F2 | Two semesters ACTIVE at once, no UI disambiguation | MAJOR | no | follow-up; does **not** break period resolution today (F5) |
+| F17 | In-app "Cara bayar" card lists 6 banks; DOKU actually offers ~10 channel families | MAJOR for the manual | no | manual corrected in T9 |
+| F1 | Students list vs detail disagree on a student's class | MAJOR | no | **FIXED** |
+| F3 | "Konversi ke Siswa" irreversible with no confirmation | MAJOR | no — dates to #294, 2026-05-19 | follow-up cycle |
+| F12 | IKTP picker leaks raw enum keys (`RELIGIOUS_MORAL · …`) | MINOR | no | **FIXED** |
+| F16 | Profil "Keluar" has no confirm while the header logout does | MINOR | no | follow-up |
+| F13 | "Belum ada pekan aktif" is a dead end on weekends | MINOR | no | follow-up |
+| F18 | Child selection not preserved across navigation | MINOR | no | follow-up |
+| F7 | Keringanan list hides Tahun Ajaran, so per-year rows look duplicated | MINOR | new with #493 | follow-up |
+| F9/F10/F11 | Keringanan row missing NIS; employee attendance still says "Override"/"Tidak Hadir"; weekend cells editable | MINOR | no | manual corrected in T9 |
+
+**Fixed in this task** (two findings whose fix was genuinely small and low-risk; everything else is
+written up rather than rushed):
+
+- `app/api/students/route.ts` — the `enrollments` include used `take: 1` with **no `orderBy`**, so
+  Postgres returned an arbitrary ACTIVE enrolment. Added `orderBy: { createdAt: "desc" }` to match
+  `app/api/students/[id]/route.ts:33`. List and detail can no longer disagree. This fixes the *symptom*;
+  the underlying data question (F1b) is deliberately left open.
+- `app/teacher/assessments/weekly/client.tsx` and
+  `app/teacher/assessments/center/[center]/client.tsx` — indicator labels now render through
+  `formatCurriculumElement()` (already in `lib/format.ts`), so teachers read "Nilai Agama & Budi
+  Pekerti · …" instead of "RELIGIOUS_MORAL · …".
+- `app/teacher/assessments/weekly/__tests__/indicator-picker.test.tsx` — the expectation had pinned the
+  raw enum strings, i.e. it encoded the defect. Updated to the Indonesian labels.
+
+**Deliberately not fixed**, with reasons: F15 is a policy call about what families should see, not a
+bug — the user decides. F6 needs a Next.js App Router navigation interceptor, which has no first-class
+API; that is a design decision, not a one-liner. F8 and F1b need a query-level investigation across
+several call sites. F3 is three-month-old intentional behaviour. None of these is a regression from the
+four unpromoted commits, so none of them gates the promotion.
+
+**Gates:** `npm run build` green. `npx vitest run` → **300 files passed, 2 skipped; 2 935 tests passed,
+42 todo**. Verbatim, after the fix.
+
+**Code review:** `feature-dev:code-reviewer` on the diff — **no high-confidence issues**. It
+independently confirmed the `orderBy` matches the detail route, that adding it does not change the query
+shape (the relation already used `take: 1`), that `formatCurriculumElement` covers all five
+`CurriculumElement` enum values in `prisma/schema.prisma` and falls back safely, and that **no remaining
+surface renders the raw enum to an end user**. `superpowers:code-reviewer` was not additionally
+dispatched: the `app/api/**` change is a read-ordering tie-break with no auth, tenancy or input-handling
+surface.
+
+**design-system cross-check:** the only visual change is the indicator option label, which now reads as
+an Indonesian element name rather than a SCREAMING_SNAKE enum — consistent with `design-system.html`'s
+voice guidance and `.claude/standards/voice.md`. No tokens, spacing, colour or component structure were
+touched.
 
 ## Ship Notes

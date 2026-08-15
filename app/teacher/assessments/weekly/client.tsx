@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/portal/page-header";
 import { cn } from "@/lib/utils";
+import { formatCurriculumElement } from "@/lib/format";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import {
   LEVEL_LABEL_SHORT,
@@ -308,7 +309,7 @@ export function WeeklyClient({
           >
             {indicators.map((ind) => (
               <NativeSelectOption key={ind.id} value={ind.id}>
-                {ind.objective.element} · {ind.content}
+                {formatCurriculumElement(ind.objective.element)} · {ind.content}
               </NativeSelectOption>
             ))}
           </NativeSelect>
