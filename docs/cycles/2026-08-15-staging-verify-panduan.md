@@ -159,7 +159,7 @@ input; findings there must be re-verified if they resurface.
       verified with a named indicator visible on screen; new manual subsections identified for
       "Lainnya" and Sesi Hari Ini.
 
-- [ ] **T7 — Parent portal sweep.**
+- [x] **T7 — Parent portal sweep.**
       Signed in as the parent account, walk all of Bagian 3. Verify the 5-slot nav
       (**Beranda · Tagihan · Kehadiran · Jurnal · Lainnya**) and the Lainnya sheet
       (Perkembangan / Rapor / Profil). Confirm the #492 fix: the **Di Rumah grid renders even in a week
@@ -598,5 +598,79 @@ rolled to 16 Aug. The host machine runs **JST (UTC+9)**; Jakarta (UTC+7) was sti
 The app's date was correct — no timezone defect.
 
 **Console:** no errors at any checkpoint across the teacher walk.
+
+### Task 7 — Parent portal sweep (all of manual Bagian 3)
+
+Account switched to `rightjet.hq@gmail.com` (parent "Nurul", 2 children).
+
+**Bottom nav confirmed: `Beranda · Tagihan · Kehadiran · Jurnal · Lainnya`.** The "Lainnya" sheet reads
+"Lainnya" / *"Halaman yang tidak dibuka setiap hari"* → **Perkembangan** ("Perkembangan anak per
+elemen"), **Rapor** ("Laporan hasil belajar per semester"), **Profil** ("Data akun dan kontak").
+**The manual's "Capaian", "Rapor" and "Profil" tabs do not exist** — all three are behind Lainnya, and
+"Capaian" is not a nav name at all any more.
+
+| Topic | Verdict | Evidence |
+|---|---|---|
+| 3.1 Cara Masuk | PASS | Google-only chooser, lands in parent portal |
+| 3.2 Beranda | PASS | "Assalamu'alaikum, Bu Nurul"; per-child attendance cards ("Bilal · KB", "Hafizh Umar · KB") + combined TAGIHAN card (Rp 7.165.000, 8 belum dibayar) |
+| 3.3 Tagihan | PASS | See the keringanan and payment findings below |
+| 3.4 Kehadiran | PASS (empty week) | "Belum ada catatan kehadiran" / "Insyaallah akan muncul setelah Ustadzah mengisi absensi." for 10–14 Agu |
+| 3.5 Buku Penghubung | **PASS — #492 confirmed fixed** | See below |
+| 3.6 Perkembangan | PASS | Page title **"Perkembangan"**; in-page heading still "Capaian per elemen"; framing line verbatim: **"Ini tahapan perkembangan, bukan nilai. Setiap anak berkembang di waktunya masing-masing."** |
+| 3.6 Rapor | PASS (empty state) | "Rapor belum terbit" / "Ustadzah masih menyusun rapor. InsyaAllah siap dibuka akhir triwulan. **Cek kembali halaman ini secara berkala ya.**" — the old false notification promise is gone |
+| 3.7 Profil | PASS | "Wali murid · 2 anak terdaftar", contact rows, children list, footer "An Nisaa' Sekolahku · v3.4.2" |
+| 3.7 Keluar (header) | PASS | "Yakin ingin keluar?" / "Anda perlu masuk lagi…" / Batal · **"Keluar dari akun"** |
+| 3.7 Keluar (Profil page) | FAIL — see F16 | Signs out instantly, no confirmation |
+
+**#492 verified fixed — the pilot blocker is genuinely gone.** Using *Hafizh Umar Ramadhan*, who has
+**zero** journal entries, the "Di Rumah" tab renders the **full live indicator grid** (Ibadah / Karakter
+/ Kesehatan, Sen–Jum checkboxes) rather than the old "Belum ada catatan minggu ini" dead end. Ticking
+"Shalat berjamaah bersama keluarga" saved and survived a hard reload. The edit window behaves exactly as
+specified: current week and last week editable; two weeks back disabled with aria-label *"di luar
+jangkauan — hanya bisa diubah dari Senin minggu lalu sampai hari ini"*; next week disabled with
+*"tanggal akan datang belum bisa diubah"*. Touch targets 44×44.
+
+**Keringanan reaches the family correctly.** INV-2026-0059 renders:
+`SPP Bulanan Rp 412.500` with the sub-line `Penyesuaian: Rp -137.500 (Verifikasi panduan 2026-08-15)`,
+then Uang Makan Rp 200.000 and Uang Kegiatan Rp 50.000. The admin→invoice→parent chain for #493 is
+complete and correct.
+
+**F15 — the admin's free-text keringanan reason is shown to families verbatim, with no redaction layer.
+Severity: MAJOR (product decision, not a code bug).** The parent literally sees an internal QA marker
+("Verifikasi panduan 2026-08-15") printed on their bill. Nothing sanitises or templates this field, so
+anything an admin types — an internal note, a candid remark about a family's circumstances, shorthand —
+lands unedited on a parent-facing invoice. Discounts are frequently granted for financially or
+personally sensitive reasons, which makes this the highest-consequence finding of the cycle even though
+no code is malfunctioning. **Recommended:** split the field into an internal note and a parent-facing
+note, or constrain it to a curated list. Put to the user for a decision — it is a policy call, not
+mine to make unilaterally.
+
+**F16 — the Profil page's "Keluar" button has no confirmation while the header logout does.
+Severity: MINOR.** On a phone-first bottom-of-page layout, a thumb-tap signs the parent straight out.
+Inconsistent with the header icon's own confirm dialog on the same screen.
+
+**F17 — the in-app "Cara bayar" card understates the payment options by a wide margin.
+Severity: MAJOR for the manual, MINOR for the app.** The card still reads *"Transfer bank (Virtual
+Account)"* and *"BCA · Mandiri · BRI · BNI · Permata · CIMB"* — the hardcoded string. The real DOKU
+checkout (`staging.doku.com/checkout-link-v2/...`, invoice total IDR 662.500) offers far more:
+**Transfer Bank** (BCA, Mandiri, BRI, BNI, Permata +11 more), **e-Wallet** (OVO, ShopeePay, DANA +1),
+**Minimarket** (Alfamart, Indomaret), **Kartu** (Visa, Mastercard, Amex, JCB), **QRIS**, **Digital
+Banking** (Jenius), plus PayLater, Internet Banking, Direct Debit and Kartu Kredit Indonesia. The
+manual's §3.3 screenshot and channel list are stale twice over — wrong gateway (captured under Xendit)
+and wrong channel set. Good news: the "Penyesuaian" note does **not** leak into the DOKU payload.
+
+**F18 — child selection does not survive navigation. Severity: MINOR.** Selecting Hafizh on Tagihan
+(URL `?child=…`) then tapping another bottom-nav tab, or hard-reloading the URL, reverts to the first
+child. No cross-child data leak occurred — the data is correct once re-selected.
+
+**A claim my own task brief caused — corrected.** The sweep reported "Dibayar Sebagian" as *not found*
+and inferred the state might not exist. My brief told it the database held 4 partially-paid invoices; it
+does, but **all four belong to other families** (Alia ×1, Arif Naufal Saputra ×3) and are invisible to
+this account. So the parent-side rendering of "Dibayar Sebagian" is **UNVERIFIED**, not missing. What the
+sweep did legitimately observe is that the parent status filter offers only Semua Status / Belum Dibayar
+/ Lewat Tempo / Lunas — so a parent with a partially-paid invoice cannot filter for it. Recorded as a
+minor gap.
+
+**Console:** no errors at any checkpoint across the parent walk.
 
 ## Ship Notes
