@@ -110,7 +110,7 @@ input; findings there must be re-verified if they resurface.
       **"Salin Kelas"**. *Acceptance:* every 1.1–1.9 topic marked PASS/FAIL with the exact on-screen
       label quoted, and each manual line the walk contradicts captured verbatim for T9.
 
-- [ ] **T3 — Admin sweep B: Kelas Harian + Penilaian.**
+- [x] **T3 — Admin sweep B: Kelas Harian + Penilaian.**
       Walk 1.10–1.12 plus the new Bank Narasi page. Verify: student-attendance filters, "N catatan"
       subtitle and the **"Alpa"** relabel; the journal nav item reads **"Buku Penghubung — Templat"**;
       note-delete confirms as **"Nonaktifkan catatan?" / "Ya, Nonaktifkan"**. Then chase the
@@ -332,5 +332,70 @@ not "Gulir Kelas ke Tahun Ini" on Kelas.
 **Screenshots to recapture (T9):** Pendaftaran row menu; Berkas Pendaftaran Online sidebar + landing;
 class detail with kampus badge; Tahun Ajaran row menu showing "Salin Kelas ke Tahun Ini"; the
 "Daftarkan ke Kelas"/"Naik Kelas" picker.
+
+### Task 3 — Admin sweep B (manual topics 1.10–1.12 + Bank Narasi)
+
+| Topic | Verdict | Evidence |
+|---|---|---|
+| 1.10 Kehadiran Siswa | PASS | Filters "Dari" / "Sampai" / "Kelas" / "Filter Status" all labelled; subtitle "1741 catatan"; stat tile and filter both say **"Alpa"**. Correction dialog: title "Timpa Kehadiran", field "Status Kehadiran" (Hadir/Alpa/Sakit/Izin), "Catatan (opsional)", Batal/Simpan |
+| 1.11 Buku Penghubung — Templat | PASS | Sidebar "Buku Penghubung — Templat"; page has **only "Sekolah" / "Rumah"** tabs. Deactivate confirm interpolates the entity: `Nonaktifkan kategori "Motorik"?` → "Item akan disembunyikan dari isian harian, data lama tetap tersimpan." → Batal / **"Ya, Nonaktifkan"** |
+| 1.11 Pemantauan (jurnal) | FAIL — see F4 | Not reachable by clicking, from anywhere |
+| 1.12 Pemantauan (Penilaian) | PASS (with F5) | H1 is **"Pemantauan"**. No semester dropdown — two date pickers ("Pekan (tanggal acuan)", "Hari sentra") |
+| 1.12 Rapor | PASS spelling / FAIL guard — see F6 | Sidebar, H1 and "Rapor — {Nama}" all spell **"Rapor"**; no "Raport" seen anywhere on screen. Class picker disambiguates by campus: "KB · An Nisaa' Sekolahku Metland Cibitung" vs "KB · An Nisaa' Sekolahku Taman Aster" |
+| Bank Narasi (new) | PASS | Documented below for the new manual subsection |
+
+**F4 — the manual's journal-monitoring instruction is un-followable. Severity: MAJOR.**
+The manual says *"Tab 'Pemantauan' pada menu yang sama menunjukkan kelas mana yang sudah dan belum
+mengisi buku penghubung minggu ini."* There is no such tab. Click-only exploration of the sidebar, the
+Templat page (tabs are Sekolah/Rumah; `read_page` found zero links to the monitoring route), the
+separate Penilaian → Pemantauan page, and the Dasbor quick actions found **no path at all**. Navigating
+directly to `/admin/student-journal/monitoring` (URL entry, disclosed) shows a working page titled
+**"Buku Penghubung — Pemantauan"** with stat tiles (Total Entri Minggu Ini, Kelas Sudah Isi 0/8, Siswa
+Terdaftar Aktif 21, Kelas Belum Isi 8) and a per-class table. Its drill-downs into class and student
+both carry "Kembali ke Pemantauan" links — so the pages form a closed loop whose **only entrance is the
+URL bar**. A working feature is effectively unreachable. Two possible resolutions — correct the manual,
+or add the missing nav entry — put to the user in the summary below.
+
+**F5 — Penilaian → Pemantauan cannot distinguish "no week configured" from "wrong semester".
+Severity: MINOR now, latent trap.** The page resolves by date, not by semester, and shows no semester
+label anywhere (only "Tahun Ajaran 2025/2026"). Today's date happens to fall inside Semester 2's range
+(20 Jul – 11 Sep 2026), so the default view is not broken — but no configured week covers 15 Agustus,
+so it renders *"Belum ada Pekan aktif untuk tanggal acuan ini."* Setting the date into the always-empty
+Semester 1 (`2025-08-01`) produces the **identical** message. Setting it to `2026-07-21` surfaces real
+content ("Pekan 1 · Tubuhku (Demo) (Diriku (Demo))"), proving the page reads Semester 2 correctly. So
+the F2 double-ACTIVE-semester problem does **not** currently break this page — it just cannot be
+diagnosed from the UI. F2 stays MAJOR, does not escalate to blocker on this evidence.
+
+**F6 — unsaved rapor edits are lost silently when leaving via the sidebar. Severity: MAJOR.**
+Verified in code, not just observed. `app/admin/raport/raport-editor.tsx` guards dirty state two ways:
+a `beforeunload` listener (line 132–142) and `handleBack` (line 144–150) which is wired **only** to the
+in-app "Kembali ke daftar" button. Sidebar items are Next.js client-side `<Link>` navigations — they
+trigger neither. Reproduced: typed into a narrative field, clicked a sidebar item, navigated away with
+no dialog and the edit gone. Exiting by the in-app back button correctly raises *"Keluar tanpa
+menyimpan?" / "Narasi, capaian, kehadiran, hafalan, atau data lain yang belum disimpan akan hilang." /
+Batal · "Ya, Keluar"*. Note the guard itself shipped **inside this window** (#457, 2026-08-06), so this
+is a new-but-incomplete safeguard rather than old debt. **Not fixed this cycle**: intercepting App
+Router client navigation has no first-class API and the workarounds are invasive — that is a design
+decision, not the one-line fix T8 is scoped for. Recommended as its own follow-up cycle.
+
+**Bank Narasi — content for the new manual subsection.**
+Sidebar "Bank Narasi" (under Penilaian, after Rapor) → H1 **"Bank Narasi Rapor"**, subtitle *"Susun
+narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis
+sesuai capaian yang dipilih."* Two selectors drive everything: **Triwulan** and **Kelompok usia**
+("A (4–5 tahun)" / "B (5–6 tahun)") — narratives are authored separately per age group. Body is six
+cards: five capaian sections (Pembukaan, Nilai Agama & Budi Pekerti, Jati Diri, STEAM / Literasi, Unjuk
+Kerja), each with three level fields (**Mampu dan Konsisten / Mampu Belum Konsisten / Perlu
+Penguatan**) = 15, plus **Penutup** with three single fields (Penutup, Rencana Tindak Lanjut, Kegiatan
+Disarankan di Rumah) = 3. That is the **"18/18 terisi"** badge. "Simpan semua" persists. A "Salin dari
+triwulan lain" card clones a previous triwulan's text without overwriting anything already filled.
+"Susun Rapor" (top right) is a shortcut to `/admin/raport`. BLOCKED-BY-DATA: the clone source dropdown
+is empty because staging holds only one triwulan — UI confirmed present, flow not exercised end to end.
+
+**Manual corrections captured for T9:** the "Pemantauan" tab instruction (F4) must be rewritten;
+deactivate confirm wording is entity-specific (`Nonaktifkan kategori "…"?`); Bank Narasi needs a whole
+new subsection from the walkthrough above.
+
+**Console errors:** none observed, but the subagent only started the console listener late in the walk,
+so earlier pages are not covered by that signal. Treated as "no evidence of errors", not "no errors".
 
 ## Ship Notes
