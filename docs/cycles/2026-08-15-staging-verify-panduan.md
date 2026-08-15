@@ -100,7 +100,7 @@ input; findings there must be re-verified if they resurface.
       route, plus a data-readiness table marking each downstream task READY or NEEDS-SEED. Depends on
       nothing; blocks T2–T7.
 
-- [ ] **T2 — Admin sweep A: Cara Masuk, Dasbor, Kesiswaan, Akademik.**
+- [x] **T2 — Admin sweep A: Cara Masuk, Dasbor, Kesiswaan, Akademik.**
       Walk manual topics 1.1–1.9. Verify against the change-map claims: login is Google-only with the
       new light two-column screen; nav reads "Dasbor"; the Formulir Pendaftaran nav item is now
       **"Berkas Pendaftaran Online"**; the enrollment list has real search + pagination + status
@@ -263,5 +263,74 @@ Kelas Harian (`Kehadiran Siswa`, **`Buku Penghubung — Templat`**) · Keuangan 
    Any "current period" resolution that picks the first ACTIVE semester would land on the empty one.
    Must be checked in T3 (`/admin/penilaian` period label) and T6 (teacher Penilaian subtitle
    "Periode: …") before classifying.
+
+### Task 2 — Admin sweep A (manual topics 1.1–1.9)
+
+Walked by a dirty-work-tier subagent on the live staging admin session; **every severity call below is
+the driver's, after independent re-verification** — the subagent's own severities were not taken at
+face value and two of them were wrong.
+
+| Topic | Verdict | Evidence |
+|---|---|---|
+| 1.1 Dasbor | PASS | Title "Dasbor", date "Sabtu, 15 Agustus 2026". Cards TOTAL KARYAWAN 29 / HADIR HARI INI 0 / TERLAMBAT 0 / TIDAK HADIR 29. "Perlu Tindakan" lists Pengajuan Cuti (3), Pendaftaran Baru (3), Penggajian Terakhir (Draft) |
+| 1.2 Pendaftaran | PASS (with a pre-existing UX gap, below) | Status filter reads "Semua Status"; row menu = Ubah / Konversi ke Siswa / Kirim Formulir / Batalkan |
+| 1.3 Berkas Pendaftaran Online | PASS | Sidebar label **"Berkas Pendaftaran Online"**, page still titles itself "Formulir Pendaftaran". Search filters live (typed "Alia" → 1 result). Pagination present but only 2 records exist → multi-page UNVERIFIED |
+| 1.4 Siswa | FAIL — see finding F1 | List, search, "Tambah Siswa", "Unduh Data" all present; list vs detail disagree on a student's class |
+| 1.5 Wali Murid | PASS (minor) | List "34 wali terdaftar" + detail render. Guardian "Nurul": header "2 siswa terdaftar" and 2 children listed, but the DATA WALI field "Jumlah Anak" reads 1 |
+| 1.6 Tahun Ajaran | PASS (minor) | 2026/2027 "Perencanaan", 2025/2026 "Aktif", 2024/2025 shows the raw enum **"ARCHIVED"** instead of an Indonesian label |
+| 1.7 Kelas | PASS | Class names carry no campus token ("KB", "TKIT-A"); kampus renders as its own badge ("An Nisaa' Sekolahku Metland Cibitung"). Roll-forward is **not** on the Kelas page — it lives in the **Tahun Ajaran** row menu, labelled **"Salin Kelas ke Tahun Ini"** |
+| 1.8 Enrol / Naik Kelas pickers | PASS (minor) | Both open the same picker: searchable, grouped by kampus, options formatted `KB · TA 2025/2026 · 4/20`. Year-scoping confirmed — 8 options, all 2025/2026; nothing from archived 2024/2025 or planning 2026/2027. Search is fuzzy: "TKIT-A" also returns TKIT-B |
+| 1.9 Semester | FAIL — see finding F2 | Both 2025/2026 Semester 1 and Semester 2 carry green "Aktif" badges; KPI card reads "SEMESTER AKTIF: 2" |
+
+No JavaScript console errors during the walk.
+
+**F1 — Students list and student detail disagree about a student's current class. Severity: MAJOR.**
+Root cause found in code, not guessed. `app/api/students/route.ts:51` selects
+`enrollments: { where: { status: "ACTIVE" }, take: 1 }` **with no `orderBy`** — so when a student has
+more than one ACTIVE enrolment Postgres returns an arbitrary one. `app/api/students/[id]/route.ts:33`
+orders `createdAt desc`. For *Bilal Hakim* the list therefore shows "Kelompok Bermain · KB" (his
+2024/2025 row) while his detail header shows "TK Islam Terpadu Kelas A · TKIT-A" (2025/2026), and the
+Riwayat Kelas tab shows both marked "Aktif". Not a promotion blocker — no code in the four unpromoted
+commits touches this — but staff would be misled about which class a child is in. Fix is one line
+(give the list the same `orderBy` as the detail); scheduled for T8.
+
+**F1b — the data behind F1 is systemic, not one bad row. Severity: MAJOR (data/product question).**
+**16 of 29 students hold ACTIVE `StudentEnrollment` rows against the ARCHIVED 2024/2025 year**
+(21 more are ACTIVE in the current 2025/2026 year). Archiving an academic year evidently does not
+close out its enrolments. On staging this is seed residue from 2026-07-28, but the same code path runs
+in production, so the question "what should happen to enrolments when a year is archived?" is a real
+product gap, not just fixture noise. Flagged; no code change proposed this cycle.
+
+**F2 — two semesters ACTIVE at once, with no UI disambiguation. Severity: MAJOR.**
+Confirmed independently in SQL *and* in the UI: 2025/2026 Semester 1 (0 themes) and Semester 2
+(2 themes, 4 subthemes, 8 weeks, 10 objectives) are both `status=ACTIVE`. The Semester page presents
+both with identical "Aktif" badges and its own KPI card reads "SEMESTER AKTIF: 2" as though that were
+normal. Nothing marks which one is current. Carried into T3 and T6 to determine whether any
+period-resolution actually lands on the **empty** Semester 1 — if it does, this escalates to blocker.
+
+**F3 — "Konversi ke Siswa" runs irreversibly with no confirmation. Severity: MAJOR, pre-existing, NOT
+a regression.** The subagent reported this as a blocker and as a contradiction of PR #438. Both claims
+are wrong and were corrected by reading the code: `convertToStudent()` in
+`app/admin/admissions/page.tsx:634` opens a dialog **only when `detectedParentId` is set** (the sibling
+-detection path #438 actually changed); with no detected parent it calls `runConvert(a.id, true)`
+directly, under an explicit comment *"No detection → preserve the pre-T10 one-click behaviour"*. That
+line dates to **#294, 2026-05-19** — three months before this window. So: a genuine UX gap on an
+irreversible action, worth fixing, but it neither regressed recently nor blocks the promotion.
+
+**Side effect to be aware of:** exercising that action created a real student record on staging —
+*Khadijah Naila*, `cmsugt1ux000004judls97a98`, created 2026-08-15 14:22. Left in place rather than
+hard-deleted. Staging is documented in the manual as free-to-experiment, but flagging it explicitly.
+
+**Minors (backlog, not fixed this cycle):** raw `ARCHIVED` enum badge on Tahun Ajaran; guardian
+"Jumlah Anak" field disagreeing with the computed child count; fuzzy class-picker search matching
+TKIT-B when you type TKIT-A.
+
+**Manual corrections captured for T9:** sidebar item is "Berkas Pendaftaran Online" (manual says
+"Formulir Pendaftaran"); roll-forward is "Salin Kelas ke Tahun Ini" on the **Tahun Ajaran** row menu,
+not "Gulir Kelas ke Tahun Ini" on Kelas.
+
+**Screenshots to recapture (T9):** Pendaftaran row menu; Berkas Pendaftaran Online sidebar + landing;
+class detail with kampus badge; Tahun Ajaran row menu showing "Salin Kelas ke Tahun Ini"; the
+"Daftarkan ke Kelas"/"Naik Kelas" picker.
 
 ## Ship Notes
