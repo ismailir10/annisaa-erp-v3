@@ -145,7 +145,7 @@ input; findings there must be re-verified if they resurface.
       the payroll run detail and that nothing in the manual instructs a reader to use it.
       *Acceptance:* topics marked; the employee-attendance label mismatch classified.
 
-- [ ] **T6 — Teacher portal sweep.**
+- [x] **T6 — Teacher portal sweep.**
       Signed in as the teacher account, walk all of Bagian 2. Verify the bottom nav is exactly
       **Beranda · Absensi · Jurnal · Penilaian · Lainnya** and that Kehadiran Saya, Slip Gaji and
       Profil Saya are reachable *only* through the "Lainnya" sheet (plus the header avatar for Profil).
@@ -527,5 +527,76 @@ confirmation can actually be verified.
 
 **Console:** no new errors during this walk; the buffer only carried the two already-explained errors
 from T4.
+
+### Task 6 — Teacher portal sweep (all of manual Bagian 2)
+
+Account switched to `ismail10rabbanii@gmail.com` via the app's own "Keluar" and the Google chooser —
+no password entry, no new consent grant.
+
+**Bottom nav is confirmed: `Beranda · Absensi · Jurnal · Penilaian · Lainnya`.** The "Lainnya" sheet is
+titled "Lainnya" / *"Halaman pribadi yang tidak dibuka setiap hari"* and holds **Kehadiran Saya**
+("Riwayat kehadiran, cuti, dan izin"), **Slip Gaji** ("Lihat slip gaji bulanan"), **Profil Saya**
+("Data akun dan kontak"). **Four tab names the manual instructs readers to tap no longer exist**:
+"Kehadiran", "Kelas", "Penghubung", "Slip Gaji".
+
+| Topic | Verdict | Evidence |
+|---|---|---|
+| 2.1 Cara Masuk | PASS | Lands on `/teacher`, greeting "Selamat Pagi, Ustadz/Ustadzah Ismail Rabbani · Sabtu, 15 Agustus 2026" |
+| 2.2 Beranda & Presensi | PASS | Clock-in cycles MASUK → PULANG → **"Selesai ✓"** ("Anda sudah pulang hari ini"). "Status Hari Ini" shows Masuk / Pulang / Status "Terlambat". GPS reported "GPS ditolak" (permission not granted to the browser — environmental, not a defect). "Akses Cepat" = "Buku Penghubung" + "Penilaian Pekanan (Walas DCARE)". "Sesi Hari Ini": "Belum ada sesi kelas terjadwal hari ini." |
+| 2.3 Kehadiran Saya & Cuti | PASS | Reached only via Lainnya. Calendar legend Hadir/Terlambat/Alpa/Cuti/Libur. "Cuti & Izin" shows CUTI TAHUNAN 12/12, CUTI SAKIT 14/14. Form fields exactly "Jenis Cuti", "Tanggal Mulai", "Tanggal Selesai", "Alasan"; Batal/Ajukan. Submitted → toast "Pengajuan cuti terkirim", badge "Menunggu", action "Batalkan"; cancel confirm "Batalkan Pengajuan" / "Yakin ingin membatalkan pengajuan cuti ini?" → "Pengajuan dibatalkan" |
+| 2.4 Absensi Kelas | PASS | Tab reads **"Absensi"** (manual says "Kelas"). Title "Absensi Kelas", helper "Ketuk untuk mulai absensi (Hadir → Alpa → Sakit → Izin)". Cycle-tap works, feedback "Menyimpan…" → "Tersimpan", state survives reload |
+| 2.5 Buku Penghubung | PASS | Tab reads **"Jurnal"** (manual says "Penghubung"). Picker title **"Jurnal — Buku Penghubung"**, button "Isi Penghubung", entry page "Isi Buku Penghubung" with 7 indicators across IBADAH/AKADEMIK/SOSIAL/MOTORIK. Ticks persist across reload. History caption **"Riwayat penghubung (hanya-baca)"**, week nav works (10–14 Agu → 17–21 Agu) |
+| 2.6 Penilaian | **PASS — see the correction below** | Hub title "Penilaian", subtitle **"Periode: Semester 2 2025/2026"** |
+| 2.7 Slip Gaji | PASS | Via Lainnya. Rows Mar/Feb/Jan 2026, badge "Tersedia", "PDF" action, detail shows Pendapatan / Potongan / Take Home Pay / transfer info. Banner "Slip Juli 2026 akan tersedia setelah tanggal 5" |
+| 2.8 Profil Saya | PASS | Via Lainnya **and** via the header avatar (both paths work). Fields Nama Lengkap / Jabatan / Kampus / Email / No. Handphone / No. Rekening + "Slip Gaji" quick link |
+| 2.9 Keluar | PASS | "Yakin ingin keluar?" / "Anda perlu masuk lagi untuk mengakses akun setelah keluar." / **"Batal"** · **"Keluar dari akun"** — the manual's "Ya, Keluar" is wrong |
+
+**A reported BLOCKER that I refuted by testing it myself.** The sweep reported that Penilaian Pekanan
+and Sentra Harian were *"completely unusable — 'Belum ada pekan aktif' on every date tested"* and called
+it a blocker. It tested five dates: 15/08/2026, 08/08/2026, 02/02/2026, 15/03/2026, 15/10/2025. Checking
+the `Week` rows shows **all five are legitimately empty**: weeks run Monday–Friday, and 15 Aug and 8 Aug
+2026 are both **Saturdays** falling in the gaps between weeks 4/5 and 3/4; the other three dates lie
+outside Semester 2's range entirely. It never tried a weekday inside a configured week.
+
+I drove the browser myself to `2026-08-13` (a Thursday inside week 4, 10–14 Aug) and the page works
+completely: title "Penilaian Pekanan", subtitle **"Pekan 4 · Panca Indera (Demo) (Diriku (Demo)) ·
+DCARE"**, day chips Sen 10 / Sel 11 / Rab 12 / Kam 13 / Jum 14, the picker labelled **"Indikator
+Ketercapaian (IKTP)"**, and student rows with **Mampu / Belum / Perlu** chips.
+
+**#451's fix is confirmed working.** The IKTP picker lists **9 named options**, read from the DOM:
+Mengucap basmalah sebelum memulai kegiatan · Mempraktikkan gerakan wudhu secara berurutan · Menyebutkan
+nama lengkap dan nama panggilannya · Merapikan alat main setelah selesai digunakan · Membilang benda
+1–10 dengan menunjuk · Menceritakan kembali isi buku cerita dengan bahasanya sendiri · Berjalan di atas
+garis lurus tanpa kehilangan keseimbangan · Menggunting mengikuti pola garis sederhana · Menggambar
+bebas dan menceritakan hasil karyanya. The old failure mode (empty dropdown silently scoring against
+indicator #1) is gone.
+
+**F12 — the IKTP picker leaks raw enum keys into teacher-facing Indonesian copy. Severity: MINOR, and
+the fix is trivial.** Every option reads e.g. `RELIGIOUS_MORAL · Mengucap basmalah…`, `MOTOR_SKILLS ·
+Menggunting…`. A translation map already exists — `formatCurriculumElement()` in `lib/format.ts:164`,
+mapping RELIGIOUS_MORAL → "Nilai Agama & Budi Pekerti", IDENTITY → "Jati Diri", STEAM → "STEAM /
+Literasi", MOTOR_SKILLS → "Motorik", ART → "Seni" — and the admin curriculum screens already use their
+own equivalent. Two teacher files render the raw value instead:
+`app/teacher/assessments/weekly/client.tsx:311` and
+`app/teacher/assessments/center/[center]/client.tsx:447`. **Fixed in T8.**
+
+**F13 — the "Belum ada pekan aktif" empty state is a dead end on weekends. Severity: MINOR.** It says
+*"Belum ada Pekan aktif untuk tanggal yang dipilih. Pilih tanggal lain atau minta admin menambah
+pekan."* but never says which dates *do* have weeks. A teacher opening Penilaian on a Saturday — or any
+school holiday — sees what looks like a broken feature, exactly as the sweep concluded. Suggesting the
+nearest configured week would remove the trap. Not fixed this cycle.
+
+**F14 — manual drift: "Sentra Harian" is a section, not one card.** The hub renders a SENTRA HARIAN
+section with eight tappable cards (Sentra Ibadah, Bahan Alam, Seni, Memasak, Main Peran, Balok,
+Persiapan, Area). The manual implies a single entry point. Corrected in T9. Sentra field labels
+"Tanggal" / "Kelompok usia" (chips **TK A** / **TK B**) / "Kegiatan" confirmed; the level chips inside a
+sentra were not reached because the same weekend gate applied — UNVERIFIED, low risk given the weekly
+page proves the shared chip component works.
+
+**Dismissed non-finding:** the sweep flagged the app showing "15 Agustus" while the session clock had
+rolled to 16 Aug. The host machine runs **JST (UTC+9)**; Jakarta (UTC+7) was still 15 Aug at the time.
+The app's date was correct — no timezone defect.
+
+**Console:** no errors at any checkpoint across the teacher walk.
 
 ## Ship Notes
