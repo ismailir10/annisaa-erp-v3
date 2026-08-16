@@ -231,7 +231,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
               />
             }
           >
-            Kelola IKTP
+            Kelola Tujuan Pembelajaran
           </Button>
           <DataTableRowActions
             onView={() => router.push(`/admin/semesters/${row.original.id}/themes`)}

@@ -196,7 +196,7 @@ export function ObjectivesClient({
 
       <PageHeader
         title={`${semester.academicYearName} · Semester ${semester.number} · Tujuan Pembelajaran`}
-        description={`Periode ${formatDateShort(toYmd(semester.startDate))} – ${formatDateShort(toYmd(semester.endDate))}. Atur TP, IKTP, dan kaitan tema.`}
+        description={`Periode ${formatDateShort(toYmd(semester.startDate))} – ${formatDateShort(toYmd(semester.endDate))}. Atur Tujuan Pembelajaran (TP), Indikator Ketercapaian (IKTP), dan kaitan tema.`}
       />
 
       <Card>

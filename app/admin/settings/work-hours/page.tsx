@@ -87,7 +87,7 @@ export default function OrgConfigPage() {
 
   return (
     <>
-      <PageHeader title="Konfigurasi" description="Atur jam kerja, zona waktu, dan periode penggajian" />
+      <PageHeader title="Jam Kerja" description="Atur jam kerja, zona waktu, dan periode penggajian" />
 
       <Card className="p-card max-w-2xl space-y-field">
         {/* Working days */}

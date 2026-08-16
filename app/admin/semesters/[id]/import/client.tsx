@@ -277,8 +277,8 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       </div>
 
       <PageHeader
-        title="Impor PROMES"
-        description={`Unggah berkas PROMES per Kelompok Usia untuk semester ${semester.academicYearName} · Semester ${semester.number}. Sistem akan menampilkan pratinjau sebelum menyimpan.`}
+        title="Impor PROMES (Program Semester)"
+        description={`Unggah berkas PROMES per Kelompok Usia untuk semester ${semester.academicYearName} · Semester ${semester.number}. Sistem akan menampilkan pratinjau Tujuan Pembelajaran (TP) dan Indikator Ketercapaian (IKTP) sebelum menyimpan.`}
       />
 
       {stage === "upload" && (

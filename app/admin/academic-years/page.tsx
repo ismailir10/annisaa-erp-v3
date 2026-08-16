@@ -340,7 +340,7 @@ export default function AcademicPage() {
 
   return (
     <>
-      <PageHeader title="Akademik" description="Program dan tahun ajaran" />
+      <PageHeader title="Tahun Ajaran" description="Program dan tahun ajaran" />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
