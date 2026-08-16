@@ -328,6 +328,8 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         data={filteredRows}
         loading={loading}
         pagination={tablePagination}
+        emptyTitle="Belum ada semester"
+        emptyDescription="Semester yang ditambahkan akan tampil di sini."
       />
 
       <ResponsiveFormDialog
