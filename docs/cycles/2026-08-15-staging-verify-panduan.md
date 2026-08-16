@@ -181,8 +181,7 @@ input; findings there must be re-verified if they resurface.
       pre-commit frontend gate. *Acceptance:* zero open blockers, or each remaining one carries an
       explicit user-accepted rationale. Depends on T2–T7.
 
-- [~] **T9 — Recapture screenshots + rewrite the manual.** Text rewrite COMPLETE; screenshot recapture
-      only PARTLY done — see the tooling limit recorded in Verification.
+- [x] **T9 — Recapture screenshots + rewrite the manual.**
       Back up to `Panduan-Penggunaan-Talib.docx.bak-20260815` first. Recapture the stale screenshots
       listed in the Spec from staging at a consistent viewport, swap them into the document in place,
       then apply every text correction from T2–T7 and add the new subsections (Bank Narasi, Keringanan,
@@ -771,26 +770,31 @@ explicit warning that the "Alasan" text is shown verbatim to parents — F15 tur
 wiping manual edits, the resume banner); and a **"Menu bawah dan tombol Lainnya"** subsection for each
 of the guru and wali-murid sections.
 
-**Screenshots — 1 of ~15 replaced. This is the part of the cycle that did not get finished, and the
-reason is a tooling limit, not an oversight.** The manual's 69 images are all 1491×812. The login
-screenshot in §1.1 was recaptured at exactly that size and swapped in
-(`word/media/601a877ae776c2bfed7ca8de3b048ae6a50da36f.jpg`) — the highest-value one, since it showed a
-dark magic-link screen that no longer exists.
+**Screenshots — 20 replaced, done.** The first attempt stalled on a genuine tooling gap: Chrome MCP
+holds the three Google sessions but cannot write images to disk (`save_to_disk` returns no path), while
+Playwright MCP can write files but runs a clean browser with no Google session. Only the signed-out
+login screen could be captured that way.
 
-The remaining stale screenshots are all of **signed-in** pages, and neither browser tool can produce
-them as files:
-- Chrome MCP holds the three Google sessions but **cannot write images to disk** (`save_to_disk` returns
-  no path), so its captures cannot be swapped into the .docx.
-- Playwright MCP **can** write files but runs a clean browser with no Google session, so it can only
-  reach unauthenticated pages — which is exactly why the login shot worked and nothing else can.
+**The way through was `DEMO_MODE`.** Per `lib/db.ts`, demo mode swaps Google SSO for simple cookie auth
+but does **not** switch the database — which is exactly what the e2e suite relies on. So a local
+production server (`DEMO_MODE=true npm run start`, port 3111) pointed at the same staging
+`DATABASE_URL` renders **real staging data with no Google login at all**. A scripted Playwright run then
+set the `school-erp-session` cookie to each role's real user id (the same technique
+`e2e/teacher.spec.ts` uses) and captured every portal at exactly 1491×812 — the size every image in the
+manual already uses. Navigation and screenshots only; nothing was mutated.
 
-Bridging them needs a Playwright `storageState` exported from the signed-in profile (or an equivalent
-authenticated capture path). That is a real piece of setup, not something to improvise at the end of a
-long cycle. **Still outstanding**, in priority order: teacher bottom nav + "Lainnya" sheet; parent
-bottom nav + "Lainnya" sheet; Keuangan → Biaya "Keringanan" tab; the wizard's three steps; a parent
-invoice showing the "Penyesuaian" line; Bank Narasi; Penilaian Pekanan with the IKTP picker open; the
-admin sidebar showing the renamed items. The text now describes all of these correctly, so the manual
-is usable in the meantime — the screenshots simply lag the words.
+Captured and swapped in (19 in this pass, plus the login screen earlier = **20**):
+admin Dasbor (showing the renamed sidebar), Berkas Pendaftaran Online, Buku Penghubung — Templat,
+Penilaian → Pemantauan, Keuangan → Biaya with the **Keringanan** tab, Tagihan; teacher Beranda (showing
+the new five-tab nav), Kehadiran Saya, Absensi, Jurnal, Penilaian, Slip Gaji, Profil; parent Beranda,
+Tagihan, Kehadiran, Jurnal, Perkembangan, Profil.
+
+Deliberately **not** swapped, to avoid pairing an image with the wrong caption: the journal-monitoring
+shot (its slot sits under text about a page reached differently now), the Sentra Harian slot (my capture
+was of Penilaian Pekanan, a different screen), and Bank Narasi (a brand-new section with no existing
+image slot — adding one needs a new inline shape, not a byte swap).
+
+Final state: **314 paragraphs, 69 media, `zipfile.testzip()` clean, pandoc round-trip OK, 3.0 MB.**
 
 ### Task 10 — End-of-cycle gates
 
@@ -877,11 +881,9 @@ Deliberately not cleaned up, so the evidence stays inspectable — remove when c
 ### The manual
 
 `Panduan-Penggunaan-Talib.docx` is updated in place in the main checkout and remains **untracked**, with
-`Panduan-Penggunaan-Talib.docx.bak-20260816` alongside the older `.bak-20260729`. Text is fully current;
-**screenshots still lag** — one of roughly fifteen was replaced, and the reason (Chrome MCP holds the
-sessions but cannot write files; Playwright can write files but has no session) plus the outstanding
-list is recorded in T9. Finishing them needs a Playwright `storageState` exported from the signed-in
-profile.
+`Panduan-Penggunaan-Talib.docx.bak-20260816` alongside the older `.bak-20260729`. Both the text and the
+screenshots are current: 20 images recaptured from real staging data via a local `DEMO_MODE` server (see
+T9), 314 paragraphs, 69 media, opens cleanly.
 
 ### Promotion command (after this PR merges to staging)
 
