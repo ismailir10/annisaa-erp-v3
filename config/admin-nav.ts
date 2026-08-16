@@ -64,7 +64,7 @@ export const adminNav: NavConfig = {
       icon: GraduationCap,
       items: [
         { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
-        { label: "Berkas Pendaftaran Online", href: "/admin/enrollments", icon: ClipboardList },
+        { label: "Formulir Pendaftaran", href: "/admin/enrollments", icon: ClipboardList },
         { label: "Siswa", href: "/admin/students", icon: GraduationCap },
         { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
       ],

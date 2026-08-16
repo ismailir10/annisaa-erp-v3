@@ -216,7 +216,7 @@ export default async function ParentAttendancePage({
           accent="warm"
           icon={CalendarClock}
           title="Belum ada catatan kehadiran"
-          description="Insyaallah akan muncul setelah Ustadzah mengisi absensi."
+          description="InsyaAllah akan muncul setelah Ustadzah mengisi absensi."
         />
       ) : (
         <div className="overflow-x-auto -mx-page-x px-page-x">

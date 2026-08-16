@@ -124,7 +124,7 @@ export function ThemesClient({ canWrite, semester }: { canWrite: boolean; semest
                 href={`/admin/semesters/${semester.id}/import`}
                 className="inline-flex items-center gap-2 h-9 rounded-md border border-input bg-background px-3 text-small font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
               >
-                <FileUp className="size-4" /> Impor PROMES
+                <FileUp className="size-4" /> Impor PROMES (Program Semester)
               </Link>
             )}
             <StatusBadge status={semester.status} />

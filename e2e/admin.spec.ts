@@ -338,7 +338,7 @@ test.describe("Admin flows", () => {
     expect(targetYear.id).toBeTruthy();
 
     await page.goto("/admin/academic-years");
-    await expect(page.getByRole("heading", { name: "Akademik" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Tahun Ajaran", level: 1 })).toBeVisible({ timeout: 15_000 });
 
     // Wait for the academic-years fetch to settle so the new row is rendered.
     await page

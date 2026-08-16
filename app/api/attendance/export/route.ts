@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // Build CSV
   const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-  const header = "Kode,Nama,Kampus,Jabatan,Hadir,Terlambat,Tidak Hadir,Cuti,Total Hari";
+  const header = "Kode,Nama,Kampus,Jabatan,Hadir,Terlambat,Alpa,Izin,Total Hari";
 
   const rows = employees.map((emp) => {
     let present = 0, late = 0, absent = 0, leave = 0;

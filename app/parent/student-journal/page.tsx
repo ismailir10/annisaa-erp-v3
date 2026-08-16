@@ -210,7 +210,7 @@ export default function ParentStudentJournalPage() {
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <BookHeart size={40} className="text-muted-foreground" />
         <p className="text-sm text-muted-foreground text-center">
-          Belum ada data anak. Hubungi admin sekolah untuk menghubungkan akun Anda.
+          Belum ada data anak. Hubungi admin sekolah untuk menautkan akun Anda.
         </p>
       </div>
     );
@@ -378,6 +378,7 @@ export default function ParentStudentJournalPage() {
             </div>
             <NoteThread
               notes={data.notes}
+              audience="parent"
               canEdit={(note) =>
                 note.authorRole === "GUARDIAN" &&
                 !!currentUserId &&

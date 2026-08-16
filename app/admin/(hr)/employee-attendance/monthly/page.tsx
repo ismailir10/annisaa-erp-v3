@@ -103,7 +103,7 @@ export default function MonthlyAttendancePage() {
           <ArrowLeft size={14} /> Kembali ke Harian
         </Link>
       </div>
-      <PageHeader title="Kehadiran Bulanan" description="Klik sel untuk override" />
+      <PageHeader title="Kehadiran Bulanan" description="Klik sel untuk menimpa kehadiran" />
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
