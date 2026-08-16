@@ -72,6 +72,25 @@ Talib already has a documented voice standard (`.claude/standards/voice.md`) wit
 - Task 6: gates passed (`npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed) on both passes. First code-reviewer pass found one high-confidence blocker (failure-path error toast still said "absensi", contradicting the just-fixed hint text on the same screen); fixed; re-review confirmed clean, zero "absensi" references left anywhere in the file.
 - Task 7: gates passed (`npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed) on both passes — one unrelated flaky keyboard-focus test failed once, confirmed flaky on rerun (unrelated file, not touched by this cycle). One stale test assertion (`sessions/[id]/__tests__/client.test.tsx`) needed updating for the new toast string, done. First code-reviewer pass found one high-confidence issue (save-toast kept a redundant saved/total fraction, contradicting voice.md's own example and the API's all-or-nothing guarantee); fixed; re-review confirmed clean.
 - Task 8: gates passed (`npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed) on both passes. First code-reviewer pass found one high-confidence issue (a `menghubungkan`/`menautkan` verb-drift instance in a file outside the task's original list); fixed; re-review confirmed clean, zero remaining `menghubungkan` occurrences in `app/parent/**`/`components/parent/**`.
+- Final gate re-run after all 8 task commits: `npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed.
+- Playwright: local run deferred to CI (env cannot execute it — no Playwright browsers installed locally, `~/.cache/ms-playwright` absent, and no `DEMO_MODE` env var set locally to safely target a non-production DB). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 
 ## Ship Notes
-<!-- filled by /ship -->
+
+**Migrations:** none — this cycle is copy/color-class/prop-plumbing only, no `prisma/schema.prisma` changes.
+
+**Env vars:** none new.
+
+**Scope summary:** 8 commits fixing copywriting consistency across admin/teacher/parent portals per `.claude/standards/voice.md`, found via 3 parallel per-portal audits. Two real (non-copy) bugs fixed along the way: parent raport skala colors rendering flat teal instead of green/amber/info-blue on the web view (Task 1), and an admin global error boundary rendering raw `error.message` to users (Task 2).
+
+**Descoped from original plan (both surfaced during /build, documented inline in Implementation):**
+- Teacher greeting gender-resolved honorific — `Employee` has no `gender` field in the schema; would need a migration + backfill, out of scope for a copy cycle. Descoped to dropping the stacked "Ustadz/Ustadzah" honorific entirely (Task 6). A future cycle adding `Employee.gender` could revisit gender-aware greetings.
+- "Hari DC" / "Insentif DC" payroll jargon expansion (flagged as an open assumption in Spec) — zero expansion found anywhere in the codebase/tests/comments; genuinely unknown what DC stands for. Not fixed this cycle — left as bare "DC" in `app/admin/(hr)/payroll/[id]/page.tsx`. Needs a domain-expert answer before it can be expanded.
+- "Rencana" vs "Perencanaan" glossary conflict — kept code's "Rencana" (3 established call sites), did not update `voice.md`'s glossary line to reflect this since Task 3-8 didn't touch academic-year status labels. Flagging here: `voice.md`'s glossary table still says "Perencanaan" is canonical while the code says "Rencana" — a future doc-cleanup pass should reconcile one direction.
+
+**Manual smoke-test steps on preview URL (for `/ship` preview-verify):**
+- Admin: open a raport-adjacent page is N/A (admin doesn't view raport skala) — instead verify Settings → Jam Kerja page title, Akademik nav → Tahun Ajaran page, Pendaftaran → Formulir Pendaftaran nav item, an empty Kelas/Semester list (or a filtered-to-empty view) shows the new descriptions, and HR → Kehadiran Karyawan shows "Alpa"/"Izin"/"Timpa" not "Tidak Hadir"/"Cuti"/"Override".
+- Teacher: check home screen greeting no longer shows "Ustadz/Ustadzah", personal clock-in hint says "Ketuk untuk mencatat kehadiran", save a class attendance roster and confirm the toast reads "Absensi tersimpan · N siswa" (single count, no fraction).
+- Parent: open a household with all invoices paid and confirm "Alhamdulillah, semua tagihan lunas." (not "Jazakumullahu khairan"), open a raport with mixed skala levels and confirm the web view shows distinct green/amber/info-blue colors matching the PDF (this is the one real bug fix — worth a deliberate visual check), open Jurnal → Catatan and confirm a teacher-authored note badge says "Ustadzah" not "Guru".
+
+**Rollback plan:** low risk — every commit is copy/className/prop-plumbing, no data migrations, no schema changes. `git revert` any subset of the 8 commits independently if a specific fix needs to come back; they don't depend on each other except within the {2,4,5} and {6,7} file-overlap chains noted in Implementation (revert in reverse chronological order within those chains to avoid conflicts).
