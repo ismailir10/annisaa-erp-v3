@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurriculumElement } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import {
   LEVEL_LABEL_SHORT,
@@ -444,7 +445,7 @@ export function CenterSessionClient({
                         )}
                       >
                         <span className="block font-medium">
-                          {ind.objective.element}
+                          {formatCurriculumElement(ind.objective.element)}
                         </span>
                         <span className="block text-muted-foreground">
                           {ind.content}
