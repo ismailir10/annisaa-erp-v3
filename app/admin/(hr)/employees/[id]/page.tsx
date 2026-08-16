@@ -439,8 +439,8 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
             {[
               { label: "Hadir", value: data.summary.present, color: "text-status-present" },
               { label: "Terlambat", value: data.summary.late, color: "text-status-late" },
-              { label: "Tidak Hadir", value: data.summary.absent, color: "text-status-absent" },
-              { label: "Cuti", value: data.summary.leave, color: "text-status-leave" },
+              { label: "Alpa", value: data.summary.absent, color: "text-status-absent" },
+              { label: "Izin", value: data.summary.leave, color: "text-status-leave" },
             ].map(s => (
               <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
             ))}

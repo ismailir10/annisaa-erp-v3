@@ -48,7 +48,8 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   LATE: { label: "Terlambat", className: "bg-status-late-subtle text-status-late-text" },
   // voice.md canonical term: "Alpa" (not "Tidak Hadir").
   ABSENT: { label: "Alpa", className: "bg-status-absent-subtle text-status-absent-text" },
-  LEAVE: { label: "Cuti", className: "bg-status-leave-subtle text-status-leave-text" },
+  // voice.md canonical term: "Izin" (not "Cuti") for the attendance LEAVE status.
+  LEAVE: { label: "Izin", className: "bg-status-leave-subtle text-status-leave-text" },
   HOLIDAY: { label: "Libur", className: "bg-status-holiday-subtle text-status-holiday-text" },
   HALF_DAY: { label: "Setengah Hari", className: "bg-status-late-subtle text-status-late-text" },
   PRESENT_NO_CHECKOUT: { label: "Hadir Tanpa Pulang", className: "bg-status-no-checkout-subtle text-status-late-text" },

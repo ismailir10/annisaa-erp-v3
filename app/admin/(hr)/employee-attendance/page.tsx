@@ -223,7 +223,7 @@ export default function AttendancePage() {
       <StatsCardsRow cols={4}>
         <StatCard label="Hadir" value={present} icon={UserCheck} color="success" index={0} />
         <StatCard label="Terlambat" value={late} icon={Clock} color="warning" index={1} />
-        <StatCard label="Tidak Hadir" value={absent} icon={UserX} color="error" index={2} />
+        <StatCard label="Alpa" value={absent} icon={UserX} color="error" index={2} />
         <StatCard label="Izin" value={leave} icon={CalendarDays} color="primary" index={3} />
       </StatsCardsRow>
 
