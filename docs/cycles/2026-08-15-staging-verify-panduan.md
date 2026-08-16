@@ -28,28 +28,28 @@ input; findings there must be re-verified if they resurface.
 
 ### Acceptance criteria
 
-- [ ] Every topic in the manual's table of contents (20 admin / 8 guru / 7 wali murid = 35) is walked
+- [x] Every topic in the manual's table of contents (20 admin / 8 guru / 7 wali murid = 35) is walked
       on the staging deployment while signed in as the role-scoped Google account from
       `.claude/verify-accounts.json`, and each is recorded PASS / FAIL / BLOCKED-BY-DATA in Verification.
-- [ ] Every discrepancy is classified **blocker** (cannot promote / manual cannot be followed at all),
+- [x] Every discrepancy is classified **blocker** (cannot promote / manual cannot be followed at all),
       **major** (user reaches a wrong outcome or gets stuck without a workaround), or **minor**
       (cosmetic, copy, or has an obvious workaround).
-- [ ] Zero **blocker** findings remain open at the end of the cycle — each is either fix-committed on
+- [x] Zero **blocker** findings remain open at the end of the cycle — each is either fix-committed on
       this branch and re-verified on the preview, or explicitly accepted by the user with a reason
       written into Ship Notes.
-- [ ] `Panduan-Penggunaan-Talib.docx` is corrected for every wrong instruction, renamed nav label and
+- [x] `Panduan-Penggunaan-Talib.docx` is corrected for every wrong instruction, renamed nav label and
       removed/moved screen found in the sweep, and gains new subsections for the features that did not
       exist on 2026-07-29: **Bank Narasi**, **Keringanan**, the **Billing Run wizard**, and the
       **"Lainnya" overflow sheet** in both the guru and wali-murid portals.
-- [ ] Screenshots are recaptured from staging for — at minimum — every section whose UI changed:
+- [x] Screenshots are recaptured from staging for — at minimum — every section whose UI changed:
       login (all 3 portals), teacher bottom nav, parent bottom nav + Lainnya sheet, Penilaian /
       Bank Narasi, Keuangan → Biaya (Keringanan tab), Buat Tagihan wizard steps 1–3, parent Tagihan
       detail with a Penyesuaian line. Unchanged screenshots are left alone.
-- [ ] A timestamped backup of the manual is taken before the first edit, and the edited file opens
+- [x] A timestamped backup of the manual is taken before the first edit, and the edited file opens
       cleanly in Word (relationship/media integrity intact, image count accounted for).
-- [ ] Ship Notes carries an explicit **PROMOTE / DO NOT PROMOTE** verdict for `staging → main`, with
+- [x] Ship Notes carries an explicit **PROMOTE / DO NOT PROMOTE** verdict for `staging → main`, with
       the evidence behind it and the list of anything accepted as known-broken.
-- [ ] `npm run build && npx vitest run` green; Playwright green locally or deferred to the required CI
+- [x] `npm run build && npx vitest run` green; Playwright green locally or deferred to the required CI
       `Playwright E2E` check and recorded.
 
 ### Non-goals
