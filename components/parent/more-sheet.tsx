@@ -38,7 +38,7 @@ export const PARENT_MORE_ITEMS: ParentMoreItem[] = [
   },
   {
     label: "Rapor",
-    description: "Laporan hasil belajar per semester",
+    description: "Laporan hasil belajar per triwulan",
     href: "/parent/reports",
     icon: BookOpen,
   },

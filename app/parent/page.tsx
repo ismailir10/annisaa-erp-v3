@@ -124,7 +124,7 @@ export default async function ParentDashboard() {
         <EmptyState
           icon={AlertCircle}
           title="Akun belum terhubung ke anak"
-          description="Silakan hubungi admin sekolah untuk menghubungkan akun Anda."
+          description="Silakan hubungi admin sekolah untuk menautkan akun Anda."
         />
       </div>
     );
@@ -401,7 +401,7 @@ export default async function ParentDashboard() {
                     Lunas semua
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Jazakumullahu khairan. Insyaallah tagihan berikutnya muncul saat sekolah menerbitkannya.
+                    Alhamdulillah, semua tagihan lunas.
                   </p>
                 </div>
               </div>

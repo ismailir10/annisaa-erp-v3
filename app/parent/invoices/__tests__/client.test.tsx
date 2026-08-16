@@ -141,7 +141,7 @@ describe("InvoicesClient (cycle-4)", () => {
       }));
       render(<InvoicesClient data={allPaid} />);
       expect(screen.getByText("Lunas semua")).toBeInTheDocument();
-      expect(screen.getByText(/Jazakumullahu khairan/)).toBeInTheDocument();
+      expect(screen.getByText(/Alhamdulillah, semua tagihan lunas/)).toBeInTheDocument();
     });
 
     it("still shows Riwayat pembayaran with paid rows", () => {

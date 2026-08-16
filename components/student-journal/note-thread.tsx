@@ -31,6 +31,15 @@ type NoteThreadProps = {
   onEdit?: (noteId: string, note: { date: string; body: string }) => void;
   onDelete?: (noteId: string) => void;
   canEdit?: (note: Note) => boolean;
+  /**
+   * Parent-portal callers pass "parent" so TEACHER-authored notes render the
+   * warmer "Ustadzah" label (matching app/parent/attendance/page.tsx's
+   * `n.authorRole === "TEACHER" ? "Ustadzah" : "Anda"`) instead of the
+   * generic "Guru" role label, and the empty state reflects that the parent
+   * can write the first note. Admin/teacher callers omit this prop and keep
+   * the generic "Guru" label + original empty state.
+   */
+  audience?: "parent";
 };
 
 export function NoteThread({
@@ -38,12 +47,17 @@ export function NoteThread({
   onEdit,
   onDelete,
   canEdit = () => false,
+  audience,
 }: NoteThreadProps) {
   if (notes.length === 0) {
     return (
       <EmptyState
         title="Belum ada catatan"
-        description="Catatan dari guru akan tampil di sini setelah dituliskan."
+        description={
+          audience === "parent"
+            ? "Belum ada catatan. Tulis catatan pertama, atau tunggu catatan dari Ustadzah."
+            : "Catatan dari guru akan tampil di sini setelah dituliskan."
+        }
       />
     );
   }
@@ -67,7 +81,9 @@ export function NoteThread({
                 {getNoteAuthorLabel(note.authorName, note.authorRole)}
               </span>
               <Badge variant="outline" className="text-xs px-1.5 py-0">
-                {roleLabel(note.authorRole)}
+                {audience === "parent" && note.authorRole === "TEACHER"
+                  ? "Ustadzah"
+                  : roleLabel(note.authorRole)}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 {formatDateShort(note.date)} &middot; {formatTime(toIso(note.createdAt))}
