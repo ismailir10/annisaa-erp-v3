@@ -38,7 +38,7 @@ Talib already has a documented voice standard (`.claude/standards/voice.md`) wit
 
 - [x] **Task 1 — Fix parent raport skala color regression.** `app/parent/report-cards-list.tsx` renders every level with the same flat teal badge instead of `sec.levelKey` → `LEVEL_CHIP_CLASS_OFF` (green/amber/info-blue), unlike the PDF and perkembangan page. Acceptance: web raport detail sheet colors match PDF for all 3 skala levels.
 
-- [ ] **Task 2 — Fix admin raw-error leaks.** `app/admin/error.tsx:20` renders `error.message` directly; `app/admin/semesters/[id]/import/client.tsx:168,222` interpolate raw HTTP status into fallback messages. Acceptance: all three render static Indonesian fallback copy only, raw error detail logged not shown.
+- [x] **Task 2 — Fix admin raw-error leaks.** `app/admin/error.tsx:20` renders `error.message` directly; `app/admin/semesters/[id]/import/client.tsx:168,222` interpolate raw HTTP status into fallback messages. Acceptance: all three render static Indonesian fallback copy only, raw error detail logged not shown.
 
 - [ ] **Task 3 — Reconcile Override/Alpa/Izin/Raport glossary fork in HR-attendance + permissions.** Normalize `lib/permissions.ts`, `components/attendance/override-modal.tsx`, `employee-attendance/monthly/page.tsx`, `employee-attendance/page.tsx`, `employees/[id]/page.tsx` to: "Timpa" not "Override", "Alpa" not "Tidak Hadir", "Izin" not "Cuti", "Rapor" not "Raport". Acceptance: grep for "Override", "Tidak Hadir", "Cuti" (attendance context), "Raport" in these files returns zero hits.
 
@@ -55,9 +55,11 @@ Talib already has a documented voice standard (`.claude/standards/voice.md`) wit
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5, dirty-work=claude-sonnet-5 (default) / claude-haiku-4-5 for the two mechanical tasks (2, 4). File-overlap map: {2,4,5} share admin/semester files → sequential in numeric order; {6,7} share home-client.tsx → sequential; {1,3,8} independent, no shared files. Gate + review + commit stays per-task and serial regardless, per the workflow's one-commit-per-task contract — parallelism applies to future batches only if wall-clock becomes the bottleneck.
 - Task 1: `app/parent/report-cards-list.tsx` — swapped flat `bg-primary/10` badge className for `LEVEL_CHIP_CLASS_OFF[sec.levelKey]`, matching the PDF export and perkembangan page (green/amber/info-blue instead of flat teal). No test existed for this file; none added (scoped bug fix, no test infra invented).
+- Task 2: `app/admin/error.tsx` — stopped rendering `error.message`, always shows static fallback, added `console.error(error)`. `app/admin/semesters/[id]/import/client.tsx` (2 spots) — dropped `${res.status}` interpolation from fallback strings, replaced with static Indonesian text; `body.error` kept as primary source (traced to `import-promes` route — always returns author-written strings, no leak).
 
 ## Verification
 - Task 1: gates passed (`npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed). feature-dev:code-reviewer pass clean, no blocking issues.
+- Task 2: gates passed (`npm run build` clean, `npx vitest run` 2935 passed/42 todo/0 failed). feature-dev:code-reviewer pass clean, no blocking issues.
 
 ## Ship Notes
 <!-- filled by /ship -->
