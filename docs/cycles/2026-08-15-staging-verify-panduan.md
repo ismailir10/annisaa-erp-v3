@@ -808,6 +808,26 @@ Final state: **314 paragraphs, 69 media, `zipfile.testzip()` clean, pandoc round
   remote staging Supabase, so this guard is doing exactly its job. Required CI check `Playwright E2E`
   gates the merge; the CTO will not merge on red.
 
+### Preview-verify (PR #496)
+
+- Preview-verify iteration 1 (`annisaa-erp-v3-git-feat-stagin-2a9a83-ismails-projects-196d40d3.vercel.app`):
+  flows=[admin students list, teacher Penilaian Pekanan], **blockers=0, minors=0**. Converged on the
+  first iteration; no fix commits needed.
+
+Two flows, both derived from this cycle's code changes and signed in as the role-scoped account from
+`.claude/verify-accounts.json`:
+
+1. **Admin → Siswa (`ismailir10@gmail.com`).** Searched *Bilal Hakim* — the student with two ACTIVE
+   enrolments. The list row now reads **"TK Islam Terpadu Kelas A · TKIT-A"**, matching his detail page.
+   Before the fix the same row showed "Kelompok Bermain · KB", his 2024/2025 archived-year enrolment.
+   F1 confirmed fixed on the preview, not just in the unit suite.
+2. **Teacher → Penilaian Pekanan (`ismail10rabbanii@gmail.com`), `?date=2026-08-13`.** Read all nine
+   options straight from the DOM: every one now leads with an Indonesian element name — **Nilai Agama &
+   Budi Pekerti**, **Jati Diri**, **STEAM / Literasi**, **Motorik**, **Seni** — where the same list read
+   `RELIGIOUS_MORAL`, `IDENTITY`, `STEAM`, `MOTOR_SKILLS`, `ART` before. F12 confirmed fixed.
+
+No console errors on either flow.
+
 ## Ship Notes
 
 ### Verdict: **PROMOTE** — staging is fit for production, with one decision to make first
