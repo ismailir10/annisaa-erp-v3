@@ -166,7 +166,7 @@ export function TeacherHomeClient({
     } else {
       // Revert optimistic state on failure
       setRecord(previousRecord);
-      setActionError("Gagal mencatat absensi. Coba lagi sebentar.");
+      setActionError("Gagal mencatat kehadiran. Coba lagi sebentar.");
     }
     setLoading(false);
   }
@@ -227,7 +227,7 @@ export function TeacherHomeClient({
         transition={{ duration: reduceMotion ? 0 : 0.4 }}
       >
         <PageHeader
-          title={`Selamat ${greeting}, Ustadz/Ustadzah ${userName}`}
+          title={`Selamat ${greeting}, ${userName}`}
           subtitle={dateStr}
           className="mb-0"
         />
@@ -296,7 +296,7 @@ export function TeacherHomeClient({
             ? "Anda sudah pulang hari ini"
             : hasCheckedIn
             ? "Ketuk untuk mencatat kepulangan"
-            : "Ketuk untuk mulai absensi"}
+            : "Ketuk untuk mencatat kehadiran"}
         </p>
 
         {/* Inline error (voice.md: supportive, non-blame) */}
