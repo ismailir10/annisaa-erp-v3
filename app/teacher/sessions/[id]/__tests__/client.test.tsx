@@ -96,7 +96,7 @@ describe("SessionRosterClient", () => {
     expect(screen.getByRole("button", { name: "Menyimpan Absensi..." })).toBeDisabled();
 
     resolveSave({ ok: true, json: async () => ({ saved: 2, total: 2 }) });
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan (2/2 siswa)."));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 2 siswa"));
   });
 
   it("keeps validation local when another pickup relation requires a name", () => {

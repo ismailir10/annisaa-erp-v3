@@ -166,7 +166,7 @@ export function TeacherHomeClient({
     } else {
       // Revert optimistic state on failure
       setRecord(previousRecord);
-      setActionError("Gagal mencatat kehadiran. Coba lagi sebentar.");
+      setActionError("Gagal mencatat kehadiran. Coba ketuk ulang ya.");
     }
     setLoading(false);
   }

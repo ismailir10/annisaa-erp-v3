@@ -202,7 +202,7 @@ export function LeaveSheet({
       refetchAfterMutation();
       return;
     } else {
-      toast.error("Pembatalan tidak tersimpan. Coba lagi ya.");
+      toast.error("Pembatalan tidak tersimpan. Coba lagi sebentar ya.");
       throw new Error("leave cancel failed");
     }
   }
@@ -338,7 +338,7 @@ export function LeaveSheet({
         open={!!cancelTarget}
         onOpenChange={(o) => !o && setCancelTarget(null)}
         title="Batalkan Pengajuan"
-        description="Yakin ingin membatalkan pengajuan cuti ini?"
+        description="Yakin ingin membatalkan pengajuan cuti ini? Anda perlu mengajukan ulang jika berubah pikiran."
         onConfirm={handleCancel}
         confirmLabel="Batalkan pengajuan"
         destructive

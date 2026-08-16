@@ -289,7 +289,7 @@ export function CenterSessionClient({
         throw new ApiError(body.error ?? "Gagal menyimpan sesi sentra.");
       }
       const body = await res.json();
-      toast.success(`Tersimpan: ${body.written} penilaian.`);
+      toast.success(`Penilaian tersimpan · ${body.written} entri`);
       router.refresh();
     } catch (err) {
       const message = userMessage(
