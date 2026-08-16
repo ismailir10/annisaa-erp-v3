@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDate } from "@/lib/format";
 import type { ParentReportCard } from "@/lib/parent-helpers";
+import { LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
 
 // Visual reference: design-system.html portal shell — celebration gold card
 // (published rapor), bottom/right Sheet drawer, p-card spacing, status badges.
@@ -149,7 +150,11 @@ function ReportCardDetail({
                 {sec.level ? (
                   <Badge
                     variant="outline"
-                    className="bg-primary/10 text-primary border-primary/20"
+                    className={
+                      sec.levelKey
+                        ? LEVEL_CHIP_CLASS_OFF[sec.levelKey]
+                        : "bg-primary/10 text-primary border-primary/20"
+                    }
                   >
                     {sec.level}
                   </Badge>
