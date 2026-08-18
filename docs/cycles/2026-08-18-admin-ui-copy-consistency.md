@@ -18,7 +18,7 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 ## Tasks
 - [x] **Task 1 — Fix admin shell contrast and landmark semantics** *(independent)*
   - Acceptance: sidebar wordmark uses `tone="onDark"`; admin renders one populated `<main>`; unit and E2E regressions cover both behaviors.
-- [ ] **Task 2 — Normalize shared admin visual tokens** *(independent)*
+- [x] **Task 2 — Normalize shared admin visual tokens** *(independent)*
   - Acceptance: shared page/detail headers wrap safely and use project tokens; stat-card typography is tokenized with tabular values; attendance chart has no hardcoded series hex colors.
 - [ ] **Task 3 — Replace undersized admin icon controls** *(independent)*
   - Acceptance: confirmed campus, student-detail, employee-detail, and payroll-detail raw icon buttons use Shadcn `Button`, retain accessible labels, and employee month navigation uses Lucide chevrons.
@@ -29,9 +29,11 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 
 - Subagent plan: driver=gpt-5.5 high, dirty-work=gpt-5.5 low; Tasks 1, 2, and 4 parallel, Task 3 dispatched when a slot clears; driver sequences review, gates, cycle-doc updates, and one commit per task.
 - Task 1: Fix admin shell contrast and landmark semantics — admin layout/sidebar plus brand and E2E regressions — applied the existing on-dark wordmark tone and reduced the shell to one populated main landmark.
+- Task 2: Normalize shared admin visual tokens — shared headers, stat card, and attendance chart — tokenized spacing/typography, enabled narrow-width action wrapping, stabilized numerals, and routed chart series through semantic CSS variables.
 
 ## Verification
 
 - Task 1: gates passed (`npm run build` + full `npx vitest run`: 301 files passed, 2 skipped; 2,937 tests passed, 42 todo); focused wordmark test passed; staged-diff review clean. Cross-checked `design-system.html` sidebar brand/colors and accessibility landmark guidance.
+- Task 2: gates passed (`npm run build` + full `npx vitest run`: 301 files passed, 2 skipped; 2,937 tests passed, 42 todo); ESLint passed for all four files; staged-diff review confirmed Tailwind tokens and `ChartContainer` CSS-variable wiring. Cross-checked `design-system.html` spacing, typography, status colors, and chart-adjacent token rules.
 
 ## Ship Notes
