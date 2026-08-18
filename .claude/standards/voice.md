@@ -65,10 +65,19 @@ The school is Islamic PAUD/TKIT. Arabic greetings and honorifics are first-class
 - Honorifics stacked on error toasts ("Ustadzah Sari, maaf sekali, terjadi kesalahan..."). Errors are errors — keep them terse.
 - Performative religiosity — don't sprinkle Arabic across every label. Use it where it lands culturally (greetings, gratitude, schedule promises), not as decoration.
 
+**Capitalization — sentence case everywhere.** Buttons, tabs, filter options, select options, status chips, section labels, menu items: capitalise the first word and proper nouns only. "Atur ulang", not "Atur Ulang". "Belum dibayar", not "Belum Dibayar". "Di rumah", not "Di Rumah".
+
+Two carve-outs, and only two:
+- **Proper nouns** — Ustadzah, Rapor as a product surface name, campus and class names, a person's name.
+- **Data echoed from the database** — `Invoice.line.labelSnapshot` ("SPP Bulanan"), class names, template titles. Those are values, not UI copy; do not rewrite them on render.
+
+The glossary below fixes **which word** to use, not how to capitalise it. A row reading "Lewat Tempo" means *use the phrase "lewat tempo" rather than "menunggak"* — it does not license Title Case at the call site. The `SECTION LABEL` style (uppercase, letter-spaced) is a typographic treatment applied by `components/portal/section-label.tsx`, not capitalisation authored into the string.
+
 **Cross-portal glossary** — the canonical term wins over the English/transliterated alternative:
 
 | Canonical | Avoid |
 |---|---|
+| Pekan (a school week — "pekan ini", "Senin pekan lalu", week navigator labels) | Minggu (ambiguous: *Minggu* is also Sunday, so "Minggu lalu" reads as "last Sunday" to half the audience. Keep **Minggu** only where it genuinely names the weekday, e.g. a date formatter's day names.) |
 | Hadir (attendance present) | Present, Attended |
 | Alpa (attendance absent) | Absent, Tidak Hadir |
 | Sakit | Sick, Ill |

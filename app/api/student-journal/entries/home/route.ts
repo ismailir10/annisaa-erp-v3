@@ -15,7 +15,7 @@ import { isHomeEntryDateEditable } from "@/lib/student-journal/backfill";
  * consistent across the boundary.
  */
 const HOME_EDIT_WINDOW_MSG =
-  "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin minggu lalu sampai hari ini.";
+  "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin pekan lalu sampai hari ini.";
 
 export async function POST(req: NextRequest) {
   // Parse body first so we can extract studentId for the rate-limit key

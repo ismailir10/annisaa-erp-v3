@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, CheckCircle2, ChevronRight, Receipt, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { formatRupiah, formatDate } from "@/lib/format";
+import { formatDate, formatInvoicePeriod } from "@/lib/format";
+import { Amount, AmountStatus } from "@/components/portal/amount";
+import { SectionLabel } from "@/components/portal/section-label";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -111,7 +113,7 @@ export function InvoicesClient({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
     if (paymentStatusParam === "paid") {
-      toast.success(`Alhamdulillah, tagihan ${found.periodLabel} terbayar.`);
+      toast.success(`Alhamdulillah, tagihan ${formatInvoicePeriod(found.periodLabel)} terbayar.`);
     } else if (paymentStatusParam === "cancel") {
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
     }
@@ -147,7 +149,7 @@ export function InvoicesClient({
       if (prior && prior.status !== "PAID" && curr.status === "PAID") {
         flipped.push(curr.id);
         toast.success(
-          `Alhamdulillah, tagihan ${curr.periodLabel} baru saja terbayar.`,
+          `Alhamdulillah, tagihan ${formatInvoicePeriod(curr.periodLabel)} baru saja terbayar.`,
         );
       }
     }
@@ -300,27 +302,32 @@ export function InvoicesClient({
       <PageHeader title="Tagihan" subtitle="Pantau pembayaran SPP & biaya tambahan" />
 
       {hasAnyOutstanding ? (
-        <section
-          className="rounded-xl border bg-card p-4 md:p-6"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Belum dibayar
+        <section className="rounded-xl border border-border bg-card p-4 md:p-6">
+          <p className="text-sm text-muted-foreground">Belum dibayar</p>
+          <p className="mt-1">
+            <Amount value={summary.total} size="display" />
           </p>
-          <p className="mt-1 font-currency text-2xl sm:text-display font-bold leading-none tracking-tight text-status-absent-text">
-            {formatRupiah(summary.total)}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {summary.count} tagihan
-            {summary.nearestDue ? (
-              <>
-                {summary.allOverdue ? " · lewat tempo sejak " : " · jatuh tempo terdekat "}
-                <b className="text-foreground">
-                  {formatDate(summary.nearestDue, { day: "numeric", month: "long", year: "numeric" })}
-                </b>
-              </>
+          {/* State rides on the chip, not on the figure. A bill that is merely
+              unpaid is not an error, and `--status-absent-text` is the
+              attendance Alpa colour (see lib/curriculum/level-presentation.ts
+              — red is reserved for Alpa and destructive). Only a genuinely
+              overdue total earns the red chip. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
+            {summary.allOverdue ? (
+              <AmountStatus tone="overdue">Lewat tempo</AmountStatus>
             ) : null}
-          </p>
+            <span>
+              {summary.count} tagihan
+              {summary.nearestDue ? (
+                <>
+                  {summary.allOverdue ? " · sejak " : " · jatuh tempo terdekat "}
+                  <b className="text-foreground">
+                    {formatDate(summary.nearestDue, { day: "numeric", month: "long", year: "numeric" })}
+                  </b>
+                </>
+              ) : null}
+            </span>
+          </div>
         </section>
       ) : otherChildrenWithOutstanding.length > 0 ? (
         // Selected child is paid, but a sibling still has outstanding tagihan.
@@ -383,19 +390,21 @@ export function InvoicesClient({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari periode atau nomor tagihan..."
+              placeholder="Cari periode atau nomor tagihan"
               className="pl-9"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {/* Stacked below 400px. Side by side, "Jatuh tempo terdekat" filled
+              its trigger to the chevron on a 390px phone. */}
+          <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
             <Select value={statusFilter} onValueChange={(value) => value && setStatusFilter(value)}>
               <SelectTrigger aria-label="Filter status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="due">Belum Dibayar</SelectItem>
-                <SelectItem value="overdue">Lewat Tempo</SelectItem>
+                <SelectItem value="all">Semua status</SelectItem>
+                <SelectItem value="due">Belum dibayar</SelectItem>
+                <SelectItem value="overdue">Lewat tempo</SelectItem>
                 <SelectItem value="paid">Lunas</SelectItem>
               </SelectContent>
             </Select>
@@ -404,10 +413,10 @@ export function InvoicesClient({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="due-asc">Jatuh Tempo Terdekat</SelectItem>
-                <SelectItem value="due-desc">Jatuh Tempo Terakhir</SelectItem>
-                <SelectItem value="paid-desc">Pembayaran Terbaru</SelectItem>
-                <SelectItem value="amount-desc">Nominal Terbesar</SelectItem>
+                <SelectItem value="due-asc">Jatuh tempo terdekat</SelectItem>
+                <SelectItem value="due-desc">Jatuh tempo terakhir</SelectItem>
+                <SelectItem value="paid-desc">Pembayaran terbaru</SelectItem>
+                <SelectItem value="amount-desc">Nominal terbesar</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -423,7 +432,7 @@ export function InvoicesClient({
                 setSortMode("due-asc");
               }}
             >
-              Atur Ulang
+              Atur ulang
             </Button>
           ) : null}
         </section>
@@ -440,9 +449,10 @@ export function InvoicesClient({
 
       {hasAnyOutstanding && (
         <section>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Belum dibayar
-          </p>
+          {/* Not "Belum dibayar" again — that label already heads the summary
+              card directly above, and printing it twice on one screen made the
+              total and the list read as the same block. */}
+          <SectionLabel>Rincian tagihan</SectionLabel>
           <ul className="space-y-2" aria-label="Tagihan belum dibayar">
             {due.map(({ inv, isOverdue }) => (
               <InvoiceRow
@@ -459,9 +469,7 @@ export function InvoicesClient({
 
       {paid.length > 0 ? (
         <section>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Riwayat pembayaran
-          </p>
+          <SectionLabel>Riwayat pembayaran</SectionLabel>
           <ul className="space-y-2" aria-label="Riwayat pembayaran">
             {paidVisible.map((inv) => (
               <InvoiceRow
@@ -523,27 +531,33 @@ function InvoiceRow({
   const remaining = invoice.totalDue - invoice.totalPaid;
   const amount = tone === "due" ? remaining : invoice.totalDue;
 
+  // Years are not optional here. The list mixes 2025 and 2026 invoices, so a
+  // bare "Jatuh tempo 10 Agustus" left a wali unable to tell a five-month-old
+  // arrear from next week's bill.
   const secondary =
     tone === "due"
-      ? `Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "long" })}${isOverdue ? " · lewat tempo" : ""}`
-      : `Dibayar${invoice.paidAt ? ` ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long" })}` : ""}`;
+      ? `Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}${isOverdue ? " · lewat tempo" : ""}`
+      : `Dibayar${invoice.paidAt ? ` ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
     <li>
       <button
         type="button"
         onClick={onClick}
-        className={`flex w-full items-baseline gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40 ${highlight ? "animate-in fade-in duration-700 ring-2 ring-status-present-text/40" : ""}`}
+        className={`flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40 ${highlight ? "animate-in fade-in duration-700 ring-2 ring-status-present-text/40" : ""}`}
       >
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground">{invoice.periodLabel}</p>
+          <p className="text-sm font-semibold text-foreground">
+            {formatInvoicePeriod(invoice.periodLabel)}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">{secondary}</p>
         </div>
-        <span
-          className={`font-currency tabular-nums text-sm font-bold ${tone === "due" ? "text-status-absent-text" : "text-status-present-text"}`}
-        >
-          {formatRupiah(amount)}
-        </span>
+        <Amount
+          value={amount}
+          size="row"
+          tone={tone === "paid" ? "paid" : "neutral"}
+          className="shrink-0"
+        />
       </button>
     </li>
   );

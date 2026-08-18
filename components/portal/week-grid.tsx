@@ -120,7 +120,7 @@ function lockedCellReason(
 ): string {
   if (date > todayYmd) return "tanggal akan datang belum bisa diubah";
   if (disablePastDays && earliestEditableDate) {
-    return "di luar jangkauan — hanya bisa diubah dari Senin minggu lalu sampai hari ini";
+    return "di luar jangkauan — hanya bisa diubah dari Senin pekan lalu sampai hari ini";
   }
   return "hanya hari ini bisa diubah";
 }

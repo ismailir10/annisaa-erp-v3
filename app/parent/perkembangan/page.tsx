@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ChevronRight, LineChart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
-import { Card } from "@/components/ui/card";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 
 export default async function ParentPerkembanganListPage() {
@@ -18,9 +17,10 @@ export default async function ParentPerkembanganListPage() {
       <div>
         <PageHeader
           title="Perkembangan"
-          subtitle="Catatan harian + pekanan dari sekolah"
+          subtitle="Catatan harian dan pekanan dari sekolah"
         />
         <EmptyState
+          accent="warm"
           icon={LineChart}
           title="Belum ada anak terdaftar"
           description="Hubungi admin sekolah untuk menautkan akun Anda dengan data anak."
@@ -49,25 +49,22 @@ export default async function ParentPerkembanganListPage() {
               data-testid={`perkembangan-child-${child.studentId}`}
               className="block"
             >
-              <Card className="flex items-center gap-3 p-card hover:border-primary/30 transition-colors">
-                <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <LineChart className="size-5 text-primary" />
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40">
+                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <LineChart size={18} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">
                     {child.studentName}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {[child.className, child.programName]
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </p>
                 </div>
-                <ChevronRight
-                  size={16}
-                  className="text-muted-foreground shrink-0"
-                />
-              </Card>
+                <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+              </div>
             </Link>
           </li>
         ))}

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
+import { SectionLabel } from "@/components/portal/section-label";
 import { getParentChildById } from "@/lib/parent-helpers";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
@@ -64,14 +65,11 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-elements-heading"
           >
-            <header className="flex items-center justify-between">
-              <h2
-                id="perkembangan-elements-heading"
-                className="text-sm font-semibold text-foreground"
-              >
+            <header className="flex items-center justify-between gap-2">
+              <SectionLabel as="h2" id="perkembangan-elements-heading" className="mb-0">
                 Capaian per elemen
-              </h2>
-              <span className="text-xs text-muted-foreground">
+              </SectionLabel>
+              <span className="shrink-0 text-xs text-muted-foreground">
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
             </header>
@@ -99,21 +97,18 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-pekan-heading"
           >
-            <h2
-              id="perkembangan-pekan-heading"
-              className="text-sm font-semibold text-foreground"
-            >
+            <SectionLabel as="h2" id="perkembangan-pekan-heading" className="mb-0">
               Pekan ini
-            </h2>
+            </SectionLabel>
             {!data.hasActiveWeek ? (
               <div className="flex items-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 p-3 text-xs text-muted-foreground">
                 <CalendarOff className="size-4" />
-                Belum ada Pekan aktif minggu ini.
+                Belum ada pekan aktif saat ini.
               </div>
             ) : data.latestThisWeek.length === 0 ? (
               <div className="flex items-center gap-2 rounded-lg border border-dashed border-input bg-muted/30 p-3 text-xs text-muted-foreground">
                 <Sparkles className="size-4" />
-                Belum ada catatan minggu ini.
+                Belum ada catatan pekan ini.
               </div>
             ) : (
               <ul

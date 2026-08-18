@@ -77,9 +77,13 @@ export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavP
   // setting and snap instead of spring.
   const reduceMotion = useReducedMotion();
 
+  // The bar is full-bleed on a phone, which is right, but on a 1280px desktop
+  // it painted a white strip the whole width with five tabs marooned in the
+  // middle while the content column stayed at max-w-md. From `md:` up it now
+  // matches the column it belongs to.
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom"
+      className="fixed bottom-0 inset-x-0 bg-card border-t border-border z-30 safe-area-bottom md:inset-x-auto md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-t-xl md:border-x"
       aria-label={ariaLabel}
     >
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
