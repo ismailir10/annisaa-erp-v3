@@ -463,6 +463,8 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         data={rows}
         loading={loading}
         pagination={tablePagination}
+        emptyTitle="Belum ada kelas"
+        emptyDescription="Kelas yang dibuat akan tampil di sini."
       />
 
       <BulkPromoteDialog

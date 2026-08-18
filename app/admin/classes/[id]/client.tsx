@@ -914,7 +914,7 @@ export function ClassDetailClient({
             columns={rosterColumns}
             data={data.enrollments}
             emptyTitle="Belum ada siswa terdaftar di kelas ini."
-            emptyDescription=" "
+            emptyDescription="Siswa yang terdaftar di kelas ini akan tampil di sini."
           />
         </CardContent>
       </Card>
@@ -937,7 +937,7 @@ export function ClassDetailClient({
             columns={teacherColumns}
             data={data.teachingAssignments}
             emptyTitle="Belum ada guru ditugaskan."
-            emptyDescription=" "
+            emptyDescription="Guru yang ditugaskan mengajar kelas ini akan tampil di sini."
           />
         </CardContent>
       </Card>

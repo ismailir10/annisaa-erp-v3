@@ -80,10 +80,12 @@ describe("WeeklyClient IKTP picker", () => {
 
     const select = container.querySelector("select")!;
     expect(select.options).toHaveLength(indicators.length);
+    // The element prefix is rendered through formatCurriculumElement, so the
+    // teacher reads an Indonesian element name — never the raw enum key.
     expect([...select.options].map((o) => o.textContent)).toEqual([
-      "RELIGIOUS_MORAL · Mengucap basmalah sebelum memulai kegiatan",
-      "IDENTITY · Menyebutkan nama lengkap dan nama panggilannya",
-      "ART · Menggambar bebas dan menceritakan hasil karyanya",
+      "Nilai Agama & Budi Pekerti · Mengucap basmalah sebelum memulai kegiatan",
+      "Jati Diri · Menyebutkan nama lengkap dan nama panggilannya",
+      "Seni · Menggambar bebas dan menceritakan hasil karyanya",
     ]);
   });
 

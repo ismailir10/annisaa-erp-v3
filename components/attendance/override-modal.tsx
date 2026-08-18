@@ -12,8 +12,8 @@ import { toast } from "sonner";
 const STATUSES = [
   { value: "PRESENT", label: "Hadir" },
   { value: "LATE", label: "Terlambat" },
-  { value: "ABSENT", label: "Tidak Hadir" },
-  { value: "LEAVE", label: "Izin/Cuti" },
+  { value: "ABSENT", label: "Alpa" },
+  { value: "LEAVE", label: "Izin" },
   { value: "HALF_DAY", label: "Setengah Hari" },
 ];
 
@@ -91,13 +91,13 @@ export function OverrideModal({
     <ResponsiveFormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Override Kehadiran"
+      title="Timpa Kehadiran"
       description={`${employeeName} — ${new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}`}
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan Override"}
+            {saving ? "Menyimpan..." : "Simpan"}
           </Button>
         </>
       }

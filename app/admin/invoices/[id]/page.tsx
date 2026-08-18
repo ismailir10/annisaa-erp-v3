@@ -397,7 +397,7 @@ export default function InvoiceDetailPage() {
           <Card className="p-card">
             <SectionHeading label="Riwayat Pembayaran" />
             {invoice.payments.length === 0 ? (
-              <EmptyState title="Belum ada pembayaran" />
+              <EmptyState title="Belum ada pembayaran" description="Pembayaran yang dicatat manual atau diterima via link akan tampil di sini." />
             ) : (
               <div className="space-y-2">
                 {invoice.payments.map(p => (

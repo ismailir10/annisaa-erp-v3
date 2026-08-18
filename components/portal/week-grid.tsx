@@ -47,6 +47,16 @@ type WeekGridProps = {
    */
   disablePastDays?: boolean;
   /**
+   * Earliest date (inclusive, `YYYY-MM-DD`) editable when `disablePastDays`
+   * is `true`. Omitted → today-only (teacher behavior, unchanged). Set →
+   * bounded backfill window, e.g. the parent "Di Rumah" flow, which may edit
+   * any date from this floor through today (`lib/student-journal/backfill.ts`
+   * is the shared source of that floor — server and client must agree).
+   * Ignored when `disablePastDays` is `false` (admin correction mode already
+   * allows every past date).
+   */
+  earliestEditableDate?: string;
+  /**
    * What this surface is called to the reader. Staff (admin + teacher) know it
    * as "Buku Penghubung"; parents only ever see it called "Jurnal", so leaking
    * the staff term into a parent-facing empty state is a jargon leak. Defaults
@@ -80,9 +90,39 @@ export function isWeekGridDateEditable(
   date: string,
   todayYmd: string,
   disablePastDays: boolean,
+  earliestEditableDate?: string,
 ): boolean {
+  // Future dates are never editable, in every mode (finding F5b).
+  if (date > todayYmd) return false;
   if (date === todayYmd) return true;
-  return !disablePastDays && date < todayYmd;
+  // Admin correction mode (`disablePastDays={false}`): every past date is
+  // fair game, window or no window.
+  if (!disablePastDays) return true;
+  // Bounded backfill window (parent "Di Rumah"): past dates back to the
+  // floor, inclusive. No floor given → today-only (teacher, unchanged).
+  if (earliestEditableDate) return date >= earliestEditableDate;
+  return false;
+}
+
+/**
+ * Indonesian reason a locked WeekGrid cell cannot be toggled — must state the
+ * actual rule for the mode in effect (finding: a hardcoded "hanya hari ini"
+ * string became a lie once the windowed parent mode shipped). Kept in sync
+ * with the server's `HOME_EDIT_WINDOW_MSG`
+ * (`app/api/student-journal/entries/home/route.ts`) so a wali who hits both
+ * the disabled cell and a rejected request hears the same rule.
+ */
+function lockedCellReason(
+  date: string,
+  todayYmd: string,
+  disablePastDays: boolean,
+  earliestEditableDate?: string,
+): string {
+  if (date > todayYmd) return "tanggal akan datang belum bisa diubah";
+  if (disablePastDays && earliestEditableDate) {
+    return "di luar jangkauan — hanya bisa diubah dari Senin minggu lalu sampai hari ini";
+  }
+  return "hanya hari ini bisa diubah";
 }
 
 export function WeekGrid({
@@ -92,6 +132,7 @@ export function WeekGrid({
   editable = false,
   onToggle,
   disablePastDays = true,
+  earliestEditableDate,
   featureLabel = "Buku Penghubung",
 }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
@@ -209,7 +250,7 @@ export function WeekGrid({
                           // `disablePastDays={false}` — e.g. the admin student-journal
                           // detail page, which needs to correct past days. Future days
                           // are never editable, preventing accidental pre-filling.
-                          isWeekGridDateEditable(d, todayYmd, disablePastDays) ? (
+                          isWeekGridDateEditable(d, todayYmd, disablePastDays, earliestEditableDate) ? (
                             <button
                               type="button"
                               onClick={() => onToggle(ind.id, d, !checked)}
@@ -227,13 +268,16 @@ export function WeekGrid({
                             </button>
                           ) : (
                             // Locked past/future cell in the parent "Di Rumah" flow, or
-                            // a future cell in admin correction mode.
+                            // a future cell in admin correction mode. Reason text tracks
+                            // the actual mode (today-only / windowed / future) — see
+                            // `lockedCellReason` — so it never states a rule stricter or
+                            // looser than what `isWeekGridDateEditable` just enforced.
                             <button
                               type="button"
                               disabled
                               aria-disabled="true"
                               className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md opacity-50 cursor-not-allowed"
-                              aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"} — hanya hari ini bisa diubah`}
+                              aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"} — ${lockedCellReason(d, todayYmd, disablePastDays, earliestEditableDate)}`}
                             >
                               {checked ? (
                                 <Check size={14} className="text-muted-foreground" strokeWidth={2} />

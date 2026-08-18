@@ -54,6 +54,7 @@ test.describe("Admin flows", () => {
   test("monthly attendance grid loads", async ({ page }) => {
     await page.goto("/admin/employee-attendance/monthly");
     await expect(page.locator("text=Kehadiran Bulanan")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Pilih sel untuk menimpa status kehadiran")).toBeVisible();
   });
 
   test("payroll list loads", async ({ page }) => {
@@ -338,7 +339,7 @@ test.describe("Admin flows", () => {
     expect(targetYear.id).toBeTruthy();
 
     await page.goto("/admin/academic-years");
-    await expect(page.getByRole("heading", { name: "Akademik" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Tahun Ajaran", level: 1 })).toBeVisible({ timeout: 15_000 });
 
     // Wait for the academic-years fetch to settle so the new row is rendered.
     await page
@@ -436,48 +437,205 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     }]);
   });
 
-  test("bulk generate plans, confirms, runs sequential batches, lands all in PENDING_PAYMENT_LINK", async ({ page }) => {
+  // Bulk-generate is the Billing Run wizard since Task T10 retired the
+  // three-field "Buat Tagihan Bulanan" dialog and its /plan + /batch routes
+  // (docs/cycles/2026-08-14-billing-run-wizard.md). This walks all three
+  // steps: scope one class (step 1) → draft materializes rows (step 2) →
+  // totals resolve (step 3). It stops short of committing on purpose — see
+  // the note at the commit button below. Selectors were read directly off
+  // components/admin/invoices/billing-run-wizard/*.tsx and
+  // components/admin/class-section-picker.tsx, not guessed.
+  test("scope one class → draft materializes rows → step 3 totals resolve", async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto("/admin/invoices");
     await expect(page.getByRole("heading", { name: /^Tagihan$/ })).toBeVisible({ timeout: 15_000 });
 
-    // Wait for the academic-years fetch to settle so the form's default
-    // year-id is populated (otherwise the plan call fires with empty
-    // academicYearId and 400s).
+    // Wait for the academic-years fetch to settle so step 1's default
+    // academic-year select is populated (computeDefaultBillingForm needs
+    // `years` — billing-defaults.ts).
     await page
       .waitForResponse((res) => res.url().includes("/api/academic-years") && res.ok(), { timeout: 15_000 })
       .catch(() => undefined);
 
-    await page.getByRole("button", { name: /^Buat Tagihan$/ }).first().click();
+    // Resolve a class section with at least one active enrollment via the
+    // API first, rather than picking blind in the UI — an empty class would
+    // produce a zero-row draft. This suite runs no seed-conditional skips
+    // (`/ship`'s soft-skip delta check blocks any net increase), so a
+    // missing fixture must fail loudly, not be routed around.
+    const classesRes = await page.request.get("/api/class-sections?yearStatus=ACTIVE,PLANNING");
+    expect(classesRes.ok()).toBeTruthy();
+    const classSections = (await classesRes.json()) as Array<{
+      id: string;
+      name: string;
+      _count: { enrollments: number };
+    }>;
+    const targetClass = classSections
+      .filter((c) => c._count?.enrollments > 0)
+      .sort((a, b) => b._count.enrollments - a._count.enrollments)[0];
+    expect(
+      targetClass,
+      "no class section with an active enrollment on this DB — cannot scope a billing run",
+    ).toBeTruthy();
 
-    // Dialog renders. The Periode textbox carries placeholder "April 2026"
-    // and no aria-label — locate by placeholder. Period uses a unique
-    // suffix so plan endpoint sees all students as fresh.
-    const dialog = page.getByRole("dialog", { name: /Buat Tagihan Bulanan/ });
+    // Step 1 — Scope (step-1-scope.tsx). "Buat Tagihan" is the sole
+    // bulk-generate entry point since Task T10; it opens the wizard dialog
+    // titled "Buat Tagihan (Wizard)" (billing-run-wizard.tsx).
+    await page.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+
+    const dialog = page.getByRole("dialog", { name: /Buat Tagihan \(Wizard\)/ });
     await expect(dialog).toBeVisible({ timeout: 10_000 });
-    const period = `E2E Bulk ${Date.now()}`;
+
+    // Periode/jatuh tempo/tahun ajaran default via computeDefaultBillingForm;
+    // only periode needs a unique value so this run never collides with
+    // another test's or a prior leaked run's period.
+    const period = `E2E Wizard ${Date.now()}`;
     await dialog.getByPlaceholder("April 2026").fill(period);
 
-    await dialog.getByRole("button", { name: /^Buat Tagihan$/ }).click();
+    // Class multi-select (ClassSectionMultiPicker). Its Popover/Command list
+    // portals to document.body — same as the manual-create combobox further
+    // below in this file — so the search input and options are scoped to
+    // `page`, not `dialog`. Trigger's accessible name is the placeholder
+    // ("Pilih kelas...") until a class is selected.
+    await dialog.getByRole("combobox", { name: "Pilih kelas..." }).click();
+    const classSearch = page.getByPlaceholder("Cari kelas...");
+    await expect(classSearch).toBeVisible({ timeout: 5_000 });
+    await classSearch.fill(targetClass.name);
+    await page.getByRole("option").filter({ hasText: targetClass.name }).first().click();
+    // Multi-select deliberately keeps the popover open on select (admins
+    // toggle several classes in a row) — close it explicitly.
+    await page.keyboard.press("Escape");
 
-    // Plan confirm dialog. If 0 students are eligible we fail loudly — the
-    // seed normally has plenty of ACTIVE-enrollment students with fee
-    // structures across all 4 programs, but a stale DB could trip this.
-    const confirmDialog = page.getByRole("alertdialog").or(page.getByRole("dialog"));
-    await expect(confirmDialog.getByText(/siswa akan ditagih/)).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /^Lanjutkan$/ }).click();
+    await dialog.getByRole("button", { name: /^Lanjutkan$/ }).click();
 
-    // Final toast lands on the success path — copy varies by xenditOk vs
-    // xenditFailed counts. Real Xendit calls fail (see suite header §2),
-    // so we expect "X tagihan dibuat ... link gagal" — see page.tsx:436.
+    // A leftover DRAFT from a prior/aborted run is a real possibility on
+    // this shared DB (cycle doc Assumption 3: one open draft per tenant).
+    // The wizard surfaces a resume-or-discard panel instead of silently
+    // creating a second draft — discard it and retry with this test's own
+    // scope rather than resuming an unrelated run. "Buang & Mulai Baru"
+    // re-creates and advances straight to step 2 on success.
+    const conflictTitle = dialog.getByText(/Sudah ada draf tagihan/);
+    const reviewHeading = dialog.getByRole("heading", { name: /Langkah 2: Tinjau/ });
+    await expect(conflictTitle.or(reviewHeading)).toBeVisible({ timeout: 20_000 });
+    if (await conflictTitle.isVisible()) {
+      await dialog.getByRole("button", { name: /^Buang & Mulai Baru$/ }).click();
+      await expect(reviewHeading).toBeVisible({ timeout: 20_000 });
+    }
+
+    // Step 2 — Review (step-2-review.tsx). Rows are materialized
+    // server-side (build-billing-run.ts); an EmptyState here means the
+    // scoped class produced zero in-scope rows despite the enrollment check
+    // above — a real failure, asserted rather than skipped.
+    await expect(dialog.getByText(/Draf tidak menghasilkan baris tagihan/)).not.toBeVisible();
+    await expect(dialog.getByRole("listitem").first()).toBeVisible({ timeout: 15_000 });
+
+    // Cycle B2 (docs/cycles/2026-08-14-billing-run-wizard-b2.md, Task T7):
+    // expand a row, edit one line's final amount, and confirm the row total
+    // re-sums to match. Selectors read directly off line-editor.tsx and
+    // step-2-review.tsx, not guessed:
+    //   - the row's expand button aria-label is "Tampilkan rincian tagihan
+    //     {student}" while collapsed (step-2-review.tsx:154-158); a row with
+    //     no materialized lines (SKIPPED_*) instead gets the disabled
+    //     "Tidak ada rincian" label, so filtering on this pattern lands on a
+    //     row EditableRowLines will actually mount for (PENDING/EXCLUDED).
+    //   - the row total is the "font-currency" span rendered in the row
+    //     header regardless of expand state (step-2-review.tsx:198-206).
+    //   - the per-line edit trigger's aria-label is "Edit baris
+    //     {labelSnapshot}" (line-editor.tsx:650).
+    //   - the amount field is labelled "Jumlah Akhir" via a real
+    //     <label htmlFor> (line-editor.tsx:207-225, components/ui/field.tsx
+    //     FieldLabel → components/ui/label.tsx <label>).
+    // Filter on the state-INDEPENDENT part of the label. Playwright locators
+    // are lazy and re-resolve on every use, so filtering on
+    // /^Tampilkan rincian tagihan/ made this row stop matching the moment the
+    // click below expanded it and flipped its aria-label to "Sembunyikan…" —
+    // every later `editableRow.…` then resolved to nothing. That is exactly
+    // how CI failed the first time this block ran. /rincian tagihan/ matches
+    // both states while still excluding SKIPPED_* rows, whose expand button is
+    // disabled and labelled "Tidak ada rincian".
+    const editableRow = dialog
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("button", { name: /rincian tagihan/ }) })
+      .first();
+    await expect(editableRow, "no row with expandable lines in this draft").toBeVisible({
+      timeout: 15_000,
+    });
+
+    const rowTotal = editableRow.locator("span.font-currency").first();
+    const totalBeforeText = await rowTotal.innerText();
+    const totalBefore = Number(totalBeforeText.replace(/[^\d]/g, ""));
+    expect(Number.isFinite(totalBefore), `unparsable row total "${totalBeforeText}"`).toBe(true);
+
+    await editableRow.getByRole("button", { name: /^Tampilkan rincian tagihan/ }).click();
+
+    const editButton = editableRow.getByRole("button", { name: /^Edit baris / }).first();
+    await expect(editButton, "expanded row has no editable line — not PENDING/EXCLUDED").toBeVisible({
+      timeout: 10_000,
+    });
+    await editButton.click();
+
+    const editDialog = page.getByRole("dialog", { name: /Edit Baris Tagihan/ });
+    await expect(editDialog).toBeVisible({ timeout: 10_000 });
+
+    const amountInput = editDialog.getByLabel("Jumlah Akhir");
+    const currentAmount = Number(await amountInput.inputValue());
+    expect(Number.isFinite(currentAmount), "unparsable line amount input value").toBe(true);
+    const delta = 1_000; // distinct from the current value; always legal (increase, never negative)
+    const nextAmount = currentAmount + delta;
+    await amountInput.fill(String(nextAmount));
+    await editDialog.getByRole("button", { name: /^Simpan$/ }).click();
+    await expect(editDialog).not.toBeVisible({ timeout: 10_000 });
+
+    // BillingRunRow.totalDue is re-summed server-side on every line mutation
+    // (Spec acceptance) and handleLineUpdated (step-2-review.tsx) patches the
+    // response straight into rowsPage state — the row total must move by
+    // exactly the edit's delta, with no page reload.
+    await expect(rowTotal).toHaveText(`Rp ${(totalBefore + delta).toLocaleString("id-ID")}`, {
+      timeout: 10_000,
+    });
+
+    await dialog.getByRole("button", { name: /^Lanjutkan$/ }).click();
+
+    // Step 3 — Commit (step-3-commit.tsx). The commit button's label
+    // carries the live PENDING count ("Komit N Tagihan") — if it never
+    // appears, every row in the scoped class skipped (already invoiced this
+    // period, or no fee structure), which is again a real failure for this
+    // DB's state, not a reason to skip the assertion.
+    await expect(dialog.getByRole("heading", { name: /Langkah 3: Komit/ })).toBeVisible({ timeout: 10_000 });
+    const commitButton = dialog.getByRole("button", { name: /^Komit \d+ Tagihan$/ });
+    await expect(commitButton).toBeVisible({ timeout: 15_000 });
+
+    // STOP HERE — deliberately do NOT click commit.
     //
-    // Timeout is 150s because the post-chunk auto-sweep (cycle
-    // 2026-04-26-finance-robustness-a-b-c) re-runs runBulkRetry against
-    // every PENDING_PAYMENT_LINK invoice landed by the chunk loop. With
-    // staging-sized student counts and a fake Xendit key, the sweep does its full
-    // 3-strike abort cycle on each retry chunk before the orchestrator
-    // flips phase=done.
-    await expect(page.getByText(/tagihan dibuat \(/)).toBeVisible({ timeout: 150_000 });
+    // The first CI run of this spec did commit, and it broke two downstream
+    // specs: parent.spec.ts expects the seeded parent to read "Lunas semua",
+    // and committing real invoices for a scoped class gives one of that
+    // parent's children an outstanding balance. payment.spec.ts's invoice
+    // detail shim failed for the same reason. Tests share one database and
+    // run in file order, so a spec that writes billing rows silently changes
+    // the world every later spec observes.
+    //
+    // Reaching step 3 with a live "Komit N Tagihan" button already proves
+    // what this spec is for: the wizard walks, the draft materialized real
+    // rows server-side, and the totals resolved. The commit path itself is
+    // covered by 21 route tests in app/api/__tests__/billing-runs-commit.test.ts
+    // — including the atomic row claim, verbatim amounts, and the
+    // already-invoiced skip — which is the right place for it. Business
+    // logic belongs in vitest per the testing-gate policy; Playwright is the
+    // lean cross-module smoke.
+    const commitLabel = await commitButton.textContent();
+    expect(commitLabel).toMatch(/Komit \d+ Tagihan/);
+
+    // Leave no open DRAFT behind: the one-draft-per-tenant rule would make
+    // the next run — this suite's or a human's — open on a conflict panel.
+    const draftsRes = await page.request.get("/api/billing-runs?status=DRAFT");
+    expect(draftsRes.ok()).toBeTruthy();
+    const drafts = (await draftsRes.json()) as { data: Array<{ id: string; periodLabel: string }> };
+    const mine = drafts.data.find((d) => d.periodLabel === period);
+    expect(mine, "the draft this test created should be listed as DRAFT").toBeTruthy();
+    const cancelRes = await page.request.patch(`/api/billing-runs/${mine!.id}`, {
+      data: { status: "CANCELLED" },
+    });
+    expect(cancelRes.ok()).toBeTruthy();
   });
 
   test("retry-payment-links endpoint validates payload", async ({ page }) => {
@@ -538,7 +696,8 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
       page.getByRole("heading", { name: /^Tagihan$/ }),
     ).toBeVisible({ timeout: 15_000 });
 
-    // The header has "Buat Tagihan" (bulk) and "Tagihan Manual" (single).
+    // The header has "Buat Tagihan" (opens the Billing Run wizard — the only
+    // bulk path since Task T10) and "Tagihan Manual" (single invoice).
     await page.getByRole("button", { name: /^Tagihan Manual$/ }).click();
 
     const dialog = page.getByRole("dialog", { name: /Tagihan Manual/ });

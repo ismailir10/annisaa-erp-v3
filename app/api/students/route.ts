@@ -51,6 +51,12 @@ export async function GET(req: NextRequest) {
         enrollments: {
           where: { status: "ACTIVE" },
           include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
+          // `take: 1` without an order is non-deterministic when a student has
+          // more than one ACTIVE enrolment (e.g. last year's row was never
+          // closed when the year was archived). The detail route orders
+          // `createdAt desc`; match it so the list and the detail page cannot
+          // disagree about which class a student is in.
+          orderBy: { createdAt: "desc" },
           take: 1,
         },
       },

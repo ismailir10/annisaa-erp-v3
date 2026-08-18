@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
+import { KeringananTab } from "@/components/admin/fees/keringanan-tab";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -201,6 +202,7 @@ export default function FeesPage() {
         <AdminTabsList>
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
           <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
+          <AdminTabsTrigger value="keringanan">Keringanan</AdminTabsTrigger>
         </AdminTabsList>
 
         {/* Fee Components */}
@@ -295,6 +297,11 @@ export default function FeesPage() {
               </div>
             </Card>
           )}
+        </AdminTabsContent>
+
+        {/* Keringanan — durable per-student fee adjustments (Cycle A) */}
+        <AdminTabsContent value="keringanan">
+          <KeringananTab />
         </AdminTabsContent>
       </AdminTabs>
 

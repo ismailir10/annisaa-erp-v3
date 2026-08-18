@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield } from "lucide-react";
+import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDateShort, formatMonthLabel, formatTime, formatRupiah } from "@/lib/format";
 import Link from "next/link";
 
@@ -429,9 +429,13 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
   return (
     <Card className="p-card max-w-3xl mt-4">
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} aria-label="Bulan sebelumnya" className="p-1 rounded hover:bg-accent text-muted-foreground">←</button>
+        <Button type="button" size="icon-sm" variant="ghost" onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} aria-label="Bulan sebelumnya" className="text-muted-foreground">
+          <ChevronLeft size={16} />
+        </Button>
         <span className="text-sm font-semibold capitalize">{monthLabel}</span>
-        <button onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} aria-label="Bulan berikutnya" className="p-1 rounded hover:bg-accent text-muted-foreground">→</button>
+        <Button type="button" size="icon-sm" variant="ghost" onClick={() => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); }} aria-label="Bulan berikutnya" className="text-muted-foreground">
+          <ChevronRight size={16} />
+        </Button>
       </div>
       {attLoading ? <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-40" /></div> : data ? (
         <>
@@ -439,8 +443,8 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
             {[
               { label: "Hadir", value: data.summary.present, color: "text-status-present" },
               { label: "Terlambat", value: data.summary.late, color: "text-status-late" },
-              { label: "Tidak Hadir", value: data.summary.absent, color: "text-status-absent" },
-              { label: "Cuti", value: data.summary.leave, color: "text-status-leave" },
+              { label: "Alpa", value: data.summary.absent, color: "text-status-absent" },
+              { label: "Izin", value: data.summary.leave, color: "text-status-leave" },
             ].map(s => (
               <div key={s.label} className="text-center"><p className={`font-currency text-lg font-bold ${s.color}`}>{s.value}</p><p className="text-xs text-muted-foreground">{s.label}</p></div>
             ))}

@@ -369,7 +369,7 @@ export function InvoicesClient({
                 Lunas semua
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Jazakumullahu khairan. Tidak ada tagihan yang menunggu pembayaran.
+                Alhamdulillah, semua tagihan lunas.
               </p>
             </div>
           </div>

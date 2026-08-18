@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
 // spec asserts the healed shape so a future regression cannot re-ship silently.
 //
 // Acceptance: each admin route, within 2 s of navigation,
-//   - has main innerText length > 0
+//   - has exactly one main landmark with innerText length > 0
 //   - has zero residual div[hidden][id^="S:"] Suspense placeholders
 //
 // If THIS spec fails, the symptom from the UAT is back.
@@ -49,14 +49,13 @@ test.describe("Admin hydration regression guard (UAT U1 — 2026-05-02)", () => 
         { timeout: 5_000 },
       );
 
-      // The admin layout renders TWO <main> elements: the outer
-      // shadcn SidebarInset wrapper (always non-empty — contains breadcrumb
-      // + sidebar text) and the inner page <main class="px-page-x py-page-y">
-      // (the one UAT 05-02 reported as innerText.length === 0). The inner
-      // main is the second match — UAT evidence: `document.querySelectorAll
-      // ('main')[1].innerText.length === 0`. Match that index here.
+      const mainCount = await page.evaluate(
+        () => document.querySelectorAll("main").length,
+      );
+      expect(mainCount, `admin layout must expose one main landmark on ${route}`).toBe(1);
+
       const innerMainTextLen = await page.evaluate(
-        () => document.querySelectorAll("main")[1]?.innerText.length ?? 0,
+        () => document.querySelector("main")?.innerText.length ?? 0,
       );
       expect(
         innerMainTextLen,

@@ -125,7 +125,7 @@ export function KidCard({ id, name, className, week, foot }: KidCardProps) {
           the home screen — which is where a parent lands first — showed them
           bare. A first-time reader had no way to decode A / S / I. */}
       <p className="mt-1.5 text-xs text-muted-foreground">
-        ✓ Hadir · A Alpa · S Sakit · I Izin
+        ✓ Hadir · S Sakit · A Alpa · I Izin
       </p>
 
       <div className="mt-2 flex items-center gap-1.5 border-t border-border pt-2">

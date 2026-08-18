@@ -175,7 +175,7 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 **1. Create**
 - Fee/charge types ("Komponen Biaya") — code, label, category, recurring vs one-time, display order.
 - Fee amounts per program & year ("Struktur Biaya") — what invoices calculate from.
-- Invoices — bulk generate (period + due date + year → one invoice per active student, auto-tries an online payment link) or manual single invoice (hand-pick components/amounts for one student).
+- Invoices — bulk generate via the three-step Billing Run wizard (scope by class and/or individual students → review and edit the materialized rows: keringanan is already applied, and an admin can change a component's amount, add an ad-hoc potongan, add a component from the catalog, remove a line, or drop anyone who should not be billed → commit, which creates the invoices and auto-tries an online payment link). A stale draft can be recomputed from current fee data with "Hitung Ulang" (manual edits are discarded, exclusions are kept), and an abandoned draft discarded from the banner on `/admin/invoices`. Or manual single invoice (hand-pick components/amounts for one student).
 - Payments against an invoice — amount, method (cash/bank/virtual account/other), reference, notes. Partial payments supported.
 - Online payment links (Xendit) generatable per invoice.
 
@@ -201,13 +201,18 @@ This is a snapshot of what's implemented, not a promise of what's planned. Updat
 - Retry failed payment links (individually or in bulk, capped + confirmed for large batches).
 - Manual cash/bank recording alongside automatic online (Xendit) — not forced online.
 - CSV export of payments ledger.
-- Fee waivers/discounts handled as manual line adjustments (no dedicated approval workflow).
+- Keringanan (fee waivers/discounts/surcharges) are durable per-student policy, not per-invoice edits:
+  granted once on the Keringanan tab of `/admin/fees` against an academic year and one fee component,
+  as a percentage or fixed rupiah amount with an optional validity window and a required reason.
+  Every bulk run applies them automatically. No approval workflow — whoever administers fees grants them.
 
 **6. Business rules**
 - Online and manual payment channels coexist; online payments auto-update via secure webhook.
 - Double-crediting and overpayment are guarded against (overpayment flagged for review, not silently accepted).
 - Expired payment links auto-revert the invoice for retry (unless already paid/voided).
-- Bulk generation auto-skips inactive students, already-invoiced periods, and missing fee structures — admin sees counts before confirming.
+- Bulk generation auto-skips inactive students, already-invoiced periods, and missing fee structures — the wizard shows each skip with its reason before anything is committed, including how many rows carry a keringanan.
+- A billing run is a saved draft, so closing the tab does not lose it: the invoice page offers to resume an open draft. A commit that fails part-way can be re-run — rows already committed are claimed server-side and never billed twice.
+- A keringanan may zero a line but never drives it negative, and a grant only applies inside its own academic year and validity window.
 - A voided invoice's payment link becomes unusable.
 
 ---

@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Last audited: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -91,6 +91,40 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   5. See the new invoice appear, status `PENDING`
 - **Done when:** Invoice exists in the list with correct amount (sum of components), correct student, correct due date, status `PENDING`. Form is not so long that it scrolls on a 1440p monitor.
 - **Why this job matters:** Manual invoice creation is the escape hatch for anything the batch system doesn't handle. Ibu Nur does this weekly.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-ADMIN-INV-04 — Grant a keringanan so it applies every month
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** save click-to-row-visible <1s
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 active student, ≥1 fee component, ≥1 academic year
+- **Steps:**
+  1. Open `/admin/fees` and switch to the Keringanan tab
+  2. Add a keringanan: pick the student, the academic year, the fee component
+  3. Choose discount or surcharge, percentage or fixed amount, enter the value
+  4. Type the reason (required) and optionally a validity window
+  5. Save, then run bulk generate for the next period
+- **Done when:** The grant appears in the list, and the generated invoice for that student shows the reduced amount with the reason on the line. The confirm dialog before generation says how many students carry a keringanan.
+- **Why this job matters:** Before this existed, a sibling discount or beasiswa meant hand-building that child's invoice every single month, or editing nothing at all. This is the difference between billing 180 families in one run and billing 175 plus five by hand.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+---
+
+### JTBD-ADMIN-INV-05 — Bill one class for the month without billing everyone
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** draft materializes <3s for ~30 students; commit progresses visibly throughout
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 class with active enrollments, fee structure set for its program
+- **Steps:**
+  1. Open `/admin/invoices` and click "Buat Tagihan"
+  2. Step 1 — set periode and jatuh tempo, pick one or more classes, optionally add or exclude individual students
+  3. "Lanjutkan" — the draft is built server-side
+  4. Step 2 — scan the rows, expand one to check its components; adjust a component's amount, add a potongan or an extra component where a family needs it, and drop anyone who should not be billed
+  5. Step 3 — check the totals; if the draft is old, "Hitung Ulang" rebuilds it from current fee data (edits are discarded, exclusions kept). Then commit
+- **Done when:** Only the scoped students are invoiced. Rows with a keringanan show the badge and the reduced total, and any hand-edited row shows a "Diedit" or "Manual" badge. Skipped rows state why. The committed invoice carries exactly the amounts reviewed in step 2. The invoice list reflects the run.
+- **Why this job matters:** Before the wizard, bulk generate billed *every* active student with no filter and no preview — the only way to bill one class was to hand-build each invoice. This is also the first version where closing the tab mid-run doesn't lose the work.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
@@ -277,7 +311,8 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   3. Open the detail view
   4. Update status to VISIT_SCHEDULED and set a follow-up date
   5. Save and confirm the status changed in the list
-- **Done when:** Admission shows `VISIT_SCHEDULED` with the correct follow-up date in the list. The full status pipeline (INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → REGISTERED → CANCELLED) is visible and accessible. Status change does not require a full page reload.
+  6. Move an applicant to `ADMITTED`, confirm the conversion action appears, then convert the applicant to a student
+- **Done when:** Admission shows `VISIT_SCHEDULED` with the correct follow-up date in the list. The status pipeline (INQUIRY → VISIT_SCHEDULED → VISITED → ADMITTED → CANCELLED) is visible and accessible. Status change does not require a full page reload. The student-conversion action is hidden until the applicant reaches `ADMITTED`; after conversion, the linked `studentId` prevents a duplicate conversion and the UI returns an actionable Indonesian success or error message.
 - **Why this job matters:** Admissions season is high-volume. Ibu Nur tracks 20+ leads simultaneously. Pipeline clarity is the whole point.
 - **Known friction (from last UAT):** <filled by /uat reports>
 

@@ -1,13 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  runBulkGenerate,
+  runBulkCommit,
   chunk,
   BATCH_SIZE,
   INTER_CHUNK_DELAY_MS,
-  type PlanResponse,
-  type BatchResponse,
+  type CommitBillingRunResponse,
+  type CommitResultRow,
   type BatchProgressSnapshot,
 } from "../run-bulk-generate";
+
+// --------------------------------------------------------------------------
+// This suite replaces the pre-Task-T10 version, which drove the retired
+// `/api/invoices/generate/{plan,batch}` two-step flow. Cycle B1
+// (docs/cycles/2026-08-14-billing-run-wizard.md) Task T10 repointed this
+// module at `POST /api/billing-runs/[id]/commit` (spec Assumption 7) — there
+// is no more "plan" step, so `runBulkGenerate`/`PlanResponse`/`onPlan` are
+// gone and `runBulkCommit` takes the already-known committable `rowIds`
+// directly. Every chunking / retry / pacing / abort / auto-sweep behaviour
+// the old suite asserted is re-asserted here against the new endpoint and
+// response shape; the "plan returns eligible=0" / "onPlan returns false"
+// describes are gone because that concept moved server-side (eligibility is
+// decided when the draft is built — lib/finance/__tests__/build-billing-run.
+// test.ts — and re-checked at commit time — app/api/__tests__/
+// billing-runs-commit.test.ts), not by this client orchestrator anymore.
+// --------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------
 // Helpers
@@ -20,42 +36,52 @@ function jsonResponse(body: unknown, init?: { status?: number }): Response {
   });
 }
 
-function makePlan(eligibleCount: number, overrides?: Partial<PlanResponse>): PlanResponse {
-  return {
-    eligibleStudentIds: Array.from({ length: eligibleCount }, (_, i) => `s-${i + 1}`),
-    skippedAlreadyInvoiced: 0,
-    skippedNoFeeStructure: 0,
-    total: eligibleCount,
-    eligible: eligibleCount,
-    ...overrides,
-  };
+function makeRowIds(count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `row-${i + 1}`);
 }
 
-function makeBatchResponse(studentIds: string[], failingIndexes: number[] = []): BatchResponse {
-  const results = studentIds.map((sid, i) => {
-    if (failingIndexes.includes(i)) {
+function makeCommitResponse(
+  rowIds: string[],
+  opts?: { failingIndexes?: number[]; skippedIndexes?: number[] },
+): CommitBillingRunResponse {
+  const failing = new Set(opts?.failingIndexes ?? []);
+  const skippedIdx = new Set(opts?.skippedIndexes ?? []);
+  const results: CommitResultRow[] = rowIds.map((rowId, i) => {
+    const studentId = `s-${rowId}`;
+    if (skippedIdx.has(i)) {
       return {
-        studentId: sid,
-        invoiceId: `inv-${sid}`,
+        rowId,
+        studentId,
+        studentName: `Student ${studentId}`,
+        status: "SKIPPED_ALREADY_INVOICED" as const,
+      };
+    }
+    if (failing.has(i)) {
+      return {
+        rowId,
+        studentId,
+        studentName: `Student ${studentId}`,
+        invoiceId: `inv-${rowId}`,
         invoiceNumber: `INV-2026-${String(i + 1).padStart(4, "0")}`,
         status: "PENDING_PAYMENT_LINK" as const,
         error: "Xendit unavailable",
       };
     }
     return {
-      studentId: sid,
-      invoiceId: `inv-${sid}`,
+      rowId,
+      studentId,
+      studentName: `Student ${studentId}`,
+      invoiceId: `inv-${rowId}`,
       invoiceNumber: `INV-2026-${String(i + 1).padStart(4, "0")}`,
       status: "SENT" as const,
-      paymentUrl: `https://xendit.local/pay/${sid}`,
+      paymentUrl: `https://xendit.local/pay/${rowId}`,
     };
   });
-  return {
-    created: studentIds.length,
-    skipped: 0,
-    results,
-  };
+  const skipped = results.filter((r) => r.status === "SKIPPED_ALREADY_INVOICED").length;
+  return { created: results.length - skipped, skipped, results };
 }
+
+const RUN_ID = "run-1";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -80,24 +106,22 @@ describe("chunk", () => {
 });
 
 // --------------------------------------------------------------------------
-// runBulkGenerate — happy paths
+// runBulkCommit — happy paths / chunking
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — single chunk (5 students)", () => {
-  it("posts plan, then exactly ONE batch of 5, ends with done=5/total=5", async () => {
+describe("runBulkCommit — single chunk (5 rows)", () => {
+  it("posts exactly ONE commit call, ends with done=5/total=5", async () => {
+    const rowIds = makeRowIds(5);
     const fetchMock = vi.fn();
-    const plan = makePlan(5);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
-    // Auto-sweep gate (T7): 0 pending → no sweep, no extra fetches.
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds)));
+    // Auto-sweep gate: 0 pending → no sweep, no extra fetches.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const onProgress = vi.fn();
-    const onPlan = vi.fn().mockResolvedValue(true);
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
@@ -113,60 +137,51 @@ describe("runBulkGenerate — single chunk (5 students)", () => {
       expect(out.final.pendingAfterSweep).toBe(0);
     }
 
-    // Plan + 1 batch + 1 count-only sweep gate = 3 fetch calls.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    const planCall = fetchMock.mock.calls[0];
-    expect(planCall[0]).toBe("/api/invoices/generate/plan");
-    const batchCall = fetchMock.mock.calls[1];
-    expect(batchCall[0]).toBe("/api/invoices/generate/batch");
-    const batchBody = JSON.parse(batchCall[1].body);
-    expect(batchBody.studentIds).toHaveLength(5);
-    expect(batchBody.periodLabel).toBe("April 2026");
-    expect(fetchMock.mock.calls[2][0]).toBe(
+    // 1 commit call + 1 count-only sweep gate = 2 fetch calls.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const commitCall = fetchMock.mock.calls[0];
+    expect(commitCall[0]).toBe(`/api/billing-runs/${RUN_ID}/commit`);
+    const commitBody = JSON.parse(commitCall[1].body);
+    expect(commitBody.rowIds).toHaveLength(5);
+    expect(fetchMock.mock.calls[1][0]).toBe(
       "/api/invoices/pending-payment-link?count-only=true",
     );
 
-    // onProgress fires at start (running) + after batch + at done.
+    // onProgress fires at start (running) + after chunk + at done.
     const phases = onProgress.mock.calls.map((c) => (c[0] as BatchProgressSnapshot).phase);
     expect(phases[phases.length - 1]).toBe("done");
   });
 });
 
-describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () => {
-  it("posts 3 batches and increments done after each", async () => {
+describe("runBulkCommit — multi chunk (60 rows → 25 + 25 + 10)", () => {
+  it("posts 3 commit calls and increments done after each", async () => {
+    const rowIds = makeRowIds(60);
     const fetchMock = vi.fn();
-    const plan = makePlan(60);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // 3 chunks: 25, 25, 10
-    const c1 = plan.eligibleStudentIds.slice(0, 25);
-    const c2 = plan.eligibleStudentIds.slice(25, 50);
-    const c3 = plan.eligibleStudentIds.slice(50, 60);
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2)));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c3)));
-    // Auto-sweep gate (T7): 0 pending → no sweep.
+    const c1 = rowIds.slice(0, 25);
+    const c2 = rowIds.slice(25, 50);
+    const c3 = rowIds.slice(50, 60);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c1)));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c2)));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c3)));
+    // Auto-sweep gate: 0 pending → no sweep.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const progressSnapshots: BatchProgressSnapshot[] = [];
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress: (s) => progressSnapshots.push({ ...s }),
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: vi.fn().mockResolvedValue(undefined),
     });
 
-    expect(BATCH_SIZE).toBe(25); // sanity — chunking constant must match spec §6
-    expect(fetchMock).toHaveBeenCalledTimes(5); // plan + 3 batches + 1 sweep gate
+    expect(BATCH_SIZE).toBe(25); // sanity — chunking constant must match commitBillingRunSchema's cap
+    expect(fetchMock).toHaveBeenCalledTimes(4); // 3 commit chunks + 1 sweep gate
 
-    // Verify each batch posted the right slice.
-    // calls[0] is the plan POST, calls[1..3] are the 3 batches, calls[4] is the sweep gate GET.
-    const batchBodies = fetchMock.mock.calls
-      .slice(1, 4)
-      .map((c) => JSON.parse(c[1].body));
-    expect(batchBodies[0].studentIds).toHaveLength(25);
-    expect(batchBodies[1].studentIds).toHaveLength(25);
-    expect(batchBodies[2].studentIds).toHaveLength(10);
+    const commitBodies = fetchMock.mock.calls.slice(0, 3).map((c) => JSON.parse(c[1].body));
+    expect(commitBodies[0].rowIds).toHaveLength(25);
+    expect(commitBodies[1].rowIds).toHaveLength(25);
+    expect(commitBodies[2].rowIds).toHaveLength(10);
 
     // Progress should monotonically advance: 0 → 25 → 50 → 60.
     const doneValues = progressSnapshots.map((s) => s.done);
@@ -185,28 +200,26 @@ describe("runBulkGenerate — multi chunk (60 students → 25 + 25 + 10)", () =>
 });
 
 // --------------------------------------------------------------------------
-// runBulkGenerate — pause / retry on 5xx
+// runBulkCommit — retry on 5xx / fail-fast on 4xx
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — 5xx retry then auto-abort", () => {
+describe("runBulkCommit — 5xx retry then auto-abort", () => {
   it("retries 2× with backoff, then aborts when 3rd attempt also fails", async () => {
+    const rowIds = makeRowIds(5);
     const fetchMock = vi.fn();
-    const plan = makePlan(5);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // Batch always 503 → 1 try + 2 retries = 3 fetch hits to /batch.
+    // Commit always 503 → 1 try + 2 retries = 3 fetch hits.
     fetchMock.mockResolvedValue(jsonResponse({ error: "boom" }, { status: 503 }));
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
 
-    // Plan + 3 batch attempts = 4 fetch calls.
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     // Backoffs: 1000ms, 3000ms (2 sleeps between 3 attempts).
     expect(sleepMock).toHaveBeenCalledTimes(2);
     expect(sleepMock).toHaveBeenNthCalledWith(1, 1000);
@@ -215,30 +228,60 @@ describe("runBulkGenerate — 5xx retry then auto-abort", () => {
     expect(out.phase).toBe("aborted");
     if (out.phase === "aborted") {
       expect(out.final.done).toBe(0); // chunk never landed
+      expect(out.final.lastError).toBe("HTTP 503");
+    }
+  });
+});
+
+describe("runBulkCommit — 4xx fails fast without retrying", () => {
+  it("stops after a single attempt on a 400, with no backoff sleep", async () => {
+    const rowIds = makeRowIds(5);
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: "Maksimal 25 baris per batch" }, { status: 400 }),
+    );
+
+    const sleepMock = vi.fn().mockResolvedValue(undefined);
+
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleepImpl: sleepMock,
+    });
+
+    // Exactly one attempt — a 4xx is a validation/config error, not
+    // something retrying can fix.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sleepMock).not.toHaveBeenCalled();
+
+    expect(out.phase).toBe("aborted");
+    if (out.phase === "aborted") {
+      expect(out.final.done).toBe(0);
+      expect(out.final.lastError).toBe("Maksimal 25 baris per batch");
     }
   });
 });
 
 // --------------------------------------------------------------------------
-// runBulkGenerate — inter-chunk pacing (cycle 2026-04-28 T2)
+// runBulkCommit — inter-chunk pacing (cycle 2026-04-28 T2, carried over)
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — inter-chunk pacing", () => {
+describe("runBulkCommit — inter-chunk pacing", () => {
   it("sleeps INTER_CHUNK_DELAY_MS exactly N-1 times for N successful chunks", async () => {
+    const rowIds = makeRowIds(60); // 3 chunks: 25 + 25 + 10
     const fetchMock = vi.fn();
-    const plan = makePlan(60); // 3 chunks: 25 + 25 + 10
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(0, 25))));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(25, 50))));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(50, 60))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds.slice(0, 25))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds.slice(25, 50))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds.slice(50, 60))));
     // Auto-sweep gate: 0 pending → no sweep.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -250,17 +293,16 @@ describe("runBulkGenerate — inter-chunk pacing", () => {
   });
 
   it("does not sleep after the final chunk", async () => {
+    const rowIds = makeRowIds(25); // exactly 1 chunk
     const fetchMock = vi.fn();
-    const plan = makePlan(25); // exactly 1 chunk
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds)));
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
 
-    await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -270,24 +312,16 @@ describe("runBulkGenerate — inter-chunk pacing", () => {
   });
 
   it("paces on chunk-failure path before the loop terminates (M2 regression guard)", async () => {
-    // Two chunks. First succeeds; second three-strikes on 503. The pacing
+    // Three chunks. First succeeds; second three-strikes on 503. The pacing
     // call site fires on the failure path too — the spec's M2 fix guards
     // against a future change that keeps the loop running past a chunk
     // failure. Today the loop terminates on three-strike, but the sleep
-    // call site is still hit because the chunk that failed is NOT the
-    // last chunk in the loop.
+    // call site is still hit because the failing chunk is NOT the last
+    // chunk in the loop.
+    const rowIds = makeRowIds(75); // 3 chunks: 25 + 25 + 25
     const fetchMock = vi.fn();
-    const plan = makePlan(50); // 2 chunks: 25 + 25
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // Wait — with 2 chunks, the FAILING chunk would be the last one
-    // (cursor=1 of 2, isLastChunk=true) → sleep skipped. Use 3 chunks
-    // instead, with the MIDDLE chunk failing.
-    fetchMock.mockReset();
-
-    const plan3 = makePlan(75); // 3 chunks: 25 + 25 + 25
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan3));
     // Chunk 1 succeeds.
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan3.eligibleStudentIds.slice(0, 25))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds.slice(0, 25))));
     // Chunk 2 three-strikes on 503 → 3 fetch calls return 503.
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 503 }));
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 503 }));
@@ -295,9 +329,9 @@ describe("runBulkGenerate — inter-chunk pacing", () => {
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
       sleepImpl: sleepMock,
     });
@@ -319,19 +353,18 @@ describe("runBulkGenerate — inter-chunk pacing", () => {
   });
 
   it("skips inter-chunk sleep when signal is already aborted", async () => {
+    const rowIds = makeRowIds(50); // 2 chunks
     const fetchMock = vi.fn();
-    const plan = makePlan(50); // 2 chunks
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds.slice(0, 25))));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds.slice(0, 25))));
 
     const sleepMock = vi.fn().mockResolvedValue(undefined);
     const ctrl = new AbortController();
 
     // Abort right after the first chunk completes by intercepting onProgress.
     let chunksCompleted = 0;
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress: (s) => {
         if (s.done >= 25 && chunksCompleted === 0) {
           chunksCompleted += 1;
@@ -351,73 +384,23 @@ describe("runBulkGenerate — inter-chunk pacing", () => {
 });
 
 // --------------------------------------------------------------------------
-// runBulkGenerate — eligibility edge cases
+// Mixed Xendit success/fail + already-invoiced skip counting
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — plan returns eligible=0", () => {
-  it("does not post any batch and returns no-eligible", async () => {
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(makePlan(0, { skippedAlreadyInvoiced: 12, skippedNoFeeStructure: 3 })),
-    );
-
-    const onPlan = vi.fn();
-    const onProgress = vi.fn();
-
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan,
-      onProgress,
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-
-    expect(out.phase).toBe("no-eligible");
-    if (out.phase === "no-eligible") {
-      expect(out.plan.skippedAlreadyInvoiced).toBe(12);
-      expect(out.plan.skippedNoFeeStructure).toBe(3);
-    }
-    // Plan only — onPlan never called, no batch posted.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(onPlan).not.toHaveBeenCalled();
-    expect(onProgress).not.toHaveBeenCalled();
-  });
-});
-
-describe("runBulkGenerate — onPlan returns false", () => {
-  it("aborts before any batch is posted", async () => {
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(jsonResponse(makePlan(5)));
-
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => false,
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-
-    expect(out.phase).toBe("user-cancelled");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-// --------------------------------------------------------------------------
-// Mixed Xendit success/fail counting
-// --------------------------------------------------------------------------
-
-describe("runBulkGenerate — partial Xendit failure tallies xenditOk + xenditFailed", () => {
+describe("runBulkCommit — partial Xendit failure tallies xenditOk + xenditFailed", () => {
   it("a chunk with 4 SENT + 1 PENDING_PAYMENT_LINK rolls into the right totals", async () => {
+    const rowIds = makeRowIds(5);
     const fetchMock = vi.fn();
-    const plan = makePlan(5);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [2])),
+      jsonResponse(makeCommitResponse(rowIds, { failingIndexes: [2] })),
     );
-    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
-    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    // Auto-sweep gate: explicit 0 pending so the sweep is skipped by design
+    // rather than by relying on an unmocked-fetch try/catch swallow.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -426,22 +409,46 @@ describe("runBulkGenerate — partial Xendit failure tallies xenditOk + xenditFa
       expect(out.final.xenditOk).toBe(4);
       expect(out.final.xenditFailed).toBe(1);
       expect(out.final.created).toBe(5);
+      expect(out.final.skipped).toBe(0);
+    }
+  });
+});
+
+describe("runBulkCommit — already-invoiced duplicates tally into `skipped`, not xendit counters", () => {
+  it("3 SKIPPED_ALREADY_INVOICED rows among 10 land in skipped, not xenditOk/xenditFailed", async () => {
+    const rowIds = makeRowIds(10);
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(makeCommitResponse(rowIds, { skippedIndexes: [0, 1, 2] })),
+    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
+
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(out.phase).toBe("done");
+    if (out.phase === "done") {
+      expect(out.final.skipped).toBe(3);
+      expect(out.final.created).toBe(7);
+      expect(out.final.xenditOk).toBe(7);
+      expect(out.final.xenditFailed).toBe(0);
     }
   });
 });
 
 // --------------------------------------------------------------------------
-// Cancellation via AbortSignal (T4)
+// Cancellation via AbortSignal
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — cancellation via AbortSignal", () => {
+describe("runBulkCommit — cancellation via AbortSignal", () => {
   it("aborts before the next chunk when signal is aborted mid-run", async () => {
+    const rowIds = makeRowIds(60); // 3 chunks
     const fetchMock = vi.fn();
-    const plan = makePlan(60); // 3 chunks
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-
-    const c1 = plan.eligibleStudentIds.slice(0, 25);
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
+    const c1 = rowIds.slice(0, 25);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c1)));
 
     const controller = new AbortController();
     // Abort after the first chunk lands.
@@ -453,9 +460,9 @@ describe("runBulkGenerate — cancellation via AbortSignal", () => {
       }
     };
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress,
       signal: controller.signal,
       fetchImpl: fetchMock as unknown as typeof fetch,
@@ -466,23 +473,24 @@ describe("runBulkGenerate — cancellation via AbortSignal", () => {
       // First chunk landed (25), no further chunks dispatched.
       expect(out.final.done).toBe(25);
       expect(out.final.phase).toBe("aborted");
+      // A user-triggered abort (not a chunk failure) carries no lastError.
+      expect(out.final.lastError).toBeUndefined();
     }
-    // Plan + 1 batch only — chunks 2 & 3 never dispatched.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 1 commit call only — chunks 2 & 3 never dispatched.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does nothing when signal is not provided (back-compat)", async () => {
+  it("completes normally when no signal is provided", async () => {
+    const rowIds = makeRowIds(5);
     const fetchMock = vi.fn();
-    const plan = makePlan(5);
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(plan.eligibleStudentIds)));
-    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
-    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(rowIds)));
+    // Auto-sweep gate: explicit 0 pending so the sweep is skipped by design
+    // rather than by relying on an unmocked-fetch try/catch swallow.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -491,27 +499,26 @@ describe("runBulkGenerate — cancellation via AbortSignal", () => {
 });
 
 // --------------------------------------------------------------------------
-// Per-student failure rows accumulate on the snapshot (T4)
+// Per-student failure rows accumulate on the snapshot
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — failure rows on snapshot", () => {
+describe("runBulkCommit — failure rows on snapshot", () => {
   it("accumulates failures across chunks with studentName + error", async () => {
+    const rowIds = makeRowIds(50); // 2 chunks of 25
     const fetchMock = vi.fn();
-    const plan = makePlan(50); // 2 chunks of 25
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
 
-    const c1 = plan.eligibleStudentIds.slice(0, 25);
-    const c2 = plan.eligibleStudentIds.slice(25, 50);
+    const c1 = rowIds.slice(0, 25);
+    const c2 = rowIds.slice(25, 50);
     // Inject 2 failures in chunk 1 and 1 in chunk 2 (total 3).
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1, [3, 7])));
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c2, [2])));
-    // Auto-sweep gate (T7): explicit 0 pending so the sweep is skipped
-    // by design rather than by relying on an unmocked-fetch try/catch swallow.
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c1, { failingIndexes: [3, 7] })));
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c2, { failingIndexes: [2] })));
+    // Auto-sweep gate: explicit 0 pending so the sweep is skipped by design
+    // rather than by relying on an unmocked-fetch try/catch swallow.
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -528,24 +535,23 @@ describe("runBulkGenerate — failure rows on snapshot", () => {
 });
 
 // --------------------------------------------------------------------------
-// Auto-sweep (T7) — orchestrator-level "Coba Lagi Link" between chunks-done
-// and final summary. Spec: docs/cycles/2026-04-27-invoice-create-auto-retry.md
-// §Task 7.
+// Auto-sweep — orchestrator-level "Coba Lagi Link" between chunks-done and
+// final summary. Spec: docs/cycles/2026-04-27-invoice-create-auto-retry.md
+// §Task 7. Behaviour carried over unchanged by Task T10 — only the chunk
+// loop feeding it was repointed.
 // --------------------------------------------------------------------------
 
-describe("runBulkGenerate — auto-sweep clears transient failures", () => {
+describe("runBulkCommit — auto-sweep clears transient failures", () => {
   it("fires runBulkRetry once when pending > 0 + signal not aborted; transients clear → pendingAfterSweep=0", async () => {
+    const rowIds = makeRowIds(25);
     const fetchMock = vi.fn();
-    const plan = makePlan(25);
-    // 1) plan
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // 2) batch — 22 SENT + 3 PENDING_PAYMENT_LINK (transient)
+    // 1) commit — 22 SENT + 3 PENDING_PAYMENT_LINK (transient)
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [5, 11, 18])),
+      jsonResponse(makeCommitResponse(rowIds, { failingIndexes: [5, 11, 18] })),
     );
-    // 3) auto-sweep gate — count-only=true returns 3 pending
+    // 2) auto-sweep gate — count-only=true returns 3 pending
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 3 }));
-    // 4) runBulkRetry's pending list (full payload, not count-only)
+    // 3) runBulkRetry's pending list (full payload, not count-only)
     const pendingIds = ["s-6", "s-12", "s-19"];
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -559,7 +565,7 @@ describe("runBulkGenerate — auto-sweep clears transient failures", () => {
         total: 3,
       }),
     );
-    // 5) runBulkRetry's retry-payment-links call — all 3 succeed
+    // 4) runBulkRetry's retry-payment-links call — all 3 succeed
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         retried: 3,
@@ -574,13 +580,13 @@ describe("runBulkGenerate — auto-sweep clears transient failures", () => {
         })),
       }),
     );
-    // 6) post-sweep re-count — 0 pending
+    // 5) post-sweep re-count — 0 pending
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 0 }));
 
     const phases: string[] = [];
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress: (s) => phases.push(s.phase),
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
@@ -609,19 +615,17 @@ describe("runBulkGenerate — auto-sweep clears transient failures", () => {
   });
 });
 
-describe("runBulkGenerate — auto-sweep cannot clear hard failures", () => {
+describe("runBulkCommit — auto-sweep cannot clear hard failures", () => {
   it("fires sweep but pendingAfterSweep > 0 surfaces the manual button", async () => {
+    const rowIds = makeRowIds(25);
     const fetchMock = vi.fn();
-    const plan = makePlan(25);
-    // 1) plan
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-    // 2) batch — 23 SENT + 2 PENDING (401 hard failures)
+    // 1) commit — 23 SENT + 2 PENDING (401 hard failures)
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(makeBatchResponse(plan.eligibleStudentIds, [10, 20])),
+      jsonResponse(makeCommitResponse(rowIds, { failingIndexes: [10, 20] })),
     );
-    // 3) pre-sweep count
+    // 2) pre-sweep count
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 2 }));
-    // 4) runBulkRetry pending list
+    // 3) runBulkRetry pending list
     const hardIds = ["s-11", "s-21"];
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -635,7 +639,7 @@ describe("runBulkGenerate — auto-sweep cannot clear hard failures", () => {
         total: 2,
       }),
     );
-    // 5) retry-payment-links — HTTP 200 but Xendit still fails for 401s
+    // 4) retry-payment-links — HTTP 200 but Xendit still fails for 401s
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         retried: 2,
@@ -650,12 +654,12 @@ describe("runBulkGenerate — auto-sweep cannot clear hard failures", () => {
         })),
       }),
     );
-    // 6) post-sweep count — still 2
+    // 5) post-sweep count — still 2
     fetchMock.mockResolvedValueOnce(jsonResponse({ total: 2 }));
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
 
@@ -667,14 +671,12 @@ describe("runBulkGenerate — auto-sweep cannot clear hard failures", () => {
   });
 });
 
-describe("runBulkGenerate — user-abort skips auto-sweep", () => {
+describe("runBulkCommit — user-abort skips auto-sweep", () => {
   it("does not fetch pending-payment-link when user cancels mid-run", async () => {
+    const rowIds = makeRowIds(60); // 3 chunks
     const fetchMock = vi.fn();
-    const plan = makePlan(60); // 3 chunks
-    fetchMock.mockResolvedValueOnce(jsonResponse(plan));
-
-    const c1 = plan.eligibleStudentIds.slice(0, 25);
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeBatchResponse(c1)));
+    const c1 = rowIds.slice(0, 25);
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeCommitResponse(c1)));
 
     const controller = new AbortController();
     let chunksObserved = 0;
@@ -685,9 +687,9 @@ describe("runBulkGenerate — user-abort skips auto-sweep", () => {
       }
     };
 
-    const out = await runBulkGenerate({
-      planRequest: { periodLabel: "April 2026", dueDate: "2026-04-30", academicYearId: "y1" },
-      onPlan: () => true,
+    const out = await runBulkCommit({
+      runId: RUN_ID,
+      rowIds,
       onProgress,
       signal: controller.signal,
       fetchImpl: fetchMock as unknown as typeof fetch,
@@ -700,8 +702,8 @@ describe("runBulkGenerate — user-abort skips auto-sweep", () => {
       expect(out.final.pendingAfterSweep).toBeUndefined();
     }
 
-    // Plan + 1 batch only — no pending-payment-link, no retry-payment-links.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 1 commit call only — no pending-payment-link, no retry-payment-links.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.includes("pending-payment-link"))).toBe(false);
     expect(urls.some((u) => u.includes("retry-payment-links"))).toBe(false);

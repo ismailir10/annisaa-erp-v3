@@ -28,16 +28,10 @@ export type WeeklyTrend = {
 };
 
 const chartConfig = {
-  present: { label: "Hadir", color: "var(--chart-1)" },
-  late: { label: "Terlambat", color: "var(--chart-3)" },
-  absent: { label: "Tidak Hadir", color: "var(--chart-4)" },
+  present: { label: "Hadir", color: "var(--status-present)" },
+  late: { label: "Terlambat", color: "var(--status-late)" },
+  absent: { label: "Tidak Hadir", color: "var(--status-absent)" },
 } satisfies ChartConfig;
-
-const chartColors = {
-  present: "#2F9EA3",
-  late: "#D99A00",
-  absent: "#D62F3E",
-};
 
 export function AttendanceTrendChart({
   data,
@@ -93,17 +87,17 @@ export function AttendanceTrendChart({
               <TrendPill
                 label="Hadir"
                 value={totals.present}
-                className="text-primary"
+                className="text-status-present-text"
               />
               <TrendPill
                 label="Terlambat"
                 value={totals.late}
-                className="text-warning"
+                className="text-status-late-text"
               />
               <TrendPill
                 label="Tidak hadir"
                 value={totals.absent}
-                className="text-destructive"
+                className="text-status-absent-text"
               />
             </div>
             <ChartContainer
@@ -133,9 +127,9 @@ export function AttendanceTrendChart({
                 <Area
                   dataKey="present"
                   type="linear"
-                  fill={chartColors.present}
+                  fill="var(--color-present)"
                   fillOpacity={0.28}
-                  stroke={chartColors.present}
+                  stroke="var(--color-present)"
                   strokeWidth={3.25}
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 2 }}
@@ -144,9 +138,9 @@ export function AttendanceTrendChart({
                 <Area
                   dataKey="late"
                   type="linear"
-                  fill={chartColors.late}
+                  fill="var(--color-late)"
                   fillOpacity={0.12}
-                  stroke={chartColors.late}
+                  stroke="var(--color-late)"
                   strokeWidth={2.75}
                   dot={false}
                   activeDot={{ r: 3, strokeWidth: 2 }}
@@ -155,9 +149,9 @@ export function AttendanceTrendChart({
                 <Area
                   dataKey="absent"
                   type="linear"
-                  fill={chartColors.absent}
+                  fill="var(--color-absent)"
                   fillOpacity={0.12}
-                  stroke={chartColors.absent}
+                  stroke="var(--color-absent)"
                   strokeWidth={2.75}
                   dot={false}
                   activeDot={{ r: 3, strokeWidth: 2 }}
@@ -183,10 +177,10 @@ function TrendPill({
 }) {
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-2">
-      <div className="text-[11px] font-medium text-muted-foreground">
+      <div className="text-caption font-medium text-muted-foreground">
         {label}
       </div>
-      <div className={`font-mono text-lg font-semibold ${className ?? ""}`}>
+      <div className={`font-currency text-h2 font-semibold tabular-nums ${className ?? ""}`}>
         {value}
       </div>
     </div>

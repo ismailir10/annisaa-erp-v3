@@ -165,7 +165,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       if (!res.ok && res.status !== 409) {
         const msg =
           body.error ??
-          `Gagal mengunggah PROMES (status ${res.status}).`;
+          "Gagal mengunggah berkas PROMES. Periksa format berkas lalu coba lagi.";
         setFormError(msg);
         setSubmitting(false);
         return;
@@ -219,7 +219,7 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
         };
       };
       if (!res.ok) {
-        setFormError(body.error ?? `Gagal menyimpan (status ${res.status}).`);
+        setFormError(body.error ?? "Gagal menyimpan. Coba lagi sebentar ya.");
         setCommitting(false);
         committingRef.current = false;
         return;
@@ -277,8 +277,8 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
       </div>
 
       <PageHeader
-        title="Impor PROMES"
-        description={`Unggah berkas PROMES per Kelompok Usia untuk semester ${semester.academicYearName} · Semester ${semester.number}. Sistem akan menampilkan pratinjau sebelum menyimpan.`}
+        title="Impor PROMES (Program Semester)"
+        description={`Unggah berkas PROMES per Kelompok Usia untuk semester ${semester.academicYearName} · Semester ${semester.number}. Sistem akan menampilkan pratinjau Tujuan Pembelajaran (TP) dan Indikator Ketercapaian (IKTP) sebelum menyimpan.`}
       />
 
       {stage === "upload" && (

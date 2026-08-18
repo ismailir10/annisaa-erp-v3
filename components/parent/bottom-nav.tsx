@@ -13,7 +13,7 @@ import { PortalBottomNav, type PortalBottomNavItem } from "@/components/portal/p
 import { ParentMoreSheet, PARENT_MORE_ITEMS } from "@/components/parent/more-sheet";
 
 // Frequency-of-use ordering: daily/financial actions first. The bar holds four
-// destinations plus an overflow trigger; weekly (Capaian), semester (Rapor)
+// destinations plus an overflow trigger; weekly (Perkembangan), semester (Rapor)
 // and account (Profil) surfaces live in the "Lainnya" sheet.
 //
 // Four link tabs is a hard ceiling here, not a preference. At the 375 px design

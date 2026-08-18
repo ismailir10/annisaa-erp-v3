@@ -140,12 +140,14 @@ export function SessionRosterClient({
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         toast.error(
-          d?.message || d?.error || "Absensi tidak tersimpan. Coba lagi ya.",
+          d?.message ||
+            d?.error ||
+            "Absensi tidak tersimpan. Coba ketuk ulang ya.",
         );
         return;
       }
       const body = await res.json().catch(() => ({ saved: 0, total: 0 }));
-      toast.success(`Absensi tersimpan (${body.saved}/${body.total} siswa).`);
+      toast.success(`Absensi tersimpan · ${body.total} siswa`);
     } catch {
       toast.error("Koneksi terputus. Coba lagi sebentar ya.");
     } finally {

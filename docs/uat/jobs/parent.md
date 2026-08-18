@@ -140,11 +140,11 @@ This file is the living catalog of what a parent user can and should be able to 
   2. Switch to the "Rumah" tab
   3. For today's column, toggle the habits Aisha completed (e.g. sholat shubuh, mandi, tidur siang)
   4. Confirm the toggle persists immediately — no separate save button (`POST /api/student-journal/entries/home` fires synchronously on each tap, week re-fetches after)
-- **Done when:** Toggled entries persist on reload. Only today's column is editable; past days are visually differentiated as read-only or still-editable-per-config. Parent never accidentally overwrites yesterday's data thinking it was today's.
+- **Done when:** Toggled entries persist on reload. Any day from the Monday of the previous week through today is editable, so a missed day can still be filled later in the week; future days and anything before that floor are visually differentiated as read-only. Parent never accidentally overwrites yesterday's data thinking it was today's.
 - **Why this job matters:** Home side is the parent's half of the journal contract — skip this and the teacher has no signal on home reinforcement. If the toggle fires for the wrong day, trust collapses immediately.
 - **Expected perf:** toggle click-to-persisted <800ms (optimistic UI acceptable as long as rollback on failure is visible).
 - **Error scenarios to verify:**
-  - Tap a past day's toggle when edit window closed → disabled state or error toast "Hanya hari ini yang bisa diubah"
+  - Tap a day outside the edit window (before the previous week's Monday, or any future day) → disabled cell, or error toast "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin minggu lalu sampai hari ini."
   - `POST /api/student-journal/entries/home` 500 → toggle reverts after failed re-fetch, toast surfaces failure
 - **Known friction (from last UAT):** <filled by /uat reports>
 

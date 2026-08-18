@@ -340,7 +340,7 @@ export default function AcademicPage() {
 
   return (
     <>
-      <PageHeader title="Akademik" description="Program dan tahun ajaran" />
+      <PageHeader title="Tahun Ajaran" description="Program dan tahun ajaran" />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
@@ -382,7 +382,7 @@ export default function AcademicPage() {
           pagination={programPagination}
           defaultSort={{ field: "name", order: "asc" }}
           emptyTitle="Belum ada program"
-          emptyDescription="Tambahkan program pendidikan"
+          emptyDescription="Tambahkan program pendidikan untuk mengelompokkan kelas dan biaya."
         />
       </div>
 
@@ -421,7 +421,7 @@ export default function AcademicPage() {
           pagination={yearPagination}
           defaultSort={{ field: "name", order: "desc" }}
           emptyTitle="Belum ada tahun ajaran"
-          emptyDescription="Tambahkan tahun ajaran"
+          emptyDescription="Tambahkan tahun ajaran untuk membuka periode kelas, semester, dan rapor."
         />
       </div>
 

@@ -1,33 +1,51 @@
 /**
- * Client-side orchestration for the bulk-invoice flow.
+ * Client-side orchestration for the Billing Run wizard's commit step.
  *
- * Glue between admin/invoices page and the two server endpoints
- * (`/api/invoices/generate/plan` + `/api/invoices/generate/batch`). Extracted
- * to a non-React module so the orchestration logic — chunking, retry/backoff,
- * progress totals — can be unit-tested without RTL setup.
+ * Glue between the wizard's step 3 (`step-3-commit.tsx`) and
+ * `POST /api/billing-runs/[id]/commit`. Extracted to a non-React module so
+ * the orchestration logic — chunking, retry/backoff, inter-chunk pacing,
+ * abort, auto-sweep — can be unit-tested without RTL setup.
+ *
+ * History: this module originally drove the retired two-step
+ * `/api/invoices/generate/plan` + `/api/invoices/generate/batch` flow behind
+ * the old "Buat Tagihan Bulanan" dialog. Cycle B1 (bulk invoice wizard arc,
+ * docs/cycles/2026-08-14-billing-run-wizard.md) Task T10 retired that dialog
+ * and both routes in favour of the persisted-draft wizard. Per the cycle's
+ * spec Assumption 7, this file was *repointed* at the new commit endpoint
+ * rather than deleted and re-derived inline in the wizard — the chunk/retry/
+ * backoff/pacing/auto-sweep behaviour here is battle-tested (originally from
+ * cycle 2026-04-25/2026-04-28) and re-earning it in a fresh implementation
+ * would be a regression risk. There is no more "plan" step: the billing run
+ * is already materialized server-side by the time step 3 runs, so the
+ * plan → confirm → batch shape collapses to a single committable-rowIds →
+ * commit-chunk-loop shape. `runBulkGenerate`/`PlanResponse`/`onPlan` are
+ * gone; `runBulkCommit` takes the already-known `rowIds` directly.
  *
  * Why client-driven (not server background job)? See cycle doc
  * `docs/cycles/2026-04-25-tagihan-fixes-async-bulk-manual-create.md` Spec §6-9:
  * Vercel free tier has a 60s function ceiling and ~500-1500ms per Xendit call;
- * sequential 25-invoice chunks fit comfortably under that ceiling. The browser
+ * sequential 25-row chunks fit comfortably under that ceiling. The browser
  * drives the chain so the server stays stateless.
  *
- * Three-strike batch failure auto-aborts (architect simplification 2026-04-26):
- * if a chunk's batch endpoint fails after the initial try + 2 backoff retries,
- * it's a real infrastructure issue (Vercel timeout, Xendit 5xx) — clicking
- * Continue would just hit it again. Surface the error and stop.
+ * Three-strike chunk failure auto-aborts: if a chunk's commit call fails
+ * after the initial try + 2 backoff retries, it's a real infrastructure
+ * issue (Vercel timeout, DB contention, 5xx) — clicking Continue would just
+ * hit it again. A 4xx fails fast without retrying — it's a validation/config
+ * error retrying can't fix. Either way the caller can resume: the commit
+ * route's row claim (see app/api/billing-runs/[id]/commit/route.ts) makes
+ * re-sending an already-committed rowId a no-op, never a duplicate.
  */
 
 import { runBulkRetry } from "./run-bulk-retry";
-import { ApiError } from "@/lib/api/client-errors";
 
 export const BATCH_SIZE = 25;
 export const RETRY_BACKOFFS_MS = [1000, 3000];
 /**
  * Cross-chunk pacing — sleeps between successive chunk dispatches to keep the
  * sustained outbound rate under the Xendit sandbox quota (~30-60 req/min).
- * Concurrency cap inside the batch endpoint is 2 (cycle 2026-04-28 T1); paired
- * with this 1s gap, the worst-case sustained outbound is well below 60 req/min.
+ * Concurrency cap inside the commit route is 2 (carried over from the
+ * retired batch route); paired with this 1s gap, the worst-case sustained
+ * outbound is well below 60 req/min.
  *
  * Fires on every iteration of the chunk loop (success path AND failure path —
  * regression guard for the M2 leak in the 2026-04-28 spec review). Skipped only
@@ -62,12 +80,14 @@ export type BatchProgressSnapshot = {
   done: number;
   total: number;
   created: number;
+  /** Rows resolved as already-invoiced duplicates at commit time (Assumption "trust the draft" does NOT extend to duplicates — the commit route always re-checks). */
+  skipped: number;
   xenditOk: number;
   xenditFailed: number;
   phase: BatchProgressPhase;
   /** Per-student error rows; populated as failures accumulate across chunks. */
   failures: FailureRow[];
-  /** Set on `phase: "aborted"` from three-strike chunk failure (HTTP message). */
+  /** Set on `phase: "aborted"` from three-strike chunk failure (HTTP message). Absent when the abort came from the caller's own `signal` (user cancel). */
   lastError?: string;
   /**
    * Whether the post-chunk auto-sweep ran. Undefined until chunks complete;
@@ -84,48 +104,44 @@ export type BatchProgressSnapshot = {
   pendingAfterSweep?: number;
 };
 
-export type PlanResponse = {
-  eligibleStudentIds: string[];
-  skippedAlreadyInvoiced: number;
-  skippedNoFeeStructure: number;
-  total: number;
-  eligible: number;
-};
-
-export type BatchResultRow =
+export type CommitResultRow =
+  | { rowId: string; studentId: string; studentName: string; status: "SKIPPED_ALREADY_INVOICED" }
   | {
+      rowId: string;
       studentId: string;
-      studentName?: string;
+      studentName: string;
       invoiceId: string;
       invoiceNumber: string;
       status: "SENT";
       paymentUrl: string;
     }
   | {
+      rowId: string;
       studentId: string;
-      studentName?: string;
+      studentName: string;
       invoiceId: string;
       invoiceNumber: string;
       status: "PENDING_PAYMENT_LINK";
       error: string;
     };
 
-export type BatchResponse = {
+/** Mirrors `POST /api/billing-runs/[id]/commit`'s response — one chunk's result. */
+export type CommitBillingRunResponse = {
   created: number;
   skipped: number;
-  results: BatchResultRow[];
+  results: CommitResultRow[];
 };
 
-export type RunBulkGenerateInput = {
-  planRequest: { periodLabel: string; dueDate: string; academicYearId: string };
-  /** Hook to ask the user whether to proceed once eligibility is known. Returning false aborts cleanly. */
-  onPlan: (plan: PlanResponse) => boolean | Promise<boolean>;
-  /** Called after every batch (and at start/end) with the running totals. */
+export type RunBulkCommitInput = {
+  runId: string;
+  /** The full set of committable `BillingRunRow` ids for this run (or resume attempt) — chunked internally. */
+  rowIds: string[];
+  /** Called after every chunk (and at start/end/sweep) with the running totals. */
   onProgress?: (snapshot: BatchProgressSnapshot) => void;
   /**
    * Optional. AbortSignal for mid-run cancellation. The orchestrator checks
    * `signal.aborted` before starting each chunk and short-circuits to
-   * `phase: "aborted"`. Wired by the BatchProgressCard "Batalkan" button.
+   * `phase: "aborted"`. Wired by step 3's "Batalkan" button.
    */
   signal?: AbortSignal;
   /** Test seam — defaults to global `fetch`. */
@@ -134,11 +150,9 @@ export type RunBulkGenerateInput = {
   sleepImpl?: (ms: number) => Promise<void>;
 };
 
-export type RunBulkGenerateOutcome =
-  | { phase: "no-eligible"; plan: PlanResponse }
-  | { phase: "user-cancelled"; plan: PlanResponse }
-  | { phase: "aborted"; plan: PlanResponse; final: BatchProgressSnapshot }
-  | { phase: "done"; plan: PlanResponse; final: BatchProgressSnapshot };
+export type RunBulkCommitOutcome =
+  | { phase: "aborted"; final: BatchProgressSnapshot }
+  | { phase: "done"; final: BatchProgressSnapshot };
 
 export function chunk<T>(arr: T[], size: number): T[][] {
   if (size <= 0) throw new Error("chunk: size must be > 0");
@@ -148,47 +162,27 @@ export function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 /**
- * Drive the plan -> batch loop end-to-end. Pure logic; the React caller is
- * responsible for translating `onPlan` / `onPauseDecision` into UI prompts.
+ * Drive the commit chunk loop end-to-end against a Billing Run. Pure logic;
+ * the React caller (step-3-commit.tsx) is responsible for translating
+ * `onProgress` into UI state and computing which rowIds remain committable
+ * from `final.done` (chunk() preserves input order, and `done` only advances
+ * past a chunk once it has fully succeeded — so `rowIds.slice(final.done)`
+ * is exactly the still-committable tail, safe to retry on "Lanjutkan Komit").
  */
-export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunBulkGenerateOutcome> {
+export async function runBulkCommit(input: RunBulkCommitInput): Promise<RunBulkCommitOutcome> {
   // Bind native `fetch` to the global scope explicitly. A bare `fetch`
   // reference assigned to `fetchImpl` works at top level but throws
   // "Illegal invocation" when called as `obj.fetchImpl(...)` because the
   // browser's WHATWG fetch requires `this === window` (or globalThis).
-  // The batch loop forwards fetchImpl into callBatchWithRetry which
-  // invokes it as `input.fetchImpl(...)` — property-access binds this.
   const fetchImpl = input.fetchImpl ?? fetch.bind(globalThis);
   const sleep = input.sleepImpl ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
 
-  // 1) Plan call — never writes, always cheap.
-  const planRes = await fetchImpl("/api/invoices/generate/plan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input.planRequest),
-  });
-  if (!planRes.ok) {
-    const err = await planRes.json().catch(() => ({}));
-    throw new ApiError(err?.error || "Gagal merencanakan tagihan");
-  }
-  const plan = (await planRes.json()) as PlanResponse;
-
-  if (!plan.eligibleStudentIds || plan.eligibleStudentIds.length === 0) {
-    return { phase: "no-eligible", plan };
-  }
-
-  // 2) Confirmation hook.
-  const proceed = await input.onPlan(plan);
-  if (!proceed) {
-    return { phase: "user-cancelled", plan };
-  }
-
-  // 3) Batch loop.
-  const chunks = chunk(plan.eligibleStudentIds, BATCH_SIZE);
+  const chunks = chunk(input.rowIds, BATCH_SIZE);
   const snapshot: BatchProgressSnapshot = {
     done: 0,
-    total: plan.eligibleStudentIds.length,
+    total: input.rowIds.length,
     created: 0,
+    skipped: 0,
     xenditOk: 0,
     xenditFailed: 0,
     phase: "running",
@@ -203,13 +197,13 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     if (input.signal?.aborted) {
       snapshot.phase = "aborted";
       input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
-      return { phase: "aborted", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
+      return { phase: "aborted", final: { ...snapshot, failures: [...snapshot.failures] } };
     }
 
-    const studentIds = chunks[cursor];
-    const result = await callBatchWithRetry({
-      studentIds,
-      planRequest: input.planRequest,
+    const rowIds = chunks[cursor];
+    const result = await callCommitWithRetry({
+      runId: input.runId,
+      rowIds,
       fetchImpl,
       sleep,
     });
@@ -217,11 +211,10 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     const isLastChunk = cursor === chunks.length - 1;
 
     if (!result.ok) {
-      // Three-strike batch failure → real infrastructure issue (Vercel
-      // timeout, Xendit 5xx). Surface and stop; the operator can re-run
-      // the cycle once the upstream stabilises. MUST fire onProgress so
-      // the UI transitions out of "running" — otherwise the progress
-      // card freezes mid-spinner with the Batalkan button stuck on.
+      // Three-strike chunk failure → real infrastructure issue. Surface and
+      // stop; the caller's "Lanjutkan Komit" re-sends the un-advanced tail.
+      // MUST fire onProgress so the UI transitions out of "running" —
+      // otherwise the progress card freezes mid-spinner.
       snapshot.phase = "aborted";
       snapshot.lastError = result.lastError;
       input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
@@ -233,15 +226,16 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
       if (!isLastChunk && !input.signal?.aborted) {
         await sleep(INTER_CHUNK_DELAY_MS);
       }
-      return { phase: "aborted", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
+      return { phase: "aborted", final: { ...snapshot, failures: [...snapshot.failures] } };
     }
 
     const body = result.value;
-    snapshot.done += studentIds.length;
+    snapshot.done += rowIds.length;
     snapshot.created += body.created;
+    snapshot.skipped += body.skipped;
     for (const r of body.results) {
       if (r.status === "SENT") snapshot.xenditOk += 1;
-      else {
+      else if (r.status === "PENDING_PAYMENT_LINK") {
         snapshot.xenditFailed += 1;
         snapshot.failures.push({
           studentId: r.studentId,
@@ -249,6 +243,8 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
           error: r.error,
         });
       }
+      // SKIPPED_ALREADY_INVOICED rows are already reflected in body.skipped;
+      // no per-row tally needed beyond that.
     }
     input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
 
@@ -260,7 +256,7 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
     cursor += 1;
   }
 
-  // 4) Auto-sweep — orchestrator-level "Coba Lagi Link" so the admin doesn't
+  // Auto-sweep — orchestrator-level "Coba Lagi Link" so the admin doesn't
   // have to click it in the normal case. Runs ONCE if the chunk loop landed
   // any invoices in PENDING_PAYMENT_LINK and the user did not cancel. The
   // sweep is single-shot by design: if it itself fails (3-strike abort
@@ -273,7 +269,7 @@ export async function runBulkGenerate(input: RunBulkGenerateInput): Promise<RunB
 
   snapshot.phase = "done";
   input.onProgress?.({ ...snapshot, failures: [...snapshot.failures] });
-  return { phase: "done", plan, final: { ...snapshot, failures: [...snapshot.failures] } };
+  return { phase: "done", final: { ...snapshot, failures: [...snapshot.failures] } };
 }
 
 /**
@@ -359,33 +355,30 @@ async function fetchPendingCount(
   }
 }
 
-type CallBatchInput = {
-  studentIds: string[];
-  planRequest: { periodLabel: string; dueDate: string; academicYearId: string };
+type CallCommitInput = {
+  runId: string;
+  rowIds: string[];
   fetchImpl: typeof fetch;
   sleep: (ms: number) => Promise<void>;
 };
 
-async function callBatchWithRetry(
-  input: CallBatchInput,
-): Promise<{ ok: true; value: BatchResponse } | { ok: false; lastError: string }> {
+async function callCommitWithRetry(
+  input: CallCommitInput,
+): Promise<{ ok: true; value: CommitBillingRunResponse } | { ok: false; lastError: string }> {
   const attempts = RETRY_BACKOFFS_MS.length + 1; // first try + 2 retries
   let lastError = "";
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      const res = await input.fetchImpl("/api/invoices/generate/batch", {
+      const res = await input.fetchImpl(`/api/billing-runs/${input.runId}/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentIds: input.studentIds,
-          ...input.planRequest,
-        }),
+        body: JSON.stringify({ rowIds: input.rowIds }),
       });
       if (res.ok) {
-        const body = (await res.json()) as BatchResponse;
+        const body = (await res.json()) as CommitBillingRunResponse;
         return { ok: true, value: body };
       }
-      // 5xx → retry. 4xx → fail fast (config error or auth, retrying won't help).
+      // 5xx → retry. 4xx → fail fast (validation/config error, retrying won't help).
       if (res.status >= 500) {
         lastError = `HTTP ${res.status}`;
       } else {
