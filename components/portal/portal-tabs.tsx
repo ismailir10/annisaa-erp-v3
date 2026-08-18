@@ -133,8 +133,11 @@ export function PortalTabs({
         const active = item.id === activeId;
         const isTabStop = item.id === focusId;
 
+        // min-h-11 = 44px. Pills measured 36px, under the minimum tap target
+        // — and they are the primary child switcher on every parent page, so
+        // they are tapped more than anything else in the portal.
         const baseClasses =
-          "whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+          "inline-flex min-h-11 items-center whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
         const variantClasses =
           variant === "pills"

@@ -1,10 +1,11 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Check, ChevronLeft, ChevronRight, MessageCircle, Sparkles, Thermometer, CalendarClock } from "lucide-react";
+import { Check, MessageCircle, Sparkles, Thermometer, CalendarClock } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { PageHeader } from "@/components/portal/page-header";
+import { SectionLabel } from "@/components/portal/section-label";
+import { WeekNavigator } from "@/components/portal/week-navigator";
 import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -184,24 +185,11 @@ export default async function ParentAttendancePage({
         </section>
       ) : null}
 
-      {/* Week navigator */}
-      <div className="flex items-center justify-between">
-        <Link
-          href={`/parent/attendance?week=${ymd(prevMon)}${childQuery}`}
-          className="grid size-11 place-items-center rounded-md text-foreground transition-colors hover:bg-primary/10 active:bg-primary/20"
-          aria-label="Pekan sebelumnya"
-        >
-          <ChevronLeft size={20} />
-        </Link>
-        <span className="text-sm font-medium text-foreground">{weekRangeLabel}</span>
-        <Link
-          href={`/parent/attendance?week=${ymd(nextMon)}${childQuery}`}
-          className="grid size-11 place-items-center rounded-md text-foreground transition-colors hover:bg-primary/10 active:bg-primary/20"
-          aria-label="Pekan berikutnya"
-        >
-          <ChevronRight size={20} />
-        </Link>
-      </div>
+      <WeekNavigator
+        label={weekRangeLabel}
+        prevHref={`/parent/attendance?week=${ymd(prevMon)}${childQuery}`}
+        nextHref={`/parent/attendance?week=${ymd(nextMon)}${childQuery}`}
+      />
 
       {/* Week grid */}
       {logged === 0 && days.every((d) => d > today) ? (
@@ -289,9 +277,7 @@ export default async function ParentAttendancePage({
       {/* Notes from school this week */}
       {notesRows.length > 0 ? (
         <section>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Catatan dari sekolah
-          </p>
+          <SectionLabel>Catatan dari sekolah</SectionLabel>
           <ul className="space-y-2">
             {notesRows.map((n) => (
               <li

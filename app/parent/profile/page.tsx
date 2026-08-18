@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Mail, Phone } from "lucide-react";
 import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
+import { PageHeader } from "@/components/portal/page-header";
+import { SectionLabel } from "@/components/portal/section-label";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -13,6 +15,8 @@ function initialsOf(name: string): string {
 }
 
 export default async function ParentProfilePage() {
+  // Vercel injects this on every deploy; undefined on a local dev server.
+  const buildRef = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
@@ -25,15 +29,18 @@ export default async function ParentProfilePage() {
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Nested-page header (back chevron) */}
-      <div className="flex items-center">
+      {/* Back chevron + a real page title. This page previously rendered no
+          heading at all — the only parent surface with no `h1`, which left the
+          "Profil" row in the Lainnya sheet leading somewhere unnamed. */}
+      <div className="flex items-center gap-1">
         <Link
           href="/parent"
-          className="grid size-11 -ml-2 place-items-center rounded-md text-foreground transition-colors hover:bg-primary/10 active:bg-primary/20"
+          className="grid size-11 -ml-2 shrink-0 place-items-center rounded-md text-foreground transition-colors hover:bg-primary/10 active:bg-primary/20"
           aria-label="Kembali"
         >
           <ChevronLeft size={22} />
         </Link>
+        <PageHeader title="Profil" className="mb-0 flex-1" />
       </div>
 
       {/* Identity surface */}
@@ -51,9 +58,7 @@ export default async function ParentProfilePage() {
 
       {/* Kontak */}
       <section>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Kontak
-        </p>
+        <SectionLabel>Kontak</SectionLabel>
         <div className="space-y-2">
           <ContactCard icon={Phone} primary={parent.phone ?? "—"} secondary="Nomor terdaftar" />
           <ContactCard icon={Mail} primary={displayEmail ?? "—"} secondary="Email terdaftar" />
@@ -63,12 +68,9 @@ export default async function ParentProfilePage() {
       {/* Anak Anda */}
       {children.length > 0 ? (
         <section>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Anak Anda
-          </p>
+          <SectionLabel>Anak Anda</SectionLabel>
           <ul className="space-y-2">
             {children.map((c) => {
-              const childLabel = c.studentName.split(" ").slice(0, 2).join(" ");
               const initials = initialsOf(c.studentName);
               return (
                 <li key={c.studentId}>
@@ -81,7 +83,7 @@ export default async function ParentProfilePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-foreground">
-                        {childLabel}
+                        {c.studentName}
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {c.className ?? "—"}
@@ -103,8 +105,12 @@ export default async function ParentProfilePage() {
 
       <LogoutButton />
 
+      {/* The old literal read "v3.4.2" while package.json said 0.1.0 — a
+          number nobody could act on. The deploy sha is the thing support
+          actually asks for, and it is absent locally, where it is noise. */}
       <p className="pt-4 text-center text-xs text-muted-foreground/70">
-        An Nisaa&apos; Sekolahku · v3.4.2
+        Talib · An Nisaa&apos; Sekolahku
+        {buildRef ? <span className="ml-1">· {buildRef}</span> : null}
       </p>
     </div>
   );

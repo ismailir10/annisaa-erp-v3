@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, BookHeart, Plus } from "lucide-react";
+import { BookHeart, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
+import { WeekNavigator } from "@/components/portal/week-navigator";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
@@ -207,16 +208,15 @@ export default function ParentStudentJournalPage() {
 
   if (children.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <BookHeart size={40} className="text-muted-foreground" />
-        <p className="text-sm text-muted-foreground text-center">
-          Belum ada data anak. Hubungi admin sekolah untuk menautkan akun Anda.
-        </p>
-      </div>
+      <EmptyState
+        accent="warm"
+        icon={BookHeart}
+        title="Belum ada data anak"
+        description="Hubungi admin sekolah untuk menautkan akun Anda."
+      />
     );
   }
 
-  const selectedChild = children.find((c) => c.id === childId) ?? children[0];
   const dates = data?.dates ?? weekDates(currentWeek);
   // Anchored to TODAY's week, not `currentWeek` (the week the parent is
   // currently viewing) — a wali who navigates back four weeks must still see
@@ -225,8 +225,27 @@ export default function ParentStudentJournalPage() {
   const homeEditFloor = homeEntryEditFloor(getTodayInTimezone("Asia/Jakarta"));
 
   return (
-    <div className="space-y-section">
-      {/* Header */}
+    <div className="space-y-6">
+      {/*
+        Child switcher sits ABOVE the title and shows first names only, matching
+        Tagihan / Kehadiran / Rapor. It used to sit below the title with full
+        names ("Hafizh Umar Ramadhan"), and the full name was then repeated on
+        its own line underneath — three different presentations of one child on
+        one screen.
+      */}
+      {children.length > 1 && (
+        <PortalTabs
+          items={children.map((c) => ({
+            id: c.id,
+            label: c.nickname ?? c.name.trim().split(/\s+/)[0] ?? c.name,
+          }))}
+          activeId={childId ?? ""}
+          onSelect={setChildId}
+          variant="pills"
+          ariaLabel="Pilih anak"
+        />
+      )}
+
       {/*
         Parent-facing label is "Jurnal" — it has to match the bottom-nav tab,
         and "Penghubung" does not fit a 5-tab bar at 375 px. The route slug,
@@ -239,51 +258,11 @@ export default function ParentStudentJournalPage() {
         subtitle="Pantau kegiatan harian di sekolah dan rumah"
       />
 
-      {/* Child selector (only shown when 2+ children) */}
-      {children.length > 1 && (
-        <PortalTabs
-          items={children.map((c) => ({ id: c.id, label: c.nickname ?? c.name }))}
-          activeId={childId ?? ""}
-          onSelect={setChildId}
-          variant="pills"
-          ariaLabel="Pilih anak"
-        />
-      )}
-
-      {/* Child info */}
-      <div className="text-sm font-medium text-foreground">
-        {selectedChild.name}
-        {selectedChild.className && (
-          <span className="text-xs text-muted-foreground font-normal ml-1.5">
-            ({selectedChild.className})
-          </span>
-        )}
-      </div>
-
-      {/* Week picker */}
-      <div className="flex items-center justify-between gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={handlePrevWeek}
-          aria-label="Minggu sebelumnya"
-        >
-          <ChevronLeft size={16} />
-        </Button>
-        <span className="text-xs font-medium text-foreground">
-          {weekLabel(dates)}
-        </span>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={handleNextWeek}
-          aria-label="Minggu berikutnya"
-        >
-          <ChevronRight size={16} />
-        </Button>
-      </div>
+      <WeekNavigator
+        label={weekLabel(dates)}
+        onPrev={handlePrevWeek}
+        onNext={handleNextWeek}
+      />
 
       {/* Main content */}
       {loading || !data ? (
@@ -295,20 +274,23 @@ export default function ParentStudentJournalPage() {
       ) : data.schoolCategories.length === 0 &&
         data.homeCategories.length === 0 ? (
         <EmptyState
+          accent="warm"
           icon={BookHeart}
           title="Jurnal belum diatur sekolah"
           description="Sekolah belum menambahkan indikator harian untuk Jurnal. Hubungi admin sekolah untuk informasi lebih lanjut."
         />
       ) : (
         <Tabs value={activeView} onValueChange={setActiveView}>
+          {/* min-h-11 = 44px. The triggers measured 25px tall, the smallest
+              tap target left in the portal. */}
           <TabsList className="w-full">
-            <TabsTrigger value="school" className="flex-1">
-              Di Sekolah
+            <TabsTrigger value="school" className="min-h-11 flex-1">
+              Di sekolah
             </TabsTrigger>
-            <TabsTrigger value="home" className="flex-1">
-              Di Rumah
+            <TabsTrigger value="home" className="min-h-11 flex-1">
+              Di rumah
             </TabsTrigger>
-            <TabsTrigger value="notes" className="flex-1">
+            <TabsTrigger value="notes" className="min-h-11 flex-1">
               Catatan
             </TabsTrigger>
           </TabsList>
@@ -373,7 +355,7 @@ export default function ParentStudentJournalPage() {
                 onClick={() => setNoteDialog({ mode: "create" })}
               >
                 <Plus size={14} className="mr-1" />
-                Tulis Catatan
+                Tulis catatan
               </Button>
             </div>
             <NoteThread

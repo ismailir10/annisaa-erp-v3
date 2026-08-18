@@ -23,7 +23,7 @@ export type ParentMoreItem = {
  * Overflow destinations for the parent bottom nav. These are the surfaces whose
  * cadence is weekly (Perkembangan) or semester-ly (Rapor), plus account settings
  * — none of them earn a permanent slot in a 5-tab bar, and the home already
- * summarises it in its "Perkembangan minggu ini" section.
+ * summarises it in its "Perkembangan pekan ini" section.
  *
  * "Capaian" is deliberately absent from these labels: `voice.md`'s glossary
  * reserves that word for the per-element achievement level *inside* the page

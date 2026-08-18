@@ -26,7 +26,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 const WINDOW_MSG =
-  "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin minggu lalu sampai hari ini.";
+  "Tanggal di luar jangkauan. Hanya bisa diubah dari Senin pekan lalu sampai hari ini.";
 const FIXED_TODAY = "2026-08-13"; // Thursday in Asia/Jakarta
 const FLOOR = "2026-08-03"; // Monday of the previous week (exact floor)
 const BEFORE_FLOOR = "2026-08-02"; // Sunday immediately before the floor
