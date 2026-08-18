@@ -284,13 +284,13 @@ export default function RolesPage() {
     try {
       const res = await fetch("/api/roles");
       if (!res.ok) {
-        toast.error("Gagal memuat peran");
+        toast.error("Gagal memuat peran. Coba lagi sebentar.");
         return;
       }
       const json = await res.json();
       setRoles(json.data ?? []);
     } catch {
-      toast.error("Terjadi kesalahan");
+      toast.error("Gagal memuat peran. Periksa koneksi lalu coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -349,14 +349,14 @@ export default function RolesPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menyimpan");
+        toast.error(err.error || "Gagal menyimpan peran. Periksa kolom yang ditandai.");
         return;
       }
       toast.success(editTarget ? "Peran diperbarui" : "Peran dibuat");
       setDialogOpen(false);
       fetchRoles();
     } catch {
-      toast.error("Terjadi kesalahan");
+      toast.error("Gagal menyimpan peran. Periksa koneksi lalu coba lagi.");
     } finally {
       setSaving(false);
     }
@@ -371,12 +371,12 @@ export default function RolesPage() {
         `/api/roles/${deleteTarget.id}`,
         { method: "DELETE" },
       ).catch((error) => {
-        toast.error("Terjadi kesalahan");
+        toast.error("Gagal menghapus peran. Periksa koneksi lalu coba lagi.");
         throw error;
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        const message = err.error || "Gagal menghapus";
+        const message = err.error || "Gagal menghapus peran. Coba lagi.";
         toast.error(message);
         throw new Error(message);
       }

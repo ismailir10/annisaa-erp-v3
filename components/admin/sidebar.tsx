@@ -160,7 +160,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
                   className="rounded-lg"
                 />
               </div>
-              <TalibWordmark size="md" showSublabel className="flex-1 min-w-0" />
+              <TalibWordmark size="md" showSublabel tone="onDark" className="flex-1 min-w-0" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

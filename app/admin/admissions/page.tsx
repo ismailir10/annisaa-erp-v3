@@ -147,6 +147,10 @@ const NEXT_STATUS: Record<string, { status: string; label: string } | undefined>
 // Terminal states — hide "Batalkan" when already at one of these.
 const TERMINAL_STATUSES = new Set(["CANCELLED"]);
 
+export function canConvertAdmissionToStudent(status: string) {
+  return status === "ADMITTED";
+}
+
 // ------------------------------------------------------------------
 // Form body (shared between Dialog on desktop and Sheet on mobile)
 // ------------------------------------------------------------------
@@ -599,7 +603,7 @@ export default function AdmissionsPage() {
       }
     }
     const d = await res.json().catch(() => ({}));
-    toast.error(d.error || "Gagal konversi");
+    toast.error(d.error || "Gagal mengonversi pendaftaran. Coba lagi.");
   }
 
   // Cycle A: "Kirim Formulir" — invite the parent to complete the rich
@@ -661,7 +665,7 @@ export default function AdmissionsPage() {
       fetchAdmissions(); fetchStats();
     } else {
       const d = await res.json();
-      toast.error(d.error || "Gagal");
+      toast.error(d.error || "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
     }
     setSaving(false);
   }
@@ -857,7 +861,7 @@ export default function AdmissionsPage() {
             onClick: () => advanceStatus(a),
           });
         }
-        if (!TERMINAL_STATUSES.has(a.status)) {
+        if (canConvertAdmissionToStudent(a.status)) {
           extras.push({
             label: "Konversi ke Siswa",
             icon: <UserPlus size={14} />,

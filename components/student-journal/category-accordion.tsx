@@ -168,7 +168,7 @@ export function CategoryAccordion({
       <EmptyState
         icon={BookOpen}
         title="Belum ada kategori"
-        description="Tambahkan kategori pertama untuk mulai menyusun template Buku Penghubung."
+        description="Tambahkan kategori pertama untuk mulai menyusun templat Buku Penghubung."
       />
     );
   }

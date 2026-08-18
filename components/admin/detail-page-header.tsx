@@ -18,27 +18,31 @@ export function DetailPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6">
+    <div className="mb-section min-w-0">
       <Link
         href={backHref}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
+        className="mb-field inline-flex items-center gap-1.5 text-small text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft size={14} aria-hidden="true" />
         {backLabel}
       </Link>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex min-w-0 flex-col gap-field sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h1 className="text-h1 font-bold tracking-tight text-foreground">
               {title}
             </h1>
             {badge}
           </div>
           {description && (
-            <p className="text-body text-muted-foreground mt-0.5">{description}</p>
+            <p className="mt-1 text-body text-muted-foreground">{description}</p>
           )}
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

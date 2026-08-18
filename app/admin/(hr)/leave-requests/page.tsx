@@ -269,7 +269,7 @@ export default function AdminLeavePage() {
       fetchStats();
     } else {
       const d = await res.json();
-      toast.error(d.error || "Gagal memproses");
+      toast.error(d.error || "Gagal memproses pengajuan cuti. Coba lagi.");
     }
     setReviewing(false);
   }

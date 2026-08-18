@@ -93,7 +93,7 @@ export default function SalaryComponentsPage() {
       fetchComponents();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan");
+      toast.error(data.error || "Gagal menyimpan komponen gaji. Periksa kolom yang ditandai.");
     }
     setSaving(false);
   }
@@ -106,7 +106,7 @@ export default function SalaryComponentsPage() {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Gagal memperbarui komponen");
+      toast.error(data.error || "Gagal memperbarui komponen gaji. Coba lagi.");
       return;
     }
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");

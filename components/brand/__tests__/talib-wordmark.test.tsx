@@ -22,4 +22,10 @@ describe("TalibWordmark", () => {
     const { container } = render(<TalibWordmark size="lg" />);
     expect(container.firstChild).toHaveClass("text-2xl");
   });
+
+  it("applies dark-surface tone classes", () => {
+    const { container } = render(<TalibWordmark tone="onDark" />);
+    expect(container.firstChild).toHaveClass("text-white");
+    expect(screen.getByText(/by An Nisaa' Sekolahku/)).toHaveClass("text-white/70");
+  });
 });

@@ -34,6 +34,39 @@ test.describe("Branding — Talib wordmark", () => {
     await page.waitForURL("**/admin", { timeout: 15_000 });
     await expect(page.getByText("Talib", { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/by An Nisaa' Sekolahku/).first()).toBeVisible();
+
+    const contrast = await page
+      .locator('[data-sidebar="sidebar"]')
+      .getByText("Talib", { exact: true })
+      .first()
+      .evaluate((wordmark) => {
+        function parseRgb(value: string): [number, number, number] {
+          const channels = value.match(/\d+(\.\d+)?/g)?.map(Number).slice(0, 3);
+          if (!channels || channels.length < 3) {
+            throw new Error(`Unable to parse CSS color: ${value}`);
+          }
+          return [channels[0], channels[1], channels[2]];
+        }
+
+        function relativeLuminance([r, g, b]: [number, number, number]) {
+          const [rs, gs, bs] = [r, g, b].map((channel) => {
+            const v = channel / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+        }
+
+        const sidebar = wordmark.closest('[data-sidebar="sidebar"]');
+        if (!sidebar) throw new Error("Admin sidebar not found");
+
+        const foreground = parseRgb(getComputedStyle(wordmark).color);
+        const background = parseRgb(getComputedStyle(sidebar).backgroundColor);
+        const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+        const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+        return (lighter + 0.05) / (darker + 0.05);
+      });
+
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
   });
 
   test("teacher portal header shows Talib brand label", async ({ page }) => {

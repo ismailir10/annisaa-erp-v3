@@ -382,7 +382,7 @@ export default function AcademicPage() {
           pagination={programPagination}
           defaultSort={{ field: "name", order: "asc" }}
           emptyTitle="Belum ada program"
-          emptyDescription="Tambahkan program pendidikan"
+          emptyDescription="Tambahkan program pendidikan untuk mengelompokkan kelas dan biaya."
         />
       </div>
 
@@ -421,7 +421,7 @@ export default function AcademicPage() {
           pagination={yearPagination}
           defaultSort={{ field: "name", order: "desc" }}
           emptyTitle="Belum ada tahun ajaran"
-          emptyDescription="Tambahkan tahun ajaran"
+          emptyDescription="Tambahkan tahun ajaran untuk membuka periode kelas, semester, dan rapor."
         />
       </div>
 

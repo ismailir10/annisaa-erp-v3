@@ -66,7 +66,7 @@ export default function CampusesPage() {
       fetchCampuses(statusFilter);
     } else {
       const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Gagal mengaktifkan");
+      toast.error(data.error || "Gagal mengaktifkan kampus. Coba lagi.");
     }
   }
 
@@ -103,7 +103,7 @@ export default function CampusesPage() {
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan");
+      toast.error(data.error || "Gagal menyimpan kampus. Periksa kolom yang ditandai.");
     }
     setSaving(false);
   }
@@ -117,12 +117,12 @@ export default function CampusesPage() {
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menonaktifkan");
+      toast.error(data.error || "Gagal menonaktifkan kampus. Coba lagi.");
     }
   }
 
   function getCurrentLocation() {
-    if (!navigator.geolocation) { toast.error("GPS tidak tersedia"); return; }
+    if (!navigator.geolocation) { toast.error("GPS tidak tersedia di perangkat ini. Isi koordinat manual."); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setForm((f) => ({
@@ -132,7 +132,7 @@ export default function CampusesPage() {
         }));
         toast.success("Lokasi diperoleh");
       },
-      () => toast.error("Gagal mendapatkan lokasi")
+      () => toast.error("Gagal mendapatkan lokasi. Izinkan akses lokasi atau isi koordinat manual.")
     );
   }
 
@@ -223,19 +223,19 @@ export default function CampusesPage() {
                   <div className="flex gap-1">
                     {statusFilter === "ACTIVE" ? (
                       <>
-                        <button onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="text-muted-foreground hover:text-foreground">
                           <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                        </Button>
+                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                           <Trash2 size={14} />
-                        </button>
+                        </Button>
                       </>
                     ) : (
                       // FIND-004: inactive rows expose a single reactivate
                       // action; edit + delete don't apply to deactivated rows.
-                      <button onClick={() => handleReactivate(c)} aria-label={`Aktifkan kembali ${c.name}`} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors">
+                      <Button type="button" size="icon-sm" variant="ghost" onClick={() => handleReactivate(c)} aria-label={`Aktifkan kembali ${c.name}`} className="text-muted-foreground hover:text-primary">
                         <RotateCcw size={14} />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

@@ -822,13 +822,16 @@ export default function StudentDetailPage() {
                       placeholder="Nilai"
                       aria-label="Nilai field"
                     />
-                    <button
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
                       onClick={() => removeMetadataRow(row.id)}
                       aria-label={`Hapus field ${row.key || "tanpa nama"}`}
-                      className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -865,8 +868,8 @@ export default function StudentDetailPage() {
                         {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
                       </div>
                       <div className="flex gap-1">
-                        <button onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="p-1.5 rounded hover:bg-accent text-muted-foreground"><Pencil size={12} /></button>
-                        <button onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></button>
+                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="text-muted-foreground"><Pencil size={12} /></Button>
+                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></Button>
                       </div>
                     </div>
                     <div className="mt-1 space-y-0.5">
