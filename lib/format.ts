@@ -7,6 +7,57 @@ export function formatRupiah(amount: number | string): string {
 }
 
 /**
+ * Same value as `formatRupiah`, split so a caller can style the "Rp" apart
+ * from the digits. `<Amount>` renders the symbol smaller and muted, which
+ * stops it competing with the number for attention.
+ */
+export function formatRupiahParts(amount: number | string): {
+  symbol: string;
+  digits: string;
+} {
+  return {
+    symbol: "Rp",
+    digits: Math.round(Number(amount)).toLocaleString("id-ID"),
+  };
+}
+
+/**
+ * Indonesian month names keyed by the English 3-letter abbreviation that
+ * `Invoice.periodLabel` is generated with ("Apr-2026", "Aug-2025").
+ */
+const PERIOD_MONTHS: Record<string, string> = {
+  jan: "Januari",
+  feb: "Februari",
+  mar: "Maret",
+  apr: "April",
+  may: "Mei",
+  jun: "Juni",
+  jul: "Juli",
+  aug: "Agustus",
+  sep: "September",
+  oct: "Oktober",
+  nov: "November",
+  dec: "Desember",
+};
+
+/**
+ * Render an invoice period the way a parent reads it.
+ *
+ * `Invoice.periodLabel` is a freeform string written at generation time and
+ * historic rows carry English abbreviations — "Apr-2026", "Aug-2025" — which
+ * then sit directly above Indonesian dates ("Dibayar 10 Agustus") in the
+ * parent portal. Normalise on read so the portal is consistent without a
+ * backfill; anything that does not match the `Mon-YYYY` shape (ad-hoc labels
+ * like "PreviewVerify PR493 D") passes through untouched.
+ */
+export function formatInvoicePeriod(periodLabel: string): string {
+  const match = /^([A-Za-z]{3})-(\d{4})$/.exec(periodLabel.trim());
+  if (!match) return periodLabel;
+  const month = PERIOD_MONTHS[match[1]!.toLowerCase()];
+  return month ? `${month} ${match[2]}` : periodLabel;
+}
+
+/**
  * Mask a bank account number, revealing only the last 4 digits.
  * Use everywhere a bank account is rendered to the employee — slip detail,
  * profile page, payroll receipt, PDF. Single source of truth.

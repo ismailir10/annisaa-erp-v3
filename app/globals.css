@@ -293,11 +293,32 @@
   }
 }
 
-/* Monospace utility for currency amounts */
+/*
+ * Monospace utility for tabular DATA — kode, NIK, rekening, jam, counters.
+ * Admin + HR surfaces read as a ledger and that is correct there.
+ *
+ * NOT for parent-facing money: JetBrains Mono is a code face, and at display
+ * size in bold it reads as terminal output rather than a school bill. Parent
+ * money uses `.font-amount` below.
+ */
 .font-currency {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/*
+ * Money utility for PARENT-facing amounts. Brand sans, so a bill reads like
+ * the rest of the app; `tabular-nums` still holds the digit columns so a
+ * stacked list of amounts aligns without a monospace face.
+ *
+ * `lining-nums` is explicit: Plus Jakarta Sans defaults to lining figures
+ * today, but stating it keeps the amount safe if the font stack ever gains a
+ * face with old-style figures as its default.
+ */
+.font-amount {
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Safe area for mobile devices (iPhone home indicator) */

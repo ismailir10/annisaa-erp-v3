@@ -84,7 +84,7 @@ describe("ParentStudentJournalPage", () => {
         "Sekolah belum menambahkan indikator harian untuk Jurnal. Hubungi admin sekolah untuk informasi lebih lanjut.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Di Rumah" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Di rumah" })).not.toBeInTheDocument();
   });
 
   it("renders the Di Rumah tab and its indicators when homeCategories is non-empty, even with zero entries and notes", async () => {
@@ -93,7 +93,7 @@ describe("ParentStudentJournalPage", () => {
     render(<ParentStudentJournalPage />);
 
     // Tabs render instead of the EmptyState.
-    await screen.findByRole("tab", { name: "Di Rumah" });
+    await screen.findByRole("tab", { name: "Di rumah" });
     expect(screen.queryByText("Jurnal belum diatur sekolah")).not.toBeInTheDocument();
 
     // The "Di Rumah" panel (active via ?view=home) shows the template's

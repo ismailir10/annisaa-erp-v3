@@ -9,11 +9,12 @@ import {
   LineChart,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Amount } from "@/components/portal/amount";
+import { SectionLabel } from "@/components/portal/section-label";
 import { KidCard, type KidCardDay, type KidCardFoot } from "@/components/parent/kid-card";
 import { getParentOutstandingForStudents, getParentWithChildren } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
 import {
-  formatRupiah,
   formatDate,
   formatCurriculumElement,
   formatLearningCenter,
@@ -75,7 +76,7 @@ function attendanceToDayStatus(
 function buildKidFoot(
   todayStatus: string | undefined,
   weekCounts: { hadir: number; sakit: number; alpa: number; izin: number; logged: number },
-  latestNote: { body: string; createdAt: Date } | null,
+  latestNote: { body: string; createdAt: Date; date: string; authorRole: string } | null,
   now: Date,
 ): KidCardFoot {
   if (todayStatus === "SICK") {
@@ -91,9 +92,14 @@ function buildKidFoot(
     const ageMs = now.getTime() - latestNote.createdAt.getTime();
     const ageDays = ageMs / (1000 * 60 * 60 * 24);
     if (ageDays <= 14) {
+      // Attribute the quote. An unattributed sentence in quotation marks on
+      // the home screen gave a wali no way to tell a teacher's observation
+      // from their own note typed last week.
       const trimmed = latestNote.body.trim();
-      const excerpt = trimmed.length > 56 ? `${trimmed.slice(0, 53)}…` : trimmed;
-      return { tone: "info", icon: "message-circle", text: `"${excerpt}"` };
+      const excerpt = trimmed.length > 44 ? `${trimmed.slice(0, 41)}…` : trimmed;
+      const who = latestNote.authorRole === "TEACHER" ? "Ustadzah" : "Anda";
+      const when = formatDate(latestNote.date, { day: "numeric", month: "short" });
+      return { tone: "info", icon: "message-circle", text: `${who} · ${when} · "${excerpt}"` };
     }
   }
   if (weekCounts.hadir > 0 && weekCounts.sakit === 0 && weekCounts.alpa === 0 && weekCounts.izin === 0) {
@@ -109,7 +115,7 @@ function buildKidFoot(
       weekCounts.sakit + weekCounts.alpa > 0 ? "warn" : "info";
     return { tone, icon: "check", text: `${parts.join(" · ")} pekan ini` };
   }
-  return { tone: "info", icon: "check", text: "Pekan ini belum tercatat" };
+  return { tone: "info", icon: "calendar-clock", text: "Pekan ini belum tercatat" };
 }
 
 export default async function ParentDashboard() {
@@ -157,10 +163,10 @@ export default async function ParentDashboard() {
         status: "ACTIVE",
       },
       orderBy: { createdAt: "desc" },
-      select: { studentId: true, body: true, createdAt: true },
+      select: { studentId: true, body: true, createdAt: true, date: true, authorRole: true },
     }),
     getParentOutstandingForStudents(kidIds, session.tenantId),
-    // Per-kid perkembangan rollup — drives the "Perkembangan minggu ini"
+    // Per-kid perkembangan rollup — drives the "Perkembangan pekan ini"
     // card section below. Fan out across children in parallel; the
     // loader itself is two cheap queries per kid (semester + entries
     // joined on indicator.objective.semesterId), so the round-trip
@@ -183,10 +189,18 @@ export default async function ParentDashboard() {
   }
 
   // Latest note per kid (notes already ordered desc by createdAt)
-  const latestNoteByKid = new Map<string, { body: string; createdAt: Date }>();
+  const latestNoteByKid = new Map<
+    string,
+    { body: string; createdAt: Date; date: string; authorRole: string }
+  >();
   for (const n of latestNotes) {
     if (!latestNoteByKid.has(n.studentId)) {
-      latestNoteByKid.set(n.studentId, { body: n.body, createdAt: n.createdAt });
+      latestNoteByKid.set(n.studentId, {
+        body: n.body,
+        createdAt: n.createdAt,
+        date: n.date,
+        authorRole: n.authorRole,
+      });
     }
   }
 
@@ -255,9 +269,7 @@ export default async function ParentDashboard() {
       </header>
 
       <section>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Anak Anda
-        </p>
+        <SectionLabel>Anak Anda</SectionLabel>
         <div className="space-y-3">
           {kids.map((k) => (
             <KidCard
@@ -289,9 +301,7 @@ export default async function ParentDashboard() {
         if (perkembanganKids.length === 0) return null;
         return (
           <section data-testid="home-perkembangan-section">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Perkembangan minggu ini
-            </p>
+            <SectionLabel>Perkembangan pekan ini</SectionLabel>
             <div className="space-y-3">
               {perkembanganKids.map(({ child, data }) => {
                 const displayName =
@@ -357,27 +367,23 @@ export default async function ParentDashboard() {
       <section>
         {unpaidTotal > 0 ? (
           <>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Tagihan
-            </p>
+            <SectionLabel>Tagihan</SectionLabel>
             <Link
               href="/parent/invoices"
               className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40 md:p-6"
             >
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-lg bg-status-absent-subtle text-status-absent-text">
+                <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
                   <Receipt size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-currency text-lg sm:text-xl font-semibold leading-none tracking-tight text-status-absent-text">
-                    {formatRupiah(unpaidTotal)}
-                  </p>
+                  <Amount value={unpaidTotal} size="row" />
                   <p className="mt-1 text-xs text-muted-foreground">
                     {unpaidCount} tagihan belum dibayar
                     {nearestDue ? (
                       <>
                         {" · jatuh tempo terdekat "}
-                        {formatDate(nearestDue, { day: "numeric", month: "long" })}
+                        {formatDate(nearestDue, { day: "numeric", month: "long", year: "numeric" })}
                       </>
                     ) : null}
                   </p>
@@ -388,9 +394,7 @@ export default async function ParentDashboard() {
           </>
         ) : (
           <>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Pekan ini
-            </p>
+            <SectionLabel>Pekan ini</SectionLabel>
             <div className="rounded-xl border border-celebration-gold bg-celebration-gold-subtle p-4 md:p-6">
               <div className="flex items-center gap-3">
                 <div className="grid size-10 place-items-center rounded-lg bg-celebration-gold-subtle text-celebration-gold-text">

@@ -188,7 +188,7 @@ describe("InvoicesClient (cycle-4)", () => {
 
       render(<InvoicesClient data={longInvoices} />);
 
-      const search = screen.getByPlaceholderText("Cari periode atau nomor tagihan...");
+      const search = screen.getByPlaceholderText("Cari periode atau nomor tagihan");
       expect(search).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: "Filter status" })).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: "Urutkan tagihan" })).toBeInTheDocument();
@@ -197,7 +197,7 @@ describe("InvoicesClient (cycle-4)", () => {
 
       expect(screen.getByText("Tidak ada tagihan sesuai filter")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Atur Ulang" }));
+      await user.click(screen.getByRole("button", { name: "Atur ulang" }));
 
       expect(search).toHaveValue("");
       expect(screen.getByText("Periode 1")).toBeInTheDocument();

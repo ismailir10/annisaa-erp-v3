@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ChevronRight, Thermometer, BookHeart, MessageCircle } from "lucide-react";
+import { Check, ChevronRight, Thermometer, BookHeart, MessageCircle, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,8 +32,8 @@ export type KidCardFootTone = "ok" | "warn" | "info";
 
 export type KidCardFoot = {
   tone: KidCardFootTone;
-  /** Lucide icon variant: "check" | "thermometer" | "book-heart" | "message-circle". */
-  icon: "check" | "thermometer" | "book-heart" | "message-circle";
+  /** Lucide icon variant. */
+  icon: "check" | "thermometer" | "book-heart" | "message-circle" | "calendar-clock";
   text: string;
 };
 
@@ -50,6 +50,9 @@ const FOOT_ICON: Record<KidCardFoot["icon"], typeof Check> = {
   thermometer: Thermometer,
   "book-heart": BookHeart,
   "message-circle": MessageCircle,
+  // "Pekan ini belum tercatat" used to ship a tick, which reads as a
+  // confirmation of the exact thing the sentence says has not happened.
+  "calendar-clock": CalendarClock,
 };
 
 const FOOT_TONE_CLASS: Record<KidCardFootTone, string> = {
@@ -121,12 +124,13 @@ export function KidCard({ id, name, className, week, foot }: KidCardProps) {
         ))}
       </div>
 
-      {/* The attendance page shows these same glyphs with a key underneath;
-          the home screen — which is where a parent lands first — showed them
-          bare. A first-time reader had no way to decode A / S / I. */}
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        ✓ Hadir · S Sakit · A Alpa · I Izin
-      </p>
+      {/* The key only earns its space when a glyph on this strip needs
+          decoding. A week of plain ticks does not. */}
+      {week.some((d) => d.status === "sick" || d.status === "absent" || d.status === "leave") ? (
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          S Sakit · A Alpa · I Izin
+        </p>
+      ) : null}
 
       <div className="mt-2 flex items-center gap-1.5 border-t border-border pt-2">
         <FootIcon size={12} className={cn("shrink-0", FOOT_TONE_CLASS[foot.tone])} />

@@ -12,7 +12,9 @@ import {
   Landmark,
   type LucideIcon,
 } from "lucide-react";
-import { formatRupiah, formatDate } from "@/lib/format";
+import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
+import { Amount, AmountStatus } from "@/components/portal/amount";
+import { SectionLabel } from "@/components/portal/section-label";
 import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -120,7 +122,15 @@ export function InvoiceDetailSheet({
   if (loading || !invoice) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        {/*
+          `data-[side=right]:w-full` is load-bearing. SheetContent's base class
+          sets `data-[side=right]:w-3/4`, and a data-attribute variant outranks
+          a plain `w-full` from the call site — so this sheet rendered at 75%
+          of the viewport on a phone, leaving a ~95px dead gutter and wrapping
+          "Transfer bank (Virtual Account)" onto two lines. Same reason the
+          desktop cap has to be written as `data-[side=right]:sm:max-w-md`.
+        */}
+        <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           <div className="p-card">
             <InvoiceDetailSkeleton />
           </div>
@@ -145,14 +155,14 @@ export function InvoiceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        {/* Frame 6/7 spec C1 — drag-handle bar centered at top */}
-        <div className="flex justify-center pt-2">
-          <div className="h-1 w-9 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-        </div>
+      <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+        {/* The Frame 6/7 drag-handle bar is gone: this is a side sheet, not a
+            bottom sheet, so the handle advertised a drag gesture that does not
+            exist. The Lainnya overflow surface is a real bottom Drawer and
+            keeps its handle. */}
         <SheetHeader className="border-b border-border pb-3">
           <SheetTitle className="text-sm font-medium text-foreground">
-            Tagihan {invoice.periodLabel}
+            Tagihan {formatInvoicePeriod(invoice.periodLabel)}
             <span className="ml-1 text-muted-foreground">· {childName}</span>
           </SheetTitle>
           <p className="text-xs text-muted-foreground">{invoice.invoiceNumber}</p>
@@ -161,56 +171,54 @@ export function InvoiceDetailSheet({
         <div className="px-card pb-card pt-4 space-y-6">
           {/* Focal amount card */}
           <div className="rounded-xl border border-border bg-card p-4 md:p-6">
-            <p
-              className={`font-currency text-2xl sm:text-display font-bold leading-none tracking-tight ${isPaid ? "text-status-present-text" : isPartiallyPaid ? "text-status-late-text" : "text-status-absent-text"}`}
-            >
-              {formatRupiah(focalAmount)}
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <Amount
+              value={focalAmount}
+              size="display"
+              tone={isPaid ? "paid" : "neutral"}
+            />
+            {/* Status is a chip beside the figure, not a second uppercase shout
+                on top of a coloured number. Sentence case per voice.md. */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
               {isPaid ? (
                 <>
-                  <span className="text-xs font-bold uppercase tracking-wider text-status-present-text">
-                    Lunas
-                  </span>
+                  <AmountStatus tone="paid">Lunas</AmountStatus>
                   {invoice.paidAt ? (
-                    <> · dibayar {formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}</>
+                    <span>
+                      Dibayar{" "}
+                      {formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
+                    </span>
                   ) : null}
                 </>
               ) : isCancelled ? (
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Dibatalkan
-                </span>
+                <AmountStatus tone="cancelled">Dibatalkan</AmountStatus>
               ) : isPartiallyPaid ? (
                 <>
-                  <span className="text-xs font-bold uppercase tracking-wider text-status-late-text">
-                    Dibayar Sebagian
+                  <AmountStatus tone="partial">Dibayar sebagian</AmountStatus>
+                  <span>
+                    Sudah dibayar <b className="text-foreground">{formatRupiah(invoice.totalPaid)}</b> · sisa
+                    jatuh tempo{" "}
+                    <b className="text-foreground">
+                      {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
+                    </b>
                   </span>
-                  {" · sudah dibayar "}
-                  <b className="text-foreground">{formatRupiah(invoice.totalPaid)}</b>
-                  {" · sisa jatuh tempo "}
-                  <b className="text-foreground">
-                    {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
-                  </b>
                 </>
               ) : (
                 <>
-                  <span className="text-xs font-bold uppercase tracking-wider text-status-absent-text">
-                    Belum Dibayar
+                  <AmountStatus tone="due">Belum dibayar</AmountStatus>
+                  <span>
+                    Jatuh tempo{" "}
+                    <b className="text-foreground">
+                      {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
+                    </b>
                   </span>
-                  {" · jatuh tempo "}
-                  <b className="text-foreground">
-                    {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
-                  </b>
                 </>
               )}
-            </p>
+            </div>
           </div>
 
           {/* Rincian */}
           <section>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Rincian
-            </p>
+            <SectionLabel>Rincian</SectionLabel>
             <ul>
               {invoice.lines.map((line) => (
                 <li
@@ -226,9 +234,7 @@ export function InvoiceDetailSheet({
                       </p>
                     ) : null}
                   </div>
-                  <span className="font-currency text-sm font-medium tabular-nums text-foreground">
-                    {formatRupiah(line.finalAmount)}
-                  </span>
+                  <Amount value={line.finalAmount} size="line" className="shrink-0" />
                 </li>
               ))}
             </ul>
@@ -237,9 +243,7 @@ export function InvoiceDetailSheet({
           {/* Cara bayar — unpaid only, single Xendit card */}
           {isPayable ? (
             <section>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Cara bayar
-              </p>
+              <SectionLabel>Cara bayar</SectionLabel>
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -259,9 +263,7 @@ export function InvoiceDetailSheet({
           {/* Bukti pembayaran — paid only */}
           {isPaid ? (
             <section>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Bukti pembayaran
-              </p>
+              <SectionLabel>Bukti pembayaran</SectionLabel>
               <a
                 href={`/api/guardian/invoices/${invoice.id}/pdf`}
                 target="_blank"
@@ -287,9 +289,7 @@ export function InvoiceDetailSheet({
           {/* Payment history (paid invoices with multiple payment events) */}
           {invoice.payments.length > 0 ? (
             <section>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Riwayat pembayaran
-              </p>
+              <SectionLabel>Riwayat pembayaran</SectionLabel>
               <ul className="space-y-2">
                 {invoice.payments.map((p) => {
                   const Icon = METHOD_ICONS[p.method] ?? Building2;
@@ -310,9 +310,7 @@ export function InvoiceDetailSheet({
                           {p.reference ? ` · ${p.reference}` : ""}
                         </p>
                       </div>
-                      <span className="font-currency text-sm font-bold tabular-nums text-status-present-text">
-                        {formatRupiah(p.amount)}
-                      </span>
+                      <Amount value={p.amount} size="row" tone="paid" className="shrink-0" />
                     </li>
                   );
                 })}
