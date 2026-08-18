@@ -31,7 +31,7 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 - Task 1: Fix admin shell contrast and landmark semantics — admin layout/sidebar plus brand and E2E regressions — applied the existing on-dark wordmark tone and reduced the shell to one populated main landmark.
 - Task 2: Normalize shared admin visual tokens — shared headers, stat card, and attendance chart — tokenized spacing/typography, enabled narrow-width action wrapping, stabilized numerals, and routed chart series through semantic CSS variables.
 - Task 3: Replace undersized admin icon controls — campus, student, employee, and payroll detail controls — replaced raw buttons with accessible Shadcn icon buttons and Lucide month chevrons while preserving destructive visual cues.
-- Task 4: Tighten admin workflow and recovery copy — admissions, settings, HR, academic-year, and student-journal surfaces — gated conversion to accepted applications and replaced scoped generic messages with canonical, actionable Indonesian copy.
+- Task 4: Tighten admin workflow and recovery copy — admissions, settings, HR, academic-year, student-journal surfaces, and admin JTBD — gated conversion to accepted applications, replaced scoped generic messages with canonical actionable Indonesian copy, and updated the UAT job contract.
 
 ## Verification
 
@@ -39,5 +39,13 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 - Task 2: gates passed (`npm run build` + full `npx vitest run`: 301 files passed, 2 skipped; 2,937 tests passed, 42 todo); ESLint passed for all four files; staged-diff review confirmed Tailwind tokens and `ChartContainer` CSS-variable wiring. Cross-checked `design-system.html` spacing, typography, status colors, and chart-adjacent token rules.
 - Task 3: gates passed (`npm run build` + full `npx vitest run`: 301 files passed, 2 skipped; 2,937 tests passed, 42 todo); scoped ESLint passed with only pre-existing legacy warnings; staged-diff review clean. Icon targets use `size="icon-sm"` (28px), above the 24px WCAG target floor, with preserved accessible names.
 - Task 4: gates passed (`npm run build` + full `npx vitest run`: 301 files passed, 2 skipped; 2,937 tests passed, 42 todo); focused admissions, roles, journal, and category tests passed; staged-diff review clean. Admin audience, glossary terms, actionable errors, and empty-state next steps cross-checked against `voice.md` and `design-system.html` §18.
+- End-of-cycle gate: `npm run build` passed; full `npx vitest run` passed (301 files passed, 2 skipped; 2,937 tests passed, 42 todo).
+- Playwright: local run deferred to CI because `playwright.config.ts` refused the configured remote Supabase `DATABASE_URL` before tests executed. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+- Local browser smoke: deferred with Playwright to avoid mutating the configured remote database. Preview verification will cover admin shell/dashboard, admissions, campuses/monthly attendance, and student/employee/payroll detail controls on the Vercel preview.
 
 ## Ship Notes
+
+- Migrations: none.
+- Environment variables: none.
+- Preview smoke: verify sidebar wordmark contrast and one main landmark; resize admin headers to 320px and 200% zoom; confirm admissions conversion is absent before `ADMITTED` and present after; keyboard-check campus, student, employee, and payroll icon controls; review dashboard chart colors and scoped Indonesian copy.
+- Rollback: revert the feature PR. No persistent data or schema changes require cleanup.
