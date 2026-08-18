@@ -43,6 +43,7 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 - Playwright: local run deferred to CI because `playwright.config.ts` refused the configured remote Supabase `DATABASE_URL` before tests executed. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Local browser smoke: deferred with Playwright to avoid mutating the configured remote database. Preview verification will cover admin shell/dashboard, admissions, campuses/monthly attendance, and student/employee/payroll detail controls on the Vercel preview.
 - Preview verification iteration 1 (PR #498): shell/dashboard passed at desktop and 320px reflow with one main landmark, 14.23:1 wordmark contrast, tabular values, no horizontal overflow, and no console warnings/errors; admissions keyboard menu hid conversion for `INQUIRY` and showed it for `ADMITTED`; campus, student, employee, and payroll icon controls exposed accessible names with 28px targets; `Rapor`, `Templat`, and journal empty-state guidance were correct. Found one minor copy miss on monthly attendance (`Pilih sel untuk menimpa kehadiran`); changed it to the approved `Pilih sel untuk menimpa status kehadiran` and added an E2E assertion. Cross-checked against `design-system.html` and the scoped `better-*` guidance.
+- Preview verification iteration 2 (PR #498): clean. The redeployed monthly-attendance page displayed the approved wording exactly and emitted no console warnings/errors. The final documentation-only verification commit does not change runtime output.
 
 ## Ship Notes
 
