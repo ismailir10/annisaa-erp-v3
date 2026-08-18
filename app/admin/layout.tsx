@@ -2,7 +2,7 @@ import { getSession, isAdminRole, homePathForRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
 export default async function AdminLayout({
@@ -17,7 +17,7 @@ export default async function AdminLayout({
   return (
     <SidebarProvider>
       <AppSidebar permissions={session.permissions} />
-      <SidebarInset>
+      <div className="relative flex w-full flex-1 flex-col bg-background">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 !h-4" />
@@ -31,7 +31,7 @@ export default async function AdminLayout({
           </div>
         </header>
         <main className="px-page-x py-page-y">{children}</main>
-      </SidebarInset>
+      </div>
     </SidebarProvider>
   );
 }
