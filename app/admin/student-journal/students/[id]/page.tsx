@@ -130,7 +130,7 @@ export default function StudentJournalDetailPage({
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error(err.error || "Gagal memuat data jurnal");
+          toast.error(err.error || "Gagal memuat data jurnal. Coba lagi sebentar.");
           return;
         }
         const json = await res.json();
@@ -138,7 +138,7 @@ export default function StudentJournalDetailPage({
         setWeekData(data);
         // Attempt to get student name from the response (or fetch separately)
       } catch {
-        toast.error("Gagal memuat data jurnal");
+        toast.error("Gagal memuat data jurnal. Coba lagi sebentar.");
       } finally {
         setLoading(false);
       }
@@ -174,13 +174,13 @@ export default function StudentJournalDetailPage({
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal memuat audit");
+        toast.error(err.error || "Gagal memuat riwayat perubahan. Coba lagi sebentar.");
         return;
       }
       const json = await res.json();
       setAuditRows(json.data ?? []);
     } catch {
-      toast.error("Gagal memuat audit");
+      toast.error("Gagal memuat riwayat perubahan. Coba lagi sebentar.");
     } finally {
       setAuditLoading(false);
     }
@@ -240,13 +240,13 @@ export default function StudentJournalDetailPage({
       .then(async (res) => {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error(err.error || "Gagal menyimpan perubahan");
+          toast.error(err.error || "Gagal menyimpan perubahan. Data dikembalikan ke kondisi sebelumnya.");
           // Revert optimistic update
           fetchWeekData(ws);
         }
       })
       .catch(() => {
-        toast.error("Gagal menyimpan perubahan");
+        toast.error("Gagal menyimpan perubahan. Data dikembalikan ke kondisi sebelumnya.");
         fetchWeekData(ws);
       });
   }

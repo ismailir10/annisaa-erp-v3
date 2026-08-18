@@ -66,7 +66,7 @@ export default function CampusesPage() {
       fetchCampuses(statusFilter);
     } else {
       const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Gagal mengaktifkan");
+      toast.error(data.error || "Gagal mengaktifkan kampus. Coba lagi.");
     }
   }
 
@@ -103,7 +103,7 @@ export default function CampusesPage() {
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan");
+      toast.error(data.error || "Gagal menyimpan kampus. Periksa kolom yang ditandai.");
     }
     setSaving(false);
   }
@@ -117,12 +117,12 @@ export default function CampusesPage() {
       fetchCampuses();
     } else {
       const data = await res.json();
-      toast.error(data.error || "Gagal menonaktifkan");
+      toast.error(data.error || "Gagal menonaktifkan kampus. Coba lagi.");
     }
   }
 
   function getCurrentLocation() {
-    if (!navigator.geolocation) { toast.error("GPS tidak tersedia"); return; }
+    if (!navigator.geolocation) { toast.error("GPS tidak tersedia di perangkat ini. Isi koordinat manual."); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setForm((f) => ({
@@ -132,7 +132,7 @@ export default function CampusesPage() {
         }));
         toast.success("Lokasi diperoleh");
       },
-      () => toast.error("Gagal mendapatkan lokasi")
+      () => toast.error("Gagal mendapatkan lokasi. Izinkan akses lokasi atau isi koordinat manual.")
     );
   }
 
