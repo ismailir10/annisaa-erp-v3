@@ -54,6 +54,7 @@ test.describe("Admin flows", () => {
   test("monthly attendance grid loads", async ({ page }) => {
     await page.goto("/admin/employee-attendance/monthly");
     await expect(page.locator("text=Kehadiran Bulanan")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Pilih sel untuk menimpa status kehadiran")).toBeVisible();
   });
 
   test("payroll list loads", async ({ page }) => {

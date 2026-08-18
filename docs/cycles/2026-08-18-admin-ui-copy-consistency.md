@@ -4,16 +4,16 @@
 The admin portal still has a high-impact shell contrast defect: the default dark Talib wordmark renders on the dark sidebar at roughly 1.23:1 contrast. A focused review of current `origin/staging` also confirmed duplicate main landmarks, shared header and dashboard token drift, undersized raw icon controls, a misleading admission conversion action, and several remaining non-actionable admin messages. This cycle fixes those systemic defects without expanding into legacy page, dialog, or table redesigns. The 2026-06-04 admin UAT report is older than 60 days and is treated as historical context only; current source independently confirms the admission-action issue.
 
 ## Spec
-- [ ] Admin sidebar wordmark uses its on-dark presentation and remains legible against the sidebar background.
-- [ ] Admin shell exposes exactly one `<main>` landmark without changing routing, authorization, or page layout.
-- [ ] Shared admin headers wrap actions safely at narrow widths and use Talib spacing and typography tokens from `design-system.html`.
-- [ ] Dashboard stat values use stable numeric typography and attendance chart colors come from semantic CSS variables, not hardcoded hex values.
-- [ ] Confirmed raw icon controls use the existing Shadcn `Button` variants, preserve accessible names, and meet the 24px WCAG target floor.
-- [ ] `Konversi ke Siswa` appears only for `ADMITTED` applications; earlier admission states do not offer an action the server will reject.
-- [ ] Remaining scoped admin errors identify the failed action and give a safe recovery step; selected empty states explain the next step.
-- [ ] User-facing terminology uses `Templat` and device-neutral `Pilih`; code identifiers, API paths, route segments, canonical Title Case labels, and `Ya, <Verb>` destructive labels remain unchanged.
-- [ ] No public API, database, schema, dependency, or route changes.
-- [ ] Non-goals: full detail-page recipe migration, legacy Dialog/Sheet migration, raw-table replacement, broad checkbox normalization, and whole-admin spacing redesign.
+- [x] Admin sidebar wordmark uses its on-dark presentation and remains legible against the sidebar background.
+- [x] Admin shell exposes exactly one `<main>` landmark without changing routing, authorization, or page layout.
+- [x] Shared admin headers wrap actions safely at narrow widths and use Talib spacing and typography tokens from `design-system.html`.
+- [x] Dashboard stat values use stable numeric typography and attendance chart colors come from semantic CSS variables, not hardcoded hex values.
+- [x] Confirmed raw icon controls use the existing Shadcn `Button` variants, preserve accessible names, and meet the 24px WCAG target floor.
+- [x] `Konversi ke Siswa` appears only for `ADMITTED` applications; earlier admission states do not offer an action the server will reject.
+- [x] Remaining scoped admin errors identify the failed action and give a safe recovery step; selected empty states explain the next step.
+- [x] User-facing terminology uses `Templat` and device-neutral `Pilih`; code identifiers, API paths, route segments, canonical Title Case labels, and `Ya, <Verb>` destructive labels remain unchanged.
+- [x] No public API, database, schema, dependency, or route changes.
+- [x] Non-goals: full detail-page recipe migration, legacy Dialog/Sheet migration, raw-table replacement, broad checkbox normalization, and whole-admin spacing redesign.
 
 ## Tasks
 - [x] **Task 1 — Fix admin shell contrast and landmark semantics** *(independent)*
@@ -42,6 +42,7 @@ The admin portal still has a high-impact shell contrast defect: the default dark
 - End-of-cycle gate: `npm run build` passed; full `npx vitest run` passed (301 files passed, 2 skipped; 2,937 tests passed, 42 todo).
 - Playwright: local run deferred to CI because `playwright.config.ts` refused the configured remote Supabase `DATABASE_URL` before tests executed. Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Local browser smoke: deferred with Playwright to avoid mutating the configured remote database. Preview verification will cover admin shell/dashboard, admissions, campuses/monthly attendance, and student/employee/payroll detail controls on the Vercel preview.
+- Preview verification iteration 1 (PR #498): shell/dashboard passed at desktop and 320px reflow with one main landmark, 14.23:1 wordmark contrast, tabular values, no horizontal overflow, and no console warnings/errors; admissions keyboard menu hid conversion for `INQUIRY` and showed it for `ADMITTED`; campus, student, employee, and payroll icon controls exposed accessible names with 28px targets; `Rapor`, `Templat`, and journal empty-state guidance were correct. Found one minor copy miss on monthly attendance (`Pilih sel untuk menimpa kehadiran`); changed it to the approved `Pilih sel untuk menimpa status kehadiran` and added an E2E assertion. Cross-checked against `design-system.html` and the scoped `better-*` guidance.
 
 ## Ship Notes
 
