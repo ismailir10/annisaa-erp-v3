@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { LogIn, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
+import { BackLink } from "@/components/portal/back-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -157,9 +158,11 @@ export function SessionRosterClient({
 
   return (
     <div>
+      <BackLink href="/teacher" label="Beranda" />
+
       <PageHeader
         title={className}
-        subtitle={`${formatDate(date)} • ${SLOT_LABEL[slot] ?? slot}`}
+        subtitle={`${formatDate(date)} · ${SLOT_LABEL[slot] ?? slot}`}
       />
 
       {rows.length === 0 ? (
@@ -201,35 +204,42 @@ export function SessionRosterClient({
                   </div>
 
                   <div className="mt-2 flex items-center gap-2">
+                    {/*
+                      "Tap Masuk" used the English verb in an Indonesian
+                      portal; voice.md's glossary and every other tap
+                      affordance in the app say "Ketuk".
+                    */}
                     <Button
                       type="button"
                       size="sm"
+                      className="tap-target"
                       variant={r.checkInTime ? "secondary" : "outline"}
                       onClick={() => tapIn(r.studentId)}
                       disabled={!!r.checkInTime}
                     >
-                      <LogIn />
+                      <LogIn size={16} aria-hidden="true" />
                       {r.checkInTime
                         ? `Masuk ${formatTime(r.checkInTime)}`
-                        : "Tap Masuk"}
+                        : "Ketuk masuk"}
                     </Button>
                     <Button
                       type="button"
                       size="sm"
+                      className="tap-target"
                       variant={r.checkOutTime ? "secondary" : "outline"}
                       onClick={() => tapOut(r.studentId)}
                       disabled={!r.checkInTime || !!r.checkOutTime}
                     >
-                      <LogOut />
+                      <LogOut size={16} aria-hidden="true" />
                       {r.checkOutTime
                         ? `Pulang ${formatTime(r.checkOutTime)}`
-                        : "Tap Pulang"}
+                        : "Ketuk pulang"}
                     </Button>
                   </div>
 
                   {r.checkOutTime && (
                     <div className="mt-2 space-y-2 rounded-md bg-card/60 p-2">
-                      <p className="text-xs font-medium text-muted-foreground">
+                      <p className="text-sm font-medium text-foreground">
                         Dijemput oleh
                       </p>
                       <label htmlFor={`pickup-relation-${r.studentId}`} className="sr-only">
@@ -243,7 +253,7 @@ export function SessionRosterClient({
                           })
                         }
                       >
-                        <SelectTrigger id={`pickup-relation-${r.studentId}`} className="w-full">
+                        <SelectTrigger id={`pickup-relation-${r.studentId}`} className="tap-target w-full">
                           <SelectValue placeholder="Pilih hubungan" />
                         </SelectTrigger>
                         <SelectContent>
@@ -261,6 +271,7 @@ export function SessionRosterClient({
                           </label>
                           <Input
                             id={`pickup-name-${r.studentId}`}
+                            className="tap-target"
                             value={r.pickedUpByName ?? ""}
                             onChange={(e) =>
                               update(r.studentId, {
@@ -286,14 +297,14 @@ export function SessionRosterClient({
             })}
           </div>
 
-          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-4 border-t border-border bg-background px-3 py-3">
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
             <Button
               type="button"
-              className="w-full"
+              className="tap-target w-full"
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? "Menyimpan Absensi..." : `Simpan Absensi · ${rows.length} siswa`}
+              {saving ? "Menyimpan absensi…" : `Simpan absensi · ${rows.length} siswa`}
             </Button>
           </div>
 

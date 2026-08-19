@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 // The seeded curriculum weeks span 2025-07-14..2025-09-05 only — they
 // do not bracket today's date. The page therefore renders the
 // no_active_week branch for today, but the walas-only header
-// "Penilaian Pekanan — <class>" still surfaces, proving the homeroom
+// "Penilaian pekanan" + the class-name subtitle still surface, proving the homeroom
 // + ageGroup detection works end-to-end.
 //
 // For the active-week path we discover a live week through the curriculum API
@@ -34,7 +34,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     ]);
   });
 
-  test("walas home shows the Penilaian Pekanan quick card", async ({ page }) => {
+  test("walas home shows the Penilaian pekanan quick card", async ({ page }) => {
     await page.goto("/teacher");
     await page.waitForURL("**/teacher", { timeout: 15_000 });
     await expect(page.locator('[data-testid="home-weekly-card"]')).toBeVisible({
@@ -42,10 +42,10 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     });
     await expect(
       page.locator('[data-testid="home-weekly-card"]'),
-    ).toContainText("Penilaian Pekanan");
+    ).toContainText("Penilaian pekanan");
   });
 
-  test("assessments hub shows walas Penilaian Pekanan card + sentra grid (C5 replaces the placeholder)", async ({
+  test("assessments hub shows walas Penilaian pekanan card + sentra grid (C5 replaces the placeholder)", async ({
     page,
   }) => {
     await page.goto("/teacher/assessments");
@@ -70,7 +70,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     });
     // The walas resolver succeeded → header carries the section name.
     await expect(
-      page.locator("h1", { hasText: /^Penilaian Pekanan — .+/ }),
+      page.locator("h1", { hasText: /^Penilaian pekanan$/ }),
     ).toBeVisible({ timeout: 10_000 });
     // Today is outside the seeded curriculum weeks → empty-state branch.
     // Use exact match to avoid the description paragraph collision.
@@ -94,7 +94,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     if (!liveDate) {
       await page.goto("/teacher/assessments/weekly");
       await expect(
-        page.locator("h1", { hasText: /^Penilaian Pekanan — .+/ }),
+        page.locator("h1", { hasText: /^Penilaian pekanan$/ }),
       ).toBeVisible({ timeout: 10_000 });
       await expect(
         page.getByText("Belum ada pekan aktif", { exact: true }),
@@ -108,7 +108,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     });
     // Header + day chips render from the Week payload.
     await expect(
-      page.locator("h1", { hasText: "Penilaian Pekanan" }),
+      page.locator("h1", { hasText: "Penilaian pekanan" }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("radio", { name: /Sen \d{2}/ })).toBeVisible();
     // Roster renders one card per ACTIVE enrolment.

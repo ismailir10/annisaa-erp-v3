@@ -27,15 +27,15 @@ export type NoteComposeDialogProps = {
   initialDate?: string;
   initialBody?: string;
   noteId?: string;
-  /** Override the dialog title. Default: "Tulis Catatan" / "Edit Catatan". */
+  /** Override the dialog title. Default: "Tulis catatan" / "Edit catatan". */
   title?: string;
-  /** Override the textarea placeholder. Default: "Tulis catatan rumah di sini...". */
+  /** Override the textarea placeholder. Default: "Tulis catatan rumah di sini…". */
   placeholder?: string;
   onSaved: () => void;
 };
 
 const MAX_LEN = 2000;
-const DEFAULT_PLACEHOLDER = "Tulis catatan rumah di sini...";
+const DEFAULT_PLACEHOLDER = "Tulis catatan rumah di sini…";
 const PORTAL_TIMEZONE = "Asia/Jakarta";
 
 function pickDefaultDate(
@@ -147,20 +147,21 @@ export function NoteComposeDialog({
     <ResponsiveFormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={title ?? (mode === "create" ? "Tulis Catatan" : "Edit Catatan")}
+      title={title ?? (mode === "create" ? "Tulis catatan" : "Edit catatan")}
       size="sm"
       contentClassName="p-card"
       footer={
         <>
           <Button
             variant="ghost"
+            className="tap-target"
             onClick={() => onOpenChange(false)}
             disabled={submitting}
           >
             Batal
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? "Menyimpan..." : "Simpan"}
+          <Button className="tap-target" onClick={handleSubmit} disabled={!canSubmit}>
+            {submitting ? "Menyimpan…" : "Simpan"}
           </Button>
         </>
       }
@@ -172,7 +173,7 @@ export function NoteComposeDialog({
           onValueChange={(v) => v && setDate(v)}
           disabled={mode === "edit" || dateOptions.length === 0}
         >
-          <SelectTrigger id="note-date" className="w-full">
+          <SelectTrigger id="note-date" className="tap-target w-full">
             <SelectValue
               placeholder={dateOptions.length > 0 ? "Pilih tanggal" : "Tidak ada tanggal tersedia"}
             />
@@ -193,7 +194,7 @@ export function NoteComposeDialog({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="note-body">Isi Catatan</FieldLabel>
+        <FieldLabel htmlFor="note-body">Isi catatan</FieldLabel>
         <Textarea
           id="note-body"
           value={body}

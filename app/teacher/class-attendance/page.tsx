@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/portal/page-header";
 
 type Assignment = {
@@ -155,8 +154,12 @@ export default function ClassAttendancePage() {
     PERMISSION: Object.values(statuses).filter((s) => s === "PERMISSION").length,
   };
 
+  // The header is rendered in every branch, including loading — it used to
+  // appear only on the success path, so the h1 popped in after the fetch and
+  // shifted the whole page down.
   if (loading) return (
     <div>
+      <PageHeader title="Absensi kelas" />
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-xl" />
@@ -168,15 +171,21 @@ export default function ClassAttendancePage() {
   if (assignments.length === 0) {
     return (
       <div data-empty-state={assignmentsError ? "assignments-error" : "no-class-assigned"}>
-        <EmptyState icon={Users} title={assignmentsError ? "Daftar kelas tidak bisa dimuat" : "Belum ditugaskan ke kelas"} description={assignmentsError ? "Periksa koneksi, lalu coba lagi." : "Hubungi admin untuk ditugaskan mengajar di kelas tertentu."} />
-        {assignmentsError ? <div className="mt-4 text-center"><Button variant="outline" onClick={loadAssignments}>Coba lagi</Button></div> : null}
+        <PageHeader title="Absensi kelas" />
+        <EmptyState
+          icon={Users}
+          title={assignmentsError ? "Daftar kelas tidak bisa dimuat" : "Belum ditugaskan ke kelas"}
+          description={assignmentsError ? "Periksa koneksi, lalu coba lagi." : "Hubungi admin untuk ditugaskan mengajar di kelas tertentu."}
+          actionLabel={assignmentsError ? "Coba lagi" : undefined}
+          onAction={assignmentsError ? loadAssignments : undefined}
+        />
       </div>
     );
   }
 
   return (
     <div>
-      <PageHeader title="Absensi Kelas" />
+      <PageHeader title="Absensi kelas" />
 
       {/* Class + Date toolbar */}
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
@@ -184,7 +193,7 @@ export default function ClassAttendancePage() {
           Pilih kelas
         </label>
         <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-        <SelectTrigger id="class-attendance-class" className="w-full sm:flex-1">
+        <SelectTrigger id="class-attendance-class" className="tap-target w-full sm:flex-1">
             <SelectValue placeholder="Pilih kelas">
               {(() => {
                 const a = assignments.find(a => a.classSection.id === selectedClass);
@@ -203,15 +212,28 @@ export default function ClassAttendancePage() {
         <label htmlFor="class-attendance-date" className="sr-only">
           Tanggal kehadiran
         </label>
-        <Input id="class-attendance-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full sm:w-36" />
+        <Input id="class-attendance-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="tap-target w-full sm:w-36" />
       </div>
 
-      {/* Live summary trio (quad — includes Izin) */}
+      {/*
+        Live summary quad. Colour is applied only to a non-zero count: four
+        coloured figures with three of them reading "0" spent an Alpa-red
+        signal on nothing at all, which is the same lesson #500 recorded for
+        the parent Tagihan total.
+      */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-sm">
-        <span className="text-status-present-text">Hadir {counts.PRESENT}</span>
-        <span className="text-status-absent-text">Alpa {counts.ABSENT}</span>
-        <span className="text-status-late-text">Sakit {counts.SICK}</span>
-        <span className="text-status-leave-text">Izin {counts.PERMISSION}</span>
+        {(
+          [
+            ["Hadir", counts.PRESENT, "text-status-present-text"],
+            ["Alpa", counts.ABSENT, "text-status-absent-text"],
+            ["Sakit", counts.SICK, "text-status-late-text"],
+            ["Izin", counts.PERMISSION, "text-status-leave-text"],
+          ] as const
+        ).map(([label, count, tone]) => (
+          <span key={label} className={count > 0 ? tone : "text-muted-foreground"}>
+            {label} {count}
+          </span>
+        ))}
       </div>
 
       {/* Student list — skeleton during roster reload, tap to cycle status on rendered rows */}
@@ -229,7 +251,15 @@ export default function ClassAttendancePage() {
           ))}
         </div>
       ) : rosterError ? (
-        <div data-empty-state="roster-error"><EmptyState icon={Users} title="Data siswa tidak bisa dimuat" description="Periksa koneksi, lalu coba lagi." /><div className="mt-4 text-center"><Button variant="outline" onClick={loadStudents}>Coba lagi</Button></div></div>
+        <div data-empty-state="roster-error">
+          <EmptyState
+            icon={Users}
+            title="Data siswa tidak bisa dimuat"
+            description="Periksa koneksi, lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={loadStudents}
+          />
+        </div>
       ) : students.length === 0 ? (
         <div data-empty-state="no-students">
           <EmptyState icon={Users} title="Belum ada siswa di kelas ini" description="Minta admin untuk mendaftarkan siswa ke kelas ini." />
@@ -257,7 +287,7 @@ export default function ClassAttendancePage() {
                     </div>
                   </div>
                   <StatusBadge status={status} />
-                  {saveState[s.student.id] ? <span className="text-xs text-muted-foreground" aria-hidden="true">{saveState[s.student.id] === "saving" ? "Menyimpan…" : saveState[s.student.id] === "saved" ? "Tersimpan" : "Ulangi"}</span> : null}
+                  {saveState[s.student.id] ? <span className={`text-xs ${saveState[s.student.id] === "error" ? "text-status-absent-text" : "text-muted-foreground"}`} aria-hidden="true">{saveState[s.student.id] === "saving" ? "Menyimpan…" : saveState[s.student.id] === "saved" ? "Tersimpan" : "Belum tersimpan"}</span> : null}
                   {saveState[s.student.id] ? <span className="sr-only" role="status">{saveState[s.student.id] === "saving" ? "Menyimpan absensi" : saveState[s.student.id] === "saved" ? "Absensi tersimpan" : "Absensi belum tersimpan"}</span> : null}
                 </button>
               </div>
@@ -266,8 +296,13 @@ export default function ClassAttendancePage() {
         </div>
       )}
 
+      {/*
+        Was "Ketuk untuk mulai absensi" — tapping a row changes that student's
+        status, it does not start anything. And the roster auto-saves, which
+        the teacher had no way to know.
+      */}
       <p className="text-xs text-muted-foreground text-center mt-4">
-        Ketuk untuk mulai absensi (Hadir → Alpa → Sakit → Izin)
+        Ketuk siswa untuk mengubah status (Hadir → Alpa → Sakit → Izin). Tersimpan otomatis.
       </p>
     </div>
   );

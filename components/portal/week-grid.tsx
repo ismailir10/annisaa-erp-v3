@@ -78,10 +78,13 @@ function formatAdminEditDate(d: string | Date): string {
 }
 
 function formatColDate(ymd: string): string {
-  // YYYY-MM-DD -> MM/DD (short label)
+  // YYYY-MM-DD -> DD/MM. Was MM/DD, which printed "08/17" under "Sen" in an
+  // Indonesian UI — day-first is the only reading an Indonesian parent or
+  // teacher will apply, and "12/08" vs "08/12" is silently ambiguous rather
+  // than obviously wrong.
   const parts = ymd.split("-");
   if (parts.length !== 3) return ymd;
-  return `${parts[1]}/${parts[2]}`;
+  return `${parts[2]}/${parts[1]}`;
 }
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"];
@@ -290,7 +293,7 @@ export function WeekGrid({
                           <span
                             className="flex h-[36px] cursor-default items-center justify-center text-sm font-semibold text-muted-foreground"
                             role="img"
-                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya-baca)`}
+                            aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya bisa dilihat)`}
                           >
                             {checked ? "✓" : "—"}
                           </span>

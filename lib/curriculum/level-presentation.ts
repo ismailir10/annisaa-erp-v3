@@ -46,10 +46,18 @@ export const LEVEL_CHIP_CLASS: Record<Level, string> = {
   NEEDS_REINFORCEMENT: "bg-status-leave text-white border-status-leave",
 };
 
-/** Inactive (unselected) chip class — subtle tint variant. */
+/**
+ * Inactive (unselected) chip class — subtle tint variant.
+ *
+ * All three use the `-text` token, never the fill token. EMERGING used to read
+ * `text-status-late` (the #FF8C00 *fill* orange) and measured 2.22:1 on its own
+ * tint while its two siblings measured 4.16 and 5.65 — the same failure mode
+ * `class-day-grid.tsx` documents for `text-primary`. A fill colour is sized for
+ * white text on top of it, not for being text itself.
+ */
 export const LEVEL_CHIP_CLASS_OFF: Record<Level, string> = {
   CONSISTENT: "border-status-present text-status-present-text bg-status-present-subtle",
-  EMERGING: "border-status-late text-status-late bg-status-late/10",
+  EMERGING: "border-status-late text-status-late-text bg-status-late/10",
   NEEDS_REINFORCEMENT: "border-status-leave text-status-leave-text bg-status-leave/10",
 };
 

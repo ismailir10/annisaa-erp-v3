@@ -22,6 +22,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SectionLabel } from "@/components/portal/section-label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,8 +51,8 @@ export type LeaveRequest = {
 type LeavePrefetchState = "loading" | "ready" | "error";
 
 const TYPE_LABELS: Record<string, string> = {
-  ANNUAL: "Cuti Tahunan",
-  SICK: "Sakit",
+  ANNUAL: "Cuti tahunan",
+  SICK: "Cuti sakit",
   PERMISSION: "Izin",
   OTHER: "Lainnya",
 };
@@ -233,30 +234,37 @@ export function LeaveSheet({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="bottom" className="h-[85vh] max-w-md mx-auto rounded-t-2xl px-page-x pb-card pt-2 overflow-y-auto">
           <SheetHeader className="px-0 pt-2">
-            <SheetTitle>Cuti &amp; Izin</SheetTitle>
+            <SheetTitle>Cuti dan izin</SheetTitle>
             <SheetDescription>Kelola pengajuan cuti dan izin Anda</SheetDescription>
           </SheetHeader>
 
-          {/* Balance cards */}
+          {/*
+            Balance cards. The figures used `.font-currency` — JetBrains Mono,
+            bold, 24px, one teal and one blue — which is the exact treatment
+            #500 retired from the parent Tagihan total, applied here to a count
+            of days. `.font-amount` keeps the tabular alignment on the brand
+            sans, and both cards read in the same neutral foreground because
+            "12 days left" and "14 days left" are not different kinds of fact.
+          */}
           {balance && (
             <div className="grid grid-cols-2 gap-3 mb-4">
               <Card className="p-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Tahunan</p>
-                <p className="font-currency text-2xl font-bold mt-1 text-primary">
+                <SectionLabel>Cuti tahunan</SectionLabel>
+                <p className="font-amount text-2xl font-semibold text-foreground">
                   {balance.annual.remaining}
                 </p>
-                <p className="text-xs text-muted-foreground">dari {balance.annual.total} hari</p>
+                <p className="text-xs text-muted-foreground">sisa dari {balance.annual.total} hari</p>
                 <Progress
                   value={balance.annual.total > 0 ? (balance.annual.remaining / balance.annual.total) * 100 : 0}
                   className="mt-2 h-1.5"
                 />
               </Card>
               <Card className="p-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Cuti Sakit</p>
-                <p className="font-currency text-2xl font-bold mt-1 text-status-leave">
+                <SectionLabel>Cuti sakit</SectionLabel>
+                <p className="font-amount text-2xl font-semibold text-foreground">
                   {balance.sick.remaining}
                 </p>
-                <p className="text-xs text-muted-foreground">dari {balance.sick.total} hari</p>
+                <p className="text-xs text-muted-foreground">sisa dari {balance.sick.total} hari</p>
                 <Progress
                   value={balance.sick.total > 0 ? (balance.sick.remaining / balance.sick.total) * 100 : 0}
                   className="mt-2 h-1.5 [&_[data-slot=progress-indicator]]:bg-status-leave"
@@ -266,8 +274,8 @@ export function LeaveSheet({
           )}
 
           {/* Request button */}
-          <Button size="sm" className="w-full mb-4" onClick={openRequestForm}>
-            <Plus size={14} className="mr-1" /> Ajukan Cuti
+          <Button className="tap-target w-full mb-4" onClick={openRequestForm}>
+            <Plus size={16} className="mr-1" aria-hidden="true" /> Ajukan cuti
           </Button>
 
           {/* Request list */}
@@ -280,8 +288,10 @@ export function LeaveSheet({
           ) : loadError ? (
             <EmptyState
               icon={CalendarDays}
-              title="Data cuti tidak dapat dimuat"
-              description="Periksa koneksi lalu coba lagi."
+              // "tidak dapat dimuat" / "Periksa koneksi lalu" — the rest of the
+              // portal says "tidak bisa dimuat" / "Periksa koneksi, lalu".
+              title="Data cuti tidak bisa dimuat"
+              description="Periksa koneksi, lalu coba lagi."
               actionLabel="Coba lagi"
               onAction={onRefetch ?? fetchData}
             />
@@ -289,8 +299,8 @@ export function LeaveSheet({
             <EmptyState
               icon={CalendarDays}
               title="Belum ada pengajuan cuti"
-              description="Ketuk 'Ajukan Cuti' untuk membuat pengajuan baru."
-              actionLabel="Ajukan Cuti"
+              description="Ajukan cuti untuk membuat pengajuan baru."
+              actionLabel="Ajukan cuti"
               onAction={openRequestForm}
             />
           ) : (
@@ -305,13 +315,19 @@ export function LeaveSheet({
                         </span>
                         <StatusBadge status={r.status} />
                       </div>
+                      {/*
+                        A one-day leave printed the same date twice —
+                        "20 Agu 2026 — 20 Agu 2026 (1 hari)".
+                      */}
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDateShort(r.startDate)} — {formatDateShort(r.endDate)} ({r.days} hari)
+                        {r.startDate === r.endDate
+                          ? `${formatDateShort(r.startDate)} · ${r.days} hari`
+                          : `${formatDateShort(r.startDate)} — ${formatDateShort(r.endDate)} · ${r.days} hari`}
                       </p>
                       <p className="text-xs mt-1">{r.reason}</p>
                       {r.reviewNote && (
-                        <p className="text-xs text-muted-foreground mt-1 italic">
-                          Admin: {r.reviewNote}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Catatan admin: {r.reviewNote}
                         </p>
                       )}
                     </div>
@@ -319,7 +335,7 @@ export function LeaveSheet({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-destructive h-7 shrink-0"
+                        className="tap-target text-destructive shrink-0"
                         onClick={() => openCancelConfirm(r.id)}
                       >
                         Batalkan
@@ -337,7 +353,7 @@ export function LeaveSheet({
       <ConfirmDialog
         open={!!cancelTarget}
         onOpenChange={(o) => !o && setCancelTarget(null)}
-        title="Batalkan Pengajuan"
+        title="Batalkan pengajuan"
         description="Yakin ingin membatalkan pengajuan cuti ini? Anda perlu mengajukan ulang jika berubah pikiran."
         onConfirm={handleCancel}
         confirmLabel="Batalkan pengajuan"
@@ -347,35 +363,39 @@ export function LeaveSheet({
       <ResponsiveFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title="Ajukan Cuti"
+        title="Ajukan cuti"
         description="Pengajuan akan dikirim ke admin untuk persetujuan"
         size="md"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
+            <Button variant="ghost" className="tap-target" onClick={() => setDialogOpen(false)} disabled={saving}>
               Batal
             </Button>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? "Mengirim..." : "Ajukan"}
+            <Button className="tap-target" onClick={handleSubmit} disabled={saving}>
+              {saving ? "Mengirim…" : "Ajukan"}
             </Button>
           </>
         }
       >
         <Field>
-          <FieldLabel htmlFor="leave-type">Jenis Cuti</FieldLabel>
+          <FieldLabel htmlFor="leave-type">Jenis cuti</FieldLabel>
           <Select
             value={form.leaveType}
             onValueChange={(v) => v && setForm({ ...form, leaveType: v })}
           >
-            <SelectTrigger id="leave-type">
+            <SelectTrigger id="leave-type" className="tap-target">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {/*
+                The balance card says "Cuti sakit" and this list said "Sakit"
+                for the same leave type — one name each.
+              */}
               <SelectItem value="ANNUAL">
-                Cuti Tahunan ({balance?.annual.remaining ?? "?"} hari tersisa)
+                Cuti tahunan ({balance?.annual.remaining ?? "?"} hari tersisa)
               </SelectItem>
               <SelectItem value="SICK">
-                Sakit ({balance?.sick.remaining ?? "?"} hari tersisa)
+                Cuti sakit ({balance?.sick.remaining ?? "?"} hari tersisa)
               </SelectItem>
               <SelectItem value="PERMISSION">Izin</SelectItem>
               <SelectItem value="OTHER">Lainnya</SelectItem>
@@ -384,18 +404,20 @@ export function LeaveSheet({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field>
-            <FieldLabel htmlFor="leave-start-date">Tanggal Mulai</FieldLabel>
+            <FieldLabel htmlFor="leave-start-date">Tanggal mulai</FieldLabel>
             <Input
               id="leave-start-date"
+              className="tap-target"
               type="date"
               value={form.startDate}
               onChange={(e) => setForm({ ...form, startDate: e.target.value })}
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="leave-end-date">Tanggal Selesai</FieldLabel>
+            <FieldLabel htmlFor="leave-end-date">Tanggal selesai</FieldLabel>
             <Input
               id="leave-end-date"
+              className="tap-target"
               type="date"
               value={form.endDate}
               onChange={(e) => setForm({ ...form, endDate: e.target.value })}
@@ -418,7 +440,7 @@ export function LeaveSheet({
             id="leave-reason"
             value={form.reason}
             onChange={(e) => setForm({ ...form, reason: e.target.value })}
-            placeholder="Jelaskan alasan cuti Anda..."
+            placeholder="Jelaskan alasan cuti Anda"
             rows={3}
           />
         </Field>

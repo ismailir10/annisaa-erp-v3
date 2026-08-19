@@ -76,7 +76,7 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     await expect(
       page
         .locator('[data-testid="center-save"]')
-        .or(page.getByRole("status").filter({ hasText: "hanya-baca" }))
+        .or(page.getByRole("status").filter({ hasText: "hanya bisa dilihat" }))
         .or(page.getByRole("alert"))
         .first(),
     ).toBeVisible();

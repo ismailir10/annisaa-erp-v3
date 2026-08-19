@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/portal/page-header";
+import { BackLink } from "@/components/portal/back-link";
 import { formatRupiah, formatDate, maskBankAccount } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -145,13 +146,7 @@ export default async function SlipDetailPage({
 
   return (
     <div className="space-y-4">
-      <Link
-        href="/teacher/slips"
-        className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        <ArrowLeft size={16} aria-hidden="true" />
-        Kembali ke Slip Gaji
-      </Link>
+      <BackLink href="/teacher/slips" label="Kembali ke slip gaji" />
 
       <PageHeader
         title={periodHeader}

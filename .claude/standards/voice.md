@@ -71,6 +71,8 @@ Two carve-outs, and only two:
 - **Proper nouns** — Ustadzah, Rapor as a product surface name, campus and class names, a person's name.
 - **Data echoed from the database** — `Invoice.line.labelSnapshot` ("SPP Bulanan"), class names, template titles. Those are values, not UI copy; do not rewrite them on render.
 
+**The rule is portal-agnostic.** It was written during the parent-portal pass and then read as a parent-portal rule — the teacher portal shipped roughly forty Title Case strings on the strength of "staff surfaces are different". They are not. A teacher reads the same Indonesian as a parent. `Buku Penghubung` and `Rapor` stay capitalised because they are product surface names (the first carve-out), not because staff copy gets a looser rule.
+
 The glossary below fixes **which word** to use, not how to capitalise it. A row reading "Lewat Tempo" means *use the phrase "lewat tempo" rather than "menunggak"* — it does not license Title Case at the call site. The `SECTION LABEL` style (uppercase, letter-spaced) is a typographic treatment applied by `components/portal/section-label.tsx`, not capitalisation authored into the string.
 
 **Cross-portal glossary** — the canonical term wins over the English/transliterated alternative:
@@ -92,6 +94,7 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Perkembangan (parent-facing developmental progress) | Capaian (keep Capaian only for the per-element achievement level inside the page, never as the nav or page label) |
 | Wali | Guardian, Parent (Wali = registered guardian; Parent = audience) |
 | Kelas | Class, Classroom |
+| Ketuk (tap an on-screen control) | Tap ("Tap Masuk" shipped on the session roster for a year — the rest of the app has always said Ketuk) |
 | Ustadz / Ustadzah | Pak Guru / Bu Guru (Islamic-school context uses Ustadz/ah) |
 | Catatan (data row, log entry, journal note) | Record |
 | Pertanyaan (admission lifecycle: first contact) | Inquiry (StatusBadge already maps `INQUIRY → "Pertanyaan"` — keep button labels consistent) |
