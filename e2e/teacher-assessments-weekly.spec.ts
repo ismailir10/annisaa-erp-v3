@@ -119,7 +119,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     // the active-week branch, not a particular IKTP wiring state.
     const picker = page.getByTestId("indicator-picker");
     const banner = page.getByText(
-      "Belum ada IKTP terhubung untuk tema pekan ini",
+      "Belum ada IKTP untuk tema pekan ini",
       { exact: false },
     );
     const pickerCount = await picker.count();

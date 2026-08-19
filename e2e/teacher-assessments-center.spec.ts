@@ -71,7 +71,7 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     ).toBeVisible();
     // The sticky save footer only renders for a writable session. On a date
     // outside the seeded Pekan range the page renders the `no_active_week`
-    // recovery state, and a read-only session renders the hanya-baca notice —
+    // recovery state, and a read-only session renders the "hanya bisa dilihat" notice —
     // assert that contract instead of an unconditional save button.
     await expect(
       page
@@ -114,7 +114,7 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
             .locator('[data-testid="center-indicator-picker"]')
             .count();
           const banner = await page
-            .getByText("Belum ada IKTP terhubung untuk tema pekan ini", {
+            .getByText("Belum ada IKTP untuk tema pekan ini", {
               exact: false,
             })
             .count();
