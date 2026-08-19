@@ -29,9 +29,9 @@ test.describe("Teacher flows", () => {
 
   test("home page shows check-in button", async ({ page }) => {
     await expect(page.locator("text=Selamat")).toBeVisible();
-    // Use .first() to avoid strict mode violation — MASUK button + nav label both match
-    const hasCheckIn = await page.locator("text=MASUK").first().isVisible();
-    const hasCheckOut = await page.locator("text=PULANG").first().isVisible();
+    // Use .first() to avoid strict mode violation — the clock button + nav label both match
+    const hasCheckIn = await page.getByRole("button", { name: /^Masuk$/ }).first().isVisible();
+    const hasCheckOut = await page.getByRole("button", { name: /^Pulang$/ }).first().isVisible();
     const hasDone = await page.locator("text=Selesai").first().isVisible();
     expect(hasCheckIn || hasCheckOut || hasDone).toBeTruthy();
   });
@@ -39,14 +39,14 @@ test.describe("Teacher flows", () => {
   test("attendance calendar loads", async ({ page }) => {
     await page.goto("/teacher/attendance");
     await page.waitForURL("**/teacher/attendance");
-    await expect(page.locator("text=Kehadiran Saya")).toBeVisible();
+    await expect(page.locator("text=Kehadiran saya")).toBeVisible();
     await expect(page.locator("text=Hadir").first()).toBeVisible();
   });
 
   test("salary slips page loads", async ({ page }) => {
     await page.goto("/teacher/slips");
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
-    await expect(page.locator("text=Slip Gaji")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("text=Slip gaji")).toBeVisible({ timeout: 10_000 });
     // Page fetches data async — wait up to 10s for either state to appear.
     // .first() — seed renders one "Tersedia" badge per slip; strict mode
     // would fail without scoping to the first match.
@@ -77,9 +77,9 @@ test.describe("Teacher flows", () => {
 
   test("profile page loads", async ({ page }) => {
     await page.goto("/teacher/profile");
-    await expect(page.locator("text=Profil Saya")).toBeVisible();
-    // Verify the info card rendered — "Nama Lengkap" label always appears
-    await expect(page.locator("text=Nama Lengkap")).toBeVisible();
+    await expect(page.locator("text=Profil saya")).toBeVisible();
+    // Verify the info card rendered — the "Nama lengkap" label always appears
+    await expect(page.locator("text=Nama lengkap")).toBeVisible();
     await expect(page.locator("text=Jabatan").first()).toBeVisible();
   });
 
@@ -101,7 +101,7 @@ test.describe("Teacher flows", () => {
       page.locator("text=Buku Penghubung").or(page.locator("text=Belum ditugaskan ke kelas"))
     ).toBeVisible({ timeout: 10_000 });
     // If assigned classes exist, the CTA button should be visible
-    const cta = page.getByRole("button", { name: /Isi Penghubung/i });
+    const cta = page.getByRole("button", { name: /Isi Buku Penghubung/i });
     const isAssigned = await cta.isVisible({ timeout: 3_000 }).catch(() => false);
     if (isAssigned) {
       await expect(cta).toBeVisible();
@@ -112,7 +112,7 @@ test.describe("Teacher flows", () => {
   // smoke — the card heading is always present; the body is either a list of
   // session rows or the empty-state copy. Both are valid.
   test("teacher dashboard renders the today's-sessions card", async ({ page }) => {
-    await expect(page.getByText("Sesi Hari Ini")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Sesi hari ini")).toBeVisible({ timeout: 15_000 });
     // Either a session link or the empty-state card body must be present.
     await expect(
       page
@@ -168,7 +168,7 @@ test.describe("Teacher flows", () => {
     let targetRow: import("@playwright/test").Locator | undefined;
     for (let i = 0; i < rowCount; i++) {
       const candidate = rows.nth(i);
-      const tapIn = candidate.getByRole("button", { name: /^Tap Masuk$/ });
+      const tapIn = candidate.getByRole("button", { name: /^Ketuk masuk$/ });
       if (await tapIn.isVisible().catch(() => false)) {
         targetRow = candidate;
         break;
@@ -192,11 +192,11 @@ test.describe("Teacher flows", () => {
     await targetRow.getByRole("button", { name: /^Ubah status/ }).click();
 
     // Tap In — enables Tap Out.
-    await targetRow.getByRole("button", { name: /^Tap Masuk$/ }).click();
+    await targetRow.getByRole("button", { name: /^Ketuk masuk$/ }).click();
     await expect(targetRow.getByRole("button", { name: /^Masuk \d/ })).toBeVisible();
 
     // Tap Out — reveals the pickup-relation Select.
-    await targetRow.getByRole("button", { name: /^Tap Pulang$/ }).click();
+    await targetRow.getByRole("button", { name: /^Ketuk pulang$/ }).click();
     await expect(targetRow.getByRole("button", { name: /^Pulang \d/ })).toBeVisible();
 
     // Pickup relation — pick "Orang tua" (PARENT), which needs no name.
@@ -223,7 +223,7 @@ test.describe("Teacher flows", () => {
     await expect(reloadedRow.getByRole("combobox")).toContainText("Orang tua");
   });
 
-  test("teacher entry grid 'Lihat minggu' affordance navigates to per-student week view", async ({ page }) => {
+  test("teacher entry grid 'Lihat pekan' affordance navigates to per-student week view", async ({ page }) => {
     // Discover a class via the teacher's assignments. Skip if seed has none.
     await page.goto("/teacher");
     const assignmentsRes = await page.request.get("/api/teaching-assignments/my");
@@ -305,7 +305,7 @@ test.describe("Teacher flows", () => {
 
     const sheet = page.getByRole("navigation", { name: "Menu lainnya guru" });
     await expect(sheet).toBeVisible({ timeout: 10_000 });
-    await sheet.getByRole("link", { name: /^Slip Gaji/ }).click();
+    await sheet.getByRole("link", { name: /^Slip gaji/ }).click();
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
 
     const detail = page.locator('a[href^="/teacher/slips/"]').first();
@@ -345,8 +345,8 @@ test.describe("Teacher flows", () => {
       expect(contentBox!.y + contentBox!.height).toBeLessThanOrEqual(navBox!.y + 0.5);
     }
 
-    await page.getByRole("link", { name: /Kembali ke Slip Gaji/ }).click();
+    await page.getByRole("link", { name: /Kembali ke slip gaji/ }).click();
     await page.waitForURL("**/teacher/slips", { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Slip Gaji" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Slip gaji" })).toBeVisible();
   });
 });

@@ -12,7 +12,7 @@
 | Warning/late | `text-status-late`, `text-warning` | `text-[#FF8C00]` |
 | Error/absent | `text-destructive`, `text-status-absent` | `text-[#FF3B3B]` |
 | Leave/info | `text-status-leave`, `text-info` | `text-[#0EA5E9]` |
-| Status text (badges) | `text-status-present-text` | `text-[#00875A]` |
+| Status text (badges) | `text-status-present-text` | a hardcoded hex — the token darkened from `#00875A` to `#00704A` in 2026-08-19-teacher-ui-copy, and every hardcoded copy stayed at 4.16:1 |
 | Status backgrounds | `bg-status-present-subtle` | `bg-[#E6F9F1]` |
 
 ## Celebration tokens

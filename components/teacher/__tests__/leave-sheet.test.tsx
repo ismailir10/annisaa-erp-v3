@@ -74,10 +74,10 @@ describe("LeaveSheet", () => {
       expect(window.matchMedia).toHaveBeenCalled();
     });
 
-    expect(screen.getByText("Cuti & Izin")).toBeInTheDocument();
+    expect(screen.getByText("Cuti dan izin")).toBeInTheDocument();
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
 
-    await user.click(screen.getByRole("button", { name: "Ajukan Cuti" }));
+    await user.click(screen.getByRole("button", { name: "Ajukan cuti" }));
 
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(0);
 
@@ -91,13 +91,13 @@ describe("LeaveSheet", () => {
     const user = userEvent.setup();
 
     render(<Harness />);
-    await user.click(screen.getByRole("button", { name: "Ajukan Cuti" }));
+    await user.click(screen.getByRole("button", { name: "Ajukan cuti" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Jenis Cuti")).toBeInTheDocument();
+      expect(screen.getByLabelText("Jenis cuti")).toBeInTheDocument();
     });
-    expect(screen.getByLabelText("Tanggal Mulai")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tanggal Selesai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tanggal mulai")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tanggal selesai")).toBeInTheDocument();
     expect(screen.getByLabelText("Alasan")).toBeInTheDocument();
   });
 
@@ -116,7 +116,7 @@ describe("LeaveSheet", () => {
       />,
     );
 
-    expect(screen.getByText("Data cuti tidak dapat dimuat")).toBeInTheDocument();
+    expect(screen.getByText("Data cuti tidak bisa dimuat")).toBeInTheDocument();
     expect(screen.queryByText("Belum ada pengajuan cuti")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Coba lagi" }));

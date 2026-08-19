@@ -2,8 +2,7 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ChevronLeft, Loader2, Save } from "lucide-react";
+import { Loader2, NotebookPen, Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -11,6 +10,7 @@ import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/portal/page-header";
+import { BackLink } from "@/components/portal/back-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarOff } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   LEVEL_LABEL_SHORT,
   LEVEL_CHIP_CLASS,
   LEVEL_CHIP_CLASS_OFF,
+  LEVEL_ORDER,
   type Level,
 } from "@/lib/curriculum/level-presentation";
 
@@ -195,10 +196,62 @@ export function CenterSessionClient({
       ?.focus();
   }
 
+  /**
+   * Arrow / Home / End for the level radiogroup. These are `role="radio"`
+   * buttons rather than native inputs, so nothing gave them keyboard semantics
+   * — every chip was its own tab stop and the arrow keys did nothing, while the
+   * walas page one tap away had the full roving-tabindex behaviour.
+   */
+  function handleLevelKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    studentId: string,
+    indicatorId: string,
+    currentLevel: Level | null,
+  ): void {
+    const currentIndex = currentLevel ? LEVEL_ORDER.indexOf(currentLevel) : -1;
+    let nextIndex = currentIndex;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % LEVEL_ORDER.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        nextIndex =
+          currentIndex === -1
+            ? LEVEL_ORDER.length - 1
+            : (currentIndex - 1 + LEVEL_ORDER.length) % LEVEL_ORDER.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = LEVEL_ORDER.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const next = LEVEL_ORDER[nextIndex]!;
+    setCellLevel(studentId, indicatorId, next);
+    event.currentTarget
+      .closest('[role="radiogroup"]')
+      ?.querySelector<HTMLButtonElement>(`button[data-level="${next}"]`)
+      ?.focus();
+  }
+
   const pickedIndicators = useMemo(
     () => indicators.filter((i) => pickedIndicatorIds.includes(i.id)),
     [indicators, pickedIndicatorIds],
   );
+
+  /** Why Simpan is disabled, in the teacher's words. `null` = it is enabled. */
+  const saveBlockedReason: string | null =
+    pickedIndicators.length === 0
+      ? "Pilih minimal satu IKTP dulu."
+      : !activity.trim()
+        ? "Isi kegiatan dulu."
+        : null;
 
   function toggleIndicator(id: string): void {
     setPickedIndicatorIds((curr) => {
@@ -304,16 +357,18 @@ export function CenterSessionClient({
 
   return (
     <div className="space-y-5">
-      <Link
-        href="/teacher/assessments"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground"
-      >
-        <ChevronLeft className="size-4" /> Penilaian
-      </Link>
+      <BackLink href="/teacher/assessments" />
 
       <PageHeader
         title={centerLabel}
-        subtitle="Penilaian harian sentra"
+        // The payload has carried `week` all along and never rendered it, so a
+        // teacher could not tell which pekan or tema a sentra session belonged
+        // to. Falls back to the generic line while the first fetch is in flight.
+        subtitle={
+          payload?.ok
+            ? `Penilaian harian · pekan ${payload.week.number} · tema ${payload.week.theme.name}`
+            : "Penilaian harian sentra"
+        }
       />
 
       <div className="grid grid-cols-2 gap-3">
@@ -321,13 +376,18 @@ export function CenterSessionClient({
           <FieldLabel htmlFor="center-date" required>
             Tanggal
           </FieldLabel>
+          {/*
+            Deliberately NOT disabled on a read-only session. Disabling it made
+            the read-only state a trap: the only control that could move you to
+            a writable date was the one the read-only state switched off.
+          */}
           <Input
             id="center-date"
             data-testid="center-date"
+            className="tap-target"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            disabled={!isWritable}
             required
           />
         </Field>
@@ -359,7 +419,6 @@ export function CenterSessionClient({
                   checked={ageGroup === g}
                   onChange={() => setAgeGroup(g)}
                   onKeyDown={handleAgeGroupKeyDown}
-                  disabled={!isWritable}
                   data-testid={`agegroup-${g}`}
                   aria-label={`TK ${g}`}
                 />
@@ -377,12 +436,13 @@ export function CenterSessionClient({
         <Input
           id="center-activity"
           data-testid="center-activity"
+          className="tap-target"
           type="text"
           value={activity}
           onChange={(e) => setActivity(e.target.value)}
           disabled={!isWritable}
           maxLength={200}
-          placeholder="Mis. Doa pagi + asmaul husna"
+          placeholder="Doa pagi dan asmaul husna"
           required
         />
       </Field>
@@ -404,7 +464,12 @@ export function CenterSessionClient({
             }
             description={payload.error}
           />
-          <Button type="button" variant="outline" onClick={() => setReloadKey((key) => key + 1)}>
+          <Button
+            type="button"
+            variant="outline"
+            className="tap-target"
+            onClick={() => setReloadKey((key) => key + 1)}
+          >
             Coba lagi
           </Button>
         </div>
@@ -415,17 +480,19 @@ export function CenterSessionClient({
               role="status"
               className="rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
             >
-              Sesi ini hanya-baca. Anda dapat melihat penilaian, tetapi tidak dapat mengubahnya.
+              Sesi ini hanya bisa dilihat. Ganti tanggal untuk mengisi penilaian baru.
             </p>
           )}
           <div className="space-y-2">
-            <p className="text-xs font-medium text-foreground">
-              Pilih Indikator Ketercapaian / IKTP (maks {MAX_PICKED_INDICATORS})
+            <p className="text-sm font-medium text-foreground">
+              Pilih indikator ketercapaian (IKTP) — maksimal {MAX_PICKED_INDICATORS}
             </p>
             {indicators.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-input bg-muted/40 p-4 text-sm text-muted-foreground">
-                Belum ada IKTP terhubung untuk tema pekan ini. Hubungi admin.
-              </div>
+              <EmptyState
+                icon={NotebookPen}
+                title="Belum ada IKTP untuk tema pekan ini"
+                description="Hubungi admin agar indikator ketercapaian dihubungkan ke tema pekan ini."
+              />
             ) : (
               <ul className="space-y-1.5" data-testid="center-indicator-picker">
                 {indicators.map((ind) => {
@@ -438,9 +505,12 @@ export function CenterSessionClient({
                         aria-pressed={picked}
                         disabled={!isWritable}
                         className={cn(
-                          "w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                          "tap-target w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                          "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                           picked
-                            ? "border-primary bg-primary/10 text-primary"
+                            // text-primary-text, not text-primary: the brand teal
+                            // is a fill colour and measures 2.24:1 on this tint.
+                            ? "border-primary bg-primary/10 text-primary-text"
                             : "border-input bg-background text-foreground",
                         )}
                       >
@@ -483,20 +553,33 @@ export function CenterSessionClient({
                             role="radiogroup"
                             aria-label={`Tingkat ${student.name} pada ${ind.content}`}
                           >
-                            {(Object.keys(LEVEL_LABEL_SHORT) as Level[]).map((lv) => {
+                            {LEVEL_ORDER.map((lv) => {
                               const isActive = level === lv;
                               return (
                                 <button
                                   key={lv}
                                   type="button"
                                   role="radio"
+                                  data-level={lv}
                                   aria-checked={isActive}
+                                  // Roving tabindex: one tab stop per group,
+                                  // arrows move within it.
+                                  tabIndex={
+                                    isActive || (!level && lv === LEVEL_ORDER[0]) ? 0 : -1
+                                  }
                                   onClick={() =>
                                     setCellLevel(student.id, ind.id, lv)
                                   }
+                                  onKeyDown={(event) =>
+                                    handleLevelKeyDown(event, student.id, ind.id, level)
+                                  }
                                   disabled={!isWritable}
+                                  aria-label={`${LEVEL_LABEL_SHORT[lv]} untuk ${student.name}`}
                                   className={cn(
-                                    "py-1.5 px-1 rounded-md border text-xs font-medium transition-colors",
+                                    // 26px before. Same control as the walas
+                                    // page, same 44px floor.
+                                    "flex min-h-11 items-center justify-center rounded-md border px-1 text-sm font-medium transition-colors",
+                                    "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                     isActive ? LEVEL_CHIP_CLASS[lv] : LEVEL_CHIP_CLASS_OFF[lv],
                                   )}
                                 >
@@ -509,9 +592,10 @@ export function CenterSessionClient({
                             type="button"
                             onClick={() => toggleNoteOpen(key)}
                             disabled={!isWritable}
-                            className="text-xs text-muted-foreground underline"
+                            aria-expanded={noteOpen}
+                            className="tap-target inline-flex items-center rounded-md px-2 -ml-2 text-xs text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
-                            {noteOpen ? "Sembunyikan catatan" : "Catatan"}
+                            {noteOpen ? "Sembunyikan catatan" : "Tambah catatan"}
                           </button>
                           {!isWritable && cell?.note && (
                             <p className="rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
@@ -541,37 +625,33 @@ export function CenterSessionClient({
           )}
 
           {pickedIndicators.length === 0 && indicators.length > 0 && (
-            <p className="text-xs text-muted-foreground italic">
+            <p className="text-xs text-muted-foreground">
               Pilih minimal satu IKTP di atas untuk mulai menilai.
             </p>
           )}
 
           {students.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              Belum ada siswa TK {ageGroup} terdaftar pada tahun ajaran aktif.
-            </p>
+            <EmptyState
+              icon={Users}
+              title={`Belum ada siswa TK ${ageGroup}`}
+              description="Belum ada siswa kelompok usia ini yang terdaftar pada tahun ajaran aktif."
+            />
           )}
         </>
       )}
 
       {isWritable && (
-      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-page-x border-t border-border bg-background/95 px-page-x py-3">
+      <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] -mx-page-x border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
         <Button
           type="button"
           onClick={save}
-          disabled={
-            saving ||
-            loading ||
-            !payload?.ok ||
-            pickedIndicators.length === 0 ||
-            !activity.trim()
-          }
-          className="w-full"
+          disabled={saving || loading || !payload?.ok || !!saveBlockedReason}
+          className="tap-target w-full"
           data-testid="center-save"
         >
           {saving ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> Menyimpan...
+              <Loader2 className="mr-2 size-4 animate-spin" /> Menyimpan…
             </>
           ) : (
             <>
@@ -579,6 +659,16 @@ export function CenterSessionClient({
             </>
           )}
         </Button>
+        {/*
+          A disabled primary action with no stated reason. The explanation
+          existed, but as italic body text ~900px further up the scroll — so
+          the teacher saw a greyed Simpan and nothing else.
+        */}
+        {saveBlockedReason && !saving ? (
+          <p className="mt-2 text-center text-xs text-muted-foreground" role="status">
+            {saveBlockedReason}
+          </p>
+        ) : null}
       </div>
       )}
     </div>

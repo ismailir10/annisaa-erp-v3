@@ -69,7 +69,7 @@ export default function StudentJournalPickerPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-7 w-48 rounded-md" />
+        <PageHeader title="Buku Penghubung" />
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-12 w-full rounded-xl" />
@@ -80,6 +80,7 @@ export default function StudentJournalPickerPage() {
   if (assignments.length === 0) {
     return (
       <div>
+        <PageHeader title="Buku Penghubung" />
         <EmptyState
           icon={Users}
           title="Belum ditugaskan ke kelas"
@@ -91,16 +92,20 @@ export default function StudentJournalPickerPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Jurnal — Buku Penghubung"
-        actions={<BookHeart size={22} className="text-primary" aria-hidden />}
-      />
+      {/*
+        One name for one thing. The nav tab says "Jurnal", this page said
+        "Jurnal — Buku Penghubung", its CTA said "Isi Penghubung" and the
+        destination said "Isi Buku Penghubung" — four labels, one destination.
+        The tab keeps "Jurnal" (a width budget, documented in bottom-nav.tsx);
+        every page-level surface now says Buku Penghubung.
+      */}
+      <PageHeader title="Buku Penghubung" subtitle="Pilih kelas dan tanggal" />
 
       <div className="space-y-4">
         <Field>
-          <FieldLabel>Pilih Kelas</FieldLabel>
+          <FieldLabel htmlFor="journal-class">Kelas</FieldLabel>
           <Select value={selectedClass} onValueChange={(v) => v && setSelectedClass(v)} items={assignments.map((a) => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="journal-class" className="tap-target w-full">
               <SelectValue placeholder="Pilih kelas" />
             </SelectTrigger>
             <SelectContent>
@@ -114,18 +119,20 @@ export default function StudentJournalPickerPage() {
         </Field>
 
         <Field>
-          <FieldLabel>Tanggal</FieldLabel>
+          <FieldLabel htmlFor="journal-date">Tanggal</FieldLabel>
           <Input
+            id="journal-date"
             type="date"
             value={date}
             max={today}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full"
+            className="tap-target w-full"
           />
         </Field>
 
-        <Button onClick={handleSubmit} className="w-full mt-2" size="lg">
-          Isi Penghubung
+        <Button onClick={handleSubmit} className="tap-target w-full mt-2" size="lg">
+          <BookHeart size={18} aria-hidden="true" />
+          Isi Buku Penghubung
         </Button>
       </div>
     </div>

@@ -3,15 +3,17 @@
 import { type KeyboardEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, NotebookPen } from "lucide-react";
-import Link from "next/link";
+import { NotebookPen, Users } from "lucide-react";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/portal/page-header";
+import { BackLink } from "@/components/portal/back-link";
+import { WeekNavigator } from "@/components/portal/week-navigator";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { formatCurriculumElement } from "@/lib/format";
+import { formatCurriculumElement, formatDate } from "@/lib/format";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import {
   LEVEL_LABEL_SHORT,
@@ -60,8 +62,15 @@ type ClassSection = {
   ageGroup: "A" | "B" | null;
 };
 
+/** Pure helper: shift a YYYY-MM-DD string by whole days, UTC-safe. */
+export function shiftYmd(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
- * Pure helper: build the `mm/dd–mm/dd` chip strip Mon–Fri inside the week.
+ * Pure helper: build the Mon–Fri day-chip strip inside the week.
  * Exported for reuse if the assessments hub later wants the same strip.
  */
 export function weekDays(week: Week): string[] {
@@ -156,6 +165,11 @@ export function WeeklyClient({
 
   const days = useMemo(() => weekDays(week), [week]);
 
+  const weekRangeLabel = useMemo(() => {
+    const opts = { day: "numeric", month: "short" } as const;
+    return `${formatDate(week.startDate, opts)} – ${formatDate(week.endDate, opts)}`;
+  }, [week.startDate, week.endDate]);
+
   const entryByStudent = useMemo(() => {
     const map = new Map<string, Entry>();
     for (const e of entries) {
@@ -229,16 +243,26 @@ export function WeeklyClient({
 
   return (
     <div className="space-y-5">
-      <Link
-        href="/teacher/assessments"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground"
-      >
-        <ChevronLeft className="size-4" /> Penilaian
-      </Link>
+      <BackLink href="/teacher/assessments" />
 
       <PageHeader
-        title="Penilaian Pekanan"
-        subtitle={`Pekan ${week.number} · ${week.subTheme.name} (${week.theme.name}) · ${classSection.name}`}
+        title="Penilaian pekanan"
+        // No nested parentheses. Both `subTheme.name` and `theme.name` are DB
+        // values that already carry their own brackets ("Rumahku (Demo)"), so
+        // wrapping the theme in a second pair rendered
+        // "Rumahku (Demo) (Lingkunganku (Demo))". Separators, not brackets.
+        subtitle={`${classSection.name} · ${week.subTheme.name} · tema ${week.theme.name}`}
+      />
+
+      {/*
+        A walas could not reach last pekan: the page reads `?date=` but only
+        offered a date picker inside the "no active week" branch, so on the
+        normal path there was no way back. Same control the parent portal uses.
+      */}
+      <WeekNavigator
+        label={`Pekan ${week.number} · ${weekRangeLabel}`}
+        prevHref={`/teacher/assessments/weekly?date=${shiftYmd(week.startDate, -7)}`}
+        nextHref={`/teacher/assessments/weekly?date=${shiftYmd(week.startDate, 7)}`}
       />
 
       <div
@@ -286,7 +310,7 @@ export function WeeklyClient({
           htmlFor="indicator-picker"
           className="block text-sm font-medium text-foreground"
         >
-          Indikator Ketercapaian (IKTP)
+          Indikator ketercapaian (IKTP)
         </label>
         {/*
           `NativeSelect` IS the <select> — passing another one as its child
@@ -296,14 +320,17 @@ export function WeeklyClient({
           silently wrote against `indicators[0]`.
         */}
         {indicators.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-input bg-muted/40 p-4 text-sm text-muted-foreground">
-            Belum ada IKTP terhubung untuk tema pekan ini. Hubungi admin.
-          </div>
+          <EmptyState
+            icon={NotebookPen}
+            title="Belum ada IKTP untuk tema pekan ini"
+            description="Hubungi admin agar indikator ketercapaian dihubungkan ke tema pekan ini."
+          />
         ) : (
           <NativeSelect
             id="indicator-picker"
             data-testid="indicator-picker"
             className="w-full"
+            selectClassName="tap-target"
             value={activeIndicatorId}
             onChange={(e) => setActiveIndicatorId(e.target.value)}
           >
@@ -317,9 +344,11 @@ export function WeeklyClient({
       </div>
 
       {students.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-input bg-muted/40 p-6 text-sm text-muted-foreground text-center">
-          Belum ada siswa terdaftar di kelas ini.
-        </div>
+        <EmptyState
+          icon={Users}
+          title="Belum ada siswa di kelas ini"
+          description="Minta admin untuk mendaftarkan siswa ke kelas ini."
+        />
       ) : (
         <ul className="space-y-2" data-testid="weekly-roster">
           {students.map((student) => {
@@ -353,7 +382,9 @@ export function WeeklyClient({
                       <label
                         key={level}
                         className={cn(
-                          "cursor-pointer rounded-md border px-1 py-2 text-center text-xs font-medium transition-colors",
+                          // min-h-11 = 44px. These measured 34px and are the
+                          // single most-tapped control in the whole portal.
+                          "flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-1 py-2 text-center text-sm font-medium transition-colors",
                           "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2",
                           isActive ? LEVEL_CHIP_CLASS[level] : LEVEL_CHIP_CLASS_OFF[level],
                           (!activeIndicatorId || pending) &&
@@ -388,9 +419,13 @@ export function WeeklyClient({
         </ul>
       )}
 
-      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-        <NotebookPen className="size-3.5" />
-        Ketuk tingkat untuk menyimpan. Catatan per indikator bisa ditambahkan dari detail siswa.
+      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <NotebookPen className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        {/*
+          The old line ended "…bisa ditambahkan dari detail siswa", pointing at
+          a screen this page has no link to. Say what the tap does instead.
+        */}
+        Ketuk tingkat untuk menyimpan. Penilaian tersimpan otomatis.
       </p>
     </div>
   );

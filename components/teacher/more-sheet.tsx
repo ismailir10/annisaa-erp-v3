@@ -26,19 +26,19 @@ export type TeacherMoreItem = {
  */
 export const TEACHER_MORE_ITEMS: TeacherMoreItem[] = [
   {
-    label: "Kehadiran Saya",
+    label: "Kehadiran saya",
     description: "Riwayat kehadiran, cuti, dan izin",
     href: "/teacher/attendance",
     icon: CalendarDays,
   },
   {
-    label: "Slip Gaji",
+    label: "Slip gaji",
     description: "Lihat slip gaji bulanan",
     href: "/teacher/slips",
     icon: Wallet,
   },
   {
-    label: "Profil Saya",
+    label: "Profil saya",
     description: "Data akun dan kontak",
     href: "/teacher/profile",
     icon: User,

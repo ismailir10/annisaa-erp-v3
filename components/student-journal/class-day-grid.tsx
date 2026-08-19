@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, ChevronUp, MessageSquarePlus } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { SectionLabel } from "@/components/portal/section-label";
 
 type Indicator = {
   id: string;
@@ -42,6 +43,9 @@ type ClassDayGridProps = {
 
 export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate, pendingCells }: ClassDayGridProps) {
   const router = useRouter();
+  // The row-stagger ignored the OS reduced-motion setting, unlike every other
+  // animated surface in the portal.
+  const reduceMotion = useReducedMotion();
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
 
   function toggleExpand(studentId: string) {
@@ -72,19 +76,19 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
         return (
           <motion.div
             key={student.id}
-            initial={{ opacity: 0, y: 4 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.02 }}
+            transition={reduceMotion ? { duration: 0 } : { delay: i * 0.02 }}
             className="rounded-xl border border-border bg-card overflow-hidden"
           >
             {/* Student header — tap area expands; sibling icon button adds a note */}
             <div className="flex items-stretch">
               <button
                 onClick={() => toggleExpand(student.id)}
-                className="flex-1 flex items-center justify-between p-3.5 text-left"
+                className="min-w-0 flex-1 flex items-center justify-between gap-2 p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 aria-expanded={isExpanded}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${
                       checkedCount === totalIndicators && totalIndicators > 0
@@ -98,15 +102,20 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                       <span>{student.name[0]}</span>
                     )}
                   </div>
-                  <div>
+                  {/*
+                    min-w-0 on both the flex parent and this block: without it a
+                    long name ("Ali Naufal Kurniawan") ran flush into the "0/7"
+                    counter at 390px instead of wrapping inside its own column.
+                  */}
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">{student.name}</p>
                     {student.nickname && (
                       <p className="text-xs text-muted-foreground">{student.nickname}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     {checkedCount}/{totalIndicators}
                   </span>
                   {isExpanded ? (
@@ -120,12 +129,12 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                 <button
                   type="button"
                   onClick={() => onAddNote(student)}
-                  className="px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border"
+                  className="min-w-11 px-3 flex items-center justify-center gap-1 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   aria-label={`Tambah catatan untuk ${student.name}`}
                 >
-                  <MessageSquarePlus size={18} />
+                  <MessageSquarePlus size={18} aria-hidden="true" />
                   {(noteCounts?.[student.id] ?? 0) > 0 ? (
-                    <span className="text-xs font-medium text-primary tabular-nums">
+                    <span className="text-xs font-medium text-primary-text tabular-nums">
                       {noteCounts?.[student.id]}
                     </span>
                   ) : null}
@@ -140,10 +149,10 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                       `/teacher/student-journal/students/${student.id}?week=${visibleDate}`,
                     )
                   }
-                  className="px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border"
-                  aria-label={`Lihat minggu ${student.name}`}
+                  className="min-w-11 px-3 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-l border-border outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  aria-label={`Lihat pekan ${student.name}`}
                 >
-                  <ChevronRight size={18} />
+                  <ChevronRight size={18} aria-hidden="true" />
                 </button>
               ) : null}
             </div>
@@ -162,9 +171,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                   <div className="border-t border-border px-3.5 pb-3 pt-2 space-y-3">
                     {categories.map((category) => (
                       <div key={category.id}>
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                          {category.name}
-                        </p>
+                        <SectionLabel>{category.name}</SectionLabel>
                         <div className="space-y-1">
                           {category.indicators.map((indicator) => {
                             const isChecked = state[student.id]?.[indicator.id] ?? false;
@@ -173,7 +180,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                               <button
                                 key={indicator.id}
                                 onClick={() => onToggle(student.id, indicator.id)}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors min-h-11 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                   isChecked
                                     ? // text-primary-text, not text-primary: the brand teal is a
                                       // fill colour and measures 2.24:1 on this tint, which made

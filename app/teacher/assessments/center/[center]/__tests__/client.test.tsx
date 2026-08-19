@@ -94,7 +94,11 @@ describe("CenterSessionClient", () => {
     const writable = renderClient();
     const save = await screen.findByTestId("center-save");
     expect(save.parentElement?.className).toContain("bottom-[calc(4rem+env(safe-area-inset-bottom))]");
-    expect(save.parentElement?.className).toContain("bg-background/95");
+    // Opaque base + a blurred translucent upgrade only where backdrop-filter
+    // is supported — the old flat `bg-background/95` let roster rows show
+    // through the bar mid-scroll.
+    expect(save.parentElement?.className).toContain("bg-background");
+    expect(save.parentElement?.className).toContain("backdrop-blur");
     writable.unmount();
 
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({
@@ -111,13 +115,17 @@ describe("CenterSessionClient", () => {
     renderClient();
     await screen.findByTestId("center-indicator-picker");
     expect(screen.queryByTestId("center-save")).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("Sesi ini hanya-baca");
-    expect(screen.getByTestId("center-date")).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Sesi ini hanya bisa dilihat");
+    // Date + age group stay ENABLED on a read-only session: they are the only
+    // controls that can move the teacher to a writable one, so disabling them
+    // made read-only a dead end.
+    expect(screen.getByTestId("center-date")).toBeEnabled();
+    expect(screen.getByRole("radio", { name: "TK A" })).toBeEnabled();
+    // Everything that writes to this session stays disabled.
     expect(screen.getByTestId("center-activity")).toBeDisabled();
-    expect(screen.getByRole("radio", { name: "TK A" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Karakter.*Mengikuti kegiatan/ })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: "Mampu" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Catatan" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /^Mampu untuk / })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Tambah catatan" })).toBeDisabled();
     expect(screen.getByText("Catatan: Sudah dicatat")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Catatan singkat (opsional)")).toBeNull();
   });

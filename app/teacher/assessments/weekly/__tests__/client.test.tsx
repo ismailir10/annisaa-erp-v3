@@ -60,7 +60,13 @@ describe("WeeklyClient radio groups", () => {
     renderWeeklyClient();
 
     await user.tab();
-    expect(screen.getByRole("link", { name: "Penilaian" })).toHaveFocus();
+    expect(screen.getByRole("link", { name: "Kembali" })).toHaveFocus();
+
+    // WeekNavigator sits between the back link and the day strip.
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Pekan sebelumnya" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("link", { name: "Pekan berikutnya" })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole("radio", { name: "Sen 11" })).toHaveFocus();

@@ -21,17 +21,17 @@ export default async function TeacherProfilePage() {
   if (!employee) redirect("/");
 
   const fields = [
-    { icon: User, label: "Nama Lengkap", value: employee.formalName ?? employee.nama },
+    { icon: User, label: "Nama lengkap", value: employee.formalName ?? employee.nama },
     { icon: Briefcase, label: "Jabatan", value: employee.jabatan },
     { icon: Building2, label: "Kampus", value: employee.campus.name },
     { icon: Mail, label: "Email", value: employee.email },
-    { icon: Phone, label: "No. Handphone", value: employee.noHp ?? "—" },
-    { icon: CreditCard, label: "No. Rekening", value: employee.bankAccountNo ? `${employee.bankName} ${maskBankAccount(employee.bankAccountNo)}` : "—" },
+    { icon: Phone, label: "Nomor handphone", value: employee.noHp ?? "—" },
+    { icon: CreditCard, label: "Nomor rekening", value: employee.bankAccountNo ? `${employee.bankName} ${maskBankAccount(employee.bankAccountNo)}` : "—" },
   ];
 
   return (
     <div>
-      <PageHeader title="Profil Saya" />
+      <PageHeader title="Profil saya" />
 
       {/* Avatar + Name */}
       <div className="flex items-center gap-4 mb-6">
@@ -55,7 +55,7 @@ export default async function TeacherProfilePage() {
         >
           <Wallet size={16} className="text-muted-foreground shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Slip Gaji</p>
+            <p className="text-sm font-medium">Slip gaji</p>
             <p className="text-xs text-muted-foreground mt-0.5">Lihat slip gaji bulanan</p>
           </div>
           <ChevronRight size={16} className="text-muted-foreground shrink-0" />
@@ -71,9 +71,15 @@ export default async function TeacherProfilePage() {
               key={f.label}
               className={`flex items-center gap-3 px-4 py-3.5 ${i < fields.length - 1 ? "border-b border-border" : ""}`}
             >
-              <Icon size={16} className="text-muted-foreground shrink-0" />
+              <Icon size={16} className="text-muted-foreground shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</p>
+                {/*
+                  These are field labels, not section labels. Wearing the
+                  uppercase letter-spaced eyebrow treatment (at weight 400, a
+                  fourth rank on top of the portal's other three) made the label
+                  out-shout the value it describes.
+                */}
+                <p className="text-xs text-muted-foreground">{f.label}</p>
                 <p className="text-sm font-medium mt-0.5 truncate">{f.value}</p>
               </div>
             </div>
@@ -82,7 +88,7 @@ export default async function TeacherProfilePage() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center mt-6">
-        Hubungi admin untuk mengubah data profil
+        Hubungi admin untuk mengubah data profil.
       </p>
     </div>
   );

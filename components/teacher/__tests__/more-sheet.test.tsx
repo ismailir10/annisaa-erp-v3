@@ -29,11 +29,11 @@ describe("TeacherMoreSheet", () => {
     render(<TeacherMoreSheet open onOpenChange={() => {}} />);
 
     const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
-    expect(within(menu).getByRole("link", { name: /^Slip Gaji/ })).toHaveAttribute(
+    expect(within(menu).getByRole("link", { name: /^Slip gaji/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(within(menu).getByRole("link", { name: /^Kehadiran Saya/ })).not.toHaveAttribute(
+    expect(within(menu).getByRole("link", { name: /^Kehadiran saya/ })).not.toHaveAttribute(
       "aria-current",
     );
   });
@@ -44,7 +44,7 @@ describe("TeacherMoreSheet", () => {
     render(<TeacherMoreSheet open onOpenChange={onOpenChange} />);
 
     const menu = screen.getByRole("navigation", { name: "Menu lainnya guru" });
-    const profile = within(menu).getByRole("link", { name: /^Profil Saya/ });
+    const profile = within(menu).getByRole("link", { name: /^Profil saya/ });
     expect(profile.className).toContain("min-h-14");
     expect(profile.className).toContain("focus-visible:ring-2");
 

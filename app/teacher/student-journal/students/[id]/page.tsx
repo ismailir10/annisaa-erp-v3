@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeekGrid } from "@/components/portal/week-grid";
+import { WeekNavigator } from "@/components/portal/week-navigator";
+import { BackLink } from "@/components/portal/back-link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from "lucide-react";
+import { BookHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
@@ -58,7 +61,6 @@ function formatWeekLabel(weekStartYmd: string, dates: string[]): string {
 
 export default function TeacherStudentWeekPage() {
   const { id: studentId } = useParams<{ id: string }>();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const today = getTodayInTimezone("Asia/Jakarta");
@@ -117,42 +119,30 @@ export default function TeacherStudentWeekPage() {
   }
 
   const weekLabel = data ? formatWeekLabel(data.weekStart, data.dates) : "";
+  const isCurrentWeek = ws === weekStart(today);
 
   return (
     <div>
-      {/* Back link */}
-      <button
-        type="button"
-        onClick={() => router.push("/teacher/student-journal")}
-        className="flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground mb-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        <ArrowLeft size={16} />
-        Kembali
-      </button>
+      <BackLink href="/teacher/student-journal" className="mb-4" />
 
-      {/* Week navigator */}
-      <div className="flex items-center justify-between mb-4">
-        <button
-          type="button"
-          onClick={prevWeek}
-          className="grid min-h-11 min-w-11 place-items-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label="Minggu sebelumnya"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">Minggu ini</p>
-          <p className="text-sm font-semibold">{weekLabel || ws}</p>
-        </div>
-        <button
-          type="button"
-          onClick={nextWeek}
-          className="grid min-h-11 min-w-11 place-items-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label="Minggu berikutnya"
-        >
-          <ChevronRight size={20} />
-        </button>
-      </div>
+      {/*
+        Was a hand-rolled navigator with "Minggu sebelumnya"/"Minggu berikutnya"
+        labels and a static "Minggu ini" caption above the range — so a teacher
+        paging back three weeks still read "this week". Shared control now, and
+        the caption is derived instead of asserted.
+      */}
+      <WeekNavigator
+        className="mb-4"
+        label={
+          weekLabel
+            ? isCurrentWeek
+              ? `${weekLabel} · pekan ini`
+              : weekLabel
+            : ws
+        }
+        onPrev={prevWeek}
+        onNext={nextWeek}
+      />
 
       {loading ? (
         <div className="space-y-2">
@@ -161,17 +151,19 @@ export default function TeacherStudentWeekPage() {
           ))}
         </div>
       ) : loadError ? (
-        <div className="py-8 text-center">
-          <p className="text-sm font-medium text-foreground">Data penghubung tidak bisa dimuat</p>
-          <p className="mt-1 text-xs text-muted-foreground">{loadError}. Coba lagi sebentar ya.</p>
-          <Button className="mt-4" variant="outline" onClick={() => loadWeek(ws)}>
-            Coba lagi
-          </Button>
-        </div>
+        <EmptyState
+          icon={BookHeart}
+          title="Data penghubung tidak bisa dimuat"
+          // `loadError` already ends in a period, so the old
+          // "{loadError}. Coba lagi" rendered "…kelas aktif.. Coba lagi".
+          description={loadError.replace(/\.$/, "")}
+          actionLabel="Coba lagi"
+          onAction={() => loadWeek(ws)}
+        />
       ) : (
         <>
           <p className="mb-3 text-xs text-muted-foreground">
-            Riwayat penghubung (hanya-baca)
+            Riwayat penghubung — hanya bisa dilihat di sini
           </p>
           <WeekGrid
             categories={data?.categories ?? []}
@@ -185,13 +177,14 @@ export default function TeacherStudentWeekPage() {
               <Button
                 size="sm"
                 variant="outline"
+                className="tap-target"
                 onClick={() => {
                   setNoteDate(computeDefaultNoteDate(ws, today));
                   setDialogOpen(true);
                 }}
               >
-                <Plus size={14} className="mr-1" />
-                Tambah Catatan
+                <Plus size={14} className="mr-1" aria-hidden="true" />
+                Tambah catatan
               </Button>
             </div>
             <NoteThread notes={data?.notes ?? []} />
@@ -206,8 +199,8 @@ export default function TeacherStudentWeekPage() {
         studentId={studentId}
         weekDates={data?.dates ?? [noteDate]}
         initialDate={noteDate}
-        title="Tambah Catatan"
-        placeholder="Tulis catatan di sini..."
+        title="Tambah catatan"
+        placeholder="Tulis catatan di sini…"
         onSaved={() => {
           setDialogOpen(false);
           setNoteDate(computeDefaultNoteDate(ws, today));

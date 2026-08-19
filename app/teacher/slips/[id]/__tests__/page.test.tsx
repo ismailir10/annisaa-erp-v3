@@ -31,7 +31,7 @@ describe("SlipDetailPage", () => {
     render(await SlipDetailPage({ params: Promise.resolve({ id: "slip-1" }) }));
     expect(screen.getByRole("heading", { name: "Maret 2026" })).toBeInTheDocument();
     expect(screen.getByText("1 Maret 2026 s/d 31 Maret 2026")).toBeInTheDocument();
-    const back = screen.getByRole("link", { name: /Kembali ke Slip Gaji/ });
+    const back = screen.getByRole("link", { name: /Kembali ke slip gaji/ });
     expect(back).toHaveAttribute("href", "/teacher/slips");
     expect(back).toHaveClass("min-h-11", "focus-visible:ring-2");
     const pdf = screen.getByRole("link", { name: /Unduh PDF slip/ });

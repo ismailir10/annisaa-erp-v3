@@ -210,7 +210,13 @@
   --status-no-checkout-subtle: #FFF7E6;
 
   /* Status text (darker shades for readability) */
-  --status-present-text: #00875A;
+  /*
+   * #00875A measured 4.16:1 against --status-present-subtle (the unselected
+   * "Mampu" level chip, 12px) — under AA. Darkened to #00704A, which measures
+   * 5.14:1 on that tint and 5.62:1 on white, so every existing consumer
+   * (status badges, attendance counts, parent chips) gains contrast too.
+   */
+  --status-present-text: #00704A;
   --status-late-text: #B35C00;
   --status-absent-text: #CC0000;
   --status-leave-text: #0369A1;
@@ -319,6 +325,22 @@
 .font-amount {
   font-variant-numeric: tabular-nums lining-nums;
   letter-spacing: -0.01em;
+}
+
+/*
+ * 44px minimum tap target for portal controls.
+ *
+ * The shadcn bases are desk-first: `Input`, `SelectTrigger` and `NativeSelect`
+ * are `h-8` (32px) and even `Button size="lg"` is `h-9` (36px). That density is
+ * right for the admin console on a mouse, and wrong for the teacher portal,
+ * which is operated one-handed on a phone while standing in a classroom.
+ *
+ * `min-height` rather than `height` so it wins over the component's own `h-8`
+ * without having to fight specificity at every call site, and so a control that
+ * is legitimately taller (textarea, wrapped chip) keeps its own height.
+ */
+.tap-target {
+  min-height: 2.75rem;
 }
 
 /* Safe area for mobile devices (iPhone home indicator) */

@@ -18,6 +18,25 @@ type SlipItem = {
   payrollRun: { periodStart: string; periodEnd: string; status: string };
 };
 
+/** "Last month's slip isn't out yet" notice. Rendered from two branches. */
+function PendingSlipCard({ label }: { label: string }) {
+  return (
+    <Card className="p-card border-dashed bg-muted/30">
+      <div className="flex items-start gap-3">
+        <Clock size={18} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">
+            Slip {label} akan tersedia setelah tanggal 5
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Hubungi admin jika belum tersedia setelah tanggal tersebut.
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function TeacherSlipsPage() {
   const [slips, setSlips] = useState<SlipItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +73,7 @@ export default function TeacherSlipsPage() {
 
   return (
     <div>
-      <PageHeader title="Slip Gaji" />
+      <PageHeader title="Slip gaji" />
 
       {loading ? (
         <div className="space-y-3">
@@ -63,19 +82,17 @@ export default function TeacherSlipsPage() {
           ))}
         </div>
       ) : loadError ? (
-        <Card role="alert" className="p-card text-center">
-          <FileText size={24} className="mx-auto text-muted-foreground" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-foreground">Slip gaji tidak bisa dimuat</p>
-          <p className="mt-1 text-xs text-muted-foreground">Periksa koneksi, lalu coba lagi.</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={loadSlips}
-            className="mt-4 min-h-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            Coba lagi
-          </Button>
-        </Card>
+        // Was a hand-rolled Card that imitated EmptyState — in a file that
+        // already imports EmptyState eight lines below for the empty case.
+        <div role="alert">
+          <EmptyState
+            icon={FileText}
+            title="Slip gaji tidak bisa dimuat"
+            description="Periksa koneksi, lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={loadSlips}
+          />
+        </div>
       ) : slips.length === 0 && !showPlaceholder ? (
         <EmptyState
           icon={FileText}
@@ -84,40 +101,14 @@ export default function TeacherSlipsPage() {
         />
       ) : slips.length === 0 && showPlaceholder ? (
         <div className="space-y-3">
-          <Card className="p-card border-dashed bg-muted/30">
-            <div className="flex items-start gap-3">
-              <Clock size={18} className="mt-0.5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  Slip {prior.label} akan tersedia setelah tanggal 5
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Hubungi admin jika belum tersedia setelah tanggal tersebut.
-                </p>
-              </div>
-            </div>
-          </Card>
+          <PendingSlipCard label={prior.label} />
           <p className="text-center text-xs text-muted-foreground">
             Belum ada riwayat slip sebelumnya.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {showPlaceholder && (
-            <Card className="p-card border-dashed bg-muted/30">
-              <div className="flex items-start gap-3">
-                <Clock size={18} className="mt-0.5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    Slip {prior.label} akan tersedia setelah tanggal 5
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Hubungi admin jika belum tersedia setelah tanggal tersebut.
-                  </p>
-                </div>
-              </div>
-            </Card>
-          )}
+          {showPlaceholder && <PendingSlipCard label={prior.label} />}
 
           {slips.map((slip) => {
             const periodLabel = `${formatDateShort(slip.payrollRun.periodStart)} — ${formatDateShort(slip.payrollRun.periodEnd)}`;
@@ -138,10 +129,11 @@ export default function TeacherSlipsPage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="tap-target shrink-0"
                     onClick={() => window.open(`/api/slips/${slip.id}/pdf`, "_blank")}
-                    aria-label={`Unduh PDF slip ${periodLabel}`}
+                    aria-label={`Unduh PDF slip ${periodLabel} (buka di tab baru)`}
                   >
-                    <Download size={14} className="mr-1" /> PDF
+                    <Download size={14} className="mr-1" aria-hidden="true" /> PDF
                   </Button>
                 </div>
               </Card>
