@@ -76,13 +76,18 @@ export function EmptyState({
       {description && (
         <p className="text-xs text-muted-foreground mt-1 max-w-sm">{description}</p>
       )}
+      {/*
+        `size="sm"` is `h-7` — a 28px primary action, and an empty state's CTA
+        is usually the only thing on the screen worth tapping. `.tap-target`
+        raises it to the 44px minimum without changing the visual size class.
+      */}
       {actionLabel && actionHref && (
         <Link href={actionHref} className="mt-4">
-          <Button size="sm">{actionLabel}</Button>
+          <Button size="sm" className="tap-target">{actionLabel}</Button>
         </Link>
       )}
       {actionLabel && onAction && !actionHref && (
-        <Button size="sm" onClick={onAction} className="mt-4">
+        <Button size="sm" onClick={onAction} className="tap-target mt-4">
           {actionLabel}
         </Button>
       )}

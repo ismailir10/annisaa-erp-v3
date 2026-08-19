@@ -72,16 +72,16 @@ describe("TeacherHomeClient motion", () => {
     renderHome();
 
     await waitFor(() => {
-      expect(screen.getByText("Status Hari Ini")).toBeInTheDocument();
+      expect(screen.getByText("Status hari ini")).toBeInTheDocument();
     });
 
-    const status = screen.getByText("Status Hari Ini");
-    const quickLinks = screen.getByText("Akses Cepat");
+    const status = screen.getByText("Status hari ini");
+    const quickLinks = screen.getByText("Akses cepat");
     expect(status.compareDocumentPosition(quickLinks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     for (const link of [
       screen.getByRole("link", { name: /Buku Penghubung/ }),
-      screen.getByRole("link", { name: /Penilaian Pekanan/ }),
+      screen.getByRole("link", { name: /Penilaian pekanan/ }),
       screen.getByRole("link", { name: /Pagi.*12 siswa/ }),
     ]) {
       expect(link.className).toContain("focus-visible:ring-2");

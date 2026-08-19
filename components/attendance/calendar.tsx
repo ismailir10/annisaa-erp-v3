@@ -85,12 +85,23 @@ export function AttendanceCalendar({
     <div>
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={prevMonth} aria-label="Bulan sebelumnya" className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
-          <ChevronLeft size={18} />
+        {/* size-11 = 44px. These measured 34×34. */}
+        <button
+          type="button"
+          onClick={prevMonth}
+          aria-label="Bulan sebelumnya"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <ChevronLeft size={20} aria-hidden="true" />
         </button>
         <h2 className="text-sm font-semibold capitalize">{monthLabel}</h2>
-        <button onClick={nextMonth} aria-label="Bulan berikutnya" className="p-2 rounded-lg hover:bg-accent text-muted-foreground">
-          <ChevronRight size={18} />
+        <button
+          type="button"
+          onClick={nextMonth}
+          aria-label="Bulan berikutnya"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <ChevronRight size={20} aria-hidden="true" />
         </button>
       </div>
 

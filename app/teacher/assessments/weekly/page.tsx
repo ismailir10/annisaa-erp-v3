@@ -6,6 +6,8 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { loadWeeklyAssessment } from "@/lib/curriculum/weekly-assessment-loader";
 import { WeeklyClient } from "./client";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/portal/page-header";
+import { BackLink } from "@/components/portal/back-link";
 
 const JAKARTA_TZ = "Asia/Jakarta";
 
@@ -29,9 +31,9 @@ export function WeeklyDateRecovery({ date }: { date: string }) {
         type="date"
         defaultValue={date}
         required
-        className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="tap-target w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
-      <Button type="submit" className="min-h-11 w-full">Lihat penilaian</Button>
+      <Button type="submit" className="tap-target w-full">Lihat penilaian</Button>
     </form>
   );
 }
@@ -87,9 +89,11 @@ export default async function TeacherAssessmentsWeeklyPage({
     // no_active_week — still tell walas which classroom they're walas of
     return (
       <div className="space-y-4">
-        <h1 className="text-lg font-semibold">
-          Penilaian Pekanan — {data.classSection.name}
-        </h1>
+        <BackLink href="/teacher/assessments" />
+        <PageHeader
+          title="Penilaian pekanan"
+          subtitle={data.classSection.name}
+        />
         <EmptyState
           icon={CalendarOff}
           title="Belum ada pekan aktif"

@@ -15,11 +15,11 @@ export default function TeacherStudentJournalError({
         <AlertTriangle className="text-destructive" size={22} />
       </div>
       <div>
-        <h2 className="text-h3 font-semibold mb-1">Gagal memuat buku penghubung</h2>
+        <h2 className="text-h3 font-semibold mb-1">Buku Penghubung tidak bisa dimuat</h2>
         <p className="text-sm text-muted-foreground max-w-xs">Coba lagi sebentar ya.</p>
       </div>
-      <Button onClick={reset} variant="outline" size="sm">
-        Coba Lagi
+      <Button onClick={reset} variant="outline" size="sm" className="tap-target">
+        Coba lagi
       </Button>
     </div>
   );

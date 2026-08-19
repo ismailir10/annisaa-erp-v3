@@ -92,7 +92,7 @@ describe("WeeklyClient IKTP picker", () => {
   it("keeps the label wired to the control", () => {
     renderClient();
 
-    const select = screen.getByLabelText("Indikator Ketercapaian (IKTP)");
+    const select = screen.getByLabelText("Indikator ketercapaian (IKTP)");
     expect(select.tagName).toBe("SELECT");
     expect(select).toHaveAttribute("id", "indicator-picker");
   });
@@ -115,7 +115,7 @@ describe("WeeklyClient IKTP picker", () => {
 
     expect(container.querySelector("select")).toBeNull();
     expect(
-      screen.getByText(/Belum ada IKTP terhubung untuk tema pekan ini/),
+      screen.getByText(/Belum ada IKTP untuk tema pekan ini/),
     ).toBeInTheDocument();
   });
 });

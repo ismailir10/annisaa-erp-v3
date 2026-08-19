@@ -22,7 +22,7 @@ describe("teacher slips recovery", () => {
     await screen.findByText("Slip gaji tidak bisa dimuat");
     expect(screen.queryByText("Belum ada riwayat slip sebelumnya.")).toBeNull();
     const retry = screen.getByRole("button", { name: "Coba lagi" });
-    expect(retry).toHaveClass("min-h-11", "focus-visible:ring-2");
+    expect(retry).toHaveClass("tap-target");
 
     fireEvent.click(retry);
     expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);

@@ -27,7 +27,7 @@ describe("TeacherProfilePage", () => {
 
   it("gives the salary quick link a visible 44px focus target", async () => {
     render(await TeacherProfilePage());
-    const slips = screen.getByRole("link", { name: /Slip Gaji/ });
+    const slips = screen.getByRole("link", { name: /Slip gaji/ });
     expect(slips).toHaveAttribute("href", "/teacher/slips");
     expect(slips).toHaveClass("min-h-11");
     expect(slips).toHaveClass("focus-visible:ring-2");

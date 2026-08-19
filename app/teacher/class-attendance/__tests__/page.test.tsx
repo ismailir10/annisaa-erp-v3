@@ -40,7 +40,7 @@ describe("ClassAttendancePage recovery", () => {
     render(<ClassAttendancePage />);
     await screen.findByText("Daftar kelas tidak bisa dimuat");
     fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Absensi Kelas" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Absensi kelas" })).toBeInTheDocument());
   });
 
   it("retries roster loading after failure", async () => {

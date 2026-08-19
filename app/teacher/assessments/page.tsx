@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ClipboardList, ChevronRight, CalendarDays, Building2 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/portal/page-header";
+import { SectionLabel } from "@/components/portal/section-label";
 import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
 import {
   ALL_LEARNING_CENTERS,
@@ -22,7 +23,7 @@ export default async function TeacherAssessmentsPage() {
           icon={ClipboardList}
           title="Akun belum terhubung dengan staf"
           description="Hubungi admin agar akun Anda dipasangkan dengan data karyawan."
-          actionLabel="Kembali ke Beranda"
+          actionLabel="Kembali ke beranda"
           actionHref="/teacher"
         />
       </div>
@@ -70,7 +71,7 @@ export default async function TeacherAssessmentsPage() {
           icon={ClipboardList}
           title="Belum ditugaskan ke kelas"
           description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu."
-          actionLabel="Kembali ke Beranda"
+          actionLabel="Kembali ke beranda"
           actionHref="/teacher"
         />
       </div>
@@ -81,42 +82,49 @@ export default async function TeacherAssessmentsPage() {
     <div>
       <PageHeader title="Penilaian" subtitle={`Periode: ${period}`} />
 
-      <div className="space-y-3">
+      <div className="space-y-6">
         {homeroom && (
           <Link
             href="/teacher/assessments/weekly"
-            className="flex items-center gap-3 p-card bg-card border border-border rounded-lg hover:border-primary/30 transition-colors"
+            className="flex min-h-11 items-center gap-3 p-card bg-card border border-border rounded-xl hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             data-testid="hub-weekly-card"
           >
-            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <CalendarDays className="size-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">Penilaian Pekanan</p>
-              <p className="text-xs text-muted-foreground truncate">
-                Walas {homeroom.name} · catat per pekan terhadap Indikator Ketercapaian (IKTP)
+              <p className="text-sm font-medium">Penilaian pekanan</p>
+              {/*
+                Was one truncating line — "Walas DCARE · catat per pekan terh…"
+                — which cut off exactly the half that explained anything.
+              */}
+              <p className="text-xs text-muted-foreground">
+                Walas {homeroom.name} · catat IKTP per pekan
               </p>
             </div>
             <ChevronRight size={16} className="text-muted-foreground shrink-0" />
           </Link>
         )}
-        <div className="space-y-2" data-testid="hub-center-grid">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Sentra Harian
-          </p>
+        <div data-testid="hub-center-grid">
+          <SectionLabel>Sentra harian</SectionLabel>
           <div className="grid grid-cols-2 gap-2">
             {ALL_LEARNING_CENTERS.map((center) => (
               <Link
                 key={center}
                 href={`/teacher/assessments/center/${center.toLowerCase()}`}
                 data-testid={`hub-center-${center.toLowerCase()}`}
-                className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 hover:border-primary/30 transition-colors"
+                className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <Building2 className="size-4 text-primary" />
                 </div>
-                <span className="text-xs font-medium truncate">
-                  {formatLearningCenter(center)}
+                {/*
+                  The eyebrow above already says "Sentra", and repeating it
+                  eight times in a 2-column grid at 390px truncated half the
+                  tiles ("Sentra Bahan Al…"). Strip the redundant prefix.
+                */}
+                <span className="min-w-0 truncate text-xs font-medium">
+                  {formatLearningCenter(center).replace(/^Sentra /, "")}
                 </span>
               </Link>
             ))}

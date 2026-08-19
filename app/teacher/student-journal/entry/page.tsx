@@ -11,7 +11,7 @@ import { Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
-import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/portal/back-link";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import {
   getJournalCellKey,
@@ -257,8 +257,7 @@ export default function StudentJournalEntryPage() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <Skeleton className="h-6 w-56 rounded-md" />
-        <Skeleton className="h-4 w-36 rounded-md" />
+        <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-16 w-full rounded-xl" />
         ))}
@@ -272,7 +271,7 @@ export default function StudentJournalEntryPage() {
         <EmptyState
           icon={Users}
           title="Kelas dan tanggal belum dipilih"
-          description="Pilih kelas dan tanggal terlebih dahulu untuk mengisi penghubung."
+          description="Pilih kelas dan tanggal dulu untuk mengisi Buku Penghubung."
           actionLabel="Pilih kelas dan tanggal"
           actionHref="/teacher/student-journal"
         />
@@ -281,7 +280,15 @@ export default function StudentJournalEntryPage() {
   }
 
   if (loadError) {
-    return <div className="space-y-4"><EmptyState icon={Users} title="Data kelas tidak bisa dimuat" description="Periksa koneksi, lalu coba lagi." /><div className="text-center"><Button variant="outline" onClick={loadGrid}>Coba lagi</Button></div></div>;
+    return (
+      <EmptyState
+        icon={Users}
+        title="Data kelas tidak bisa dimuat"
+        description="Periksa koneksi, lalu coba lagi."
+        actionLabel="Coba lagi"
+        onAction={loadGrid}
+      />
+    );
   }
 
   if (students.length === 0) {
@@ -298,6 +305,8 @@ export default function StudentJournalEntryPage() {
 
   return (
     <div>
+      <BackLink href="/teacher/student-journal" />
+
       <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
 
       <ClassDayGrid
@@ -321,7 +330,7 @@ export default function StudentJournalEntryPage() {
           studentId={noteStudent.id}
           weekDates={noteWeekDates}
           initialDate={date}
-          title={`Tulis Catatan untuk ${noteStudent.name}`}
+          title={`Tulis catatan untuk ${noteStudent.name}`}
           placeholder={`Tulis catatan untuk ${noteStudent.name}…`}
           onSaved={() => {
             setNoteCounts((prev) => ({

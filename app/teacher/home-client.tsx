@@ -7,6 +7,7 @@ import {
   MapPin,
   BookHeart,
   CalendarDays,
+  Check,
   ClipboardList,
   ChevronRight,
 } from "lucide-react";
@@ -14,6 +15,8 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
+import { SectionLabel } from "@/components/portal/section-label";
+import { getStatusConfig } from "@/components/ui/status-badge";
 import { formatDate, formatTime } from "@/lib/format";
 
 type TodayRecord = {
@@ -33,6 +36,17 @@ const SLOT_LABEL: Record<string, string> = {
   FULL_DAY: "Sehari penuh",
   MORNING: "Pagi",
   AFTERNOON: "Siang",
+};
+
+/** Colour for the Status cell. Anything unlisted falls back to plain foreground. */
+const STATUS_TONE: Record<string, string> = {
+  PRESENT: "text-status-present-text",
+  LATE: "text-status-late-text",
+  PRESENT_NO_CHECKOUT: "text-status-late-text",
+  ABSENT: "text-status-absent-text",
+  SICK: "text-status-late-text",
+  PERMISSION: "text-status-leave-text",
+  ON_LEAVE: "text-status-leave-text",
 };
 
 /** Pure helper: derive optimistic next state for the status card.
@@ -75,7 +89,7 @@ export function TeacherHomeClient({
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [gpsStatus, setGpsStatus] = useState<string>("Menunggu...");
+  const [gpsStatus, setGpsStatus] = useState<string>("Lokasi dicatat saat Anda ketuk");
   // FIND-015: defer time-dependent rendering until after client mount.
   // Pre-fix, `time = new Date()` initialised differently server-vs-client
   // (UTC vs WIB), producing the date string mismatch on the greeting line
@@ -106,11 +120,11 @@ export function TeacherHomeClient({
   const getGPS = useCallback((): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        setGpsStatus("GPS tidak tersedia");
+        setGpsStatus("Lokasi tidak tersedia di perangkat ini");
         resolve(null);
         return;
       }
-      setGpsStatus("Mengambil lokasi...");
+      setGpsStatus("Mengambil lokasi…");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           // Coordinates mean nothing to a teacher — she wants confirmation.
@@ -119,7 +133,9 @@ export function TeacherHomeClient({
           resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         },
         () => {
-          setGpsStatus("GPS ditolak");
+          // "GPS ditolak" reads as an accusation and leaves the teacher with
+          // nothing to do. Say what still happens.
+          setGpsStatus("Lokasi tidak diizinkan — kehadiran tetap tercatat");
           resolve(null);
         },
         { timeout: 10000, enableHighAccuracy: true }
@@ -184,9 +200,11 @@ export function TeacherHomeClient({
       })
     : "";
 
+  // Sentence case: "Selamat pagi, Bu Sari" — voice.md capitalises the first
+  // word and proper nouns only, and "pagi" is neither.
   const greeting = mounted
-    ? time.getHours() < 12 ? "Pagi" : time.getHours() < 15 ? "Siang" : time.getHours() < 18 ? "Sore" : "Malam"
-    : "Datang";
+    ? time.getHours() < 12 ? "pagi" : time.getHours() < 15 ? "siang" : time.getHours() < 18 ? "sore" : "malam"
+    : "datang";
 
   // FIND-015 (full fix): render an empty shell on the server pass and on the
   // client's first hydration pass. Only after `mounted` flips true (inside
@@ -254,14 +272,18 @@ export function TeacherHomeClient({
                 exit={reduceMotion ? undefined : { scale: 0.8, opacity: 0 }}
                 transition={{ duration: reduceMotion ? 0 : 0.4 }}
                 className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
+                role="status"
+                aria-label={success ?? undefined}
               >
                 <motion.span
                   initial={reduceMotion ? false : { scale: 0 }}
                   animate={{ scale: [0, 1.3, 1] }}
                   transition={{ duration: reduceMotion ? 0 : 0.4 }}
-                  className="text-white text-4xl"
+                  className="text-white"
                 >
-                  ✓
+                  {/* Icon, not a "✓" text glyph — the glyph rendered in
+                      whatever fallback face the device had for U+2713. */}
+                  <Check size={48} strokeWidth={3} aria-hidden="true" />
                 </motion.span>
               </motion.div>
             ) : (
@@ -280,12 +302,12 @@ export function TeacherHomeClient({
                 } ${loading ? "opacity-70" : ""}`}
               >
                 {loading
-                  ? "..."
+                  ? "Menyimpan…"
                   : hasCheckedOut
-                  ? "Selesai ✓"
+                  ? "Selesai"
                   : hasCheckedIn
-                  ? "PULANG"
-                  : "MASUK"}
+                  ? "Pulang"
+                  : "Masuk"}
               </motion.button>
             )}
           </AnimatePresence>
@@ -331,29 +353,42 @@ export function TeacherHomeClient({
         className="mt-6"
       >
         <Card className="p-card">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Status Hari Ini
-          </p>
+          <SectionLabel>Status hari ini</SectionLabel>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-xs text-muted-foreground">Masuk</p>
+              {/*
+                `formatTime(null)` returns "--:--", which reads as a broken
+                clock rather than "not yet". An em dash says "nothing here".
+              */}
               <p className="font-currency text-sm font-semibold mt-0.5">
-                {formatTime(record?.checkInTime ?? null)}
+                {record?.checkInTime ? formatTime(record.checkInTime) : "—"}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Pulang</p>
               <p className="font-currency text-sm font-semibold mt-0.5">
-                {formatTime(record?.checkOutTime ?? null)}
+                {record?.checkOutTime ? formatTime(record.checkOutTime) : "—"}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Status</p>
               <p className="text-sm font-semibold mt-0.5">
-                {record?.status === "PRESENT" && <span className="text-status-present-text">Hadir</span>}
-                {record?.status === "LATE" && <span className="text-status-late-text">Terlambat</span>}
-                {record?.status === "PRESENT_NO_CHECKOUT" && <span className="text-status-late-text">Hadir</span>}
-                {!record && <span className="text-muted-foreground">—</span>}
+                {/*
+                  Was a chain of three `&&` branches, so an AttendanceRecord in
+                  any other state (SICK, PERMISSION, ON_LEAVE …) rendered an
+                  empty cell. STATUS_MAP is the single source of truth for these
+                  labels — the same one StatusBadge reads.
+                */}
+                {record ? (
+                  <span className={STATUS_TONE[record.status] ?? "text-foreground"}>
+                    {record.status === "PRESENT_NO_CHECKOUT"
+                      ? "Hadir"
+                      : getStatusConfig(record.status).label}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </p>
             </div>
           </div>
@@ -367,9 +402,7 @@ export function TeacherHomeClient({
         transition={reduceMotion ? { duration: 0 } : { delay: 0.25, duration: 0.4 }}
         className="mt-6"
       >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Akses Cepat
-        </p>
+        <SectionLabel>Akses cepat</SectionLabel>
         <div className="space-y-2">
           <Link
             href="/teacher/student-journal"
@@ -393,7 +426,7 @@ export function TeacherHomeClient({
                 <CalendarDays size={20} className="text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium">Penilaian Pekanan</p>
+                <p className="text-sm font-medium">Penilaian pekanan</p>
                 <p className="text-xs text-muted-foreground">
                   Walas {homeroomClassSectionName}
                 </p>
@@ -411,9 +444,7 @@ export function TeacherHomeClient({
         transition={reduceMotion ? { duration: 0 } : { delay: 0.28, duration: 0.4 }}
         className="mt-6"
       >
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Sesi Hari Ini
-        </p>
+        <SectionLabel>Sesi hari ini</SectionLabel>
         {todaySessions.length > 0 ? (
           <div className="space-y-2">
             {todaySessions.map((s) => (
@@ -428,7 +459,7 @@ export function TeacherHomeClient({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{s.className}</p>
                   <p className="text-xs text-muted-foreground">
-                    {SLOT_LABEL[s.slot] ?? s.slot} • {s.rosterCount} siswa
+                    {SLOT_LABEL[s.slot] ?? s.slot} · {s.rosterCount} siswa
                   </p>
                 </div>
                 <ChevronRight
@@ -446,7 +477,6 @@ export function TeacherHomeClient({
           </Card>
         )}
       </motion.div>
-
     </div>
   );
 }

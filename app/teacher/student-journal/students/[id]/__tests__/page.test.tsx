@@ -61,7 +61,9 @@ describe("TeacherStudentWeekPage", () => {
     expect(screen.queryByTestId("week-grid")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
     await waitFor(() => expect(screen.getByTestId("week-grid")).toBeInTheDocument());
-    expect(screen.getByText("Riwayat penghubung (hanya-baca)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
+    ).toBeInTheDocument();
   });
 
   it("uses a deterministic back target and accessible 44px week controls", async () => {
@@ -69,13 +71,16 @@ describe("TeacherStudentWeekPage", () => {
     render(<TeacherStudentWeekPage />);
     await screen.findByTestId("week-grid");
 
-    fireEvent.click(screen.getByRole("button", { name: "Kembali" }));
-    expect(nav.push).toHaveBeenCalledWith("/teacher/student-journal");
+    // Back is a Link now (shared BackLink), not a router.push button.
+    expect(screen.getByRole("link", { name: "Kembali" })).toHaveAttribute(
+      "href",
+      "/teacher/student-journal",
+    );
 
-    for (const name of ["Minggu sebelumnya", "Minggu berikutnya"]) {
+    // Shared WeekNavigator: 44px controls, and "pekan" not "minggu".
+    for (const name of ["Pekan sebelumnya", "Pekan berikutnya"]) {
       const control = screen.getByRole("button", { name });
-      expect(control.className).toContain("min-h-11");
-      expect(control.className).toContain("min-w-11");
+      expect(control.className).toContain("size-11");
       expect(control.className).toContain("focus-visible:ring-2");
     }
   });
@@ -87,7 +92,7 @@ describe("TeacherStudentWeekPage", () => {
     vi.stubGlobal("fetch", vi.fn(() => ++calls === 1 ? first.promise : second.promise));
     render(<TeacherStudentWeekPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Minggu berikutnya" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pekan berikutnya" }));
     await waitFor(() => expect(calls).toBe(2));
     second.resolve({ ok: true, json: async () => weekData });
     await screen.findByTestId("week-grid");
@@ -96,7 +101,11 @@ describe("TeacherStudentWeekPage", () => {
       ok: true,
       json: async () => ({ data: { ...weekData.data, dates: ["2026-07-27"] } }),
     });
-    await waitFor(() => expect(screen.getByText("Riwayat penghubung (hanya-baca)")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByText("3 Agu – 4 Agu")).toBeInTheDocument();
   });
 });

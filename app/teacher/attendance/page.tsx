@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AttendanceCalendar } from "@/components/attendance/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarDays } from "lucide-react";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "@/components/teacher/leave-sheet";
 import { PageHeader } from "@/components/portal/page-header";
@@ -264,21 +264,23 @@ export default function TeacherAttendancePage() {
 
   return (
     <div>
-      <PageHeader title="Kehadiran Saya" />
+      <PageHeader title="Kehadiran saya" />
 
       {/* Cuti action card — opens Sheet instead of navigating */}
       <button
         type="button"
-        className="w-full mb-4 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="w-full mb-4 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={() => setLeaveSheetOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={leaveSheetOpen}
       >
         <Card className="p-card hover:border-primary/30 transition-colors">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <CalendarDays size={20} className="text-primary" />
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <CalendarDays size={20} className="text-primary" aria-hidden="true" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold">Cuti &amp; Izin</p>
+              <p className="text-sm font-medium">Cuti dan izin</p>
               <p className="text-xs text-muted-foreground">Lihat saldo dan ajukan cuti</p>
             </div>
           </div>
@@ -292,17 +294,15 @@ export default function TeacherAttendancePage() {
           ))}
         </div>
       ) : monthError ? (
-        <Card className="p-card text-center" role="alert">
-          <p className="text-sm font-medium text-foreground">
-            Kehadiran tidak bisa dimuat
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Periksa koneksi, lalu coba lagi.
-          </p>
-          <Button className="mt-4" variant="outline" onClick={retryCurrentMonth}>
-            Coba lagi
-          </Button>
-        </Card>
+        <div role="alert">
+          <EmptyState
+            icon={CalendarDays}
+            title="Kehadiran tidak bisa dimuat"
+            description="Periksa koneksi, lalu coba lagi."
+            actionLabel="Coba lagi"
+            onAction={retryCurrentMonth}
+          />
+        </div>
       ) : (
         <AttendanceCalendar
           records={records}

@@ -58,8 +58,8 @@ describe("isWeekGridDateEditable", () => {
       dates: ["2026-07-29", "2026-07-30"],
     }));
 
-    expect(screen.getByRole("img", { name: "Merapi 2026-07-29 — diisi (hanya-baca)" })).toHaveTextContent("✓");
-    expect(screen.getByRole("img", { name: "Merapi 2026-07-30 — belum diisi (hanya-baca)" })).toHaveTextContent("—");
+    expect(screen.getByRole("img", { name: "Merapi 2026-07-29 — diisi (hanya bisa dilihat)" })).toHaveTextContent("✓");
+    expect(screen.getByRole("img", { name: "Merapi 2026-07-30 — belum diisi (hanya bisa dilihat)" })).toHaveTextContent("—");
     expect(screen.queryByRole("button", { name: /Merapi/ })).toBeNull();
   });
 

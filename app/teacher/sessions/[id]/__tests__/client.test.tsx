@@ -55,7 +55,7 @@ describe("SessionRosterClient", () => {
   it("keeps the save action clear of the navigation safe area and names its batch", () => {
     renderRoster();
 
-    const save = screen.getByRole("button", { name: "Simpan Absensi · 2 siswa" });
+    const save = screen.getByRole("button", { name: "Simpan absensi · 2 siswa" });
     const saveArea = save.parentElement;
     expect(saveArea?.className).toContain("bottom-[calc(4rem+env(safe-area-inset-bottom))]");
     expect(saveArea?.className).toContain("bg-background");
@@ -79,7 +79,7 @@ describe("SessionRosterClient", () => {
     renderRoster();
 
     fireEvent.click(screen.getByRole("button", { name: /Ubah status Aisyah/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Simpan Absensi · 2 siswa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -93,7 +93,7 @@ describe("SessionRosterClient", () => {
         expect.objectContaining({ studentId: "s2", status: "PRESENT" }),
       ],
     });
-    expect(screen.getByRole("button", { name: "Menyimpan Absensi..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Menyimpan absensi…" })).toBeDisabled();
 
     resolveSave({ ok: true, json: async () => ({ saved: 2, total: 2 }) });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Absensi tersimpan · 2 siswa"));
@@ -110,7 +110,7 @@ describe("SessionRosterClient", () => {
       },
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Simpan Absensi · 1 siswa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 1 siswa" }));
     expect(toastError).toHaveBeenCalledWith(
       "Isi nama penjemput untuk Aisyah (hubungan: Lainnya).",
     );
