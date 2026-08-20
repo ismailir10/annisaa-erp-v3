@@ -19,6 +19,7 @@ import {
   type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
+import { defaultExpiresAt } from "../expiry";
 
 const XENDIT_API_URL = "https://api.xendit.co";
 
@@ -142,10 +143,10 @@ export type CreateSessionResponse = {
 export async function createXenditSession(
   params: CreateSessionParams
 ): Promise<CreateSessionResponse> {
-  // Set expiry to N days from now (default 7)
-  const expiryDays = params.expiryDays ?? 7;
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + expiryDays);
+  // Xendit's `expires_at` is already an absolute instant, so `params.expiresAt`
+  // passes straight through. The 7-day fallback applies only to callers with no
+  // invoice to derive a due date from — see `CreateSessionParams.expiresAt`.
+  const expiresAt = params.expiresAt ?? defaultExpiresAt();
 
   if (process.env.DEMO_MODE === "true") {
     return {

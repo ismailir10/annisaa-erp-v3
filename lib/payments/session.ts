@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { defaultExpiresAt } from "@/lib/payments/expiry";
 import { getGateway } from "@/lib/payments/registry";
 import { withRetry } from "@/lib/payments/with-retry";
 import { stripQuery } from "@/lib/payments/xendit/client";
@@ -99,7 +100,10 @@ export async function createPaymentSessionForInvoice(
         // per-channel Back Office setting — the one place a missing Back
         // Office value would otherwise mean a paid invoice never credits.
         notificationUrl: `${appOrigin}/api/doku/webhook`,
-        expiryDays: 7,
+        // TODO(T2): derive from `invoice.dueDate`. Held at the historical
+        // 7-day default for this commit so the port lands without a behaviour
+        // change mixed into it.
+        expiresAt: defaultExpiresAt(),
         items: invoice.lines.map((line) => ({
           name: line.labelSnapshot,
           quantity: 1,

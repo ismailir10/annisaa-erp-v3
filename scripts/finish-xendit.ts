@@ -7,6 +7,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { createXenditSession } from "../lib/xendit/client";
+import { defaultExpiresAt } from "../lib/payments/expiry";
 import { validateReseedEnv, formatGuardErrors } from "./reseed/guards";
 
 const CONCURRENCY = 2;
@@ -72,7 +73,10 @@ async function main() {
             customerPhone: inv.parent?.phone ?? undefined,
             successReturnUrl: "https://annisaa-erp-v3.vercel.app/payment/success",
             cancelReturnUrl: "https://annisaa-erp-v3.vercel.app/payment/cancel",
-            expiryDays: 7,
+            // One-off backfill script; its invoice query does not select
+            // `dueDate`, so it keeps the historical 7-day default rather than
+            // deriving expiry the way the live invoice path does.
+            expiresAt: defaultExpiresAt(),
             items: inv.lines.map((l) => ({
               name: l.labelSnapshot,
               quantity: 1,
