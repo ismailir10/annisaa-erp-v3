@@ -78,3 +78,7 @@ test-results/
 scripts/import-roster/stage.sql
 scripts/import-roster/transform.sql
 scripts/import-roster/rowhashes.tsv
+
+# Names the Google accounts that hold admin/teacher/parent access. Public repo —
+# keep it local. Copy .claude/verify-accounts.example.json to create it.
+.claude/verify-accounts.json

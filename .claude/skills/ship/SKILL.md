@@ -330,7 +330,7 @@ For each flow, use Chrome MCP to:
 5. For each interaction in the flow: `mcp__Claude_in_Chrome__left_click` / `form_input` / `navigate`, then re-read console + network.
 6. `mcp__Claude_in_Chrome__screenshot` at each meaningful step (post-load, post-mutation). Save the screenshot path.
 
-**Sign-in — role-scoped account.** Each portal is verified as its own real user. Read `.claude/verify-accounts.json` and pick the account matching the flow's portal:
+**Sign-in — role-scoped account.** Each portal is verified as its own real user. Read `.claude/verify-accounts.json` (gitignored — copy it from `.claude/verify-accounts.example.json` if absent, and stop to ask the user for the accounts rather than guessing) and pick the account matching the flow's portal:
 
 | Flow / portal | Google account |
 |---|---|
