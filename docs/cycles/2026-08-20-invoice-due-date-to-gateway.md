@@ -82,16 +82,15 @@ says it means.
 4. **Keeping `expiresAt` optional with a 7-day fallback is correct** for the probe and script
    callers, which have no invoice and no due date. The fallback is what caused this bug, so the
    wire-level test in T3 exists specifically to prove the invoice path never takes it.
-5. **Which gateway Bu Shanti was on is unresolved — and does not affect this fix.**
+5. **The report came from staging, not production — confirmed by the reporter.**
    `GET https://talib.annisaasekolahku.com/api/health/payments` returned
-   `{"ok":true,"source":"xendit","tier":"live"}` at 2026-08-20T03:20Z, so **production is
-   still Xendit**, not DOKU. Yet the report names DOKU specifically, and Xendit does not mint
-   DOKU-branded Virtual Accounts — so she was most likely working against staging, which runs
-   DOKU sandbox. Worth confirming with her, because it also tells us which environment the
-   pilot's finance work is actually happening in.
-   This cycle does not depend on the answer: both adapters carried the identical defect, and
-   the fix is in the gateway-agnostic session builder, so it lands whichever gateway is
-   selected.
+   `{"ok":true,"source":"xendit","tier":"live"}` at 2026-08-20T03:20Z: production is still
+   Xendit and the DOKU cutover has not happened. The finance admin was working against
+   staging, which runs DOKU sandbox.
+   This changes nothing about the fix. Both adapters carried the identical defect and the
+   change is in the gateway-agnostic session builder, so it lands whichever gateway is
+   selected — including on production today, where invoices are still issued through Xendit
+   and have been expiring 7 days from creation for exactly the same reason.
 
 ## Tasks
 
