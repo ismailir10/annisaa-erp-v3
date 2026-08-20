@@ -64,7 +64,7 @@ If your tenant needs the Supabase advisor cleanup migrations (`enable_rls`, `adv
 
 ## Known incident: 2026-05-02 prod recovery
 
-Prod project `vxwywmvpxetdgnxejjgk` had never run prisma migrations. First `migrate deploy` triggered by `vercel-build.sh` failed on `20260421000002_rls_fk_indexes` (migration ordering bug, since fixed and renamed to `20260421160000_*`). Recovery: `DROP SCHEMA public CASCADE` → followed this runbook → done. Cycle: [`docs/cycles/2026-05-02-migration-ordering-fix.md`](../cycles/2026-05-02-migration-ordering-fix.md).
+Prod project `vxwywmvpxetdgnxejjgk` had never run prisma migrations. First `migrate deploy` triggered by `vercel-build.sh` failed on `20260421000002_rls_fk_indexes` (migration ordering bug, since fixed and renamed to `20260421160000_*`). Recovery: `DROP SCHEMA public CASCADE` → followed this runbook → done. Cycle: [`docs/cycles/archive/2026-05-02-migration-ordering-fix.md`](../cycles/2026-05-02-migration-ordering-fix.md).
 
 ## Future improvement
 

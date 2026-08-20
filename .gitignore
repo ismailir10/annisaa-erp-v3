@@ -1,15 +1,16 @@
-# env files — NEVER commit these
-.env
-.env.local
-.env.staging
-.env.*.local
+# env files — NEVER commit these. Deny-by-default: an ad-hoc dump such as
+# `.env.doku-probe` matched none of the old explicit patterns and sat one
+# `git add -A` away from committing live service-role and gateway secrets.
+.env*
+!.env.example
 
 # Next.js
 .next/
 out/
 
-# Node
-node_modules/
+# Node — no trailing slash: `node_modules` is a symlink inside every worktree
+# created by setup-worktree.sh, and `node_modules/` does not match a symlink.
+node_modules
 
 # OS
 .DS_Store
@@ -35,6 +36,16 @@ coverage/
 # Session-local state (written by the assistant on turn 1, per-session)
 .claude/session-role
 .githooks/.installed
+
+# Harness-local scratch that belongs in ~/.claude, not the repo: agent plan
+# artifacts and the per-project auto-memory store.
+.claude/plans/
+.claude/projects/
+
+# Local binaries + UI captures. Keep them under artifacts/ if they matter —
+# the Panduan .docx is 3 MB a copy and the .bak- rotations are pure churn.
+*.docx
+*.docx.bak-*
 
 # Build / analysis artifacts
 build.log

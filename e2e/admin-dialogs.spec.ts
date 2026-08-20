@@ -1,7 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
 
 // Verifies the canonical admin form-dialog contract from
-// docs/cycles/2026-05-03-admin-modal-form-audit.md:
+// docs/cycles/archive/2026-05-03-admin-modal-form-audit.md:
 // - "Tambah <Entity>" trigger opens a dialog whose submit label matches
 // - Cancel button labeled "Batal" with variant="ghost"
 // - On mobile viewport, the overlay renders as a Sheet (not a Dialog)

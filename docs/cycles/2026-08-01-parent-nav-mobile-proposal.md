@@ -89,7 +89,7 @@ All three are rendered at 375 px from `app/nav-proposal/page.tsx`, which reuses 
 
 ### Baseline — today, 6 tabs
 
-`docs/proposals/parent-nav/00-current-375.png`, `01-current-360.png`
+`docs/archive/legacy-doc-dirs/proposals/parent-nav/00-current-375.png`, `01-current-360.png`
 
 ### Option A — 5 tabs + a "Lainnya" sheet
 
@@ -239,7 +239,7 @@ All slots inside the viewport, all tap targets >= 44px.
 - **MED #3 (77 % slot-width spread)** — closed. Every slot identical at both widths.
 - **MED #4 (label does not fit)** — closed. Zero truncation on either portal at 375 px or 360 px (`label_needed == label_shown` for all 10 labels).
 
-Screenshots in `docs/proposals/parent-nav/`: `00-current-375.png` / `01-current-360.png`
+Screenshots in `docs/archive/legacy-doc-dirs/proposals/parent-nav/`: `00-current-375.png` / `01-current-360.png`
 are the broken before-state; `fixed-375-nav.png`, `fixed-375-sheet.png`,
 `fixed-360-nav.png`, `fixed-360-sheet.png` are the shipped state.
 
