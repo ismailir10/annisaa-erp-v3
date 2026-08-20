@@ -116,7 +116,7 @@ Shanti's real 27→10 window.
 
 *Depends on:* T1 (the `expiresAt` field must exist).
 
-### T3 — Wire-level regression test and stale doc comments
+### T3 — Wire-level regression test and stale doc comments ✅
 
 Add a test on `createPaymentSessionForInvoice` with a mocked gateway asserting the
 `expiresAt` argument tracks the fixture invoice's `dueDate` — the assertion that would have
@@ -185,6 +185,23 @@ comments describe the due-date-derived behaviour.
     clamp to the 1-day floor rather than the old flat 7 days. Pre-existing fixture staleness
     that T2 makes visible; out of scope for a payments bugfix.
 
+- Task 3: Wire-level regression test and stale doc comments —
+  `lib/payments/__tests__/session-expiry.test.ts` (new), `lib/__tests__/xendit-helpers.test.ts`,
+  `app/payment/success/page.tsx`, `app/payment/cancel/page.tsx` — four cases against a mocked
+  gateway asserting the `expiresAt` handed over tracks the fixture's `dueDate`. The load-bearing
+  one is "moves when the due date moves": under the old code two different due dates produced
+  byte-identical expiry, which is exactly what the finance admin saw. Added the missing
+  `dueDate` to the guardian-passthrough fixture, which was silently taking the malformed-date
+  branch. Both payment-shim doc comments reasoned about deletion timing from the removed
+  `expiryDays: 7`; rewritten against the 30-day cap.
+  - Reviewer (`feature-dev:code-reviewer`) gave a definitive all-clear on the timezone question
+    — the shift-then-format-as-UTC helper is correct by construction for a fixed-offset zone —
+    and confirmed the two updated comments are factually true. It found one latent race: the
+    two-due-dates case called `Date.now()` twice, so a WIB midnight landing between them would
+    shift one date by a day. Practically unreachable (~ms window against an 86.4M-ms day) but
+    logically real, and a flaky regression test is worse than none, so the clock is now pinned
+    with `vi.useFakeTimers()`.
+
 ## Verification
 
 - Task 1: gates passed — `npm run build` clean (Next.js 16.2.3, TypeScript check green),
@@ -202,7 +219,80 @@ comments describe the due-date-derived behaviour.
   floor, just-past-floor preserved, far-future → 30-day cap, month boundary, leap day,
   malformed input → logged 7-day fallback, and a property check that no input can ever return
   an instant at or before `now`.
+- Task 3: gates passed — `npm run build` exit 0, `npx vitest run` 306 files passed / 2 skipped,
+  2963 tests passed / 42 todo.
+- **Regression test proven, not assumed.** `lib/payments/session.ts` was temporarily reverted to
+  a constant expiry and the suite re-run: 3 of the 4 cases in `session-expiry.test.ts` failed
+  (`expected '2026-08-27T03:06:27Z' to be '2026-09-03T16:59:59.000Z'`, and the two-due-dates
+  case failing with `expected 1787799987292 to be greater than 1787799987292` — the identical
+  timestamps that are the bug's signature). Restored and re-run green. Repeated after the clock
+  was pinned, same result.
+- **Playwright: local run deferred to CI** (env cannot execute it — `playwright.config.ts`
+  refuses to run against a non-local `DATABASE_URL`, and this harness's points at the remote
+  staging Supabase pooler; the specs create and mutate data via the API and would pollute it.
+  `E2E_ALLOW_REMOTE_DB=1` would override the guard but doing so is precisely what the guard
+  exists to prevent). Required CI check `Playwright E2E` gates the merge; CTO will not merge
+  on red.
+- Frontend gate: the only frontend diff is two comment-only edits in `app/payment/{success,cancel}/page.tsx`.
+  No rendered surface changes, so no `design-system` cross-check was warranted — nothing in the
+  visual reference applies to a code comment. Token present for the pre-commit gate.
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migrations:** none. **New env vars:** none. **Schema:** unchanged.
+
+**API surface:** `CreateSessionParams.expiryDays` is gone, replaced by `expiresAt?: Date`. This
+is an internal TypeScript type with no external consumers — every call site is in this repo and
+all were ported in T1.
+
+### Gateway-agnostic
+
+The fix is in `lib/payments/session.ts` and both adapters, so it applies whichever gateway
+`PAYMENT_GATEWAY` resolves to. No env change is needed to get the fix, and flipping gateways
+later will not reintroduce it.
+
+### Manual smoke on preview
+
+1. Admin → Keuangan → create a manual invoice with **Tanggal Jatuh Tempo set well beyond 7 days**
+   (e.g. 25–30 days out). This is the case that was broken; a due date near 7 days out would
+   look correct even with the bug.
+2. Send it / generate the payment link, then open the gateway page. The stated jatuh tempo must
+   match the invoice's due date, not "7 days from today".
+3. Create a second invoice with a **different** due date and confirm the two differ. Under the
+   bug both were identical — that difference is the whole fix.
+4. Create one with a **past** due date and confirm the link still works (1-day floor) rather
+   than arriving expired.
+
+### Already-issued sessions — decision required before this is "done" for Bu Shanti
+
+This fix applies to sessions created **from deploy onward**. Every invoice already carrying a
+gateway session has the wrong 7-day expiry baked in, and re-issuing changes the VA number a
+parent may already have been given. That is a communications decision, not a code one — flagged
+for the finance team rather than actioned here.
+
+Scope it first:
+
+```sql
+SELECT "invoiceNumber", "dueDate", "status", "createdAt"
+FROM "Invoice"
+WHERE "xenditPaymentUrl" IS NOT NULL
+  AND "status" IN ('SENT', 'PENDING_PAYMENT_LINK')
+  AND "dueDate"::date > (CURRENT_DATE + INTERVAL '7 days')
+ORDER BY "dueDate";
+```
+
+Those are the live invoices whose VA dies before their stated due date. If the list is short,
+re-issuing the link is likely cheaper than the support load of dead VAs.
+
+### Rollback
+
+Revert the PR merge commit. No migration to unwind, no persisted state depends on the new
+behaviour — `GatewaySession.expiresAt` is returned and discarded, and sessions already created
+under the fix keep whatever expiry the gateway recorded. Reverting restores the 7-day bug.
+
+### Follow-up noted, not fixed
+
+`scripts/reseed/invoices.ts` hardcodes Feb/Mar/Apr 2026 periods. Those due dates are all in the
+past now, so its seeded "live" invoices clamp to the 1-day floor instead of the old flat 7 days —
+shorter-lived fixtures for multi-day staging QA. Pre-existing fixture staleness that this cycle
+makes visible; worth making the periods relative to run time in a separate pass.
