@@ -15,7 +15,7 @@ export function enforceAuthRateLimit(request: NextRequest): NextResponse | null 
   // Skip in demo mode — dev / staging / e2e environments hit /api/auth/users
   // and friends repeatedly during test setup; rate-limiting them produces
   // 429s that break test fixtures. DEMO_MODE is never set in production
-  // (invariant established in docs/cycles/2026-05-03-xendit-demo-mode.md
+  // (invariant established in docs/cycles/archive/2026-05-03-xendit-demo-mode.md
   // Ship Notes; app/api/auth/login adds defense-in-depth via NODE_ENV check).
   if (process.env.DEMO_MODE === "true") return null;
 

@@ -78,9 +78,11 @@ Three AI harnesses work this repo, in parallel, each in its own worktree. They s
 
 | Harness | Default role | Driver (reasoning tier) | Dirty-work tier (subagents) | Can down-tier? |
 |---|---|---|---|---|
-| **Claude** | cto | Opus 4.8 | Sonnet 4.6 (default), Haiku 4.5 (trivial/mechanical) | Yes — `Task`/`Agent` tool with `model` override |
+| **Claude** | cto | Opus 5 | Sonnet 5 (default), Haiku 4.5 (trivial/mechanical) | Yes — `Task`/`Agent` tool with `model` override |
 | **Codex** | cto | gpt-5.5 high reasoning | gpt-5.5 low / minimal reasoning effort | Yes — spawn subagents at lower effort |
 | **opencode** | product-builder | glm-5.2 | glm-5.2 (no cheaper tier exists) | No — single model |
+
+**opencode has never shipped a commit.** As of 2026-08-20 every one of the last 220 commits carries `Role: cto` (`claude-opus-5` ×159, `gpt-5.5` ×42, `claude-sonnet-5` ×19). The product-builder path below — `needs-cto-review`, the `/ship` Step 5 hand-off, the PB row in the entry-point table — is therefore **specified but unexercised**. Treat it as untested when you first use it, and if opencode is still idle at the next roster review, delete the path rather than keep maintaining it.
 
 ### The expensive-driver rule
 
@@ -105,8 +107,8 @@ Three AI harnesses work this repo, in parallel, each in its own worktree. They s
 **No feature or audit cycle runs in a single context.** The driver decomposes the work, fans out parallel subagents — one per independent unit — then only synthesizes + reviews their distilled output.
 
 Worked example — *"audit UI across every module for inconsistencies, produce a fix spec"*:
-1. Driver (Opus 4.8 / gpt-5.5) lists the modules.
-2. Driver spawns **one Sonnet 4.6 subagent per module** (admin, teacher, parent, billing, attendance, …); each audits its module in parallel and returns a findings list. *(Codex: one low-effort gpt-5.5 subagent per module. opencode: parallel glm-5.2 subagents — same fan-out shape, no cost down-tier.)*
+1. Driver (Opus 5 / gpt-5.5) lists the modules.
+2. Driver spawns **one Sonnet 5 subagent per module** (admin, teacher, parent, billing, attendance, …); each audits its module in parallel and returns a findings list. *(Codex: one low-effort gpt-5.5 subagent per module. opencode: parallel glm-5.2 subagents — same fan-out shape, no cost down-tier.)*
 3. Driver dedups + prioritizes the findings, then writes the fix spec into the cycle doc.
 
 The driver read zero module files and produced zero grep output itself — it reasoned over distilled findings. That is the token-efficiency win. `/build`'s Planning step enforces this.
@@ -116,6 +118,7 @@ The driver read zero module files and produced zero grep output itself — it re
 - **Isolation:** every session has its own worktree + its own gitignored `.claude/session-role`. No two sessions share mutable state, so they cannot clobber each other.
 - **One canonical manual:** edit *this file*. `AGENTS.md` is a symlink to `CLAUDE.md` — Codex + opencode read it, so a single edit propagates to all three harnesses. **Never edit `AGENTS.md` directly** — it is not a separate document.
 - **One canonical skill set:** edit `.claude/skills/*`. Codex resolves its slash-command skills from `.agents/skills/` — which is gitignored (harness-local) and would otherwise drift. `scripts/link-agent-skills.sh` symlinks `.agents/skills/{spec,build,ship,audit-docs,uat}` → `.claude/skills/*` (run by `install-hooks.sh` at setup + on demand), so Codex always reads the canonical skill. **Never hand-edit `.agents/skills/*`** — fix `.claude/skills/*` and re-run the linker.
+- **Symlinks point one way only: `.agents/skills/* → .claude/skills/*`.** Never commit a link in the other direction. Thirty-five of them (`nextjs`, `vercel-cli`, `shadcn`, `supabase`, `ai-sdk`, …) were committed in `6c8f892e` pointing `.claude/skills/<n> → .agents/skills/<n>`; since `.agents/` is gitignored, all thirty-five dangled on every clone, including this one. Removed 2026-08-20. A skill that is not vendored into `.claude/skills/` belongs in `~/.claude`, not in this repo.
 - **opencode is product-builder only.** glm-5.2 builds pre-specced slices; it never makes architecture decisions and never self-approves. Every opencode PR is labeled `needs-cto-review`; a CTO harness (Claude or Codex) reviews before the merge hand-off, and runs the preview-verify opencode cannot.
 - **CTOs (Claude, Codex)** own architecture, PR review, and `/ship --to-main`.
 - Shared `sync-staging.sh` + the >5-commits-behind preflight keep every branch close to `origin/staging`, so parallel branches don't diverge.
@@ -124,7 +127,11 @@ The driver read zero module files and produced zero grep output itself — it re
 
 ## Multi-LLM Safety
 
-Other LLMs (Sonnet, Haiku, GLM, GPT) may work on this repo. Five mechanisms:
+Other LLMs (Sonnet, Haiku, GLM, GPT) may work on this repo. Six mechanisms:
+
+### Supabase MCP defaults to staging
+
+`.claude/settings.json` pins the Supabase MCP server to **staging** (`udbivhchbizpxoryejgz`). It pointed at production (`qrnbanxcrmrwganpmzmn`) until 2026-08-20, which made every unqualified `execute_sql` a production write by default — one distracted session away from repeating the 2026-07-25 data wipe. Production work is now a deliberate act: name the prod ref explicitly in the call, and say so in the cycle doc. Campus names differ between the two environments ("Taman Aster" on prod vs "An Nisaa' Sekolahku Taman Aster" on staging), so match campuses by `ILIKE` in any migration, never by equality.
 
 ### Auto staging sync (`scripts/sync-staging.sh`)
 
@@ -135,8 +142,8 @@ Every `SessionStart` runs `scripts/sync-staging.sh` in the main checkout. If the
 Every session declares its role on turn one:
 
 ```
-role=cto              # cto or product-builder
-model=claude-opus-4-8 # or gpt-5.5, glm-5.2, claude-sonnet-4-6, human — must match current assistant
+role=cto             # cto or product-builder
+model=claude-opus-5  # or gpt-5.5, glm-5.2, claude-sonnet-5, human — must match current assistant
 ```
 
 If missing or stale (>12h), `SessionStart` (`scripts/check-role.sh`) prints an instruction telling the assistant to ask the user. The three slash commands refuse to run until the file is set. **No env var reads** — Claude Code doesn't reliably export `CLAUDE_MODEL` to subprocesses.
@@ -175,11 +182,21 @@ Client hooks can be bypassed with `--no-verify`. **GitHub branch protection is t
 
 `/ship` opens the PR; a CTO self-merges after preview-verify is clean and all four checks are green, a product-builder hands the `needs-cto-review` PR to a CTO. Branch protection on `main` and `staging` is enabled and must require the four checks above; `pre-push` is only a local early-warning guard. **staging → main cadence:** every 2-4 merged cycles (or on "ship to prod"), CTO runs `/ship --to-main`.
 
+### Dependency cadence
+
+Branch protection also requires an **up-to-date head branch**, and that interacts badly with dependabot: merging any one bump re-stales every other open bump, so a queue of *n* PRs needs *n* serial rebase + full-CI rounds to drain. Eleven PRs sat frozen from 2026-08-13 to 2026-08-20 for exactly this reason. Do not try to merge them one by one.
+
+- **Minors + patches** — batch. Edit every version in `package.json` in one branch, `npm install`, run the end-of-cycle gate once, PR as `chore(deps)`. Dependabot closes its own PRs as superseded. One CI round instead of *n*.
+- **Majors** — one per cycle, never in a batch. Check the dependabot PR's CI first: a red `Build` or `Lint, Typecheck & Test` means real breakage to work through, not a version string to bump.
+- **Cadence** — drain the queue at each `/ship --to-main` promotion, so deps never sit longer than 2-4 cycles.
+- A fresh `npm install` in a worktree needs `npx prisma generate` afterwards — `lib/generated/prisma` is gitignored, and without it ~32 vitest files fail on `Cannot find module '@/lib/generated/prisma/client'`. That is a missing generate, not a regression.
+- Security alerts are separate from version bumps: check `gh api repos/:owner/:repo/dependabot/alerts` at the same cadence.
+
 ### Commit attribution
 
 Every commit carries:
 ```
-Model-Trailer: claude-opus-4-7
+Model-Trailer: claude-opus-5
 Role: cto
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
@@ -236,11 +253,23 @@ Single-source-of-truth contract — every fact has exactly one owner; the other 
 | **README.md** | Product identity, tech stack, modules, portals, ADRs (last 60d), setup, environments | Modules/routes/entities change; new ADR; setup/env changes |
 | **CLAUDE.md** | Workflow, harness roster + model tiering, multi-LLM safety, hooks, standards table, doc-maintenance, file structure, `/uat`, one-file-per-cycle rule | Workflow/safety/hooks/standards listing change; harness roster or tiering change |
 | `.claude/standards/*.md` | Domain rules (UI / patterns / voice / CRUD / portal / API / security / colors) | When a standard needs correction |
-| `docs/cycles/YYYY-MM-DD-<slug>.md` | Per-cycle history (one per cycle) | `/spec` creates, `/build`+`/ship` update |
+| `docs/cycles/YYYY-MM-DD-<slug>.md` | Per-cycle history for the **current + previous month only** | `/spec` creates, `/build`+`/ship` update |
+| `docs/cycles/archive/` | Every cycle doc older than that | Monthly sweep — see the archive rule below |
 | `docs/adrs/archive.md` | ADRs > 60d OR codified in CLAUDE.md/standards | When trimming README's active ADR table |
+| `docs/archive/` | Retired docs of any shape — `prd.md`, `SPEC.md`, `superpowers-legacy/`, `legacy-doc-dirs/` | When a doc stops being consulted but is worth keeping as history |
 | `docs/runbooks/*.md` + `docs/uat/{jobs,reports}/*.md` + `.claude/personas/*.md` | Runbooks, UAT JTBD library, UAT reports (committed), fixed personas | When procedure / capability / persona changes |
 
 **`prd.md` is retired.** All product/roadmap/ADR content lives in README.md.
+
+**These five are the only doc directories.** `docs/` holds exactly `adrs/`, `archive/`, `cycles/`, `runbooks/`, `uat/`. Anything else is drift — `docs/{findings,plans,proposals,qa,reports,reviews}/` each accumulated one to three files nobody owned, and all six now live under `docs/archive/legacy-doc-dirs/`. A one-off write-up belongs in the cycle doc that produced it, not a new top-level directory.
+
+**Cycle archive rule.** `docs/cycles/` flat had grown to 138 files. Keep only the current and previous month at the top level; sweep everything older into `docs/cycles/archive/` (230 docs and counting). When you move a doc, rewrite every reference to it — README's ADR table, runbooks, and a surprising number of `lib/`, `app/api/`, and `e2e/` comments cite cycle docs by path:
+
+```bash
+grep -rlE 'docs/cycles/2026-0X-' README.md docs scripts lib app e2e | grep -v node_modules
+```
+
+An archived doc is frozen: fix inbound links, never edit the body.
 
 **Two-layer doc-sync enforcement:**
 
@@ -301,8 +330,8 @@ lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
 e2e/                         34 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-fees-keringanan, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-payments, admin-raport, admin-school-admin, admin-students-export, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, enrollment-application, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)
-docs/{cycles,adrs,runbooks,uat}/  cycle docs, ADR archive, runbooks, UAT jobs+reports
-.claude/{skills,standards,personas}/  slash commands, domain standards, fixed personas
+docs/{cycles,adrs,archive,runbooks,uat}/  22 active cycle docs + 230 archived, ADR archive, retired docs, runbooks, UAT jobs+reports
+.claude/{skills,standards,personas}/  5 project skills (spec, build, ship, uat, audit-docs) + 7 vendored better-*, domain standards, fixed personas
 .githooks/                   pre-commit, prepare-commit-msg, commit-msg, pre-push
 scripts/                     setup-worktree, install-hooks, link-agent-skills, sync-staging, cleanup-merged, check-role, verify-rls-coverage, verify-api-auth, verify-curriculum-readiness, import-curriculum-calendar, seed-demo-curriculum, test-hooks, reseed-staging
 ```

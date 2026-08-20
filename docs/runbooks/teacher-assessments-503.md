@@ -1,7 +1,7 @@
 # Runbook: Teacher Assessments RSC Prefetch 503s
 
 **Created:** 2026-05-03  
-**Cycle:** `docs/cycles/2026-05-03-teacher-uat-fixes.md` (Task E1)  
+**Cycle:** `docs/cycles/archive/2026-05-03-teacher-uat-fixes.md` (Task E1)  
 **Status:** Inconclusive — root cause not definitively identified; log window expired before triage could be completed.
 
 ---

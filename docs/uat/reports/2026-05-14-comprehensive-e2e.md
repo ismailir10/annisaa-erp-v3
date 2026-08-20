@@ -132,7 +132,7 @@ End-to-end sweep of every module across admin, teacher, and parent portals on st
   Selamat Pagi, Ustadz/Ustadzah Ismail Rabbanii
   Rabu, 13 Mei 2026
   ```
-  The check-in card, assigned-class list, and any home content are missing — page body is blank below the date. F5 reload does not resolve. Console emits `Error: Minified React error #418` ([text content mismatch](https://react.dev/errors/418)). This matches the exact symptom that `docs/cycles/2026-05-10-phase0-admin-hydration-and-bfcache.md` was supposed to fix on staging.
+  The check-in card, assigned-class list, and any home content are missing — page body is blank below the date. F5 reload does not resolve. Console emits `Error: Minified React error #418` ([text content mismatch](https://react.dev/errors/418)). This matches the exact symptom that `docs/cycles/archive/2026-05-10-phase0-admin-hydration-and-bfcache.md` was supposed to fix on staging.
 - **Impact:** Teacher cannot tap check-in / check-out from home. Workaround is to navigate via the bottom tab bar to Kehadiran/Kelas/Penilaian, all of which render correctly.
 - **Suggestion:** Add a teacher-home hydration assertion to the Playwright suite (currently only admin/parent are covered per phase0 cycle). Investigate whether the recent Next.js 16 bump (PR #254) interacts with `home-client.tsx`'s server-rendered date string.
 

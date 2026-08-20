@@ -2,7 +2,7 @@
 # test-hooks.sh — fixture tests for .githooks/commit-msg + ADR-cell-length rule in .githooks/pre-commit
 #
 # commit-msg cases enforce docs/cycles/2026-04-20-doc-sync-hook-tighten.md.
-# pre-commit ADR cases enforce docs/cycles/2026-05-01-readme-claude-md-simplify.md (Rule 6).
+# pre-commit ADR cases enforce docs/cycles/archive/2026-05-01-readme-claude-md-simplify.md (Rule 6).
 #
 # Usage: bash scripts/test-hooks.sh
 # Exit:  0 if all scenarios match expected outcome, 1 otherwise.

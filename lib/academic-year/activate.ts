@@ -26,7 +26,7 @@ export function isAcademicYearStatus(v: unknown): v is (typeof ACADEMIC_YEAR_STA
  * Background: prior to this, activating a year set `status: "ACTIVE"` without
  * demoting siblings, so multiple years could be ACTIVE at once — breaking
  * "current year" resolution (e.g. /admin/classes defaulted to an arbitrary
- * ACTIVE year). See docs/cycles/2026-06-05-staging-hygiene-active-year.md.
+ * ACTIVE year). See docs/cycles/archive/2026-06-05-staging-hygiene-active-year.md.
  */
 export async function demoteOtherActiveYears(
   tx: Prisma.TransactionClient,
