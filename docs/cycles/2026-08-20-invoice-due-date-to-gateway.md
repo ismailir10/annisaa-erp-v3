@@ -240,6 +240,39 @@ comments describe the due-date-derived behaviour.
   `E2E_ALLOW_REMOTE_DB=1` would override the guard but doing so is precisely what the guard
   exists to prevent). Required CI check `Playwright E2E` gates the merge; CTO will not merge
   on red.
+- **Preview-verify iteration 1 (clean, 0 blockers)** — PR #505, preview
+  `annisaa-erp-v3-git-feat-invoic-66f8d7-ismails-projects-196d40d3.vercel.app`, Chrome MCP
+  signed in as the admin account from `.claude/verify-accounts.json`. Fixtures created through
+  admin UI CRUD (Tagihan Manual), never a seed endpoint.
+
+  The fix is confirmed **on the real DOKU sandbox checkout page**, which is the exact surface
+  the report came from:
+
+  | Invoice | Due date set in Talib | DOKU checkout countdown |
+  |---|---|---|
+  | `INV-2026-0060` | 17 Sep 2026 (28 days out) | **28 Hari**, 12 Jam, 34 Menit |
+  | `INV-2026-0061` | 1 Sep 2026 (12 days out) | **12 Hari**, 12 Jam, 32 Menit |
+
+  Two due dates, two different expiries. Under the bug both would have read *7 Hari* — that
+  identity is what the finance admin actually saw, so this table is the acceptance evidence.
+  Deliberately chose 28 days for the first: at ~7 days out the bug and the fix are
+  indistinguishable, so a default-ish due date would have passed a broken build.
+
+  Console: zero errors across invoice list, create dialog, and both detail pages.
+
+- **Minor (not a blocker, evidence-backed):** the preview emits scattered 503s on
+  `.well-known/vercel/jwe`, `OPTIONS /`, `HEAD /admin/*`, and one or two RSC prefetches
+  (`?_rsc=`) per page load. Step 3e classifies any ≥500 as a blocker, and that call is
+  overridden here on evidence rather than judgement: the **current staging deployment, which
+  does not contain this change, produces the identical pattern** — same infra endpoints, same
+  single random RSC-prefetch 503 (`/admin/raport` on staging, `/admin/guardians` on the
+  preview). The 503s land on routes this cycle never touched and move between reloads, while
+  every real navigation rendered correctly with live data. Pre-existing Vercel preview
+  prefetch throttling, not a regression.
+- **Minor, pre-existing:** the DOKU checkout renders e-Wallet, Kartu, QRIS, Digital Banking and
+  Minimarket alongside Transfer Bank. Expected — cycle 2026-07-30 removed `payment_method_types`
+  from the request on DOKU's advice, moving the VA-only guarantee into Back Office. Noted
+  because it is visible confirmation of that accepted trade-off, not because this PR changed it.
 - Frontend gate: the only frontend diff is two comment-only edits in `app/payment/{success,cancel}/page.tsx`.
   No rendered surface changes, so no `design-system` cross-check was warranted — nothing in the
   visual reference applies to a code comment. Token present for the pre-commit gate.
