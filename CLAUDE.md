@@ -297,7 +297,7 @@ app/{admin,teacher,parent}/  41 / 13 / 8 portal pages
 app/api/                     191 routes (organized by domain)
 components/ui/               65 Shadcn components (+ 8 __tests__)
 lib/{api,validations,payroll,email}/  business logic, retry, integrations
-lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`, `session.ts`, `webhook-processor.ts`, `health.ts`, `with-retry.ts`, `error-prefix.ts`) with `xendit/` and `doku/` adapters behind it; `lib/xendit/*` are now thin re-export shims (~60 lines total) kept for import-path compatibility
+lib/payments/                 gateway port + registry (`types.ts`, `registry.ts`, `session.ts`, `expiry.ts`, `webhook-processor.ts`, `health.ts`, `with-retry.ts`, `error-prefix.ts`) with `xendit/` and `doku/` adapters behind it; `lib/xendit/*` are now thin re-export shims (~60 lines total) kept for import-path compatibility
 prisma/                      schema + seed
 proxy.ts                     Next.js 16 middleware entry (renamed from middleware.ts)
 e2e/                         34 specs (admin, admin-admission-convert-parity, admin-attendance-recap, admin-classes, admin-curriculum-objectives, admin-dashboard, admin-dialogs, admin-fees-keringanan, admin-guardian-detail, admin-guardian-primary-invariant, admin-hydration, admin-payments, admin-raport, admin-school-admin, admin-students-export, admin-students-full-crud, branding, curriculum-admin, curriculum-promes-import, daftar-public, design-system, enrollment-application, jakarta-tz-server-date, parent, parent-attendance-scoping, parent-perkembangan, parent-raport, parent-signout-bfcache, payment, perf-budget, sibling-detect, teacher, teacher-assessments-center, teacher-assessments-weekly)

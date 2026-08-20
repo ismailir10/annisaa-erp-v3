@@ -2,10 +2,10 @@
 
 ## Context
 
-Bu Shanti reported from prod on 2026-08-19: the jatuh tempo printed on the DOKU Virtual
-Account is always 7 days out, no matter what she sets in Talib's "Tanggal Jatuh Tempo"
-field. Her collection window runs from the 27th to the 10th (13–14 days), so every VA she
-issues dies days before the parent's payment window even closes.
+The finance admin reported on 2026-08-19 (working against staging — see Assumption 5): the
+jatuh tempo printed on the DOKU Virtual Account is always 7 days out, no matter what she sets
+in Talib's "Tanggal Jatuh Tempo" field. Her collection window runs from the 27th to the 10th
+(13–14 days), so every VA she issues dies days before the parent's payment window even closes.
 
 She is right, and the cause is ours, not DOKU's. `createPaymentSessionForInvoice` loads the
 full invoice row — `dueDate` included — at [`lib/payments/session.ts:55`](../../lib/payments/session.ts),
@@ -28,29 +28,29 @@ says it means.
 
 ### Acceptance criteria
 
-- [ ] `CreateSessionParams` carries an absolute `expiresAt?: Date` instead of `expiryDays?: number`.
+- [x] `CreateSessionParams` carries an absolute `expiresAt?: Date` instead of `expiryDays?: number`.
       Day-count cannot express "expires at the end of the 10th" from an arbitrary creation
       instant; an absolute instant is the only shape both adapters honour losslessly.
-- [ ] `createPaymentSessionForInvoice` derives `expiresAt` from the invoice's own `dueDate`,
+- [x] `createPaymentSessionForInvoice` derives `expiresAt` from the invoice's own `dueDate`,
       resolved to **end of day Asia/Jakarta** (`YYYY-MM-DDT23:59:59+07:00`) so a parent paying
       on the due date itself still succeeds.
-- [ ] The DOKU adapter converts `expiresAt` to `payment_due_date` in minutes-from-now,
+- [x] The DOKU adapter converts `expiresAt` to `payment_due_date` in minutes-from-now,
       rounded up, and never emits a value below 1.
-- [ ] The Xendit adapter passes `expiresAt` through to `expires_at` as ISO, unchanged.
-- [ ] **Floor of 1 day**: an invoice whose `dueDate` is today or already past yields an expiry
+- [x] The Xendit adapter passes `expiresAt` through to `expires_at` as ISO, unchanged.
+- [x] **Floor of 1 day**: an invoice whose `dueDate` is today or already past yields an expiry
       of now + 24h, not a born-expired session. An overdue invoice is still collectable; a
       dead-on-arrival VA is a support ticket.
-- [ ] **Cap of 30 days**: a `dueDate` further out is clamped. DOKU publishes only
+- [x] **Cap of 30 days**: a `dueDate` further out is clamped. DOKU publishes only
       `Max Length: 6` for `payment_due_date` and defers the real ceiling to each channel, so
       the safe bound is ours to pick, not theirs to promise.
-- [ ] Expiry policy (floor/cap/end-of-day) lives in one exported pure function that is unit
+- [x] Expiry policy (floor/cap/end-of-day) lives in one exported pure function that is unit
       tested directly — not inlined in the session builder where it cannot be exercised.
-- [ ] A unit test asserts `createPaymentSessionForInvoice` passes a `dueDate`-derived
+- [x] A unit test asserts `createPaymentSessionForInvoice` passes a `dueDate`-derived
       `expiresAt` to the gateway. This is the test that would have caught the original bug and
       is the one that keeps a future constant from creeping back in.
-- [ ] The three non-invoice callers (DOKU probe route, reseed script, finish-xendit script)
+- [x] The three non-invoice callers (DOKU probe route, reseed script, finish-xendit script)
       are ported and still compile.
-- [ ] `npm run build && npx vitest run` green.
+- [x] `npm run build && npx vitest run` green.
 
 ### Non-goals
 
