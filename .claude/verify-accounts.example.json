@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to verify-accounts.json (gitignored) and fill in the real accounts. /ship Step 3 preview-verify signs into one Google account per portal role, all living in the operator's shared Chrome profile. Kept out of git since 2026-08-20: this repo is public, and naming the accounts that hold admin access is a targeting aid. Single source of truth — /ship reads the local file, never hardcode accounts in the skill.",
+  "accounts": {
+    "admin": "admin-account@example.com",
+    "teacher": "teacher-account@example.com",
+    "parent": "parent-account@example.com"
+  }
+}
