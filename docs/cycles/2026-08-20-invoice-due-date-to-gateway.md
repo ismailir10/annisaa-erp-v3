@@ -102,7 +102,7 @@ the ≥1 floor) and Xendit ISO passthrough for a known `expiresAt`.
 
 *Depends on:* nothing.
 
-### T2 — Derive expiry from `invoice.dueDate` with floor and cap
+### T2 — Derive expiry from `invoice.dueDate` with floor and cap ✅
 
 Add an exported pure helper — `resolveSessionExpiry(dueDate: string, now: Date): Date` — that
 parses `YYYY-MM-DD` as `T23:59:59+07:00`, then clamps to `[now + 1 day, now + 30 days]`. Call
@@ -161,6 +161,30 @@ comments describe the due-date-derived behaviour.
     the same single function) and judged the loosened wire-level `payment_due_date` assertion
     acceptable, since the exact arithmetic is covered by fixed-clock pure-function tests.
 
+- Task 2: Derive expiry from `invoice.dueDate` with floor and cap —
+  `lib/payments/expiry.ts`, `lib/payments/session.ts`, `scripts/reseed/invoices.ts`,
+  `lib/payments/__tests__/resolve-session-expiry.test.ts` (new) — **this is the commit that
+  fixes the reported bug.** `resolveSessionExpiry(dueDate, now)` parses the invoice's own
+  `YYYY-MM-DD` as `T23:59:59+07:00` and clamps to `[now + 1 day, now + 30 days]`.
+  `session.ts` now calls it instead of passing a constant. `scripts/reseed/invoices.ts` gets
+  the same treatment since `period.dueDate` was already in scope at its call site.
+  - Deviation from the task text, deliberate: the task said to reuse `JAKARTA_TZ` from
+    `lib/sessions/dates.ts`. The function needs a fixed `+07:00` string literal, not a
+    timezone identifier, so importing `JAKARTA_TZ` would have meant a `void` no-op purely to
+    satisfy the wording. Dropped it and documented the fixed-offset assumption in the doc
+    comment instead. No second timezone constant was introduced.
+  - Reviewer (`feature-dev:code-reviewer`) returned no blockers. It confirmed the parse is
+    host-timezone independent (explicit numeric offset resolves via the ECMA-262 grammar, a
+    different mechanism from the `Intl`/local-getter round-trips that
+    `e2e/jakarta-tz-server-date.spec.ts` guards) and that WIB has been a fixed UTC+7 with no
+    DST since 1988. Acted on its sub-threshold note by adding a
+    `[PAYMENT EXPIRY MALFORMED DUE DATE]` warning to the fallback branch — a silent wrong
+    expiry is precisely the failure shape this cycle exists to eliminate.
+  - Carried to Ship Notes, not fixed here: `scripts/reseed/invoices.ts` hardcodes
+    Feb/Mar/Apr 2026 periods, so its seeded "live" invoices are all overdue today and now
+    clamp to the 1-day floor rather than the old flat 7 days. Pre-existing fixture staleness
+    that T2 makes visible; out of scope for a payments bugfix.
+
 ## Verification
 
 - Task 1: gates passed — `npm run build` clean (Next.js 16.2.3, TypeScript check green),
@@ -170,6 +194,14 @@ comments describe the due-date-derived behaviour.
   real 27→10 window asserting it is no longer 7 days), plus Xendit ISO passthrough and its
   7-day fallback. All new tests use fixed instants or bracket `Date.now()`, so none are
   clock-flaky in CI.
+- Task 2: gates passed — `npm run build` exit 0, `npx vitest run` 305 files passed / 2 skipped,
+  2959 tests passed / 42 todo. (The `[AUTH] Session retrieval failed` lines in build output are
+  pre-existing static-analysis noise from dynamic routes using `cookies`, not failures — build
+  exits 0.) `resolveSessionExpiry` has 10 cases under fixed clocks: end-of-day WIB resolution,
+  Bu Shanti's real 27→10 window asserted at >14 and <15 days, overdue → floor, same-day →
+  floor, just-past-floor preserved, far-future → 30-day cap, month boundary, leap day,
+  malformed input → logged 7-day fallback, and a property check that no input can ever return
+  an instant at or before `now`.
 
 ## Ship Notes
 

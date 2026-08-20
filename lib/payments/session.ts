@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { defaultExpiresAt } from "@/lib/payments/expiry";
+import { resolveSessionExpiry } from "@/lib/payments/expiry";
 import { getGateway } from "@/lib/payments/registry";
 import { withRetry } from "@/lib/payments/with-retry";
 import { stripQuery } from "@/lib/payments/xendit/client";
@@ -100,10 +100,14 @@ export async function createPaymentSessionForInvoice(
         // per-channel Back Office setting — the one place a missing Back
         // Office value would otherwise mean a paid invoice never credits.
         notificationUrl: `${appOrigin}/api/doku/webhook`,
-        // TODO(T2): derive from `invoice.dueDate`. Held at the historical
-        // 7-day default for this commit so the port lands without a behaviour
-        // change mixed into it.
-        expiresAt: defaultExpiresAt(),
+        // The invoice's own due date, as the admin entered it — NOT a
+        // constant. This line was `expiryDays: 7` until cycle
+        // 2026-08-20-invoice-due-date-to-gateway, which meant every Virtual
+        // Account expired seven days after issue no matter what "Tanggal Jatuh
+        // Tempo" said, and an invoice raised early in the month died before its
+        // own collection window closed. `invoice.dueDate` was already loaded
+        // forty lines above; it was simply never told to the gateway.
+        expiresAt: resolveSessionExpiry(invoice.dueDate),
         items: invoice.lines.map((line) => ({
           name: line.labelSnapshot,
           quantity: 1,
