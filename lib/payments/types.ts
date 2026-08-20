@@ -61,7 +61,28 @@ export type CreateSessionParams = {
   customerPhone?: string;
   successReturnUrl: string;
   cancelReturnUrl: string;
-  expiryDays?: number; // Default 7 days
+  /**
+   * Absolute instant the payment session should stop accepting payment.
+   * Defaults to 7 days from now when omitted.
+   *
+   * This is an instant, not a day-count, because a day-count cannot express
+   * "expires at the end of the 10th" from an arbitrary creation instant. That
+   * limitation was a real bug: before cycle 2026-08-20-invoice-due-date-to-gateway
+   * this field was `expiryDays?: number` and `createPaymentSessionForInvoice`
+   * passed a hardcoded `7` — so every Virtual Account expired 7 days after it
+   * was issued regardless of the due date the admin had set on the invoice.
+   * An invoice raised on the 1st with a month-end due date handed the parent a
+   * VA that stopped working on the 8th.
+   *
+   * Each adapter converts as its API requires: Xendit takes the ISO instant
+   * directly (`expires_at`), DOKU takes minutes-from-now (`payment_due_date`).
+   *
+   * The 7-day default survives for callers that have no invoice and therefore
+   * no due date (the DOKU probe route, the reseed and finish-xendit scripts).
+   * The invoice path must never reach it — `lib/payments/__tests__/session-expiry.test.ts`
+   * asserts that.
+   */
+  expiresAt?: Date;
   items?: { name: string; quantity: number; price: number }[];
   /**
    * Absolute URL this deploy wants gateway notifications delivered to.

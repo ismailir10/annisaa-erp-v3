@@ -380,7 +380,7 @@ describe("createDokuSession", () => {
       customerEmail: "guardian@example.test",
       customerPhone: "081234567890",
       items: [{ name: "SPP Juli", quantity: 1, price: 100000 }],
-      expiryDays: 7,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
 
     const session = await createDokuSession(params);
@@ -404,7 +404,10 @@ describe("createDokuSession", () => {
     expect(body.order.line_items).toEqual([
       { name: "SPP Juli", quantity: 1, price: 100000 },
     ]);
-    expect(body.payment.payment_due_date).toBe(7 * 24 * 60);
+    // Minutes-from-now, rounded up: a 7-day `expiresAt` lands on 10080 or one
+    // minute under, depending on where in the current minute the clock sits.
+    expect(body.payment.payment_due_date).toBeGreaterThan(7 * 24 * 60 - 2);
+    expect(body.payment.payment_due_date).toBeLessThanOrEqual(7 * 24 * 60);
     // `payment_method_types` must be ABSENT, not empty. DOKU rejects the whole
     // session with `PAYMENT CHANNEL IS INACTIVE` if the list names a channel
     // that is not active on the merchant account, and production has neither

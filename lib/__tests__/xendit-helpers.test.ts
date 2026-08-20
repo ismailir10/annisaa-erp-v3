@@ -166,6 +166,10 @@ describe("createPaymentSessionForInvoice — guardian contact passthrough", () =
       totalPaid: 0,
       invoiceNumber: "INV-MAIL",
       periodLabel: "Jul 2026",
+      // Required since cycle 2026-08-20-invoice-due-date-to-gateway — session
+      // expiry derives from it. Without it these fixtures take the malformed-
+      // date fallback, which passes but stops resembling production.
+      dueDate: "2026-07-31",
       student: { name: "Aisy", guardians },
       lines: [],
     } as never);

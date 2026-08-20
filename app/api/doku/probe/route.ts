@@ -175,9 +175,10 @@ export async function POST(req: NextRequest) {
         successReturnUrl: PROBE_RETURN_URL,
         cancelReturnUrl: PROBE_RETURN_URL,
         notificationUrl,
-        // One day, not the seven a real invoice gets — a probe VA should not
-        // linger in the merchant's outstanding list for a week.
-        expiryDays: 1,
+        // One day. A real invoice derives its expiry from its own due date; a
+        // probe has no invoice, and a probe VA should not linger in the
+        // merchant's outstanding list.
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
       {
         checkoutVersion: version,
