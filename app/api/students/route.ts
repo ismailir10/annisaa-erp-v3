@@ -49,15 +49,24 @@ export async function GET(req: NextRequest) {
           include: { parent: { select: { name: true, phone: true } } },
         },
         enrollments: {
-          where: { status: "ACTIVE" },
-          include: { classSection: { select: { name: true, program: { select: { name: true } } } } },
-          // `take: 1` without an order is non-deterministic when a student has
-          // more than one ACTIVE enrolment (e.g. last year's row was never
-          // closed when the year was archived). The detail route orders
-          // `createdAt desc`; match it so the list and the detail page cannot
-          // disagree about which class a student is in.
+          where: {
+            status: "ACTIVE",
+            // Exclude ARCHIVED-year rows. Un-closed prior-year ACTIVE
+            // enrollments (bulk-import artifact — see T9 regression,
+            // docs/cycles/2026-08-21-enrollment-flexibility.md) would
+            // otherwise show up in the "Kelas" column alongside the real
+            // current-year row.
+            classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+          },
+          include: {
+            classSection: { select: { name: true, program: { select: { name: true, type: true } } } },
+          },
+          // No `take: 1` — a student may hold one SEMESTER (sekolah) and one
+          // YEAR_ROUND (daycare) enrolment at once; the "Kelas" column shows
+          // both, ordered primary-first via `pickPrimaryEnrollment`. `orderBy`
+          // stays for determinism when a stale ARCHIVED-year row is also
+          // ACTIVE (matches the detail route's `createdAt desc`).
           orderBy: { createdAt: "desc" },
-          take: 1,
         },
       },
       orderBy,

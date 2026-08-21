@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 /**
  * GET /api/guardian/invoices/[id]
@@ -82,16 +83,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           name: true,
           nickname: true,
           enrollments: {
-            where: { status: "ACTIVE" },
+            where: {
+              status: "ACTIVE",
+              // Exclude ARCHIVED-year rows. Un-closed prior-year ACTIVE
+              // enrollments (bulk-import artifact — see T9 regression,
+              // docs/cycles/2026-08-21-enrollment-flexibility.md) would
+              // otherwise sit in `pickPrimaryEnrollment`'s pool alongside
+              // the real current-year row and can win its earliest-
+              // enrollDate tiebreak, naming last year's class + program on
+              // the invoice header.
+              classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+            },
+            // No `take: 1` — a dual-enrolled student (sekolah + daycare)
+            // needs every ACTIVE row so `pickPrimaryEnrollment` below can
+            // pick the SEMESTER one. An invoice header must be singular.
             select: {
+              id: true,
+              enrollDate: true,
               classSection: {
                 select: {
                   name: true,
-                  program: { select: { name: true } },
+                  program: { select: { name: true, type: true } },
                 },
               },
             },
-            take: 1,
           },
         },
       },
@@ -101,6 +116,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!invoice || !childIds.has(invoice.studentId) || invoice.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  const primaryEnrollment =
+    invoice.student.enrollments.length <= 1
+      ? (invoice.student.enrollments[0] ?? null)
+      : pickPrimaryEnrollment(invoice.student.enrollments);
 
   // Serialize Decimals and Dates (tenantId excluded from response)
   return NextResponse.json({
@@ -132,10 +152,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     student: {
       name: invoice.student.name,
       nickname: invoice.student.nickname,
-      classSection: invoice.student.enrollments[0]?.classSection
+      classSection: primaryEnrollment?.classSection
         ? {
-            name: invoice.student.enrollments[0].classSection.name,
-            program: { name: invoice.student.enrollments[0].classSection.program.name },
+            name: primaryEnrollment.classSection.name,
+            program: { name: primaryEnrollment.classSection.program.name },
           }
         : null,
     },

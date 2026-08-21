@@ -46,6 +46,7 @@ import { StudentExportDialog } from "@/components/admin/student-export-dialog";
 import { formatDateShort } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 // ------------------------------------------------------------------
 // Types
@@ -65,7 +66,9 @@ type Student = {
   createdAt: string;
   guardians: { parent: { name: string; phone: string | null } }[];
   enrollments: {
-    classSection: { name: string; program: { name: string } };
+    id: string;
+    enrollDate: string;
+    classSection: { name: string; program: { name: string; type: string } };
   }[];
 };
 
@@ -351,18 +354,31 @@ const columns: ColumnDef<Student>[] = [
     id: "program",
     header: "Program / Kelas",
     cell: ({ row }) => {
-      const e = row.original.enrollments[0];
-      if (!e) {
+      const enrollments = row.original.enrollments;
+      if (enrollments.length === 0) {
         return (
           <span className="text-xs text-muted-foreground italic">
             Belum terdaftar
           </span>
         );
       }
+      // Primary (sekolah/SEMESTER) enrollment first, then any other ACTIVE
+      // enrollment (e.g. daycare) — a dual-enrolled student shows both
+      // classes instead of an arbitrary one.
+      const primary =
+        enrollments.length <= 1 ? enrollments[0] : pickPrimaryEnrollment(enrollments);
+      const ordered = primary
+        ? [primary, ...enrollments.filter((e) => e.id !== primary.id)]
+        : enrollments;
       return (
         <span className="text-sm">
-          {e.classSection.program.name}{" "}
-          <span className="text-muted-foreground">· {e.classSection.name}</span>
+          {ordered.map((e, i) => (
+            <span key={e.id}>
+              {i > 0 && <span className="text-muted-foreground"> + </span>}
+              {e.classSection.program.name}{" "}
+              <span className="text-muted-foreground">· {e.classSection.name}</span>
+            </span>
+          ))}
         </span>
       );
     },
