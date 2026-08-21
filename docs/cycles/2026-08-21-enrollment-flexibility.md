@@ -137,7 +137,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   `app/admin/students/page.tsx:354`, `lib/students/export.ts:66` (`firstEnrollment`), `lib/parent-helpers.ts:95`, `app/api/admin/raport/[studentId]/[termId]/pdf/route.ts:61`, `app/api/guardian/raport/[studentId]/[termId]/pdf/route.ts:98`, `app/api/guardian/invoices/[id]/route.ts:135`, `app/api/guardian/invoices/[id]/pdf/route.ts:133`. Where the surface can show more than one (admin list "Kelas" column, CSV export), render both; where it must be singular (raport header, invoice header), use the primary. Check each query's `take: 1` — `lib/parent-helpers.ts:81` has one and must be widened. Depends: T3.
   *Acceptance:* tests assert a dual-enrolled student's raport PDF names the SEMESTER class, and the admin list shows both.
 
-- [ ] **T10 — Docs + runbook.**
+- [x] **T10 — Docs + runbook.**
   Fill Implementation / Verification. Add a diagnostic query for the 16 stale ARCHIVED-year ACTIVE rows to `docs/runbooks/` (read-only, no mutation — historical rows are preserved by design). Update README only if the surface counts move. Run `bash scripts/audit-docs.sh` to zero.
   *Acceptance:* `bash scripts/audit-docs.sh` exits 0; Verification records the between-task gate, the end-of-cycle gate, and Playwright status.
 
@@ -177,6 +177,42 @@ Two subagents separately tried to silence a failing assertion by adding a defens
 - `npm run lint` — 0 errors. 59 warnings, all pre-existing in files this cycle does not touch.
 - The advisory-lock fix broke 8 tests across 3 files whose tx mocks lacked `$executeRaw`; mocks updated, no assertion weakened.
 - `design-system` — the T7 override-confirm step reuses the existing Shadcn Sheet/Dialog + Field composition from the enrol flow rather than introducing new surface, per the canonical reference.
-- Playwright: see the status line recorded below at end-of-cycle.
+- `npx vitest run` after T7 (final): **313 passed | 2 skipped (315 files), 3036 passed | 42 todo (3078 tests), 0 failures.** `npm run build` exit 0.
+- Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses to start because this worktree's `DATABASE_URL` points at the staging Supabase pooler, and the specs create and mutate data through the API). The `E2E_ALLOW_REMOTE_DB=1` override exists but was **not** used: it would have written cycle test data into the staging database, which is the exact pollution the guard prevents.
+  Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+- Not verified by any automated gate, and left for preview-verify: that the override confirm step renders correctly on a real mobile viewport, and that `Program.type` is set correctly on production programs (see Ship Notes — this cycle makes that column load-bearing for the first time).
 
 ## Ship Notes
+
+**No migrations. No new env vars. No schema change.** Every guard is application-level.
+
+### What changes for an admin on day one
+
+- An age outside a program's band no longer blocks. The admin sees an advisory message naming the child's age, the band and the reference date, types a reason, and continues. The reason lands in `AuditLog` under `student.enroll.age-override`.
+- A child can be enrolled in a school class **and** a day-care class in the same year. A second class of the *same* type is still refused, naming the conflicting class.
+- Both enrol doors — student detail and class detail — now behave identically. The class-detail door previously ran no age check at all, so admins may notice it is now stricter in that one respect while everything else got looser.
+
+### Deliberately not done
+
+- **Program age bands were not changed.** On staging 26 of 37 active enrollments sit below their program's `ageMin` when measured at year start, a uniform ~10-month shortfall that disappears if you add 12 months — the bands look calibrated to age *reached during* the year, not age at intake. Making the bands advisory removes the harm without guessing. Whether the bands or the reference date are wrong is a question for Bu Shanti, and correcting them is a separate cycle. `prisma/seed.ts` is also stale against staging (KB is 36–48 there, not 36–60; TKIT is split A/B).
+- **The 16 stale ARCHIVED-year ACTIVE rows were not cleaned.** A prior cycle preserves archived enrollments on purpose. They are now inert because every guard, billing query and display query is year-scoped. Read-only diagnostic added to [`docs/runbooks/staging-data-cleanup.md`](../runbooks/staging-data-cleanup.md).
+- **`EnrollmentApplication.dcareAddon` is still not wired to auto-create a second enrollment.** Convert produces one student; the admin adds the day-care placement explicitly.
+
+### Risks to watch
+
+- **`Program.type` is now load-bearing.** It was display-only until this cycle. A program mistyped in the admin UI silently changes what counts as a conflict — e.g. a day-care program typed `SEMESTER` would block the school placement it is meant to sit alongside. Staging is clean (DCARE=`YEAR_ROUND`, KB/TKIT-A/TKIT-B=`SEMESTER`); **verify prod before relying on this.**
+- **The one-per-stream invariant has no database constraint.** Enforcing it in SQL would need `Program.type` denormalised onto `StudentEnrollment`, which the spec ruled out. Concurrency is covered by a `pg_advisory_xact_lock` on `studentId:academicYearId:programType`, taken before the class lock in both doors (fixed order, so they cannot deadlock). If the invariant is ever violated, the runbook query is the only detector.
+- **Merged invoice line shape changed for dual-enrolled students only.** When two programs share a `feeComponentId` — the normal case, since `FeeComponentDef` is a tenant-level catalog — the two lines collapse into **one** line labelled `SPP (D'Care + KB)` carrying the summed amount, rather than two itemised lines. A PERCENT keringanan then applies to that summed base. Single-program invoices are byte-identical to before. If the school wants the two programs itemised separately on the invoice, that is a follow-up and needs a product decision.
+
+### Smoke test on the preview URL
+
+1. Admin → a student whose age is outside the target program's band → enrol → expect the advisory message, not a hard failure. Confirm the button stays disabled until a reason is typed.
+2. Repeat from the class-detail door; confirm identical wording and behaviour.
+3. Enrol a student into a school class, then into a D'Care class in the same year → both should succeed, and the student should appear on both rosters.
+4. Try a second school class for that student → expect a refusal naming the existing class, with no override offered.
+5. Check `/admin/students` and a raport PDF for that student: the list shows both classes, the raport header shows the **school** class.
+6. Build a billing run covering that student → one row, both programs' fee lines, one invoice.
+
+### Rollback
+
+`git revert` the range. No data migration to undo. Reverting restores the hard age block and the single-enrollment guard; any dual enrollments created in the meantime would remain in the database as extra ACTIVE rows and would then be picked up by the pre-revert `enrollments[0]` code paths arbitrarily — so if dual enrollments have been created, close them before reverting.
