@@ -65,7 +65,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   With no `parentId` and no `confirmNew`, call `findParentCandidates`. Any hit → 409 `{ error, code: "PARENT_CANDIDATES", candidates }`. `confirmNew: true` skips the check and creates as today.
   *Acceptance:* Vitest covers candidate-409, `confirmNew` bypass, and no-match straight-through.
 
-- [ ] **T4 — `components/admin/parent-picker.tsx`.** *(depends on nothing)*
+- [x] **T4 — `components/admin/parent-picker.tsx`.** *(depends on nothing)*
   Mirror `components/admin/student-picker.tsx`: Popover + Command, 250ms debounce, `AbortController`, the same five states (idle / loading / error+retry / empty / ok), querying `/api/guardians?search=&status=ACTIVE&pageSize=20`. Each result shows `Nama · telepon · N anak` from the `_count.guardians` the route already returns.
   *Acceptance:* Vitest render test for the five states; visually matches the student picker.
 
@@ -101,10 +101,15 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 - Task 3: Candidate 409 on the create path — `lib/validations/guardian.ts`, `app/api/students/[id]/guardians/route.ts`, `app/api/students/[id]/guardians/__tests__/route.test.ts` — create-path submits without `confirmNew` run `findParentCandidates` and 409 with `code: "PARENT_CANDIDATES"` plus the match list; `confirmNew: true` bypasses. The link path skips the guard — the picker already made the choice explicit.
   - Behaviour change worth noting at ship time: an email match previously *upserted*, silently rewriting the existing parent's bio with whatever the form contained. It now 409s and offers the link instead. Both e2e specs that POST this endpoint (`admin-guardian-detail`, `admin-guardian-primary-invariant`) build `Date.now()`-suffixed names, phones and emails, so no candidate can match and they are unaffected.
 
+- Task 4: `ParentPicker` — `components/admin/parent-picker.tsx` (new), `components/admin/__tests__/parent-picker.test.tsx` (new), `vitest.setup.ts` — async combobox over `GET /api/guardians?search=&status=ACTIVE`, mirroring `student-picker.tsx`'s 250ms debounce, `AbortController` and five explicit states, checked against `design-system` (Shadcn Popover + Command, `text-muted-foreground` secondary line, no hand-rolled dropdown). Takes `excludeIds` so parents already linked to this student are dropped rather than offered and 409'd.
+  - Departure from `student-picker.tsx`, per `better-accessibility` where the project standard is silent: the clear (×) control is a sibling of the combobox trigger, not nested inside it. StudentPicker puts a `role="button"` span inside the trigger button, which is unreachable by keyboard and ambiguous to screen readers. Left StudentPicker alone — out of scope.
+  - `vitest.setup.ts` gained a guarded `ResizeObserver` polyfill. jsdom has none and cmdk constructs one on mount, so every `<Command>`-based component was untestable. Sits alongside the existing `scrollIntoView` and `matchMedia` polyfills; all 315 pre-existing test files still pass.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 4: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (+9). Covers idle prompt, debounce-then-fetch with the right query string, selection callback, `excludeIds` filtering, fetch-error retry affordance, named empty state, truncation notice, and the clear control being outside the combobox.
 - Task 3: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3072 tests ✓ (+6). Covers name-match 409, differently-formatted phone match, email match not upserting, `confirmNew` bypass, no-match straight-through, link path skipping the guard.
 - Task 2: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3066 tests ✓ (+14). New tests cover link-created, bio-fields-ignored, childOrder, cross-tenant 404, unknown-parent 404, duplicate-active 409, inactive-reactivated 200, first-guardian primary auto-default, incumbent-primary demotion, P2034 retry, non-admin 403, cross-tenant student 404, missing-relationship 400.
 
