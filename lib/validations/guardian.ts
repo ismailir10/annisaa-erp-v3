@@ -21,6 +21,10 @@ export const createGuardianSchema = z.object({
   incomeRange: z.string().max(50).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
+  // Set once the admin has seen the duplicate-candidate list and chose to
+  // create a new parent anyway. Absent on the first submit, which is what
+  // lets the route run the check exactly once per decision.
+  confirmNew: z.boolean().optional(),
 });
 
 // Shared by updateGuardianSchema and linkGuardianSchema: an HTML number input

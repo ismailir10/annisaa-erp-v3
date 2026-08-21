@@ -36,7 +36,31 @@ const state = {
   parentCreateCalls: 0,
   forceP2034Once: false,
   txAttempts: 0,
+  /** Rows findParentCandidates sees — the tenant's existing ACTIVE parents. */
+  existingParents: [] as Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    nik: string | null;
+    _count: { guardians: number };
+  }>,
 };
+
+function existingParent(
+  partial: Partial<(typeof state.existingParents)[number]> & {
+    id: string;
+    name: string;
+  },
+) {
+  return {
+    email: null,
+    phone: null,
+    nik: null,
+    _count: { guardians: 1 },
+    ...partial,
+  };
+}
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ success: true }),
@@ -102,6 +126,9 @@ vi.mock("@/lib/db", () => ({
         if (where.tenantId && p.tenantId !== where.tenantId) return null;
         return { id: p.id };
       }),
+      // findParentCandidates issues one narrow SELECT over the tenant's
+      // ACTIVE parents and compares in JS.
+      findMany: vi.fn(async () => state.existingParents),
       upsert: vi.fn(async () => {
         state.parentUpsertCalls++;
         return { id: "p-upserted" };
@@ -171,6 +198,7 @@ beforeEach(() => {
   state.parentCreateCalls = 0;
   state.forceP2034Once = false;
   state.txAttempts = 0;
+  state.existingParents = [];
 });
 
 describe("POST guardians — link an existing parent", () => {
@@ -278,5 +306,82 @@ describe("POST guardians — link an existing parent", () => {
   it("400s a link payload with no relationship", async () => {
     const res = await post({ parentId: "p1" });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST guardians — duplicate guard on the create path", () => {
+  it("409s with the candidate list when a typed name already exists", async () => {
+    state.existingParents = [
+      existingParent({ id: "p9", name: "Siti Aminah", phone: "081234567890" }),
+    ];
+    const res = await post({ name: "SITI  AMINAH", relationship: "IBU" });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("PARENT_CANDIDATES");
+    expect(body.candidates).toEqual([
+      expect.objectContaining({
+        id: "p9",
+        name: "Siti Aminah",
+        matchReason: "name",
+        childCount: 1,
+      }),
+    ]);
+    expect(state.parentCreateCalls).toBe(0);
+    expect(state.parentUpsertCalls).toBe(0);
+  });
+
+  it("409s on a phone match written in a different format", async () => {
+    state.existingParents = [
+      existingParent({ id: "p9", name: "Budi", phone: "0812-3456-7890" }),
+    ];
+    const res = await post({
+      name: "Nama Berbeda",
+      relationship: "AYAH",
+      phone: "+62 812 3456 7890",
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).candidates[0].matchReason).toBe("phone");
+  });
+
+  it("409s on an email match rather than silently upserting the parent", async () => {
+    // Pre-cycle behaviour was an upsert, which quietly rewrote the existing
+    // parent's bio with whatever this form happened to contain.
+    state.existingParents = [
+      existingParent({ id: "p9", name: "Siti", email: "siti@example.com" }),
+    ];
+    const res = await post({
+      name: "Siti Yang Lain",
+      relationship: "IBU",
+      email: "siti@example.com",
+    });
+    expect(res.status).toBe(409);
+    expect(state.parentUpsertCalls).toBe(0);
+  });
+
+  it("creates the parent when confirmNew is set", async () => {
+    state.existingParents = [
+      existingParent({ id: "p9", name: "Siti Aminah" }),
+    ];
+    const res = await post({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      confirmNew: true,
+    });
+    expect(res.status).toBe(201);
+    expect(state.parentCreateCalls).toBe(1);
+  });
+
+  it("creates straight through when nothing matches", async () => {
+    state.existingParents = [existingParent({ id: "p9", name: "Orang Lain" })];
+    const res = await post({ name: "Siti Aminah", relationship: "IBU" });
+    expect(res.status).toBe(201);
+    expect(state.parentCreateCalls).toBe(1);
+  });
+
+  it("skips the duplicate guard entirely on the link path", async () => {
+    // The picker already made the choice explicit; re-confirming would be noise.
+    state.existingParents = [existingParent({ id: "p1", name: "Siti Aminah" })];
+    const res = await post({ parentId: "p1", relationship: "IBU" });
+    expect(res.status).toBe(201);
   });
 });

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { createGuardianSchema, linkGuardianSchema } from "@/lib/validations/guardian";
+import { findParentCandidates } from "@/lib/parent/match";
 
 /**
  * Race-safe single-primary invariant, mirroring the PUT handler in
@@ -159,10 +160,31 @@ export async function POST(
 
   const {
     name, email = null, phone = null, whatsapp = null,
-    relationship, isPrimary,
+    relationship, isPrimary, confirmNew = false,
     parentNik = null, education = null, occupation = null,
     employer = null, employerAddress = null, employerCity = null, incomeRange = null,
   } = parsed.data;
+
+  // Duplicate guard. A parent typed in fresh who already exists under another
+  // child produces a second Parent row — two profiles, two KK slots, invoices
+  // split across both. Surface the matches and let the admin link instead;
+  // confirmNew means they looked and chose to create anyway.
+  if (!confirmNew) {
+    const candidates = await findParentCandidates(
+      { tenantId: session.tenantId, name, email, phone, nik: parentNik },
+      prisma
+    );
+    if (candidates.length) {
+      return NextResponse.json(
+        {
+          error: "Wali dengan data serupa sudah terdaftar.",
+          code: "PARENT_CANDIDATES",
+          candidates,
+        },
+        { status: 409 }
+      );
+    }
+  }
 
   // Validate email doesn't collide with employee/admin
   if (email) {

@@ -61,7 +61,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   Extend `createGuardianSchema` (or add `linkGuardianSchema`) with optional `parentId`. When present: verify the parent's `tenantId`, skip every parent write, create the junction row, keep the existing first-guardian `isPrimary` auto-default. 404 on cross-tenant or unknown parent; 409 on an existing ACTIVE link; reactivate + 200 on an existing INACTIVE link.
   *Acceptance:* Vitest covers link-created, cross-tenant 404, duplicate-active 409, inactive-reactivated 200.
 
-- [ ] **T3 — Candidate 409 on the create-new path.** *(depends on T1, T2)*
+- [x] **T3 — Candidate 409 on the create-new path.** *(depends on T1, T2)*
   With no `parentId` and no `confirmNew`, call `findParentCandidates`. Any hit → 409 `{ error, code: "PARENT_CANDIDATES", candidates }`. `confirmNew: true` skips the check and creates as today.
   *Acceptance:* Vitest covers candidate-409, `confirmNew` bypass, and no-match straight-through.
 
@@ -98,10 +98,14 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 - Task 2: `parentId` link-only path on POST guardians — `lib/validations/guardian.ts`, `app/api/students/[id]/guardians/route.ts`, `app/api/students/[id]/guardians/__tests__/route.test.ts` (new) — adds `linkGuardianSchema` (junction columns only, deliberately no bio fields so a link can never overwrite another family's data) and a link branch that verifies the parent's tenant, 409s an existing ACTIVE link, reactivates an INACTIVE one, and persists `childOrder`. Extracted the shared `childOrderField` preprocessor rather than duplicating it.
   - **In-scope correctness call:** the new branch reuses the PUT handler's race-safe single-primary transaction via a local `writeGuardianAsPrimarySafe` helper, and the pre-existing create branch was routed through the same helper. The create branch previously wrote `isPrimary` straight from client input, so a payload with `isPrimary: true` against a student who already had a primary produced two primaries — the exact invariant `app/api/students/route.ts:84` guards on bulk create. Fixing one branch and leaving its neighbour open in the same handler was not defensible; noted here because it is slightly wider than the task line.
 
+- Task 3: Candidate 409 on the create path — `lib/validations/guardian.ts`, `app/api/students/[id]/guardians/route.ts`, `app/api/students/[id]/guardians/__tests__/route.test.ts` — create-path submits without `confirmNew` run `findParentCandidates` and 409 with `code: "PARENT_CANDIDATES"` plus the match list; `confirmNew: true` bypasses. The link path skips the guard — the picker already made the choice explicit.
+  - Behaviour change worth noting at ship time: an email match previously *upserted*, silently rewriting the existing parent's bio with whatever the form contained. It now 409s and offers the link instead. Both e2e specs that POST this endpoint (`admin-guardian-detail`, `admin-guardian-primary-invariant`) build `Date.now()`-suffixed names, phones and emails, so no candidate can match and they are unaffected.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 3: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3072 tests ✓ (+6). Covers name-match 409, differently-formatted phone match, email match not upserting, `confirmNew` bypass, no-match straight-through, link path skipping the guard.
 - Task 2: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3066 tests ✓ (+14). New tests cover link-created, bio-fields-ignored, childOrder, cross-tenant 404, unknown-parent 404, duplicate-active 409, inactive-reactivated 200, first-guardian primary auto-default, incumbent-primary demotion, P2034 retry, non-admin 403, cross-tenant student 404, missing-relationship 400.
 
 ## Ship Notes
