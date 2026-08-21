@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { optionalEmail } from "./optional-email";
 
 export const createGuardianSchema = z.object({
   name: z.string().min(1, "Nama wali wajib diisi").max(200),
   phone: z.string().max(20).optional().nullable(),
-  email: z.string().email("Email tidak valid").max(200).optional().nullable(),
+  email: optionalEmail,
   whatsapp: z.string().max(20).optional().nullable(),
   // No silent default — pre-fix `.default("WALI")` masked combobox-state
   // bugs (FIND-009): the form selected "Ayah" but submit dropped the value
@@ -54,7 +55,7 @@ export const linkGuardianSchema = z.object({
 export const updateGuardianSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   phone: z.string().max(20).optional().nullable(),
-  email: z.string().email("Email tidak valid").max(200).optional().nullable(),
+  email: optionalEmail,
   whatsapp: z.string().max(20).optional().nullable(),
   relationship: z.enum(["AYAH", "IBU", "WALI", "OTHER"]).optional(),
   isPrimary: z.boolean().optional(),
