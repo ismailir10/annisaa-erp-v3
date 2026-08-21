@@ -124,6 +124,12 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
+- **End-of-cycle gates:** `npm run build` ✓ · `npx vitest run` **317 files / 3089 tests passed, 2 skipped, 42 todo** ✓ · `npm run lint` 0 errors / 62 warnings (all pre-existing style warnings of the `_ignored` / `_drop` unused-arg kind) · `bash scripts/audit-docs.sh` 11 ok, 0 warn, 0 fail.
+- **Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses a non-local `DATABASE_URL`).** Verbatim:
+  `Error: Refusing to run e2e against non-local DATABASE_URL host "aws-1-ap-southeast-1.pooler.supabase.com". These specs create + mutate data via the API and would pollute that database (DEMO_MODE does not switch the DB — see lib/db.ts). Point DATABASE_URL at a local/ephemeral Postgres, or set E2E_ALLOW_REMOTE_DB=1 to override.`
+  The override was **not** used — that guard exists because of the 2026-06-04 staging data pollution, and this cycle's new spec creates students and parents. Required CI check `Playwright E2E` runs against an ephemeral localhost Postgres and gates the merge; CTO will not merge on red.
+- **`design-system` cross-check:** all three new link surfaces (student-detail wali row, students-list Wali cell, Saudara chips) reuse the guardians-page row affordance `hover:bg-accent/50 rounded-md px-2 -mx-2` rather than inventing a hover treatment. Tambah Wali keeps the one-overlay-at-a-time rule — three bodies swap inside a single Dialog/Sheet, no stacking — and reuses the enroll dialog's advisory-`Alert` + focus-move pattern for its 409 step. Button labels follow the `ui.md` table (`Batal` ghost-left, action right; `Memproses...` while in flight).
+- **Local browser verification not performed.** `preview_start` resolves `.claude/launch.json` from the main checkout, whose three bash entries `cd` into worktrees that no longer exist, and the plain `next-prod-demo` entry dies with `EPERM: uv_cwd`. Adding a worktree-local entry did not help — the tool does not read the worktree's copy — so it was reverted rather than leaving a fourth stale path in a tracked file. UI verification is covered by `/ship` Step 3 preview-verify against the Vercel preview, which is this repo's designated gate for it.
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
 - Task 8: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3089 tests ✓ (no new unit tests; the behaviour is an e2e assertion, retargeted in the same commit).
 - Task 7: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3089 tests ✓ (+1). The new test asserts the `GET /api/students` guardian include shape (`status: ACTIVE`, `orderBy isPrimary desc`, `take 1`, parent `id` selected) — the mock cannot express Prisma ordering, so the query shape is the regression guard.
@@ -135,4 +141,35 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**No migrations. No new env vars. No schema change.** `Parent` + `StudentGuardian` already modelled a shared family; this cycle is UI plus one API path.
+
+### What changes for an admin on day one
+
+- The Orang Tua / Wali tab on a student links to the wali, and a **Saudara** row lists siblings. The students list Wali column links too, and stops showing `—` for students whose guardians carry no primary flag.
+- **Tambah Wali opens on a search, not a blank form.** Picking a result links the existing wali. "Tidak ketemu? Tambah wali baru" reveals the old form.
+- Typing a wali who already exists no longer creates a second record — the server returns the look-alikes and the admin picks *Tautkan* or *Tetap Buat Baru*.
+
+### Behaviour changes worth watching on preview
+
+1. **An email match used to upsert silently.** `POST /api/students/[id]/guardians` with an email belonging to an existing parent previously rewrote that parent's bio with whatever the form contained. It now returns 409 `PARENT_CANDIDATES`. Any integration that relied on the upsert must send `confirmNew: true` or use `parentId`. Nothing in this repo does — the only caller is the student detail page.
+2. **Wali bio now saves via `PUT /api/parents/[id]`.** `PUT /api/guardians/[guardianId]` is untouched and still serves the student-page edit dialog.
+3. **The single-primary invariant is now enforced on guardian create**, not just update. A client POSTing `isPrimary: true` for a student who already has a primary will demote the incumbent instead of producing two.
+
+### Preview-verify script
+
+1. Open a student with two or more wali → click a wali name → lands on `/admin/guardians/[id]` → click a child → back on the student. Loop closes.
+2. On a student whose parent has another child, confirm the **Saudara** row renders and its chip navigates.
+3. Tambah Wali → search an existing wali by name → **Tautkan Wali** → the wali appears on this student and the guardians list total does not grow.
+4. Tambah Wali → "Tambah wali baru" → type the name of a wali who already exists → expect the *Wali serupa sudah terdaftar* step, with the match reason named. Check both **Tautkan** and **Tetap Buat Baru**.
+5. `/admin/guardians` → Siswa column names up to two children with `+N` overflow.
+6. Open a wali with **no** linked student and edit the phone — this previously failed with "Wali ini belum tertaut ke siswa manapun".
+
+### Rollback
+
+Revert the range `dedf0913..f13de1cd` on `feat/siswa-wali-linking`. No data written by this cycle needs undoing: every write goes through existing tables in their existing shape, and links created via the picker are ordinary `StudentGuardian` rows. Reverting restores the duplicate-creating behaviour but breaks nothing that shipped in between.
+
+### Known gaps, deliberately deferred
+
+- **No merge tool.** Parents already duplicated in production stay duplicated. This cycle stops new ones and surfaces existing ones when an admin happens to retype the name. Reassigning `Invoice` / `User` / `StudentGuardian` rows between two parents needs its own cycle and its own billing tests.
+- **No `Family` entity.** Considered and rejected for this cycle — see Non-goals.
+- Candidate matching scans the tenant's ACTIVE parents in JS. Correct and fast at this school's scale (hundreds); past a few thousand parents per tenant, add a generated normalised column and index it rather than reintroducing asymmetric SQL matching.
