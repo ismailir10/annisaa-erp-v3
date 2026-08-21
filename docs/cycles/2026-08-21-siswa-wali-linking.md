@@ -69,7 +69,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   Mirror `components/admin/student-picker.tsx`: Popover + Command, 250ms debounce, `AbortController`, the same five states (idle / loading / error+retry / empty / ok), querying `/api/guardians?search=&status=ACTIVE&pageSize=20`. Each result shows `Nama · telepon · N anak` from the `_count.guardians` the route already returns.
   *Acceptance:* Vitest render test for the five states; visually matches the student picker.
 
-- [ ] **T5 — Rebuild the Tambah Wali dialog around three modes.** *(depends on T2, T3, T4)*
+- [x] **T5 — Rebuild the Tambah Wali dialog around three modes.** *(depends on T2, T3, T4)*
   One Sheet/Dialog instance, three mutually exclusive bodies, following the enroll dialog's picker → 409-advisory pattern at [`students/[id]/page.tsx:1085`](../../app/admin/students/[id]/page.tsx): **link** (ParentPicker + relationship + Anak ke-), **create** (existing `GuardianFormBody`, reached via "Tidak ketemu? Tambah wali baru"), **candidates** (Alert listing the 409 candidates, each with Tautkan, plus a Tetap Buat Baru button that re-POSTs with `confirmNew: true`). Edit mode is unaffected.
   *Acceptance:* Manual smoke — link an existing parent to a second student and confirm no new Parent row is created.
 
@@ -105,10 +105,16 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   - Departure from `student-picker.tsx`, per `better-accessibility` where the project standard is silent: the clear (×) control is a sibling of the combobox trigger, not nested inside it. StudentPicker puts a `role="button"` span inside the trigger button, which is unreachable by keyboard and ambiguous to screen readers. Left StudentPicker alone — out of scope.
   - `vitest.setup.ts` gained a guarded `ResizeObserver` polyfill. jsdom has none and cmdk constructs one on mount, so every `<Command>`-based component was untestable. Sits alongside the existing `scrollIntoView` and `matchMedia` polyfills; all 315 pre-existing test files still pass.
 
+- Task 5: Tambah Wali dialog rebuilt around three steps — `app/admin/students/[id]/page.tsx`, `lib/constants/parent-options.ts`, `README.md` — one overlay, three mutually exclusive bodies (**link** → ParentPicker + Hubungan + Anak ke-, **create** → existing `GuardianFormBody` behind "Tidak ketemu? Tambah wali baru", **candidates** → the 409 list with per-row Tautkan plus Tetap Buat Baru). Follows the enroll dialog's picker → advisory shape at `app/admin/students/[id]/page.tsx:1175` rather than inventing a second pattern, and keeps `design-system`'s one-overlay-at-a-time rule — no nested Dialog. Edit mode is untouched. Adds `MATCH_REASON_LABELS` so the advisory says *"Cocok pada nama yang sama"* rather than leaking the matcher's enum.
+  - Focus moves to the advisory `<Alert tabIndex={-1}>` when the 409 lands, matching the enroll dialog's handling, so the step change is announced.
+  - Already-linked parents are passed to the picker as `excludeIds` — offering them would only produce a `GUARDIAN_LINK_EXISTS` 409.
+  - No unit test for this slice by design: it is a step machine over a 1300-line client page whose two API branches (T2, T3) and picker (T4) are already unit-tested. Behaviour is covered end-to-end by T9.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 5: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (no new unit tests; see the Implementation note). Browser verification of the three steps runs once after T7, with the other UI slices.
 - Task 4: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (+9). Covers idle prompt, debounce-then-fetch with the right query string, selection callback, `excludeIds` filtering, fetch-error retry affordance, named empty state, truncation notice, and the clear control being outside the combobox.
 - Task 3: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3072 tests ✓ (+6). Covers name-match 409, differently-formatted phone match, email match not upserting, `confirmNew` bypass, no-match straight-through, link path skipping the guard.
 - Task 2: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3066 tests ✓ (+14). New tests cover link-created, bio-fields-ignored, childOrder, cross-tenant 404, unknown-parent 404, duplicate-active 409, inactive-reactivated 200, first-guardian primary auto-default, incumbent-primary demotion, P2034 retry, non-admin 403, cross-tenant student 404, missing-relationship 400.
