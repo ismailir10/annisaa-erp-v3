@@ -70,6 +70,7 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
       id: "cs-target",
+      program: { type: "SEMESTER" },
     } as never);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,6 +143,7 @@ describe("POST /api/students/[id]/promote — capacity race safety", () => {
     } as never);
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
       id: "cs-target",
+      program: { type: "SEMESTER" },
     } as never);
 
     // Capture the SQL template passed to tx.$queryRaw.

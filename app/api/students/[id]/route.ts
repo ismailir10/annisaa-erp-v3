@@ -24,8 +24,13 @@ export async function GET(
         include: {
           classSection: {
             include: {
-              program: { select: { name: true, code: true } },
-              academicYear: { select: { name: true } },
+              // `type` + `academicYear.status` drive the detail header's
+              // primary-enrollment pick (a student can hold a school and a
+              // day-care enrollment at once, plus stale rows in archived
+              // years). The list below still renders every enrollment —
+              // the Riwayat Kelas tab is deliberately historical.
+              program: { select: { name: true, code: true, type: true } },
+              academicYear: { select: { name: true, status: true } },
               campus: { select: { name: true } },
             },
           },

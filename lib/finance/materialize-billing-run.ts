@@ -50,13 +50,18 @@ export async function materializeBillingRun(
         classSectionIds.length > 0 ? { classSectionId: { in: classSectionIds } } : undefined,
         includeStudentIds.length > 0 ? { studentId: { in: includeStudentIds } } : undefined,
       ].filter(Boolean) as Prisma.StudentEnrollmentWhereInput[],
-      classSection: { tenantId },
+      // Scoped to the run's own academic year — without this, a student's
+      // stale ACTIVE row in an ARCHIVED prior year (un-closed by the bulk
+      // roster import; see docs/cycles/archive/2026-07-21-historical-roster-visibility.md)
+      // is an equally valid `studentId`/`classSectionId` match and would
+      // contribute a second year's worth of fee lines to this year's run.
+      classSection: { tenantId, academicYearId },
     },
     select: {
       studentId: true,
       classSectionId: true,
       student: { select: { id: true, name: true } },
-      classSection: { select: { name: true, programId: true } },
+      classSection: { select: { name: true, programId: true, program: { select: { name: true } } } },
     },
   });
 
@@ -65,6 +70,7 @@ export async function materializeBillingRun(
     studentName: e.student.name,
     classLabel: e.classSection.name,
     programId: e.classSection.programId,
+    programName: e.classSection.program.name,
     classSectionId: e.classSectionId,
   }));
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { validateBody } from "@/lib/api/validate";
@@ -6,6 +7,8 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { enrollmentAddSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
+import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
+import { findStreamConflict } from "@/lib/enrollment/active";
 import {
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -13,8 +16,17 @@ import {
 } from "../../_helpers";
 
 // Add a student to a class's roster. The class is identified by the [id] path
-// segment (ClassSection.id). Capacity check + duplicate-enrollment guard + the
-// ARCHIVED-year guard all run before the create.
+// segment (ClassSection.id). Age-fit check + capacity check + stream-conflict
+// guard + the ARCHIVED-year guard all run before the create.
+
+// `ageOverrideReason` isn't part of the shared `enrollmentAddSchema` (other
+// callers of that schema have no use for it) — extended locally so this door
+// validates the field identically to the students-detail door's
+// `enrollStudentSchema` (`lib/validations/student.ts`) without changing the
+// shared schema's shape.
+const enrollmentAddWithOverrideSchema = enrollmentAddSchema.extend({
+  ageOverrideReason: z.string().trim().min(1).optional(),
+});
 
 export async function POST(
   req: NextRequest,
@@ -40,13 +52,22 @@ export async function POST(
   const yearGuard = await ensureYearWritableForClass(classId, session.tenantId);
   if (yearGuard instanceof NextResponse) return yearGuard;
 
-  const parsed = await validateBody(enrollmentAddSchema, await req.json());
+  const parsed = await validateBody(enrollmentAddWithOverrideSchema, await req.json());
   if (parsed.error) return parsed.error;
-  const { studentId } = parsed.data;
+  const { studentId, ageOverrideReason } = parsed.data;
 
   const classSection = await prisma.classSection.findFirst({
     where: { id: classId, tenantId: session.tenantId },
-    select: { id: true, capacity: true, academicYearId: true, name: true },
+    select: {
+      id: true,
+      capacity: true,
+      academicYearId: true,
+      name: true,
+      program: {
+        select: { id: true, type: true, name: true, ageMin: true, ageMax: true },
+      },
+      academicYear: { select: { startDate: true } },
+    },
   });
   if (!classSection) {
     return NextResponse.json(
@@ -57,7 +78,7 @@ export async function POST(
 
   const student = await prisma.student.findFirst({
     where: { id: studentId, tenantId: session.tenantId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, dateOfBirth: true },
   });
   if (!student) {
     return NextResponse.json(
@@ -66,14 +87,53 @@ export async function POST(
     );
   }
 
+  // Age band is advisory, never a hard block. Same evaluateAgeFit call and
+  // same 409 AGE_OUT_OF_RANGE shape as the students-detail door
+  // (`app/api/students/[id]/enroll/route.ts`), so both doors return an
+  // identical body for the identical condition.
+  const ageFit = evaluateAgeFit({
+    dob: student.dateOfBirth,
+    referenceDate: classSection.academicYear.startDate,
+    ageMin: classSection.program.ageMin,
+    ageMax: classSection.program.ageMax,
+    programName: classSection.program.name,
+  });
+  const ageOutOfRange = ageFit.status === "BELOW_MIN" || ageFit.status === "ABOVE_MAX";
+  if (ageOutOfRange && !ageOverrideReason) {
+    return NextResponse.json(
+      {
+        error: ageFit.message,
+        code: "AGE_OUT_OF_RANGE",
+        ageMonths: ageFit.ageMonths,
+        ageMin: classSection.program.ageMin,
+        ageMax: classSection.program.ageMax,
+      },
+      { status: 409 },
+    );
+  }
+
   try {
-    // Capacity check + create wrapped in a transaction with a Postgres advisory
-    // lock keyed on classId. The lock serialises concurrent POSTs for the same
-    // class so two parallel requests at capacity-1 cannot both pass the count
-    // check and overfill (same pattern as `lib/sessions/reconcile.ts` + the
-    // invoice-payment route).
+    // Capacity check + stream-conflict check + create wrapped in a
+    // transaction with two Postgres advisory locks: a student-stream lock
+    // keyed on (studentId, academicYearId, programType), then a class lock
+    // keyed on classId. The class lock serialises concurrent POSTs for the
+    // same class so two parallel requests at capacity-1 cannot both pass the
+    // count check and overfill (same pattern as `lib/sessions/reconcile.ts`
+    // + the invoice-payment route). The student-stream lock serialises
+    // concurrent POSTs enrolling the SAME student into DIFFERENT sections of
+    // the SAME program type in the SAME year — without it, two such POSTs
+    // each take only the class lock (for different classIds), so under Read
+    // Committed neither sees the other's uncommitted row and both
+    // findStreamConflict calls below return null, letting the student end up
+    // with two ACTIVE rows of the same stream.
+    //
+    // Locking order is fixed to (1) student-stream, then (2) class —
+    // identically in this door and in
+    // app/api/students/[id]/enroll/route.ts — so two concurrent requests can
+    // never deadlock by acquiring the two locks in opposite orders.
     const today = new Date().toISOString().slice(0, 10);
     const created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${studentId}:${classSection.academicYearId}:${classSection.program.type}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
 
       const activeCount = await tx.studentEnrollment.count({
@@ -86,24 +146,24 @@ export async function POST(
         });
       }
 
-      const existingThisYear = await tx.studentEnrollment.findFirst({
-        where: {
-          studentId,
-          status: "ACTIVE",
-          classSection: { academicYearId: classSection.academicYearId },
-        },
-        select: { id: true, classSectionId: true },
+      // One ACTIVE enrollment per Program.type per academic year — scoped
+      // to this class's year, so a stale ACTIVE row in an ARCHIVED year
+      // never blocks a fresh enrolment, and cross-type (school + daycare)
+      // enrolment in the same year is allowed.
+      const conflict = await findStreamConflict(tx, {
+        studentId,
+        academicYearId: classSection.academicYearId,
+        programType: classSection.program.type,
       });
-      if (existingThisYear) {
+      if (conflict) {
         throw new EnrollmentBlocked("ALREADY_ENROLLED", {
-          message:
-            "Siswa sudah terdaftar di kelas lain pada tahun ajaran ini.",
+          message: `Siswa sudah terdaftar di kelas ${conflict.classSection.name} pada tahun ajaran ini.`,
           status: 409,
-          extra: { existingClassSectionId: existingThisYear.classSectionId },
+          extra: { existingClassSectionId: conflict.classSectionId },
         });
       }
 
-      return tx.studentEnrollment.create({
+      const newEnrollment = await tx.studentEnrollment.create({
         data: {
           studentId,
           classSectionId: classId,
@@ -117,6 +177,32 @@ export async function POST(
           student: { select: { id: true, name: true, nis: true } },
         },
       });
+
+      // The age band was out of range and the admin supplied an override
+      // reason — persist it. The `tx` form of recordAudit re-throws on
+      // failure, so the reason can never be silently lost if the audit
+      // write itself fails.
+      if (ageOutOfRange && ageOverrideReason) {
+        await recordAudit(
+          {
+            tenantId: session.tenantId,
+            actorId: session.id,
+            entity: "StudentEnrollment",
+            entityId: newEnrollment.id,
+            action: "student.enroll.age-override",
+            after: {
+              reason: ageOverrideReason,
+              ageMonths: ageFit.ageMonths,
+              ageMin: classSection.program.ageMin,
+              ageMax: classSection.program.ageMax,
+              programId: classSection.program.id,
+            },
+          },
+          tx,
+        );
+      }
+
+      return newEnrollment;
     });
 
     await recordAudit({

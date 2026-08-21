@@ -20,7 +20,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
@@ -31,9 +32,10 @@ import {
 } from "@/lib/constants/parent-options";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null } };
-type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
+type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
@@ -88,6 +90,18 @@ export default function StudentDetailPage() {
   const [sections, setSections] = useState<ClassSection[]>([]);
   const [selectedSection, setSelectedSection] = useState("");
   const [enrolling, setEnrolling] = useState(false);
+  // Advisory age-band / dual-enrollment step (T7) — populated from the
+  // 409 the server returns; cleared whenever the sheet/dialog closes or a
+  // different class is picked so a stale reason can never ride along on an
+  // unrelated submit. AGE_OUT_OF_RANGE is overridable with a reason;
+  // ALREADY_ENROLLED is not.
+  const [enrollBlock, setEnrollBlock] = useState<
+    | { code: "AGE_OUT_OF_RANGE"; message: string }
+    | { code: "ALREADY_ENROLLED"; message: string }
+    | null
+  >(null);
+  const [ageOverrideReason, setAgeOverrideReason] = useState("");
+  const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
@@ -401,26 +415,65 @@ export default function StudentDetailPage() {
       if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
       setSections(await res.json());
       setSelectedSection("");
+      setEnrollBlock(null);
+      setAgeOverrideReason("");
       setEnrollDialog(true);
     } catch { toast.error("Terjadi kesalahan"); }
   }
 
+  // Closes the enroll Sheet/Dialog and clears the advisory-warning step —
+  // the single choke point every close path (success, Batal, escape,
+  // overlay click) routes through so a stale reason/warning never survives
+  // to the next open. See enrollBlock's declaration above for why.
+  function closeEnrollDialog() {
+    setEnrollDialog(false);
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
+  }
+
+  // Steps back from the confirm step to the class picker without closing
+  // the sheet/dialog — used by "Batal" inside the AGE_OUT_OF_RANGE step and
+  // "Pilih Kelas Lain" inside the ALREADY_ENROLLED step.
+  function cancelEnrollBlock() {
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
+  }
+
   async function handleEnroll() {
     if (!selectedSection) { toast.error("Pilih kelas"); return; }
+    const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+    if (overridingAge && !ageOverrideReason.trim()) return; // confirm button is disabled for this too — defensive only
     setEnrolling(true);
     try {
       const res = await fetch(`/api/students/${id}/enroll`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classSectionId: selectedSection }),
+        body: JSON.stringify({
+          classSectionId: selectedSection,
+          ...(overridingAge ? { ageOverrideReason: ageOverrideReason.trim() } : {}),
+        }),
       });
       if (res.ok) {
         toast.success("Didaftarkan ke kelas");
-        setEnrollDialog(false);
+        closeEnrollDialog();
         fetchStudent();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Gagal mendaftarkan");
+        return;
       }
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 && (d.code === "AGE_OUT_OF_RANGE" || d.code === "ALREADY_ENROLLED")) {
+        // Advisory step, not a toast — the server message already names the
+        // age/band/reference date (AGE_OUT_OF_RANGE) or the conflicting
+        // class (ALREADY_ENROLLED); render it verbatim rather than
+        // rebuilding the sentence client-side.
+        setEnrollBlock({ code: d.code, message: d.error });
+        // Move focus to the new step for screen-reader + keyboard users —
+        // it replaces the picker in place, so nothing else marks that the
+        // form changed. Deferred a tick so the ref attaches to the just-
+        // rendered banner first (same pattern as the semester-import
+        // conflict alert).
+        setTimeout(() => enrollBannerRef.current?.focus(), 0);
+        return;
+      }
+      toast.error(d.error || "Gagal mendaftarkan");
     } catch {
       toast.error("Terjadi kesalahan jaringan");
     } finally {
@@ -499,7 +552,21 @@ export default function StudentDetailPage() {
   if (loading) return <DetailPageSkeleton />;
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
-  const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
+  // A student can hold a school (SEMESTER) and a day-care (YEAR_ROUND)
+  // enrollment at once, and many carry a stale ACTIVE row in an archived
+  // year. The API returns enrollments newest-first, so `.find(ACTIVE)` used
+  // to surface whichever was created last — after enrolling into day care
+  // the header announced the day-care class as the child's placement.
+  // Primary (school) first, then any other current placement, matching the
+  // students list. The Riwayat Kelas tab below still lists every row.
+  const currentEnrollments = student.enrollments.filter(
+    e => e.status === "ACTIVE" && e.classSection.academicYear.status !== "ARCHIVED",
+  );
+  const primaryEnrollment = pickPrimaryEnrollment(currentEnrollments);
+  const orderedEnrollments = primaryEnrollment
+    ? [primaryEnrollment, ...currentEnrollments.filter(e => e.id !== primaryEnrollment.id)]
+    : [];
+  const activeEnrollment = primaryEnrollment;
 
   return (
     <>
@@ -507,7 +574,13 @@ export default function StudentDetailPage() {
         backHref="/admin/students"
         backLabel="Kembali ke Daftar Siswa"
         title={student.name}
-        description={activeEnrollment ? `${activeEnrollment.classSection.program.name} · ${activeEnrollment.classSection.name}` : "Belum terdaftar di kelas"}
+        description={
+          orderedEnrollments.length > 0
+            ? orderedEnrollments
+                .map(e => `${e.classSection.program.name} · ${e.classSection.name}`)
+                .join(" + ")
+            : "Belum terdaftar di kelas"
+        }
         badge={<StatusBadge status={student.status} />}
         actions={
           <>
@@ -1005,40 +1078,96 @@ export default function StudentDetailPage() {
         );
       })()}
 
-      {/* ---------- Enroll (1 field) — side="bottom" on mobile ---------- */}
+      {/* ---------- Enroll — side="bottom" on mobile ----------
+          Three mutually-exclusive steps share one Sheet/Dialog instance:
+          picker → (409) advisory confirm step. AGE_OUT_OF_RANGE is
+          overridable with a required reason; ALREADY_ENROLLED is not. */}
       {(() => {
-        const enrollBody = (
-          <Field>
-            <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
-            <ClassSectionCombobox
-              id="enroll-class-section"
-              sections={sections}
-              value={selectedSection}
-              onChange={setSelectedSection}
-              placeholder="Pilih kelas..."
-            />
-          </Field>
-        );
+        const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+        const alreadyEnrolled = enrollBlock?.code === "ALREADY_ENROLLED";
+        const reasonEmpty = !ageOverrideReason.trim();
+
+        let enrollBody: React.ReactNode;
+        let footer: React.ReactNode;
+
+        if (alreadyEnrolled) {
+          enrollBody = (
+            <Alert ref={enrollBannerRef} tabIndex={-1} variant="destructive">
+              <AlertTitle>Siswa sudah terdaftar</AlertTitle>
+              <AlertDescription>{enrollBlock.message}</AlertDescription>
+            </Alert>
+          );
+          footer = (
+            <Button variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>
+          );
+        } else if (overridingAge) {
+          enrollBody = (
+            <div className="space-y-field">
+              <Alert ref={enrollBannerRef} tabIndex={-1}>
+                <AlertTitle>Usia di luar batas program</AlertTitle>
+                <AlertDescription>{enrollBlock.message}</AlertDescription>
+              </Alert>
+              <Field>
+                <FieldLabel required htmlFor="enroll-age-override-reason">Alasan</FieldLabel>
+                <Textarea
+                  id="enroll-age-override-reason"
+                  required
+                  aria-required="true"
+                  value={ageOverrideReason}
+                  onChange={(e) => setAgeOverrideReason(e.target.value)}
+                  placeholder="Contoh: penempatan sesuai kemampuan anak, atau anak telat masuk sekolah"
+                  rows={3}
+                />
+                <FieldDescription>Alasan wajib diisi sebelum melanjutkan.</FieldDescription>
+              </Field>
+            </div>
+          );
+          footer = (
+            <>
+              <Button variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
+              <Button onClick={handleEnroll} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
+            </>
+          );
+        } else {
+          enrollBody = (
+            <Field>
+              <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
+              <ClassSectionCombobox
+                id="enroll-class-section"
+                sections={sections}
+                value={selectedSection}
+                onChange={(v) => { setSelectedSection(v); setEnrollBlock(null); setAgeOverrideReason(""); }}
+                placeholder="Pilih kelas..."
+              />
+            </Field>
+          );
+          footer = (
+            <>
+              <Button variant="ghost" onClick={closeEnrollDialog} disabled={enrolling}>Batal</Button>
+              <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+            </>
+          );
+        }
+
+        const onOpenChange = (o: boolean) => {
+          setEnrollDialog(o);
+          if (!o) { setEnrollBlock(null); setAgeOverrideReason(""); }
+        };
+
         return isMobile ? (
-          <Sheet open={enrollDialog} onOpenChange={setEnrollDialog}>
+          <Sheet open={enrollDialog} onOpenChange={onOpenChange}>
             <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
               <div className="px-4 pb-4">{enrollBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
-                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-              </SheetFooter>
+              <SheetFooter>{footer}</SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
-          <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
+          <Dialog open={enrollDialog} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
               <div>{enrollBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-              </DialogFooter>
+              <DialogFooter>{footer}</DialogFooter>
             </DialogContent>
           </Dialog>
         );

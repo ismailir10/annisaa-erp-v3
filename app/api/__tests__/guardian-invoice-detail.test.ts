@@ -101,6 +101,130 @@ describe("GET /api/guardian/invoices/[id]", () => {
     );
   });
 
+  it("names the SEMESTER (sekolah) class, never the daycare one, for a dual-enrolled student", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    parentFindFirst.mockResolvedValueOnce({
+      guardians: [{ studentId: "stu-1" }],
+    });
+    invoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "April 2026",
+      dueDate: new Date("2026-04-30"),
+      totalDue: 250_000,
+      totalPaid: 0,
+      status: "SENT",
+      xenditPaymentUrl: null,
+      sentAt: null,
+      paidAt: null,
+      lines: [],
+      payments: [],
+      student: {
+        name: "Anak",
+        nickname: "Nak",
+        enrollments: [
+          {
+            id: "enr-daycare",
+            enrollDate: "2025-06-01",
+            classSection: { name: "Daycare 1", program: { name: "Daycare", type: "YEAR_ROUND" } },
+          },
+          {
+            id: "enr-sekolah",
+            enrollDate: "2025-07-01",
+            classSection: { name: "TKIT A", program: { name: "TKIT", type: "SEMESTER" } },
+          },
+        ],
+      },
+    });
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    const res = await GET(makeReq() as never, {
+      params: Promise.resolve({ id: "inv-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.student.classSection).toEqual({ name: "TKIT A", program: { name: "TKIT" } });
+  });
+
+  it("names the CURRENT-year class, not a stale ARCHIVED-year row (T9 regression) — the enrollments query excludes archived years", async () => {
+    // Regression for the T9 bug: a student can carry a stale un-closed
+    // ACTIVE row in an ARCHIVED prior year (bulk-import artifact) alongside
+    // the real current-year ACTIVE row. Both SEMESTER, so unfiltered they'd
+    // land in `pickPrimaryEnrollment`'s pool together and the earliest-
+    // enrollDate tiebreak would pick the archived one. The fix scopes the
+    // Prisma query itself, so we assert the `where` shape excludes archived
+    // years — proving the stale row can never reach `pickPrimaryEnrollment`.
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    parentFindFirst.mockResolvedValueOnce({
+      guardians: [{ studentId: "stu-1" }],
+    });
+    invoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "April 2026",
+      dueDate: new Date("2026-04-30"),
+      totalDue: 250_000,
+      totalPaid: 0,
+      status: "SENT",
+      xenditPaymentUrl: null,
+      sentAt: null,
+      paidAt: null,
+      lines: [],
+      payments: [],
+      student: {
+        name: "Anak",
+        nickname: "Nak",
+        // Mock resolves as if Prisma already applied the archived-year
+        // filter — only the current-year row comes back, even though a
+        // stale ARCHIVED-year SEMESTER row exists in the real DB.
+        enrollments: [
+          {
+            id: "enr-current",
+            enrollDate: "2025-07-10",
+            classSection: { name: "TKIT A (2025/2026)", program: { name: "TKIT", type: "SEMESTER" } },
+          },
+        ],
+      },
+    });
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    const res = await GET(makeReq() as never, {
+      params: Promise.resolve({ id: "inv-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.student.classSection).toEqual({
+      name: "TKIT A (2025/2026)",
+      program: { name: "TKIT" },
+    });
+
+    // The query itself must exclude ARCHIVED-year enrollments.
+    expect(invoiceFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          student: expect.objectContaining({
+            select: expect.objectContaining({
+              enrollments: expect.objectContaining({
+                where: expect.objectContaining({
+                  status: "ACTIVE",
+                  classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it("404 when invoice belongs to a student outside the parent's child set (cross-parent PII guard)", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(guardianSession());

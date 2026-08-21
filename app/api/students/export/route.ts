@@ -87,13 +87,22 @@ export async function GET(req: NextRequest) {
         include: { parent: { select: { name: true, phone: true } } },
       },
       enrollments: {
-        where: { status: "ACTIVE" },
-        take: 1,
+        where: {
+          status: "ACTIVE",
+          // Exclude ARCHIVED-year rows. Un-closed prior-year ACTIVE
+          // enrollments (bulk-import artifact — see T9 regression,
+          // docs/cycles/2026-08-21-enrollment-flexibility.md) would
+          // otherwise be joined into the "Kelas"/"Program" CSV cells
+          // alongside the real current-year row.
+          classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+        },
+        // No `take: 1` — a student may hold a SEMESTER (sekolah) row and a
+        // YEAR_ROUND (daycare) row at once; the CSV joins both per column.
         include: {
           classSection: {
             select: {
               name: true,
-              program: { select: { name: true } },
+              program: { select: { name: true, type: true } },
               academicYear: { select: { name: true } },
             },
           },

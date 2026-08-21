@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/auth";
 import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 import { buildReportSections, formatTermLabel } from "@/lib/raport/build";
 import type { ReportCardSection } from "@/lib/pdf/report-card";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 export type StudentInvoices = {
   id: string;
@@ -20,6 +21,10 @@ export type ParentChild = {
   studentId: string;
   studentName: string;
   studentNickname: string | null;
+  // Joined with " & " when the student holds two ACTIVE enrollments (e.g.
+  // sekolah + daycare) — see `pickPrimaryEnrollment` ordering below. A
+  // single-enrollment student's label stays byte-identical (a 1-element
+  // join is just that element).
   className: string | null;
   programName: string | null;
   relationship: string;
@@ -30,10 +35,11 @@ export type ParentChild = {
     enrollments: {
       id: string;
       status: string;
+      enrollDate: string;
       classSection: {
         id: string;
         name: string;
-        program: { name: string };
+        program: { name: string; type: string };
       };
     }[];
   };
@@ -72,13 +78,27 @@ async function _getParentWithChildren(parentId: string | null, email: string | n
             student: {
               include: {
                 enrollments: {
-                  where: { status: "ACTIVE" },
+                  where: {
+                    status: "ACTIVE",
+                    // Exclude ARCHIVED-year rows. Un-closed prior-year
+                    // ACTIVE enrollments (bulk-import artifact — see T9
+                    // regression, docs/cycles/2026-08-21-enrollment-
+                    // flexibility.md) would otherwise sit in
+                    // `pickPrimaryEnrollment`'s pool alongside the real
+                    // current-year row and can win its earliest-enrollDate
+                    // tiebreak, rendering an archived placement as the
+                    // child's current class in the parent portal.
+                    classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+                  },
                   include: {
                     classSection: {
-                      include: { program: { select: { name: true } } },
+                      include: { program: { select: { name: true, type: true } } },
                     },
                   },
-                  take: 1,
+                  // No `take: 1` — a student can hold one SEMESTER (sekolah)
+                  // enrollment AND one YEAR_ROUND (daycare) enrollment at
+                  // once; capping to 1 would silently drop the second and
+                  // make `pickPrimaryEnrollment` below a no-op.
                 },
               },
             },
@@ -92,13 +112,25 @@ async function _getParentWithChildren(parentId: string | null, email: string | n
     }
 
     const children: ParentChild[] = parent.guardians.map((sg) => {
-      const enrollment = sg.student.enrollments[0] ?? null;
+      const enrollments = sg.student.enrollments;
+      // `pickPrimaryEnrollment` only needs to run its SEMESTER-preference /
+      // earliest-enrollDate logic when there's a real choice to make; for
+      // the common 0-or-1-enrollment case skip it entirely (also keeps this
+      // path cheap and independent of `enrollDate` being populated).
+      const primary = enrollments.length <= 1 ? (enrollments[0] ?? null) : pickPrimaryEnrollment(enrollments);
+      // Primary first, then any other ACTIVE enrollment (daycare alongside
+      // sekolah) — so a dual-enrolled child's card shows both classes
+      // instead of silently hiding one.
+      const ordered = primary
+        ? [primary, ...enrollments.filter((e) => e.id !== primary.id)]
+        : enrollments;
       return {
         studentId: sg.student.id,
         studentName: sg.student.name,
         studentNickname: sg.student.nickname,
-        className: enrollment?.classSection.name ?? null,
-        programName: enrollment?.classSection.program.name ?? null,
+        className: ordered.length > 0 ? ordered.map((e) => e.classSection.name).join(" & ") : null,
+        programName:
+          ordered.length > 0 ? ordered.map((e) => e.classSection.program.name).join(" & ") : null,
         relationship: sg.relationship,
         student: sg.student,
       };

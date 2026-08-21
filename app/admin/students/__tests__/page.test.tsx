@@ -13,7 +13,7 @@
  * control.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentsPage from "@/app/admin/students/page";
@@ -26,7 +26,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
-function stubFetch() {
+function stubFetch(studentsData: unknown[] = []) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url.includes("/api/students/stats")) {
@@ -39,8 +39,8 @@ function stubFetch() {
       return Promise.resolve({
         ok: true,
         json: async () => ({
-          data: [],
-          pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+          data: studentsData,
+          pagination: { page: 1, pageSize: 20, total: studentsData.length, totalPages: 1 },
         }),
       } as Response);
     }
@@ -80,5 +80,49 @@ describe("StudentsPage — create dialog accessible names (AC1)", () => {
     expect(screen.getByLabelText("Jenis Kelamin")).toBeInTheDocument();
     expect(screen.getByLabelText("Tinggal Dengan")).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toBeInTheDocument();
+  });
+});
+
+describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
+  it("renders both the sekolah and daycare class for a dual-enrolled student, primary first", async () => {
+    const dualEnrolledStudent = {
+      id: "s1",
+      name: "Aisyah Putri",
+      nickname: null,
+      dateOfBirth: null,
+      gender: null,
+      status: "ACTIVE",
+      nis: null,
+      nisn: null,
+      notes: null,
+      photoUrl: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      guardians: [],
+      enrollments: [
+        {
+          id: "enr-daycare",
+          enrollDate: "2025-06-01",
+          classSection: { name: "Daycare 1", program: { name: "Daycare", type: "YEAR_ROUND" } },
+        },
+        {
+          id: "enr-sekolah",
+          enrollDate: "2025-07-01",
+          classSection: { name: "TKIT A", program: { name: "Taman Kanak-kanak", type: "SEMESTER" } },
+        },
+      ],
+    };
+    vi.stubGlobal("fetch", stubFetch([dualEnrolledStudent]));
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Aisyah Putri")).toBeInTheDocument();
+    });
+
+    // Primary (SEMESTER/sekolah) shown first, daycare second — never hidden.
+    expect(screen.getByText("Taman Kanak-kanak")).toBeInTheDocument();
+    expect(screen.getByText(/TKIT A/)).toBeInTheDocument();
+    expect(screen.getByText("Daycare")).toBeInTheDocument();
+    expect(screen.getByText(/Daycare 1/)).toBeInTheDocument();
   });
 });

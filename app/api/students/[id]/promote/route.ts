@@ -32,19 +32,12 @@ export async function POST(
     return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
   }
 
-  // Find current ACTIVE enrollment
-  const currentEnrollment = await prisma.studentEnrollment.findFirst({
-    where: { studentId, status: "ACTIVE" },
-  });
-  if (!currentEnrollment) {
-    return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
-  }
-
   // Tenant check on target (the capacity check itself is locked inside the
-  // transaction below — mirror of the enroll route pattern).
+  // transaction below — mirror of the enroll route pattern). Also loads the
+  // target's program type, which scopes the source-enrollment lookup below.
   const targetExists = await prisma.classSection.findFirst({
     where: { id: targetClassSectionId, tenantId: session.tenantId },
-    select: { id: true, academicYearId: true },
+    select: { id: true, academicYearId: true, program: { select: { type: true } } },
   });
   if (!targetExists) {
     return NextResponse.json({ error: "Kelas tujuan tidak ditemukan" }, { status: 404 });
@@ -58,6 +51,50 @@ export async function POST(
     "Pilih kelas pada tahun ajaran yang aktif.",
   );
   if (yearGuard instanceof NextResponse) return yearGuard;
+
+  // Find the source ACTIVE enrollment — scoped to the target's program type
+  // (SEMESTER vs YEAR_ROUND) and to a non-ARCHIVED academic year.
+  //
+  // Program type, not academic year, is the stream key: a promote call only
+  // carries `targetClassSectionId`, and a "promotion" ordinarily moves a
+  // student from a class in one year into a class in the *next* year — so
+  // matching the target's own academicYearId would almost never find the
+  // source row. What must never happen is picking a stale ACTIVE row left
+  // behind in an ARCHIVED year (16 of 21 current-year students carry one —
+  // see cycle doc), so ARCHIVED years are excluded outright rather than
+  // pinned to one specific year id.
+  //
+  // This does NOT guarantee at most one candidate. `lib/classes/year-guard.ts`
+  // blocks only ARCHIVED, so a PLANNING (future) year is fully enrollable —
+  // a student legitimately enrolled ahead into next year's class while this
+  // year's row is still ACTIVE has TWO non-archived ACTIVE rows of the same
+  // program type: one in the current ACTIVE year, one in the future PLANNING
+  // year. `orderBy` below breaks that tie deterministically: it always picks
+  // the row in the chronologically EARLIEST non-archived year, which is the
+  // current (ACTIVE-status) year, never the future PLANNING one — a
+  // "promotion" graduates the student out of where they are now, not out of
+  // a class they haven't started yet.
+  //
+  // `findStreamConflict` (lib/enrollment/active.ts) doesn't fit here — it
+  // takes a concrete `academicYearId` to look for a *conflicting* row before
+  // a create, whereas this is a *lookup* of the row to graduate and the
+  // relevant year isn't known in advance. A narrow inline query is scoped to
+  // the route's own semantics instead of bending that helper's signature.
+  const programType = targetExists.program.type;
+  const currentEnrollment = await prisma.studentEnrollment.findFirst({
+    where: {
+      studentId,
+      status: "ACTIVE",
+      classSection: {
+        academicYear: { NOT: { status: "ARCHIVED" } },
+        program: { type: programType },
+      },
+    },
+    orderBy: { classSection: { academicYear: { startDate: "asc" } } },
+  });
+  if (!currentEnrollment) {
+    return NextResponse.json({ error: "Siswa tidak memiliki enrollment aktif" }, { status: 400 });
+  }
 
   const today = getTodayInTimezone("Asia/Jakarta");
 
