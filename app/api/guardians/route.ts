@@ -41,6 +41,15 @@ export async function GET(req: NextRequest) {
       orderBy,
       include: {
         _count: { select: { guardians: { where: { status: "ACTIVE" } } } },
+        // First two children by name, so the list can say WHICH students a
+        // wali belongs to instead of only how many. The count above stays
+        // authoritative for the total.
+        guardians: {
+          where: { status: "ACTIVE" },
+          take: 2,
+          orderBy: { student: { name: "asc" } },
+          select: { student: { select: { id: true, name: true } } },
+        },
       },
     }),
     prisma.parent.count({ where }),

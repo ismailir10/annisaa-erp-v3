@@ -77,7 +77,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   Wrap the name/badges cluster in a `Link` to the guardian page using the guardians-list hover treatment; leave the action buttons outside it. Widen the `GET /api/students/[id]` guardian include so each parent carries its other student links, derive siblings client-side (dedup by student id, drop self, ACTIVE links only), render as chips under the guardian list.
   *Acceptance:* Both directions clickable; Saudara hidden when the student has no siblings.
 
-- [ ] **T7 — List pages: link the Wali column, name the children.** *(depends on nothing)*
+- [x] **T7 — List pages: link the Wali column, name the children.** *(depends on nothing)*
   `GET /api/students`: change the guardian include from `where: { isPrimary: true }` to `where: { status: "ACTIVE" }, orderBy: { isPrimary: "desc" }, take: 1` and add `id` to the parent select. Students list Wali column becomes a link (guarding the row's own click handler). `GET /api/guardians`: include up to two ACTIVE child names; Siswa column renders `3 siswa · Aisyah, Fatimah`.
   *Acceptance:* Vitest asserts the fallback picks an active non-primary guardian when no primary exists.
 
@@ -113,10 +113,13 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 - Task 6: Student detail — clickable wali rows + Saudara — `app/api/students/[id]/route.ts`, `app/admin/students/[id]/page.tsx`, `lib/parent/siblings.ts` (new), `lib/parent/siblings.test.ts` (new) — the guardian include now carries each parent's other ACTIVE student links, and the name/badge cluster is a `Link` to the guardian page using the same `hover:bg-accent/50 rounded-md px-2 -mx-2` treatment the guardians page already uses (`design-system` row-affordance recipe). Edit/deactivate buttons sit outside the link, so there is no nested interactive element and no `stopPropagation`.
   - Sibling derivation was pulled out of the JSX into `deriveSiblings` — self-exclusion, dedup when both parents are shared, and INACTIVE-link filtering are exactly the cases that rot silently when inlined. Section is hidden entirely at zero siblings rather than rendering a dead empty state.
 
+- Task 7: List pages — `app/api/students/route.ts`, `app/api/guardians/route.ts`, `app/admin/students/page.tsx`, `app/admin/guardians/page.tsx`, `app/api/students/__tests__/route.test.ts` — students list Wali column is a link and no longer prints "—" for students whose guardians carry no primary flag; guardians list Siswa column names the first two children with a `+N` overflow. Same `design-system` row-affordance treatment as the other two link surfaces. The students table has no row-level click handler (navigation goes through the Lihat action), so the cell link needs no `stopPropagation`.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 7: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3089 tests ✓ (+1). The new test asserts the `GET /api/students` guardian include shape (`status: ACTIVE`, `orderBy isPrimary desc`, `take 1`, parent `id` selected) — the mock cannot express Prisma ordering, so the query shape is the regression guard.
 - Task 6: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3088 tests ✓ (+7). Sibling cases covered: only child, self-exclusion, one chip when both parents are shared, union across different parents (half-siblings), INACTIVE guardian ignored, GRADUATED sibling still listed, parent with no links loaded.
 - Task 5: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (no new unit tests; see the Implementation note). Browser verification of the three steps runs once after T7, with the other UI slices.
 - Task 4: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (+9). Covers idle prompt, debounce-then-fetch with the right query string, selection callback, `excludeIds` filtering, fetch-error retry affordance, named empty state, truncation notice, and the clear control being outside the combobox.

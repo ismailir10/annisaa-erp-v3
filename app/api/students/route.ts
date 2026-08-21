@@ -43,10 +43,16 @@ export async function GET(req: NextRequest) {
       take,
       include: {
         guardians: {
-          where: { isPrimary: true },
+          // Was `where: { isPrimary: true }`, which printed "—" for any
+          // student whose guardians exist but none carries the flag — the
+          // common shape for rows imported in bulk. Fall back to the first
+          // ACTIVE guardian instead, preferring the primary.
+          where: { status: "ACTIVE" },
+          orderBy: { isPrimary: "desc" },
           take: 1,
           // phone exposed intentionally: admin-only route (isAdminRole guard above), used for quick-contact in student list.
-          include: { parent: { select: { name: true, phone: true } } },
+          // id is needed for the list's link through to the guardian page.
+          include: { parent: { select: { id: true, name: true, phone: true } } },
         },
         enrollments: {
           where: {
