@@ -81,7 +81,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   `GET /api/students`: change the guardian include from `where: { isPrimary: true }` to `where: { status: "ACTIVE" }, orderBy: { isPrimary: "desc" }, take: 1` and add `id` to the parent select. Students list Wali column becomes a link (guarding the row's own click handler). `GET /api/guardians`: include up to two ACTIVE child names; Siswa column renders `3 siswa · Aisyah, Fatimah`.
   *Acceptance:* Vitest asserts the fallback picks an active non-primary guardian when no primary exists.
 
-- [ ] **T8 — Guardian detail saves through `PUT /api/parents/[id]`.** *(depends on nothing)*
+- [x] **T8 — Guardian detail saves through `PUT /api/parents/[id]`.** *(depends on nothing)*
   Replace the `PUT /api/guardians/${parent.guardians[0].id}` call at [`guardians/[id]/page.tsx:240`](../../app/admin/guardians/[id]/page.tsx); drop the `relationship` / `isPrimary` reseed at lines 214-218 and the "Wali ini belum tertaut ke siswa manapun" guard, since the parent route needs no junction row.
   *Acceptance:* A parent with zero linked students is editable; relationship on existing junctions is unchanged after a bio save.
 
@@ -115,10 +115,15 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 
 - Task 7: List pages — `app/api/students/route.ts`, `app/api/guardians/route.ts`, `app/admin/students/page.tsx`, `app/admin/guardians/page.tsx`, `app/api/students/__tests__/route.test.ts` — students list Wali column is a link and no longer prints "—" for students whose guardians carry no primary flag; guardians list Siswa column names the first two children with a `+N` overflow. Same `design-system` row-affordance treatment as the other two link surfaces. The students table has no row-level click handler (navigation goes through the Lihat action), so the cell link needs no `stopPropagation`.
 
+- Task 8: Guardian detail bio save — `app/admin/guardians/[id]/page.tsx`, `e2e/admin-guardian-detail.spec.ts` — saves through `PUT /api/parents/[id]` instead of `PUT /api/guardians/{parent.guardians[0].id}`. Drops the relationship/isPrimary reseed and the "Wali ini belum tertaut ke siswa manapun" dead-end, so a wali with no linked student is now editable and a bio save no longer rewrites one arbitrary child's relationship.
+  - Required an e2e edit: `admin-guardian-detail.spec.ts` waited on `PUT /api/guardians/[id]`, the exact call this removes, so it would have failed in CI. Retargeted to `PUT /api/parents/[id]` and the stale doc comment corrected. Caught by reading the callers, not by a local Playwright run — see the Playwright note below.
+  - `updateParentSchema` is bio-only, so the form's junction keys are stripped by Zod; an explicit destructure to drop them was removed as needless complexity during the simplify pass.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 8: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3089 tests ✓ (no new unit tests; the behaviour is an e2e assertion, retargeted in the same commit).
 - Task 7: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3089 tests ✓ (+1). The new test asserts the `GET /api/students` guardian include shape (`status: ACTIVE`, `orderBy isPrimary desc`, `take 1`, parent `id` selected) — the mock cannot express Prisma ordering, so the query shape is the regression guard.
 - Task 6: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3088 tests ✓ (+7). Sibling cases covered: only child, self-exclusion, one chip when both parents are shared, union across different parents (half-siblings), INACTIVE guardian ignored, GRADUATED sibling still listed, parent with no links loaded.
 - Task 5: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (no new unit tests; see the Implementation note). Browser verification of the three steps runs once after T7, with the other UI slices.

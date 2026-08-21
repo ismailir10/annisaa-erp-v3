@@ -5,10 +5,10 @@ import { test, expect, type Page } from "@playwright/test";
  *
  * Verifies the `/admin/guardians/[id]` detail route renders (no 404, the
  * pre-cycle regression the audit caught) AND that editing a field from the
- * detail-page Edit dialog round-trips through `PUT /api/guardians/[id]`
- * (which proxies the unified GuardianForm payload into /api/parents/[id]
- * via the StudentGuardian junction first-row lookup — see saveParent in
- * app/admin/guardians/[id]/page.tsx:229).
+ * detail-page Edit dialog round-trips through `PUT /api/parents/[id]`
+ * (see saveParent in app/admin/guardians/[id]/page.tsx). It previously went
+ * through `PUT /api/guardians/[junctionId]` against the first StudentGuardian
+ * row, which left a wali with no linked student uneditable.
  *
  * Auth: demo cookie school-erp-session=u_super_admin.
  * Isolation: creates a fresh student + parent + StudentGuardian link via
@@ -117,9 +117,13 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     await phoneInput.fill(newPhone);
 
     // Save — header surfaces "Simpan Perubahan" while editing.
+    // Bio saves through PUT /api/parents/[id]. It used to go through
+    // PUT /api/guardians/[junctionId] against whichever StudentGuardian row
+    // happened to be first, which made a wali with no linked student
+    // uneditable and rewrote that child's relationship on every save.
     const savePromise = page.waitForResponse(
       (res) =>
-        res.url().includes(`/api/guardians/${guardian.id}`) &&
+        res.url().includes(`/api/parents/${parentId}`) &&
         res.request().method() === "PUT",
     );
     await page.getByRole("button", { name: /Simpan Perubahan/ }).click();
