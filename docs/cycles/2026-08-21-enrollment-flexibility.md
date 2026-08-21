@@ -109,7 +109,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   New `lib/enrollment/age-fit.ts`: `evaluateAgeFit({ dob, referenceDate, ageMin, ageMax, programName })` → `{ ageMonths: number | null, status: "OK" | "BELOW_MIN" | "ABOVE_MAX" | "UNKNOWN", message: string | null }`. `UNKNOWN` when DOB is missing — never blocks. Both bounds evaluated **independently**, so an `ageMax`-only program is checked (kills the dead-branch bug). Message in Indonesian per `voice.md`, naming age, band, and reference date. Depends: T1.
   *Acceptance:* unit tests prove `ageMin: null, ageMax: 48` still yields `ABOVE_MAX` for a 60-month child; missing DOB yields `UNKNOWN`; boundary months (exactly `ageMin`, exactly `ageMax`) yield `OK`.
 
-- [ ] **T3 — Enrollment stream helpers.**
+- [x] **T3 — Enrollment stream helpers.**
   New `lib/enrollment/active.ts`: `findStreamConflict(tx, { studentId, academicYearId, programType })` returning the conflicting enrolment or `null`; `pickPrimaryEnrollment(enrollments)` preferring `program.type === "SEMESTER"` then earliest `enrollDate`. Pure functions where possible so they unit-test without Prisma mocks.
   *Acceptance:* unit tests cover — one SEMESTER + one YEAR_ROUND in the same year → no conflict; two SEMESTER same year → conflict; SEMESTER in an ARCHIVED year + SEMESTER in the active year → no conflict; `pickPrimaryEnrollment` on a daycare-only student returns the daycare row.
 
