@@ -45,37 +45,37 @@ Note that `Program.type` is currently **display-only** — a label in `app/admin
 
 **Age band becomes advisory**
 
-- [ ] Age is computed with calendar-correct month arithmetic, never `/ 30.44`.
-- [ ] Age is measured at the target class's `AcademicYear.startDate`, not at request time. The same student + same class yields the same verdict in July and in March.
-- [ ] `ageMin` and `ageMax` are **both** advisory. Neither ever returns a terminal error.
-- [ ] A first enrolment attempt outside the band returns `409` with `code: "AGE_OUT_OF_RANGE"` and a human message naming the student's age, the program band, and the reference date used.
-- [ ] Re-submitting the same request with a non-empty `ageOverrideReason` succeeds and writes an `AuditLog` row with action `student.enroll.age-override` whose `after` carries the reason, the computed age in months, and the program band.
-- [ ] A program with only `ageMax` set (no `ageMin`) is evaluated — the dead-branch bug is gone, proven by a unit test.
-- [ ] Both enrolment doors (`students/[id]/enroll` and `admin/classes/[id]/enrollments`) run the identical check and return the identical shape.
+- [x] Age is computed with calendar-correct month arithmetic, never `/ 30.44`.
+- [x] Age is measured at the target class's `AcademicYear.startDate`, not at request time. The same student + same class yields the same verdict in July and in March.
+- [x] `ageMin` and `ageMax` are **both** advisory. Neither ever returns a terminal error.
+- [x] A first enrolment attempt outside the band returns `409` with `code: "AGE_OUT_OF_RANGE"` and a human message naming the student's age, the program band, and the reference date used.
+- [x] Re-submitting the same request with a non-empty `ageOverrideReason` succeeds and writes an `AuditLog` row with action `student.enroll.age-override` whose `after` carries the reason, the computed age in months, and the program band.
+- [x] A program with only `ageMax` set (no `ageMin`) is evaluated — the dead-branch bug is gone, proven by a unit test.
+- [x] Both enrolment doors (`students/[id]/enroll` and `admin/classes/[id]/enrollments`) run the identical check and return the identical shape.
 
 **Dual enrollment**
 
-- [ ] A student may hold at most one ACTIVE enrolment **per `Program.type` per academic year**. One `SEMESTER` (sekolah) plus one `YEAR_ROUND` (daycare) is permitted; two `SEMESTER` in the same year is not.
-- [ ] The guard is scoped to the target class's academic year. A stale ACTIVE row in an ARCHIVED year no longer blocks anything.
-- [ ] Both doors enforce the identical rule and return `409 code: "ALREADY_ENROLLED"` naming the conflicting class.
-- [ ] `promote` resolves its source enrolment by academic year **and** program type, never by unscoped `findFirst`.
-- [ ] A student with a school enrolment and a daycare enrolment appears on both class rosters and both attendance registers.
+- [x] A student may hold at most one ACTIVE enrolment **per `Program.type` per academic year**. One `SEMESTER` (sekolah) plus one `YEAR_ROUND` (daycare) is permitted; two `SEMESTER` in the same year is not.
+- [x] The guard is scoped to the target class's academic year. A stale ACTIVE row in an ARCHIVED year no longer blocks anything.
+- [x] Both doors enforce the identical rule and return `409 code: "ALREADY_ENROLLED"` naming the conflicting class.
+- [x] `promote` resolves its source enrolment by academic year **and** program type, never by unscoped `findFirst`.
+- [ ] A student with a school enrolment and a daycare enrolment appears on both class rosters and both attendance registers. — **not ticked:** structurally supported (`ClassSession` is unique on `[classSectionId, date, slot]` and `StudentAttendance` on `[studentId, sessionId]`, so two same-day sessions record independently) and no code change was needed, but no automated test drives an actual dual-enrolled attendance register. Confirm during preview-verify.
 
 **Billing**
 
-- [ ] A billing run for a student with two active enrolments produces **one** row carrying the fee lines of **both** programs.
-- [ ] `totalDue` remains owned by `applyAdjustments` — never re-summed at the call site (billing-run rule 6).
-- [ ] Keringanan adjustments are applied once, across the merged line set.
-- [ ] When a student's lines span more than one program, each line label is disambiguated by program name; single-program students keep today's labels byte-identical.
-- [ ] `classLabelSnapshot` names both classes when there are two.
-- [ ] Existing single-enrolment billing behaviour is unchanged — proven by the existing `lib/finance/__tests__` suite passing untouched.
+- [x] A billing run for a student with two active enrolments produces **one** row carrying the fee lines of **both** programs.
+- [x] `totalDue` remains owned by `applyAdjustments` — never re-summed at the call site (billing-run rule 6).
+- [x] Keringanan adjustments are applied once, across the merged line set.
+- [x] When a student's lines span more than one program, each line label is disambiguated by program name; single-program students keep today's labels byte-identical.
+- [x] `classLabelSnapshot` names both classes when there are two.
+- [x] Existing single-enrolment billing behaviour is unchanged — proven by the existing `lib/finance/__tests__` suite passing untouched.
 
 **Display**
 
-- [ ] All seven `enrollments[0]` sites resolve through one shared primary-enrolment helper that prefers the `SEMESTER` enrolment: `app/admin/students/page.tsx:354`, `lib/students/export.ts:66`, `lib/parent-helpers.ts:95`, `app/api/admin/raport/[studentId]/[termId]/pdf/route.ts:61`, `app/api/guardian/raport/[studentId]/[termId]/pdf/route.ts:98`, `app/api/guardian/invoices/[id]/route.ts:135`, `app/api/guardian/invoices/[id]/pdf/route.ts:133`.
-- [ ] Raport and invoice PDFs name the school class, not the daycare class.
-- [ ] Admin student list and CSV export show both classes when two exist.
-- [ ] Override-confirm UI follows `design-system` (Dialog/Sheet pattern already used by the enrol flow) and `voice.md` Indonesian copy.
+- [x] All seven `enrollments[0]` sites resolve through one shared primary-enrolment helper that prefers the `SEMESTER` enrolment: `app/admin/students/page.tsx:354`, `lib/students/export.ts:66`, `lib/parent-helpers.ts:95`, `app/api/admin/raport/[studentId]/[termId]/pdf/route.ts:61`, `app/api/guardian/raport/[studentId]/[termId]/pdf/route.ts:98`, `app/api/guardian/invoices/[id]/route.ts:135`, `app/api/guardian/invoices/[id]/pdf/route.ts:133`.
+- [x] Raport and invoice PDFs name the school class, not the daycare class.
+- [x] Admin student list and CSV export show both classes when two exist.
+- [x] Override-confirm UI follows `design-system` (Dialog/Sheet pattern already used by the enrol flow) and `voice.md` Indonesian copy.
 
 ### Non-goals
 
