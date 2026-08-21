@@ -105,7 +105,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   Add `ageInMonthsAt(dob: string, reference: Date | string): number | null` to `lib/admission/age.ts`, reusing the Y/M/D borrow arithmetic that `formatAgeFromDob` already implements (UTC-noon construction, `days < 0` borrow). Export both from the same module. No new file — *reuse `lib/admission/age.ts`*.
   *Acceptance:* unit tests in `lib/admission/age.test.ts` cover exact-birthday, day-before-birthday, leap-year 29 Feb, malformed input → `null`, future DOB → `null`; and assert `ageInMonthsAt("2020-03-15", "2026-03-14") === 71` (not 72).
 
-- [ ] **T2 — Advisory age-fit evaluator.**
+- [x] **T2 — Advisory age-fit evaluator.**
   New `lib/enrollment/age-fit.ts`: `evaluateAgeFit({ dob, referenceDate, ageMin, ageMax, programName })` → `{ ageMonths: number | null, status: "OK" | "BELOW_MIN" | "ABOVE_MAX" | "UNKNOWN", message: string | null }`. `UNKNOWN` when DOB is missing — never blocks. Both bounds evaluated **independently**, so an `ageMax`-only program is checked (kills the dead-branch bug). Message in Indonesian per `voice.md`, naming age, band, and reference date. Depends: T1.
   *Acceptance:* unit tests prove `ageMin: null, ageMax: 48` still yields `ABOVE_MAX` for a 60-month child; missing DOB yields `UNKNOWN`; boundary months (exactly `ageMin`, exactly `ageMax`) yield `OK`.
 
