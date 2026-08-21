@@ -34,11 +34,13 @@ import {
 } from "@/lib/constants/parent-options";
 import { ParentPicker, type PickableParent } from "@/components/admin/parent-picker";
 import type { ParentCandidate } from "@/lib/parent/match";
+import { deriveSiblings } from "@/lib/parent/siblings";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null } };
+type Sibling = { id: string; name: string; status: string };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null; guardians?: { student: Sibling }[] } };
 type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
@@ -1032,12 +1034,18 @@ export default function StudentDetailPage() {
                 {student.guardians.filter(g => g.status !== "INACTIVE").map(g => (
                   <div key={g.id} className="border-b border-border/50 last:border-0 pb-3 last:pb-0">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      {/* Only the name/badge cluster is the link — the edit and
+                          deactivate buttons stay outside it, so there is no
+                          nested interactive element to work around. */}
+                      <Link
+                        href={`/admin/guardians/${g.parent.id}`}
+                        className="flex items-center gap-2 rounded-md px-2 -mx-2 py-1 -my-1 hover:bg-accent/50 transition-colors"
+                      >
                         <p className="text-sm font-medium">{g.parent.name}</p>
                         <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
                         {g.isPrimary && <Badge className="bg-status-present-subtle text-status-present-text text-xs">Utama</Badge>}
                         {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
-                      </div>
+                      </Link>
                       <div className="flex gap-1">
                         <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="text-muted-foreground"><Pencil size={12} /></Button>
                         <Button type="button" size="icon-sm" variant="ghost" onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></Button>
@@ -1059,6 +1067,32 @@ export default function StudentDetailPage() {
                 ))}
               </div>
             )}
+
+            {/* Saudara — other students sharing at least one ACTIVE guardian.
+                Derived from the guardians already loaded rather than a second
+                request. Hidden entirely when the student is an only child, so
+                the section never renders as a dead empty state. */}
+            {(() => {
+              const siblings = deriveSiblings(student.guardians, student.id);
+              if (siblings.length === 0) return null;
+              return (
+                <>
+                  <div className="mt-6"><SectionHeading label="Saudara" /></div>
+                  <div className="flex flex-wrap gap-2">
+                    {siblings.map((s) => (
+                      <Link
+                        key={s.id}
+                        href={`/admin/students/${s.id}`}
+                        className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent/50 transition-colors"
+                      >
+                        <span>{s.name}</span>
+                        <StatusBadge status={s.status} />
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         </AdminTabsContent>
 

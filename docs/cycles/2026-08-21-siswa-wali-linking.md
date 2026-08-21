@@ -73,7 +73,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   One Sheet/Dialog instance, three mutually exclusive bodies, following the enroll dialog's picker → 409-advisory pattern at [`students/[id]/page.tsx:1085`](../../app/admin/students/[id]/page.tsx): **link** (ParentPicker + relationship + Anak ke-), **create** (existing `GuardianFormBody`, reached via "Tidak ketemu? Tambah wali baru"), **candidates** (Alert listing the 409 candidates, each with Tautkan, plus a Tetap Buat Baru button that re-POSTs with `confirmNew: true`). Edit mode is unaffected.
   *Acceptance:* Manual smoke — link an existing parent to a second student and confirm no new Parent row is created.
 
-- [ ] **T6 — Student detail: clickable wali rows + Saudara.** *(depends on nothing)*
+- [x] **T6 — Student detail: clickable wali rows + Saudara.** *(depends on nothing)*
   Wrap the name/badges cluster in a `Link` to the guardian page using the guardians-list hover treatment; leave the action buttons outside it. Widen the `GET /api/students/[id]` guardian include so each parent carries its other student links, derive siblings client-side (dedup by student id, drop self, ACTIVE links only), render as chips under the guardian list.
   *Acceptance:* Both directions clickable; Saudara hidden when the student has no siblings.
 
@@ -110,10 +110,14 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   - Already-linked parents are passed to the picker as `excludeIds` — offering them would only produce a `GUARDIAN_LINK_EXISTS` 409.
   - No unit test for this slice by design: it is a step machine over a 1300-line client page whose two API branches (T2, T3) and picker (T4) are already unit-tested. Behaviour is covered end-to-end by T9.
 
+- Task 6: Student detail — clickable wali rows + Saudara — `app/api/students/[id]/route.ts`, `app/admin/students/[id]/page.tsx`, `lib/parent/siblings.ts` (new), `lib/parent/siblings.test.ts` (new) — the guardian include now carries each parent's other ACTIVE student links, and the name/badge cluster is a `Link` to the guardian page using the same `hover:bg-accent/50 rounded-md px-2 -mx-2` treatment the guardians page already uses (`design-system` row-affordance recipe). Edit/deactivate buttons sit outside the link, so there is no nested interactive element and no `stopPropagation`.
+  - Sibling derivation was pulled out of the JSX into `deriveSiblings` — self-exclusion, dedup when both parents are shared, and INACTIVE-link filtering are exactly the cases that rot silently when inlined. Section is hidden entirely at zero siblings rather than rendering a dead empty state.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 6: gates passed — `npm run build` ✓, `npx vitest run` 317 files / 3088 tests ✓ (+7). Sibling cases covered: only child, self-exclusion, one chip when both parents are shared, union across different parents (half-siblings), INACTIVE guardian ignored, GRADUATED sibling still listed, parent with no links loaded.
 - Task 5: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (no new unit tests; see the Implementation note). Browser verification of the three steps runs once after T7, with the other UI slices.
 - Task 4: gates passed — `npm run build` ✓, `npx vitest run` 316 files / 3081 tests ✓ (+9). Covers idle prompt, debounce-then-fetch with the right query string, selection callback, `excludeIds` filtering, fetch-error retry affordance, named empty state, truncation notice, and the clear control being outside the combobox.
 - Task 3: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3072 tests ✓ (+6). Covers name-match 409, differently-formatted phone match, email match not upserting, `confirmNew` bypass, no-match straight-through, link path skipping the guard.
