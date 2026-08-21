@@ -121,7 +121,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   `app/api/admin/classes/[id]/enrollments/route.ts`: add the `evaluateAgeFit` check it currently lacks and swap its per-year guard for `findStreamConflict` so cross-type enrolment is allowed. Preserve the existing advisory-lock + capacity ordering and the `EnrollmentBlocked` error shape. Depends: T2, T3.
   *Acceptance:* new tests assert both doors return identical `code` and status for the same input; the existing capacity-race test still passes.
 
-- [ ] **T6 — Scope promote to year + stream.**
+- [x] **T6 — Scope promote to year + stream.**
   `app/api/students/[id]/promote/route.ts:35-40`: replace `findFirst({ studentId, status: "ACTIVE" })` with a lookup scoped to the source academic year and the target class's program type, so a student with school + daycare promotes each stream independently and a stale ARCHIVED row is never picked. Depends: T3.
   *Acceptance:* new test — a student with a stale ARCHIVED-year ACTIVE row plus a current-year row promotes the current-year row; `app/api/__tests__/promote-capacity-race.test.ts` and `bulk-promote-race.test.ts` still pass.
 
