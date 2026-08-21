@@ -116,7 +116,7 @@ function wireSingleEligibleStudent() {
         studentId: "s-1",
         classSectionId: "cs-1",
         student: { id: "s-1", name: "Budi" },
-        classSection: { name: "TKIT A", programId: "p-A" },
+        classSection: { name: "TKIT A", programId: "p-A", program: { name: "TKIT" } },
       },
     ] as never);
     vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([

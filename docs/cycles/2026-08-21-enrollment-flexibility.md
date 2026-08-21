@@ -129,7 +129,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   `app/admin/students/[id]/page.tsx` (`handleEnroll` at `:412`, Sheet `:1023` / Dialog `:1034`) and `app/admin/classes/[id]/client.tsx` (`:310`): on `409 AGE_OUT_OF_RANGE`, render a confirm step showing the server message plus a required reason textarea, then resubmit with `ageOverrideReason`. On `409 ALREADY_ENROLLED`, show the conflicting class — no override offered. Follows the `design-system` overlay + Field patterns and `voice.md` copy; keep the mobile Sheet / desktop Dialog split already in place. Depends: T4, T5.
   *Acceptance:* component tests cover warn → reason → success and warn → cancel; empty reason keeps the confirm button disabled; `npm run lint` clean.
 
-- [ ] **T8 — Merge fee lines across active enrolments.**
+- [x] **T8 — Merge fee lines across active enrolments.**
   `lib/finance/build-billing-run.ts`: replace the first-wins `enrollmentByStudent` dedup (`:110-117`) with a group-by-`studentId` that concatenates the base lines of every in-scope active enrolment; disambiguate `labelSnapshot` by program name only when a student spans >1 program; join `classLabelSnapshot`; keep the single `applyAdjustments` call over the merged set so `totalDue` stays resolver-owned. Verify `lib/finance/materialize-billing-run.ts:71-77` still collects every `programId`. Also delete the stale comment at `:14-16` referencing `app/api/invoices/generate/batch/route.ts`, which no longer exists. Depends: T3.
   *Acceptance:* new test — KB + DCARE student yields one row with both programs' components and a `totalDue` equal to the resolver's; existing `lib/finance/__tests__` pass unmodified, proving single-program output is unchanged.
 

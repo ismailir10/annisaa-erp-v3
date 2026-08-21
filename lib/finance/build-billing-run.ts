@@ -10,10 +10,13 @@ import { applyAdjustments, type AdjustmentInput } from "./apply-adjustments";
  * materializes rows + lines through `applyAdjustments` (the Cycle A resolver
  * — reused unchanged, never reimplemented). No Prisma queries happen here —
  * the route (T4) does the querying and passes plain data in, so this stays
- * unit-testable without mocking Prisma. This mirrors, and is intended to
- * eventually replace, the eligibility derivation in
- * `app/api/invoices/generate/batch/route.ts` (dedup-by-studentId, skip
- * reasons, per-program fee lookup) — behaviour matches that route.
+ * unit-testable without mocking Prisma.
+ *
+ * Cycle `enrollment-flexibility` (T8) — a student may hold more than one
+ * in-scope ACTIVE enrollment at once (e.g. one school + one daycare
+ * program), so candidates are grouped by studentId and ALL of a student's
+ * in-scope enrollments contribute fee lines to a single merged row, rather
+ * than the first one winning.
  */
 
 export type BuildEnrollment = {
@@ -21,6 +24,7 @@ export type BuildEnrollment = {
   studentName: string;
   classLabel: string | null;
   programId: string;
+  programName: string;
   classSectionId: string;
 };
 
@@ -102,19 +106,20 @@ export function buildBillingRunRows(input: BuildInput): {
   const excludeSet = new Set(scope.excludeStudentIds);
 
   // Resolve in-scope enrollments: class-scope match OR explicit include,
-  // minus explicit exclude, deduped by studentId (first in-scope enrollment
-  // wins — matches today's batch route's `enrollmentByStudent` dedup so a
-  // student in two in-scope classes yields exactly one row). `exclude` is
-  // checked per-candidate rather than filtered up front so it always wins
-  // regardless of which scope path (class or explicit include) admitted the
-  // student.
-  const enrollmentByStudent = new Map<string, BuildEnrollment>();
+  // minus explicit exclude, GROUPED by studentId — a student may legitimately
+  // hold more than one in-scope ACTIVE enrollment (e.g. school + daycare), so
+  // ALL of them are kept, not just the first. `exclude` is checked
+  // per-candidate rather than filtered up front so it always wins regardless
+  // of which scope path (class or explicit include) admitted the student,
+  // and regardless of how many enrollments that student has.
+  const enrollmentsByStudent = new Map<string, BuildEnrollment[]>();
   for (const e of enrollments) {
-    if (enrollmentByStudent.has(e.studentId)) continue; // already resolved
     const inScope = classSectionSet.has(e.classSectionId) || includeSet.has(e.studentId);
     if (!inScope) continue;
     if (excludeSet.has(e.studentId)) continue; // exclude wins over class-scope and include
-    enrollmentByStudent.set(e.studentId, e);
+    const list = enrollmentsByStudent.get(e.studentId);
+    if (list) list.push(e);
+    else enrollmentsByStudent.set(e.studentId, [e]);
   }
 
   const rows: BuiltRow[] = [];
@@ -124,16 +129,25 @@ export function buildBillingRunRows(input: BuildInput): {
   let skippedNoFeeStructure = 0;
   let withAdjustments = 0;
 
-  for (const enrollment of enrollmentByStudent.values()) {
-    const { studentId, studentName, classLabel, programId } = enrollment;
+  for (const group of enrollmentsByStudent.values()) {
+    const { studentId, studentName } = group[0];
     const parentId = parentByStudent.get(studentId) ?? null;
+
+    // Deterministic (sorted) join of every distinct in-scope class name.
+    // A single-enrollment student's group of one collapses to that same
+    // single label, so this is byte-identical to today's output when there
+    // is only one enrollment.
+    const distinctClassLabels = [
+      ...new Set(group.map((e) => e.classLabel).filter((l): l is string => l !== null)),
+    ].sort();
+    const classLabelSnapshot = distinctClassLabels.length > 0 ? distinctClassLabels.join(", ") : null;
 
     if (alreadyInvoicedStudentIds.has(studentId)) {
       skippedAlreadyInvoiced++;
       rows.push({
         studentId,
         studentNameSnapshot: studentName,
-        classLabelSnapshot: classLabel,
+        classLabelSnapshot,
         parentId,
         status: "SKIPPED_ALREADY_INVOICED",
         totalDue: new Prisma.Decimal(0),
@@ -142,13 +156,26 @@ export function buildBillingRunRows(input: BuildInput): {
       continue;
     }
 
-    const programFees = feesByProgram.get(programId) ?? [];
-    if (programFees.length === 0) {
+    // Concatenate the base fee lines of every distinct in-scope program for
+    // this student (deduped by programId so a student with two in-scope
+    // classes in the SAME program — a data edge case, not the dual-stream
+    // norm — doesn't get that program's fees doubled).
+    const distinctProgramIds = [...new Set(group.map((e) => e.programId))];
+    const programNameById = new Map<string, string>();
+    for (const e of group) {
+      if (!programNameById.has(e.programId)) programNameById.set(e.programId, e.programName);
+    }
+
+    const baseLines = distinctProgramIds.flatMap((programId) =>
+      (feesByProgram.get(programId) ?? []).map((f) => ({ ...f, programId }))
+    );
+
+    if (baseLines.length === 0) {
       skippedNoFeeStructure++;
       rows.push({
         studentId,
         studentNameSnapshot: studentName,
-        classLabelSnapshot: classLabel,
+        classLabelSnapshot,
         parentId,
         status: "SKIPPED_NO_FEE_STRUCTURE",
         totalDue: new Prisma.Decimal(0),
@@ -157,14 +184,70 @@ export function buildBillingRunRows(input: BuildInput): {
       continue;
     }
 
+    // Disambiguate labels by program name ONLY when the merged lines
+    // actually span more than one program — a student whose second
+    // enrollment's program has no fee structure still gets undisambiguated
+    // labels, and a single-program student's labels stay byte-identical to
+    // today.
+    const contributingProgramIds = new Set(baseLines.map((l) => l.programId));
+    const disambiguate = contributingProgramIds.size > 1;
+
+    // `FeeComponentDef` is a TENANT-LEVEL shared catalog (prisma/seed.ts
+    // ~1037-1077): the same "spp" component is attached to every program via
+    // separate `ProgramFeeStructure` rows with DIFFERENT amounts. A KB +
+    // DCARE student therefore produces two base lines carrying the SAME
+    // feeComponentId. `applyAdjustments` matches eligible adjustments by
+    // feeComponentId per line — feeding it two lines for one shared
+    // component would apply a single keringanan grant twice (once per
+    // line), which is exactly the bug this merge closes. So: collapse every
+    // group of base lines that shares a feeComponentId into ONE line before
+    // calling applyAdjustments, so each grant can match at most one line and
+    // therefore fires exactly once, "across the merged line set" per spec.
+    //
+    // PERCENT-base rule for a merged/shared component: the grant's base is
+    // the SUMMED amount across every program that shares the component —
+    // i.e. the family's total obligation for that fee, not any single
+    // program's slice of it. This is the only rule that doesn't privilege
+    // whichever program happened to be first, and it keeps a stacked
+    // PERCENT+FIXED combination arithmetically coherent (both apply against
+    // the same merged base). A single-owner component (the normal case,
+    // and every existing test fixture) is a group of size 1 and is passed
+    // through byte-identical to today — label and amount unchanged.
+    const byComponent = new Map<string, typeof baseLines>();
+    for (const line of baseLines) {
+      const list = byComponent.get(line.feeComponentId);
+      if (list) list.push(line);
+      else byComponent.set(line.feeComponentId, [line]);
+    }
+
+    const mergedBaseLines = [...byComponent.entries()].map(([feeComponentId, group2]) => {
+      if (group2.length === 1) {
+        const f = group2[0];
+        return {
+          feeComponentId,
+          labelSnapshot: disambiguate ? `${f.label} (${programNameById.get(f.programId)})` : f.label,
+          amount: new Prisma.Decimal(f.amount),
+        };
+      }
+      const amount = group2.reduce(
+        (acc, f) => acc.plus(new Prisma.Decimal(f.amount)),
+        new Prisma.Decimal(0)
+      );
+      const programNames = [
+        ...new Set(group2.map((f) => programNameById.get(f.programId) ?? f.programId)),
+      ].sort();
+      return {
+        feeComponentId,
+        labelSnapshot: `${group2[0].label} (${programNames.join(" + ")})`,
+        amount,
+      };
+    });
+
     // Do NOT re-sum here — `applyAdjustments` owns totalDue (rule 6: the
-    // resolver's total is authoritative, never re-derived).
+    // resolver's total is authoritative, never re-derived). Called ONCE over
+    // the full merged/concatenated base line set.
     const { lines, totalDue, adjustmentApplied } = applyAdjustments({
-      baseLines: programFees.map((f) => ({
-        feeComponentId: f.feeComponentId,
-        labelSnapshot: f.label,
-        amount: new Prisma.Decimal(f.amount),
-      })),
+      baseLines: mergedBaseLines,
       adjustments: adjustmentsByStudent.get(studentId) ?? [],
       academicYearId,
       dueDate,
@@ -176,7 +259,7 @@ export function buildBillingRunRows(input: BuildInput): {
     rows.push({
       studentId,
       studentNameSnapshot: studentName,
-      classLabelSnapshot: classLabel,
+      classLabelSnapshot,
       parentId,
       status: "PENDING",
       totalDue,
