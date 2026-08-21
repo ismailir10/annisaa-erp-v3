@@ -113,7 +113,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   New `lib/enrollment/active.ts`: `findStreamConflict(tx, { studentId, academicYearId, programType })` returning the conflicting enrolment or `null`; `pickPrimaryEnrollment(enrollments)` preferring `program.type === "SEMESTER"` then earliest `enrollDate`. Pure functions where possible so they unit-test without Prisma mocks.
   *Acceptance:* unit tests cover — one SEMESTER + one YEAR_ROUND in the same year → no conflict; two SEMESTER same year → conflict; SEMESTER in an ARCHIVED year + SEMESTER in the active year → no conflict; `pickPrimaryEnrollment` on a daycare-only student returns the daycare row.
 
-- [ ] **T4 — Rewrite the students-detail enrolment door.**
+- [x] **T4 — Rewrite the students-detail enrolment door.**
   `app/api/students/[id]/enroll/route.ts`: swap the global-any-year guard (`:65-69`) for `findStreamConflict` scoped to `sectionInfo.academicYearId`; replace the hard age block (`:49-58`) with `evaluateAgeFit` against that year's `startDate`; return `409 { code: "AGE_OUT_OF_RANGE", message, ageMonths, ageMin, ageMax }` unless `ageOverrideReason` is present and non-empty. Add optional `ageOverrideReason` to `enrollStudentSchema` in `lib/validations/student.ts`. On override, `recordAudit` inside the transaction (tx form — the reason must not be lost) with action `student.enroll.age-override`. Depends: T2, T3.
   *Acceptance:* `app/api/__tests__/enroll.test.ts` updated — the two existing `400` age tests become `409` + `AGE_OUT_OF_RANGE`, plus new tests for override-succeeds, audit-row-written, same-year-same-type conflict, and cross-type same-year success.
 
