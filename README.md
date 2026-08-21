@@ -36,7 +36,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | **core** | Auth, tenant, multi-campus config, holiday calendar, email log |
 | **hr** | Staff lifecycle — employees, attendance, leave, payroll, salary components; gated by `hr.*` permissions |
 | **academic** | School structure — academic years with one-click roll-forward, programs, classes, daily sessions with substitute swap, teaching assignments, bulk promotion |
-| **students** | Student lifecycle — students with auth-proxied photo upload, guardians, enrollments, admissions (public `/daftar` inquiry → emailed token → rich enrollment form → convert to student + parents), filtered CSV export |
+| **students** | Student lifecycle — students with auth-proxied photo upload, guardians, enrollments (one school placement plus one concurrent day-care placement per year; program age bands are advisory, overridden with an audited reason), admissions (public `/daftar` inquiry → emailed token → rich enrollment form → convert to student + parents), filtered CSV export |
 | **finance** | Fees and payments — invoice state machine, hosted checkout through the gateway port, webhook + manual reconciliation sharing one durable processor, three-step Billing Run wizard for bulk invoicing, per-student fee adjustments (*keringanan*), kuitansi PDF, payments-received ledger |
 | **learning** | Attendance, including the admin monthly recap and CSV export. The legacy BB/MB/BSH/BSB assessment stack was removed in 2026 and superseded by `curriculum` + `reportCard` |
 | **student-journal** | *Buku Penghubung* — bi-directional school/home indicators with an audit trail |

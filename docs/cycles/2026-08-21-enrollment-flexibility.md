@@ -117,7 +117,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   `app/api/students/[id]/enroll/route.ts`: swap the global-any-year guard (`:65-69`) for `findStreamConflict` scoped to `sectionInfo.academicYearId`; replace the hard age block (`:49-58`) with `evaluateAgeFit` against that year's `startDate`; return `409 { code: "AGE_OUT_OF_RANGE", message, ageMonths, ageMin, ageMax }` unless `ageOverrideReason` is present and non-empty. Add optional `ageOverrideReason` to `enrollStudentSchema` in `lib/validations/student.ts`. On override, `recordAudit` inside the transaction (tx form — the reason must not be lost) with action `student.enroll.age-override`. Depends: T2, T3.
   *Acceptance:* `app/api/__tests__/enroll.test.ts` updated — the two existing `400` age tests become `409` + `AGE_OUT_OF_RANGE`, plus new tests for override-succeeds, audit-row-written, same-year-same-type conflict, and cross-type same-year success.
 
-- [ ] **T5 — Bring the class-detail door to parity.**
+- [x] **T5 — Bring the class-detail door to parity.**
   `app/api/admin/classes/[id]/enrollments/route.ts`: add the `evaluateAgeFit` check it currently lacks and swap its per-year guard for `findStreamConflict` so cross-type enrolment is allowed. Preserve the existing advisory-lock + capacity ordering and the `EnrollmentBlocked` error shape. Depends: T2, T3.
   *Acceptance:* new tests assert both doors return identical `code` and status for the same input; the existing capacity-race test still passes.
 
