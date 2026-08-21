@@ -1,6 +1,12 @@
-import type { PrismaClient } from "@/lib/generated/prisma/client";
+import { normaliseEmail, normalisePhone } from "@/lib/parent/match";
+import type { MatchReason, ParentTable } from "@/lib/parent/match";
 
-export type MatchReason = "email" | "phone";
+// normalisePhone moved to lib/parent/match.ts once the admin "Tambah Wali"
+// duplicate guard needed it too. Re-exported here — along with MatchReason and
+// the narrowed ParentTable prisma surface — so existing importers and
+// sibling-detect.test.ts keep resolving them from this module.
+export { normalisePhone };
+export type { MatchReason, ParentTable };
 
 export type DetectSiblingInput = {
   tenantId: string;
@@ -12,34 +18,6 @@ export type DetectSiblingResult = {
   parentId: string;
   matchReason: MatchReason;
 };
-
-/**
- * Normalise an Indonesian phone string to canonical digit form.
- * Strips all non-digit characters, then canonicalises to leading-"0":
- *   - "62" prefix (length ≥ 11) → swap to "0" + remaining digits
- *   - "8xx" with no prefix (length 9–11, starts with "8") → prepend "0"
- *     to catch the common bare-dialling habit ("812-3456-7890")
- * Not full E.164 — intentional. See cycle 1.2 Spec Assumption 7.
- */
-export function normalisePhone(input: string): string {
-  const digits = input.replace(/\D/g, "");
-  if (digits.startsWith("62") && digits.length >= 11) {
-    return "0" + digits.slice(2);
-  }
-  if (digits.startsWith("8") && digits.length >= 9 && digits.length <= 11) {
-    return "0" + digits;
-  }
-  return digits;
-}
-
-function normaliseEmail(input: string): string {
-  return input.trim().toLowerCase();
-}
-
-// Narrowed prisma surface. Tests construct a structural mock and cast to this
-// type via `as unknown as ParentTable` so they don't need to satisfy Prisma's
-// full generic ParentDelegate signature (findUnique, create, etc.).
-export type ParentTable = Pick<PrismaClient, "parent">;
 
 /**
  * Detect whether a /daftar applicant matches an existing Parent in the same

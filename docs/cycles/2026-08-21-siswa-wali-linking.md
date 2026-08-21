@@ -53,7 +53,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 
 ## Tasks
 
-- [ ] **T1 — Extract parent matching into `lib/parent/match.ts`.**
+- [x] **T1 — Extract parent matching into `lib/parent/match.ts`.**
   Move `normalisePhone` from `lib/admission/sibling-detect.ts` into a new `lib/parent/match.ts`; `sibling-detect.ts` re-exports it so its own imports and `lib/admission/sibling-detect.test.ts` stay untouched. Add `findParentCandidates({ tenantId, name, email, phone, nik }, prisma)` returning up to 5 `{ id, name, phone, email, matchReason, childCount }` ordered email → nik → phone → name, ACTIVE parents only, tenant-scoped.
   *Acceptance:* `npx vitest run lib/parent lib/admission` green, including the pre-existing `normalisePhone` cases.
 
@@ -91,11 +91,14 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 
 ## Implementation
 
-<!-- filled by /build -->
+- Subagent plan: driver=claude-opus-5, dirty-work=**none**. This session's harness forbids `Agent` dispatch unless the user asks for it, which overrides `/build`'s mandatory fan-out. All nine tasks run inline on the driver tier and the driver performs the code-review pass itself — CLAUDE.md's tiering table already assigns review to the driver, so the review gate holds; the token-efficiency contract does not. Flagged to the user at the start of `/build`.
+- Task 1: Extract parent matching into `lib/parent/match.ts` — `lib/parent/match.ts` (new), `lib/parent/match.test.ts` (new), `lib/admission/sibling-detect.ts` — `normalisePhone`/`normaliseEmail` moved into a shared parent-matching module that `sibling-detect.ts` now re-exports; adds `findParentCandidates` returning ≤5 candidates ranked email → nik → phone → name, plus `normaliseName`/`normaliseNik`.
+  - Review pass caught a real defect pre-commit: the first draft normalised NIK/name in JS but compared them **DB-side**, so a stored `3204-1122-3344-5566` or a double-spaced name could never match the normalised needle — and the tests mocked rows Postgres would not have returned, so they passed while asserting fiction. Collapsed to one query with all four comparisons in JS; added regression tests for each stored-formatting case. Scale note left in the docstring: past a few thousand parents per tenant, add a generated normalised column rather than reintroducing asymmetric matching.
 
 ## Verification
 
-<!-- filled by /build -->
+- Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
+- Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
 
 ## Ship Notes
 
