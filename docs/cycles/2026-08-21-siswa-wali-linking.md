@@ -85,7 +85,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   Replace the `PUT /api/guardians/${parent.guardians[0].id}` call at [`guardians/[id]/page.tsx:240`](../../app/admin/guardians/[id]/page.tsx); drop the `relationship` / `isPrimary` reseed at lines 214-218 and the "Wali ini belum tertaut ke siswa manapun" guard, since the parent route needs no junction row.
   *Acceptance:* A parent with zero linked students is editable; relationship on existing junctions is unchanged after a bio save.
 
-- [ ] **T9 — e2e round trip.** *(depends on T5, T6, T7)*
+- [x] **T9 — e2e round trip.** *(depends on T5, T6, T7)*
   Extend `e2e/admin-guardian-detail.spec.ts`: student detail → click wali → guardian detail → click child → student detail, plus linking an existing parent to a second student and asserting `/api/guardians?pageSize=1` total is unchanged.
   *Acceptance:* `npx playwright test admin-guardian-detail` green, or an explicit deferral to the required CI `Playwright E2E` check recorded in Verification.
 
@@ -118,6 +118,8 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 - Task 8: Guardian detail bio save — `app/admin/guardians/[id]/page.tsx`, `e2e/admin-guardian-detail.spec.ts` — saves through `PUT /api/parents/[id]` instead of `PUT /api/guardians/{parent.guardians[0].id}`. Drops the relationship/isPrimary reseed and the "Wali ini belum tertaut ke siswa manapun" dead-end, so a wali with no linked student is now editable and a bio save no longer rewrites one arbitrary child's relationship.
   - Required an e2e edit: `admin-guardian-detail.spec.ts` waited on `PUT /api/guardians/[id]`, the exact call this removes, so it would have failed in CI. Retargeted to `PUT /api/parents/[id]` and the stale doc comment corrected. Caught by reading the callers, not by a local Playwright run — see the Playwright note below.
   - `updateParentSchema` is bio-only, so the form's junction keys are stripped by Zod; an explicit destructure to drop them was removed as needless complexity during the simplify pass.
+
+- Task 9: e2e round trip — `e2e/admin-guardian-detail.spec.ts` — new spec creates two students and one wali, links the wali to the second child through the `parentId` path, and asserts the tenant's parent total is unchanged (the duplicate-family regression in one assertion). Then walks student → wali → child → Saudara → student, and checks a repeat link 409s.
 
 ## Verification
 

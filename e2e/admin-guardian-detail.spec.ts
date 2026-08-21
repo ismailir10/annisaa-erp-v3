@@ -151,4 +151,107 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
       .put(`/api/students/${student.id}`, { data: { status: "INACTIVE" } })
       .catch(() => undefined);
   });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Siswa ↔ wali linking.
+  //
+  // Travel used to be one-way: a wali's page listed clickable children, but a
+  // student's Orang Tua tab rendered plain text, so getting back to a parent
+  // meant the sidebar and the search box. This walks the full loop.
+  // ────────────────────────────────────────────────────────────────────────
+  test("walks student → wali → child → student, and links a second child to the same wali without creating a parent", async ({
+    page,
+  }) => {
+    const suffix = Date.now();
+
+    // ---------- Two students, one shared wali ----------
+    const kakakRes = await page.request.post("/api/students", {
+      data: { name: `E2E Kakak ${suffix}` },
+    });
+    expect(kakakRes.status()).toBe(201);
+    const kakak = (await kakakRes.json()) as { id: string };
+
+    const adikRes = await page.request.post("/api/students", {
+      data: { name: `E2E Adik ${suffix}` },
+    });
+    expect(adikRes.status()).toBe(201);
+    const adik = (await adikRes.json()) as { id: string };
+
+    const waliName = `E2E Ibu Bersama ${suffix}`;
+    const waliRes = await page.request.post(
+      `/api/students/${kakak.id}/guardians`,
+      {
+        data: {
+          name: waliName,
+          relationship: "IBU",
+          phone: `0813444${String(suffix).slice(-4)}`,
+          email: `e2e-wali-bersama-${suffix}@example.test`,
+          isPrimary: true,
+        },
+      },
+    );
+    expect(waliRes.status()).toBe(201);
+    const wali = (await waliRes.json()) as { parent: { id: string } };
+    const parentId = wali.parent.id;
+
+    // Parent count before linking — the whole point of the link path is that
+    // this number does not move when a sibling reuses an existing wali.
+    const beforeRes = await page.request.get("/api/guardians?pageSize=1");
+    const parentsBefore = ((await beforeRes.json()) as {
+      pagination: { total: number };
+    }).pagination.total;
+
+    // ---------- Link the same wali to the second child, via the API ----------
+    const linkRes = await page.request.post(
+      `/api/students/${adik.id}/guardians`,
+      { data: { parentId, relationship: "IBU", childOrder: 2 } },
+    );
+    expect(linkRes.status()).toBe(201);
+
+    const afterRes = await page.request.get("/api/guardians?pageSize=1");
+    const parentsAfter = ((await afterRes.json()) as {
+      pagination: { total: number };
+    }).pagination.total;
+    expect(parentsAfter).toBe(parentsBefore);
+
+    // Re-linking the same parent is rejected rather than silently duplicated.
+    const dupeRes = await page.request.post(
+      `/api/students/${adik.id}/guardians`,
+      { data: { parentId, relationship: "IBU" } },
+    );
+    expect(dupeRes.status()).toBe(409);
+
+    // ---------- student → wali ----------
+    await page.goto(`/admin/students/${kakak.id}`);
+    await page.getByRole("link", { name: new RegExp(waliName) }).click();
+    await page.waitForURL(`**/admin/guardians/${parentId}`, { timeout: 15_000 });
+
+    // The wali page should now show both children.
+    await expect(page.getByText(`E2E Kakak ${suffix}`)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(`E2E Adik ${suffix}`)).toBeVisible();
+
+    // ---------- wali → child ----------
+    await page.getByRole("link", { name: new RegExp(`E2E Adik ${suffix}`) }).click();
+    await page.waitForURL(`**/admin/students/${adik.id}`, { timeout: 15_000 });
+
+    // ---------- Saudara surfaces the sibling on the student page ----------
+    await expect(page.getByText("Saudara")).toBeVisible({ timeout: 15_000 });
+    const saudaraLink = page.getByRole("link", {
+      name: new RegExp(`E2E Kakak ${suffix}`),
+    });
+    await expect(saudaraLink).toBeVisible();
+
+    // ---------- back to the first student, closing the loop ----------
+    await saudaraLink.click();
+    await page.waitForURL(`**/admin/students/${kakak.id}`, { timeout: 15_000 });
+
+    // ---------- Cleanup ----------
+    for (const s of [kakak.id, adik.id]) {
+      await page.request
+        .put(`/api/students/${s}`, { data: { status: "INACTIVE" } })
+        .catch(() => undefined);
+    }
+  });
 });
