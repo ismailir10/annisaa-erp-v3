@@ -13,23 +13,23 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 ### Acceptance criteria
 
 **Navigation**
-- [ ] On student detail, each row in the Orang Tua / Wali tab links to `/admin/guardians/{parentId}`. The Edit and Nonaktifkan buttons sit outside the link element — no nested interactive elements, no `stopPropagation` workaround.
-- [ ] Student detail shows a **Saudara** row listing other students who share at least one active guardian, each chip linking to that student. Row is hidden when there are none.
-- [ ] Students list Wali column renders the parent name as a link to the guardian's page, and no longer shows `—` for students whose guardians exist but none is flagged primary.
-- [ ] Guardians list Siswa column shows the count plus up to two child names.
+- [x] On student detail, each row in the Orang Tua / Wali tab links to `/admin/guardians/{parentId}`. The Edit and Nonaktifkan buttons sit outside the link element — no nested interactive elements, no `stopPropagation` workaround.
+- [x] Student detail shows a **Saudara** row listing other students who share at least one active guardian, each chip linking to that student. Row is hidden when there are none.
+- [x] Students list Wali column renders the parent name as a link to the guardian's page, and no longer shows `—` for students whose guardians exist but none is flagged primary.
+- [x] Guardians list Siswa column shows the count plus up to two child names.
 
 **Linking an existing parent**
-- [ ] `POST /api/students/[id]/guardians` accepts `parentId`. On that path it creates only the `StudentGuardian` row — no parent create, no parent update. Bio fields in the payload are ignored.
-- [ ] The `parentId` path rejects a parent outside the caller's tenant with 404.
-- [ ] Re-linking a parent already linked to that student returns 409 when the existing link is ACTIVE, and reactivates the link (200) when it is INACTIVE.
-- [ ] The create-new path (no `parentId`) checks for an existing parent matching on email, NIK, phone, or normalised name. On a hit it returns 409 with `code: "PARENT_CANDIDATES"` and a `candidates[]` array instead of creating.
-- [ ] Sending `confirmNew: true` bypasses the candidate check and creates the new parent.
-- [ ] The Tambah Wali dialog opens on a parent search. Selecting a result links it. "Tambah wali baru" reveals the existing form. A `PARENT_CANDIDATES` 409 renders the candidates inline with **Tautkan** and **Tetap Buat Baru**.
+- [x] `POST /api/students/[id]/guardians` accepts `parentId`. On that path it creates only the `StudentGuardian` row — no parent create, no parent update. Bio fields in the payload are ignored.
+- [x] The `parentId` path rejects a parent outside the caller's tenant with 404.
+- [x] Re-linking a parent already linked to that student returns 409 when the existing link is ACTIVE, and reactivates the link (200) when it is INACTIVE.
+- [x] The create-new path (no `parentId`) checks for an existing parent matching on email, NIK, phone, or normalised name. On a hit it returns 409 with `code: "PARENT_CANDIDATES"` and a `candidates[]` array instead of creating.
+- [x] Sending `confirmNew: true` bypasses the candidate check and creates the new parent.
+- [x] The Tambah Wali dialog opens on a parent search. Selecting a result links it. "Tambah wali baru" reveals the existing form. A `PARENT_CANDIDATES` 409 renders the candidates inline with **Tautkan** and **Tetap Buat Baru**.
 
 **Correctness**
-- [ ] Guardian detail saves parent bio through `PUT /api/parents/[id]` rather than `PUT /api/guardians/{junctionId}` of an arbitrary child. The "Wali ini belum tertaut ke siswa manapun" dead-end and the relationship/isPrimary reseed at [`guardians/[id]/page.tsx:214-218`](../../app/admin/guardians/[id]/page.tsx) both disappear.
-- [ ] `npx vitest run` and `npm run build` pass. New Vitest coverage for candidate matching, the `parentId` link path, and the primary-wali fallback.
-- [ ] Frontend diffs follow `design-system` — link affordance and hover treatment reuse the existing `hover:bg-accent/50 rounded-md px-2 -mx-2` row pattern from the guardians page rather than a new one.
+- [x] Guardian detail saves parent bio through `PUT /api/parents/[id]` rather than `PUT /api/guardians/{junctionId}` of an arbitrary child. The "Wali ini belum tertaut ke siswa manapun" dead-end and the relationship/isPrimary reseed at [`guardians/[id]/page.tsx:214-218`](../../app/admin/guardians/[id]/page.tsx) both disappear.
+- [x] `npx vitest run` and `npm run build` pass. New Vitest coverage for candidate matching, the `parentId` link path, and the primary-wali fallback.
+- [x] Frontend diffs follow `design-system` — link affordance and hover treatment reuse the existing `hover:bg-accent/50 rounded-md px-2 -mx-2` row pattern from the guardians page rather than a new one.
 
 ### Non-goals
 
