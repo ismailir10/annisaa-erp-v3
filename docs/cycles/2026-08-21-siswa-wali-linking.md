@@ -57,7 +57,7 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
   Move `normalisePhone` from `lib/admission/sibling-detect.ts` into a new `lib/parent/match.ts`; `sibling-detect.ts` re-exports it so its own imports and `lib/admission/sibling-detect.test.ts` stay untouched. Add `findParentCandidates({ tenantId, name, email, phone, nik }, prisma)` returning up to 5 `{ id, name, phone, email, matchReason, childCount }` ordered email → nik → phone → name, ACTIVE parents only, tenant-scoped.
   *Acceptance:* `npx vitest run lib/parent lib/admission` green, including the pre-existing `normalisePhone` cases.
 
-- [ ] **T2 — `parentId` link-only path on `POST /api/students/[id]/guardians`.** *(depends on nothing)*
+- [x] **T2 — `parentId` link-only path on `POST /api/students/[id]/guardians`.** *(depends on nothing)*
   Extend `createGuardianSchema` (or add `linkGuardianSchema`) with optional `parentId`. When present: verify the parent's `tenantId`, skip every parent write, create the junction row, keep the existing first-guardian `isPrimary` auto-default. 404 on cross-tenant or unknown parent; 409 on an existing ACTIVE link; reactivate + 200 on an existing INACTIVE link.
   *Acceptance:* Vitest covers link-created, cross-tenant 404, duplicate-active 409, inactive-reactivated 200.
 
@@ -95,10 +95,14 @@ This cycle makes the link bidirectional, teaches "Tambah wali" to reuse an exist
 - Task 1: Extract parent matching into `lib/parent/match.ts` — `lib/parent/match.ts` (new), `lib/parent/match.test.ts` (new), `lib/admission/sibling-detect.ts` — `normalisePhone`/`normaliseEmail` moved into a shared parent-matching module that `sibling-detect.ts` now re-exports; adds `findParentCandidates` returning ≤5 candidates ranked email → nik → phone → name, plus `normaliseName`/`normaliseNik`.
   - Review pass caught a real defect pre-commit: the first draft normalised NIK/name in JS but compared them **DB-side**, so a stored `3204-1122-3344-5566` or a double-spaced name could never match the normalised needle — and the tests mocked rows Postgres would not have returned, so they passed while asserting fiction. Collapsed to one query with all four comparisons in JS; added regression tests for each stored-formatting case. Scale note left in the docstring: past a few thousand parents per tenant, add a generated normalised column rather than reintroducing asymmetric matching.
 
+- Task 2: `parentId` link-only path on POST guardians — `lib/validations/guardian.ts`, `app/api/students/[id]/guardians/route.ts`, `app/api/students/[id]/guardians/__tests__/route.test.ts` (new) — adds `linkGuardianSchema` (junction columns only, deliberately no bio fields so a link can never overwrite another family's data) and a link branch that verifies the parent's tenant, 409s an existing ACTIVE link, reactivates an INACTIVE one, and persists `childOrder`. Extracted the shared `childOrderField` preprocessor rather than duplicating it.
+  - **In-scope correctness call:** the new branch reuses the PUT handler's race-safe single-primary transaction via a local `writeGuardianAsPrimarySafe` helper, and the pre-existing create branch was routed through the same helper. The create branch previously wrote `isPrimary` straight from client input, so a payload with `isPrimary: true` against a student who already had a primary produced two primaries — the exact invariant `app/api/students/route.ts:84` guards on bulk create. Fixing one branch and leaving its neighbour open in the same handler was not defensible; noted here because it is slightly wider than the task line.
+
 ## Verification
 
 - Baseline before any task: build ✓, `npx vitest run` 313 files / 3040 tests ✓. Worktree needed the documented Turbopack fix first — `rm node_modules && npm install && npx prisma generate` — since Turbopack rejects `setup-worktree.sh`'s symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`).
 - Task 1: gates passed — `npm run build` ✓, `npx vitest run` 314 files / 3052 tests ✓ (+12). `npm run lint` 0 errors; the single `_args` unused-arg warning matches the repo's existing `_ignored` / `_drop` test convention.
+- Task 2: gates passed — `npm run build` ✓, `npx vitest run` 315 files / 3066 tests ✓ (+14). New tests cover link-created, bio-fields-ignored, childOrder, cross-tenant 404, unknown-parent 404, duplicate-active 409, inactive-reactivated 200, first-guardian primary auto-default, incumbent-primary demotion, P2034 retry, non-admin 403, cross-tenant student 404, missing-relationship 400.
 
 ## Ship Notes
 
