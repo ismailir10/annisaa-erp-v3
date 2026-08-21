@@ -125,7 +125,7 @@ Dependency graph: T1 → T2; T3 independent; T4, T5 need T2+T3; T6 needs T3; T7 
   `app/api/students/[id]/promote/route.ts:35-40`: replace `findFirst({ studentId, status: "ACTIVE" })` with a lookup scoped to the source academic year and the target class's program type, so a student with school + daycare promotes each stream independently and a stale ARCHIVED row is never picked. Depends: T3.
   *Acceptance:* new test — a student with a stale ARCHIVED-year ACTIVE row plus a current-year row promotes the current-year row; `app/api/__tests__/promote-capacity-race.test.ts` and `bulk-promote-race.test.ts` still pass.
 
-- [ ] **T7 — Override-confirm UI on both doors.**
+- [x] **T7 — Override-confirm UI on both doors.**
   `app/admin/students/[id]/page.tsx` (`handleEnroll` at `:412`, Sheet `:1023` / Dialog `:1034`) and `app/admin/classes/[id]/client.tsx` (`:310`): on `409 AGE_OUT_OF_RANGE`, render a confirm step showing the server message plus a required reason textarea, then resubmit with `ageOverrideReason`. On `409 ALREADY_ENROLLED`, show the conflicting class — no override offered. Follows the `design-system` overlay + Field patterns and `voice.md` copy; keep the mobile Sheet / desktop Dialog split already in place. Depends: T4, T5.
   *Acceptance:* component tests cover warn → reason → success and warn → cancel; empty reason keeps the confirm button disabled; `npm run lint` clean.
 
