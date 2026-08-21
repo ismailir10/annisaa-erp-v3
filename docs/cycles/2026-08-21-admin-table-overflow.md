@@ -47,7 +47,11 @@ So the clipping is new, but the bug that allows it is not — any sufficiently w
 - Honest note: one earlier full run reported `1 failed | 312 passed` but the failure detail did not surface in the captured output, and two subsequent full runs were clean. Treated as a flake, not proven so. If CI shows a failure, this is the first thing to look at.
 - `design-system` — no new surface; the change is one utility class in the layout plus a flex-column cell using existing spacing tokens.
 - Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts` refuses to start because this worktree's `DATABASE_URL` points at the staging Supabase pooler, and the specs mutate data through the API). Required CI check `Playwright E2E` gates the merge.
-- Preview-verify: pending on the PR — the local demo server could not start (the preview supervisor inherited a deleted working directory, `EPERM: uv_cwd`), so visual confirmation is done on the Vercel preview instead.
+- Preview-verify on the Vercel preview for PR #510, admin portal, `/admin/students` with the dual-enrolled student present. The local demo server could not be used (the preview supervisor inherited a deleted working directory — `EPERM: uv_cwd`), so verification was done against the real preview instead. **Blockers 0, minors 0**, zero console errors.
+  - Both header actions render fully: measured `Unduh Data` right edge at 1306px inside a 1470px viewport.
+  - No page-level overflow: `document.documentElement.scrollWidth === clientWidth === 1470`.
+  - Alia renders stacked — `Kelompok Bermain · KB` above `D'Care (Day Care) · DCARE` — and single-enrollment rows are unchanged.
+  - **Root cause proven, not just the symptom.** Injecting a deliberately unwrappable 3000px element into a table cell and forcing layout gave `tableScrollWidth 3688` against `tableClientWidth 1164` while `document.documentElement.scrollWidth` stayed at `1470`: the table now absorbs the excess into its own `overflow-x-auto` instead of stretching the page and carrying the header off-screen. Probe removed afterwards; page state restored and re-measured clean.
 
 ## Ship Notes
 
