@@ -64,7 +64,7 @@ type Student = {
   notes: string | null;
   photoUrl: string | null;
   createdAt: string;
-  guardians: { parent: { name: string; phone: string | null } }[];
+  guardians: { parent: { id: string; name: string; phone: string | null } }[];
   enrollments: {
     id: string;
     enrollDate: string;
@@ -391,17 +391,24 @@ const columns: ColumnDef<Student>[] = [
     id: "guardian",
     header: "Wali",
     cell: ({ row }) => {
+      // The API returns the primary guardian, or the first active one when no
+      // primary is flagged. There is no row-level click handler on this table
+      // (navigation goes through the Lihat action), so the link needs no
+      // stopPropagation.
       const g = row.original.guardians[0];
       if (!g) return <span className="text-xs text-muted-foreground">—</span>;
       return (
-        <div className="text-sm">
+        <Link
+          href={`/admin/guardians/${g.parent.id}`}
+          className="block rounded-md px-2 -mx-2 py-1 -my-1 text-sm hover:bg-accent/50 transition-colors"
+        >
           <span>{g.parent.name}</span>
           {g.parent.phone && (
             <span className="text-xs text-muted-foreground ml-1.5">
               {g.parent.phone}
             </span>
           )}
-        </div>
+        </Link>
       );
     },
   },

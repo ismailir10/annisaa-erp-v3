@@ -43,6 +43,18 @@ if (!window.matchMedia) {
   });
 }
 
+// jsdom does not implement ResizeObserver. cmdk (<Command>, behind every
+// async combobox — StudentPicker, ParentPicker, ClassSectionPicker) constructs
+// one on mount and throws without it. Guarded so a real implementation, if one
+// ever lands in the environment, wins.
+if (!globalThis.ResizeObserver) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();

@@ -19,7 +19,25 @@ export async function GET(
   const student = await prisma.student.findFirst({
     where: { id, tenantId: session.tenantId },
     include: {
-      guardians: { orderBy: { isPrimary: "desc" }, include: { parent: true } },
+      guardians: {
+        orderBy: { isPrimary: "desc" },
+        include: {
+          parent: {
+            // The parent's OTHER active links are what make siblings visible
+            // on this page: a student shares a brother or sister exactly when
+            // they share a guardian. Narrow select — this is a nested list and
+            // the detail page only needs a name to render a chip.
+            include: {
+              guardians: {
+                where: { status: "ACTIVE" },
+                select: {
+                  student: { select: { id: true, name: true, status: true } },
+                },
+              },
+            },
+          },
+        },
+      },
       enrollments: {
         include: {
           classSection: {

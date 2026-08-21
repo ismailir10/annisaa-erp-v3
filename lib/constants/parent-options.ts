@@ -138,6 +138,18 @@ export const REL_LABELS: Readonly<Record<string, string>> = Object.freeze(
 );
 
 /**
+ * MATCH_REASON_LABELS — why the duplicate guard flagged an existing wali.
+ * Named in the admin's terms, not the matcher's: the point is to let them
+ * judge whether it really is the same person.
+ */
+export const MATCH_REASON_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  email: "email yang sama",
+  nik: "NIK yang sama",
+  phone: "nomor telepon yang sama",
+  name: "nama yang sama",
+});
+
+/**
  * LIVING_WITH_LABELS — flat lookup for read-only display.
  */
 export const LIVING_WITH_LABELS: Readonly<Record<string, string>> = Object.freeze(

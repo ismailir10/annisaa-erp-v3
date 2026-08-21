@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Last audited: 2026-08-21 in cycle `siswa-wali-linking` (one Parent record is shared across siblings — Tambah Wali opens on a search and links an existing wali, retyping an existing one raises an overridable duplicate warning; siswa ↔ wali navigation is bidirectional and a Saudara row lists siblings; wali bio saves through the parent route so an unlinked wali is editable; new JTBD-ADMIN-GUARD-02 and -03, GUARD-01 updated). Prior: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -331,8 +331,36 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
   3. Open the guardian's detail
   4. Edit phone / email / address
   5. Save
-- **Done when:** Updated contact reflects on the linked student's detail page within one refresh. Phone validation accepts Indonesian formats (`08xxx`, `+628xxx`). No hard delete — status toggle only.
+- **Done when:** Updated contact reflects on the linked student's detail page within one refresh. Phone validation accepts Indonesian formats (`08xxx`, `+628xxx`). No hard delete — status toggle only. A wali with no linked student is editable too — bio saves through `PUT /api/parents/[id]`, not a junction row.
 - **Why this job matters:** Wrong phone = Bu Sari can't reach the parent when a kid is sick. Happens ~5x/month.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-GUARD-02 — Add a second child's wali without duplicating the family
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** parent search <1s; link save <1s
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 wali already linked to a student, plus a second student from the same family with no wali yet
+- **Steps:**
+  1. Open the second student's detail → Orang Tua / Wali tab → **Tambah**
+  2. Search the existing wali by name or phone
+  3. Set Hubungan and (optionally) Anak ke-, then **Tautkan Wali**
+  4. Repeat on a third student, but this time use "Tidak ketemu? Tambah wali baru" and type a name that already exists
+- **Done when:** Step 3 links the existing wali and the guardians-list total does **not** grow. Step 4 stops on *Wali serupa sudah terdaftar*, naming why it matched, offering **Tautkan** and **Tetap Buat Baru**. The wali's detail page then lists both children.
+- **Why this job matters:** Most families here have two or three children enrolled. Before this, a wali without an email on file got a fresh Parent record per child — two profiles, two KK slots, and invoices split across both, which surfaces later as a billing mess nobody can trace back.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
+### JTBD-ADMIN-GUARD-03 — Move between a student and their wali
+- **Persona:** Bu Sari
+- **Role:** either
+- **Expected perf:** each hop <2s
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 student with a wali who has another enrolled child
+- **Steps:**
+  1. Open the student's detail → Orang Tua / Wali tab → click the wali's name
+  2. On the wali page, click one of the listed children
+  3. On that student, use the **Saudara** row to jump to a sibling
+  4. From `/admin/students`, click a name in the **Wali** column
+- **Done when:** Every hop navigates without going through the sidebar or search. Saudara is hidden entirely for an only child.
+- **Why this job matters:** Bu Sari fields a phone call about one child and needs the family's context immediately — the parent's number, the sibling's class. Backtracking through search costs her the call.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---

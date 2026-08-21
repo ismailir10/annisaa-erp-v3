@@ -15,6 +15,7 @@ type Session = {
 const state = {
   session: null as Session | null,
   lastCreate: null as Record<string, unknown> | null,
+  lastFindMany: null as Record<string, unknown> | null,
 };
 
 vi.mock("@/lib/auth", () => ({
@@ -29,7 +30,10 @@ vi.mock("@/lib/db", () => ({
         state.lastCreate = data;
         return { id: "new-student-id", ...data };
       }),
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async (args: Record<string, unknown>) => {
+        state.lastFindMany = args;
+        return [];
+      }),
       count: vi.fn(async () => 0),
     },
     parent: { upsert: vi.fn(), create: vi.fn() },
@@ -42,7 +46,7 @@ vi.mock("@/lib/rate-limit", () => ({
   getClientIp: vi.fn(() => "1.1.1.1"),
 }));
 
-import { POST } from "../route";
+import { GET, POST } from "../route";
 
 function adminSession(): Session {
   return {
@@ -69,6 +73,35 @@ function postReq(body: unknown): Request {
 beforeEach(() => {
   state.session = adminSession();
   state.lastCreate = null;
+  state.lastFindMany = null;
+});
+
+describe("GET /api/students — Wali column source", () => {
+  it("falls back to the first ACTIVE guardian, preferring the primary", async () => {
+    // Was `where: { isPrimary: true }`, which rendered "—" in the Wali column
+    // for any student with guardians but no primary flag — the common shape
+    // for bulk-imported rows. Asserting the query shape is the regression
+    // guard; the mock cannot express Prisma's ordering itself.
+    await GET(new Request("http://x/api/students") as never);
+
+    const include = state.lastFindMany?.include as Record<string, never>;
+    const guardians = include.guardians as unknown as {
+      where: Record<string, unknown>;
+      orderBy: Record<string, unknown>;
+      take: number;
+      include: { parent: { select: Record<string, boolean> } };
+    };
+
+    expect(guardians.where).toEqual({ status: "ACTIVE" });
+    expect(guardians.orderBy).toEqual({ isPrimary: "desc" });
+    expect(guardians.take).toBe(1);
+    // id is what makes the column a link through to the guardian page.
+    expect(guardians.include.parent.select).toMatchObject({
+      id: true,
+      name: true,
+      phone: true,
+    });
+  });
 });
 
 describe("POST /api/students — full field set (T2)", () => {
