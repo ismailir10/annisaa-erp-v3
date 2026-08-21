@@ -32,9 +32,10 @@ import {
 } from "@/lib/constants/parent-options";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null } };
-type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
+type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
@@ -551,7 +552,21 @@ export default function StudentDetailPage() {
   if (loading) return <DetailPageSkeleton />;
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
-  const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
+  // A student can hold a school (SEMESTER) and a day-care (YEAR_ROUND)
+  // enrollment at once, and many carry a stale ACTIVE row in an archived
+  // year. The API returns enrollments newest-first, so `.find(ACTIVE)` used
+  // to surface whichever was created last — after enrolling into day care
+  // the header announced the day-care class as the child's placement.
+  // Primary (school) first, then any other current placement, matching the
+  // students list. The Riwayat Kelas tab below still lists every row.
+  const currentEnrollments = student.enrollments.filter(
+    e => e.status === "ACTIVE" && e.classSection.academicYear.status !== "ARCHIVED",
+  );
+  const primaryEnrollment = pickPrimaryEnrollment(currentEnrollments);
+  const orderedEnrollments = primaryEnrollment
+    ? [primaryEnrollment, ...currentEnrollments.filter(e => e.id !== primaryEnrollment.id)]
+    : [];
+  const activeEnrollment = primaryEnrollment;
 
   return (
     <>
@@ -559,7 +574,13 @@ export default function StudentDetailPage() {
         backHref="/admin/students"
         backLabel="Kembali ke Daftar Siswa"
         title={student.name}
-        description={activeEnrollment ? `${activeEnrollment.classSection.program.name} · ${activeEnrollment.classSection.name}` : "Belum terdaftar di kelas"}
+        description={
+          orderedEnrollments.length > 0
+            ? orderedEnrollments
+                .map(e => `${e.classSection.program.name} · ${e.classSection.name}`)
+                .join(" + ")
+            : "Belum terdaftar di kelas"
+        }
         badge={<StatusBadge status={student.status} />}
         actions={
           <>

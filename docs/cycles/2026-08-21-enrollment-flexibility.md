@@ -182,6 +182,19 @@ Two subagents separately tried to silence a failing assertion by adding a defens
   Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Not verified by any automated gate, and left for preview-verify: that the override confirm step renders correctly on a real mobile viewport, and that `Program.type` is set correctly on production programs (see Ship Notes — this cycle makes that column load-bearing for the first time).
 
+### Preview-verify (PR #509)
+
+- Iteration 1 (`https://annisaa-erp-v3-git-feat-enroll-deef45-ismails-projects-196d40d3.vercel.app`), admin portal signed in as the admin account. Flows: student-detail enrol with an out-of-band age → override → dual enrolment; students list rendering. **Blockers 1, minors 0.** Zero console errors; every `/api/**` response 200.
+  - **Verified live end-to-end on the real staging data.** Test subject: a TKIT-B student (DOB 2021-04-28, 50 months at year start) enrolled into D'Care (band 6–36mo).
+    - The advisory step rendered *"Usia anak 4 tahun 2 bulan (50 bulan) di atas batas usia maksimum program D'Care (Day Care) (6–36 bulan), per awal tahun ajaran 14 Juli 2025."* — the 50-month figure and the 14 July 2025 reference both match the SQL independently, confirming age is measured at `AcademicYear.startDate` and not at request time.
+    - Confirm button correctly disabled until a reason was typed.
+    - After override: `StudentEnrollment` holds **TKIT-B (SEMESTER) + DCARE (YEAR_ROUND)**, both ACTIVE in 2025/2026 — dual enrolment works.
+    - This student *also* carries a stale `TKIT-A / 2024-2025 (ARCHIVED)` ACTIVE row, and it did **not** block the enrolment. That is the 16-student regression, proven fixed against production-shaped data rather than a mock.
+    - `AuditLog` row written: `student.enroll.age-override`, `after = { reason, ageMonths: 50, ageMin: 6, ageMax: 36, programId }`.
+    - Students list rendered `TK Islam Terpadu Kelas B · TKIT-B + D'Care (Day Care) · DCARE` — both placements, school first, archived year excluded.
+  - **Blocker found — an eighth `enrollments[0]` site that T9 missed.** The student-detail header derived its placement with `student.enrollments.find(e => e.status === "ACTIVE")`. `GET /api/students/[id]` orders enrollments `createdAt: desc`, so immediately after the day-care enrolment the header announced *"D'Care (Day Care) · DCARE"* as the child's placement and the school class disappeared. It had no archived-year filter either, and the same predicate gated the "Naik Kelas" button. Invisible to every unit test because they all fixture a single enrollment.
+- Iteration 2 — fix pushed: the detail header now filters to ACTIVE non-archived rows, orders them through `pickPrimaryEnrollment`, and renders school-first joined with `+`, matching the list. `GET /api/students/[id]` now selects `program.type` and `academicYear.status` to support it. The Riwayat Kelas tab is untouched and still lists every historical row. Four regression tests added.
+
 ## Ship Notes
 
 **No migrations. No new env vars. No schema change.** Every guard is application-level.

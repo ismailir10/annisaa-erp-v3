@@ -151,6 +151,45 @@ function stubFetch(enrollResponses: EnrollResponse[]) {
   });
 }
 
+function enrollmentRow(over: {
+  id: string;
+  program: string;
+  className: string;
+  type: string;
+  yearStatus?: string;
+  enrollDate?: string;
+  status?: string;
+}) {
+  return {
+    id: over.id,
+    enrollDate: over.enrollDate ?? "2025-07-14",
+    status: over.status ?? "ACTIVE",
+    classSection: {
+      name: over.className,
+      program: { name: over.program, code: over.program, type: over.type },
+      academicYear: { name: "2025/2026", status: over.yearStatus ?? "ACTIVE" },
+      campus: { name: "Kampus A" },
+    },
+  };
+}
+
+/** Stubs `fetch` where GET /api/students/s1 returns a specific enrollment set. */
+function stubFetchWithEnrollments(enrollments: ReturnType<typeof enrollmentRow>[]) {
+  return vi.fn((input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url === "/api/students/s1") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ...student, enrollments }),
+      } as Response);
+    }
+    if (url.includes("/api/class-sections")) {
+      return Promise.resolve({ ok: true, json: async () => [sectionKB, sectionTK] } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
 async function openEnrollDialogAndPick(user: ReturnType<typeof userEvent.setup>, sectionId: string) {
   await user.click(await screen.findByRole("button", { name: "Daftarkan ke Kelas" }));
   const select = await screen.findByLabelText(/^Pilih Kelas\*?$/);
@@ -284,5 +323,74 @@ describe("StudentDetailPage — enroll override-confirm (T7)", () => {
     expect(select).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Alasan\*?$/)).not.toBeInTheDocument();
     expect(screen.queryByText(AGE_MESSAGE)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Found by preview-verify (iteration 1) on PR #509. After enrolling a
+ * TKIT-B student into D'Care, the detail header announced "D'Care (Day
+ * Care) · DCARE" as the child's placement — the school class had vanished.
+ *
+ * Cause: GET /api/students/[id] orders enrollments `createdAt: desc`, and
+ * the header did `.find(e => e.status === "ACTIVE")`, so whichever row was
+ * created last won. Harmless while a student could hold only one
+ * enrollment; wrong the moment this cycle allowed two. The same predicate
+ * also gated the "Naik Kelas" button.
+ */
+describe("StudentDetailPage — header placement (preview-verify regression)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  });
+
+  it("shows the school class first when a day-care enrollment was added later", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchWithEnrollments([
+        // Newest first, as the API returns it — day care was added today.
+        enrollmentRow({ id: "e-dcare", program: "D'Care (Day Care)", className: "DCARE", type: "YEAR_ROUND", enrollDate: "2026-08-21" }),
+        enrollmentRow({ id: "e-tkit", program: "TK Islam Terpadu Kelas B", className: "TKIT-B", type: "SEMESTER" }),
+      ]),
+    );
+    render(<StudentDetailPage />);
+
+    const header = await screen.findByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    // Both placements are shown, school first — never day care alone.
+    expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B + D'Care (Day Care) · DCARE");
+  });
+
+  it("ignores a stale ACTIVE row left in an ARCHIVED year", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchWithEnrollments([
+        enrollmentRow({ id: "e-tkit-b", program: "TK Islam Terpadu Kelas B", className: "TKIT-B", type: "SEMESTER" }),
+        // 16 of 21 staging students carry one of these; it must not surface.
+        enrollmentRow({ id: "e-old", program: "TK Islam Terpadu Kelas A", className: "TKIT-A", type: "SEMESTER", yearStatus: "ARCHIVED", enrollDate: "2024-07-15" }),
+      ]),
+    );
+    render(<StudentDetailPage />);
+
+    const header = await screen.findByText(/TK Islam Terpadu Kelas B · TKIT-B/);
+    expect(header).toHaveTextContent("TK Islam Terpadu Kelas B · TKIT-B");
+    expect(header).not.toHaveTextContent("TKIT-A");
+  });
+
+  it("falls back to the day-care class for a day-care-only child", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchWithEnrollments([
+        enrollmentRow({ id: "e-dcare", program: "D'Care (Day Care)", className: "DCARE", type: "YEAR_ROUND" }),
+      ]),
+    );
+    render(<StudentDetailPage />);
+
+    expect(await screen.findByText("D'Care (Day Care) · DCARE")).toBeInTheDocument();
+  });
+
+  it("still reports an unenrolled student as such", async () => {
+    vi.stubGlobal("fetch", stubFetchWithEnrollments([]));
+    render(<StudentDetailPage />);
+
+    expect(await screen.findByText("Belum terdaftar di kelas")).toBeInTheDocument();
   });
 });
