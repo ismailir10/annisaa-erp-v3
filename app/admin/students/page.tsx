@@ -370,16 +370,20 @@ const columns: ColumnDef<Student>[] = [
       const ordered = primary
         ? [primary, ...enrollments.filter((e) => e.id !== primary.id)]
         : enrollments;
+      // One placement per line rather than a " + "-joined run: TableCell is
+      // whitespace-nowrap, so joining them inline forced this column wide
+      // enough to push the page past the viewport. Stacking also reads
+      // better than mixing "·" (program/class) with "+" (placements) in one
+      // string. A single-enrollment row renders exactly as it did before.
       return (
-        <span className="text-sm">
-          {ordered.map((e, i) => (
+        <div className="flex flex-col gap-0.5 whitespace-normal text-sm">
+          {ordered.map((e) => (
             <span key={e.id}>
-              {i > 0 && <span className="text-muted-foreground"> + </span>}
               {e.classSection.program.name}{" "}
               <span className="text-muted-foreground">· {e.classSection.name}</span>
             </span>
           ))}
-        </span>
+        </div>
       );
     },
   },

@@ -124,5 +124,16 @@ describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
     expect(screen.getByText(/TKIT A/)).toBeInTheDocument();
     expect(screen.getByText("Daycare")).toBeInTheDocument();
     expect(screen.getByText(/Daycare 1/)).toBeInTheDocument();
+
+    // The assertions above only prove both are present. Pin the ordering the
+    // comment claims, and that the two placements are stacked as separate
+    // lines rather than joined into one long inline run — that run is what
+    // forced the column wide enough to push the page past the viewport and
+    // clip the header's action buttons.
+    const cell = screen.getByText("Taman Kanak-kanak").closest("td");
+    const lines = cell?.querySelectorAll(":scope > div > span");
+    expect(lines).toHaveLength(2);
+    expect(lines?.[0]).toHaveTextContent("Taman Kanak-kanak · TKIT A");
+    expect(lines?.[1]).toHaveTextContent("Daycare · Daycare 1");
   });
 });
