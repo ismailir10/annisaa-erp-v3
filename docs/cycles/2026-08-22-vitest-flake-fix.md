@@ -252,12 +252,72 @@ each, against 6-in-10 red on the same stressed harness before the last fix.
 **Suite wall-clock: 144s → 62s**, entirely from not building a jsdom for the
 224 suites that never touch one.
 
+### T5 — the one this cycle missed, found by its own CI run
+
+The first CI run of this PR still failed `Lint, Typecheck & Test`: **320 passed,
+1 failed**, `app/admin/classes/[id]/__tests__/client.test.tsx > AGE_OUT_OF_RANGE:
+warn → enter reason → success`, on
+
+```
+expect(element).toHaveAttribute("role", "alert") // element.getAttribute("role") === "alert"
+```
+
+after 5802 ms. T1–T4 had assumed the two T7 override-confirm files were casualties
+of parallelism pressure and would recover once the jsdom split relieved it. They
+were not — the classes-page one has a real defect of its own, and this cycle never
+opened the file.
+
+**The defect is in the component, not the test.** `app/admin/classes/[id]/client.tsx`
+moved focus to the 409 advisory with
+
+```ts
+setEnrollBlock({ code: d.code, message: d.error });
+setTimeout(() => enrollBannerRef.current?.focus(), 0);
+```
+
+That races React. On scheduling orders where the macrotask runs before the banner
+commits, `enrollBannerRef.current` is still `null`, `focus()` no-ops, and **nothing
+retries** — so the test's `waitFor` is not waiting on something slow, it is waiting
+on something that is never going to happen, and burns its full ceiling before
+failing. Raising a timeout could never have fixed this.
+
+It is also a real accessibility bug, not only a test artifact: on those same
+orders a screen-reader user is left on the old step while a new one is on screen.
+
+Fixed by moving the focus into an effect keyed on `enrollBlock`, which runs after
+commit, so the ref is always attached.
+
+**Honesty about the evidence.** This fix is *not* backed by a local reproduction.
+`flake-hunt.sh` could not reproduce the failure on this machine either way:
+
+```
+# single file, 12 hogs on 8 cores — with the fix
+flake-hunt: 8/8 runs green.
+# single file, 12 hogs — with the fix stashed (baseline)
+flake-hunt: 8/8 runs green.
+# full suite × 3, 12 hogs — with the fix stashed (baseline)
+run 1: ok  —      Tests  3134 passed | 42 todo (3176)
+run 2: ok  —      Tests  3134 passed | 42 todo (3176)
+run 3: ok  —      Tests  3134 passed | 42 todo (3176)
+flake-hunt: 3/3 runs green.
+```
+
+CI's 4 vCPUs are harsher than 12 hogs on 8 cores, and this failure has only ever
+been seen there. So the argument for the change is the mechanism — a
+fire-and-forget `setTimeout` against an uncommitted ref cannot be correct — and
+the evidence is the CI check itself. `flake-hunt` staying green is consistent
+with the fix, and proves no regression, but it is not the proof.
+
 ## Ship Notes
 
-- No migration, no env var, no runtime code. Test infrastructure only.
+- No migration, no env var. One runtime change (T5): the enroll-advisory focus
+  in `app/admin/classes/[id]/client.tsx` moves from a `setTimeout` to an effect.
+  Behaviour is unchanged when the timer used to win the race, and correct when
+  it used to lose.
 - **Rollback:** revert the PR. Nothing outside `vitest.config.ts`,
-  `vitest.setup*.ts`, four test files, `scripts/flake-hunt.sh` and docs
-  changes, and no test loses an assertion on the way back.
+  `vitest.setup*.ts`, four test files, `app/admin/classes/[id]/client.tsx`,
+  `scripts/flake-hunt.sh` and docs changes, and no test loses an assertion on
+  the way back.
 - Watch the `Lint, Typecheck & Test` check on the next few PRs: it should
   also get materially faster, since the jsdom split removes ~80s of the job.
 - The `{ timeout: … }` per-test override is now a smell, not a fix — CLAUDE.md
