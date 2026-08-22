@@ -10,7 +10,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
  * activated via PUT; omit it on create (the new row is created after this runs).
  * Scoped to `academicYearId` (not tenant-wide) — different years can each keep
  * their own current term; the period resolver date-bounds across years. See
- * docs/cycles/2026-06-05-staging-hygiene-active-year.md.
+ * docs/cycles/archive/2026-06-05-staging-hygiene-active-year.md.
  *
  * `Semester.status` is `ACTIVE | INACTIVE` (default ACTIVE) — schema.prisma.
  */

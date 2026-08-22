@@ -211,11 +211,10 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     setEditForm({
       ...EMPTY_GUARDIAN_FORM,
       name: parent.name,
-      // saveParent() PUTs to /api/guardians/${parent.guardians[0].id} — seed
-      // relationship/isPrimary from that SAME junction row, or the PUT
-      // silently overwrites it back to the empty-form defaults.
-      relationship: parent.guardians[0]?.relationship ?? "WALI",
-      isPrimary: parent.guardians[0]?.isPrimary ?? false,
+      // No relationship/isPrimary seeding: saveParent() now PUTs to
+      // /api/parents/[id], which owns bio only and never touches a junction
+      // row. Relationship belongs to the student↔parent link and is edited
+      // from the student page.
       email: parent.email ?? "",
       phone: parent.phone ?? "",
       whatsapp: parent.whatsapp ?? "",
@@ -236,16 +235,19 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     if (!editForm.name.trim()) { toast.error("Nama wajib diisi"); return; }
     if (!parent) return;
 
-    // Save via PUT /api/guardians/[guardianId] where guardianId = first StudentGuardian ID
-    const guardianId = parent.guardians[0]?.id;
-    if (!guardianId) { toast.error("Wali ini belum tertaut ke siswa manapun. Tambahkan melalui halaman siswa."); return; }
-
+    // Bio lives on Parent, so save through the parent's own route. This page
+    // used to PUT /api/guardians/[guardianId] against whichever junction row
+    // happened to be first — which meant a wali with no linked student could
+    // not be edited at all, and every save rewrote that one child's
+    // relationship as a side effect.
     setSaving(true);
     try {
-      const res = await fetch(`/api/guardians/${guardianId}`, {
+      const res = await fetch(`/api/parents/${parent.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // updateParentSchema is bio-only, so the form's junction keys
+          // (relationship, isPrimary, childOrder) are stripped by Zod.
           ...editForm,
           childrenTotal: editForm.childrenTotal ? Number(editForm.childrenTotal) : null,
         }),

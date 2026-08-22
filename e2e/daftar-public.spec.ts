@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Phase 1.1 — public admission entry e2e.
  *
  * Covers the three behaviours called out in
- * docs/cycles/2026-05-10-daftar-public-form.md AC5:
+ * docs/cycles/archive/2026-05-10-daftar-public-form.md AC5:
  *   1. happy path — three steps, valid data, 201 + confirmation state
  *   2. validation — empty childName does not advance step + inline error
  *   3. rate limit — direct POST to /api/admission/submit returns 429 after 5

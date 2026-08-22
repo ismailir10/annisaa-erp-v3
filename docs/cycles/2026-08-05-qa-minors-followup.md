@@ -2,7 +2,7 @@
 
 ## Context
 
-PR #451 (`d7b1fc4d`) closed the one blocker and four majors from the 2026-08-04 cross-role QA pass ([`docs/qa/2026-08-04-jurnal-penilaian-cross-role-staging.md`](../qa/2026-08-04-jurnal-penilaian-cross-role-staging.md)) and explicitly deferred the rest. This cycle closes the deferred remainder.
+PR #451 (`d7b1fc4d`) closed the one blocker and four majors from the 2026-08-04 cross-role QA pass ([`docs/archive/legacy-doc-dirs/qa/2026-08-04-jurnal-penilaian-cross-role-staging.md`](../qa/2026-08-04-jurnal-penilaian-cross-role-staging.md)) and explicitly deferred the rest. This cycle closes the deferred remainder.
 
 Re-verified every open item against `origin/staging` at `d7b1fc4d` before speccing. Status of the 13 deferred items:
 

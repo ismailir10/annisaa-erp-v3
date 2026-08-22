@@ -106,7 +106,7 @@ function wireEligibleStudents(
         studentId: s.id,
         classSectionId: "cs-1",
         student: { id: s.id, name: s.name },
-        classSection: { name: "TKIT A", programId: "p-A" },
+        classSection: { name: "TKIT A", programId: "p-A", program: { name: "TKIT" } },
       })) as never,
     );
     vi.mocked(prisma.programFeeStructure.findMany).mockResolvedValue([
@@ -304,6 +304,31 @@ describe("POST /api/billing-runs/[id]/rebuild — happy path", () => {
     const lineArgs = txMock.billingRunLine.createMany.mock.calls[0][0];
     expect(String(lineArgs.data[0].amount)).toBe("750000");
     expect(String(lineArgs.data[0].finalAmount)).toBe("750000");
+  });
+
+  // Regression: the candidate query used to filter only on status + tenant.
+  // Once T8 replaced first-wins dedup with a group-by (every ACTIVE row now
+  // contributes fee lines), an unscoped query would bill a student for BOTH
+  // years at once — 16 of 21 current-year students on staging carry a stale
+  // ACTIVE row in the ARCHIVED prior year. The run's own academicYearId must
+  // be part of the where-clause.
+  it("scopes enrollment candidates to the run's academic year, so a stale ARCHIVED-year row cannot contribute fees", async () => {
+    await primeAdminSession();
+    await wireRun(draftRun);
+    const wire = wireEligibleStudents([{ id: "s-1", name: "Budi" }]);
+    await wire();
+
+    await rebuildRun(
+      makeReq("http://localhost/api/billing-runs/run-1/rebuild", { confirm: true }) as never,
+      makeParams("run-1"),
+    );
+
+    const { prisma } = await import("@/lib/db");
+    const where = vi.mocked(prisma.studentEnrollment.findMany).mock.calls[0][0]?.where;
+    expect(where?.classSection).toMatchObject({
+      tenantId: draftRun.tenantId,
+      academicYearId: draftRun.academicYearId,
+    });
   });
 
   it("drops a student who is no longer in scope", async () => {

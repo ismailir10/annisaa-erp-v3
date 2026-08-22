@@ -10,7 +10,7 @@ invites people who have no account to try, fail, and contact support. The owner 
 asked for a light, minimal, Google-only screen that reads as a polished front door.
 
 A plan-first audit ran before this cycle and is committed at
-[`docs/proposals/login-redesign/README.md`](../proposals/login-redesign/README.md) with
+[`docs/archive/legacy-doc-dirs/proposals/login-redesign/README.md`](../proposals/login-redesign/README.md) with
 rendered mockups. It found the magic-link blast radius is exactly one call site
 (`app/page.tsx:77` — no `inviteUserByEmail`, no `generateLink`, no `signInWithPassword`
 anywhere in the repo, and account provisioning goes through service-role
@@ -214,8 +214,8 @@ risk.
 `node scripts/capture-login.mjs` against `npm run start` on :3120:
 
 ```
-wrote docs/proposals/login-redesign/login-desktop-1280.png  (button 48px @ y=388, brand @ x=48 y=339, overflow: false)
-wrote docs/proposals/login-redesign/login-mobile-390.png  (button 48px @ y=244, brand @ x=24 y=533, overflow: false)
+wrote docs/archive/legacy-doc-dirs/proposals/login-redesign/login-desktop-1280.png  (button 48px @ y=388, brand @ x=48 y=339, overflow: false)
+wrote docs/archive/legacy-doc-dirs/proposals/login-redesign/login-mobile-390.png  (button 48px @ y=244, brand @ x=24 y=533, overflow: false)
 
 Login screen: button >= 48px, mobile action above the brand panel, no overflow.
 ```

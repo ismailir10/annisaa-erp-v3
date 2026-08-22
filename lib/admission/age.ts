@@ -1,4 +1,45 @@
 /**
+ * Parse a YYYY-MM-DD string into a UTC-noon Date, or `null` if malformed.
+ * UTC noon dodges any timezone DST shenanigans on the boundary — we only
+ * care about Y/M/D, not the time of day.
+ */
+function parseIsoDateAtNoon(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [yStr, mStr, dStr] = value.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const d = Number(dStr);
+  if (!y || !m || !d) return null;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+
+  const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+/**
+ * Calendar-correct Y/M borrow arithmetic between two UTC-noon dates.
+ * Shared by `formatAgeFromDob` and `ageInMonthsAt` so the borrow logic
+ * — and the "never approximate a month" rule — exists exactly once.
+ */
+function diffYearsMonths(birth: Date, reference: Date): { years: number; months: number } | null {
+  if (birth > reference) return null; // future DOB — treat as missing
+
+  let years = reference.getUTCFullYear() - birth.getUTCFullYear();
+  let months = reference.getUTCMonth() - birth.getUTCMonth();
+  const days = reference.getUTCDate() - birth.getUTCDate();
+
+  if (days < 0) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  return { years, months };
+}
+
+/**
  * Derive a human-readable age string from a YYYY-MM-DD date-of-birth.
  *
  * Indonesian formatting:
@@ -20,34 +61,17 @@ export function formatAgeFromDob(
   reference: Date = new Date(),
 ): string | null {
   if (!dob || typeof dob !== "string") return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
 
-  const [yStr, mStr, dStr] = dob.split("-");
-  const y = Number(yStr);
-  const m = Number(mStr);
-  const d = Number(dStr);
-  if (!y || !m || !d) return null;
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const birth = parseIsoDateAtNoon(dob);
+  if (!birth) return null;
 
-  // Construct the birth date as UTC noon to dodge any timezone DST shenanigans
-  // on the boundary; we only care about Y/M/D, not the time of day.
-  const birth = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   const today = new Date(
     Date.UTC(reference.getFullYear(), reference.getMonth(), reference.getDate(), 12, 0, 0),
   );
 
-  if (Number.isNaN(birth.getTime())) return null;
-  if (birth > today) return null; // future DOB — treat as missing
-
-  let years = today.getUTCFullYear() - birth.getUTCFullYear();
-  let months = today.getUTCMonth() - birth.getUTCMonth();
-  const days = today.getUTCDate() - birth.getUTCDate();
-
-  if (days < 0) months -= 1;
-  if (months < 0) {
-    years -= 1;
-    months += 12;
-  }
+  const diff = diffYearsMonths(birth, today);
+  if (!diff) return null;
+  const { years, months } = diff;
 
   if (years <= 0) {
     return `${months} bulan`;
@@ -56,4 +80,39 @@ export function formatAgeFromDob(
     return `${years} tahun`;
   }
   return `${years} tahun ${months} bulan`;
+}
+
+/**
+ * Age in whole months at a given reference point — the same calendar-correct
+ * Y/M/D arithmetic as `formatAgeFromDob`, collapsed into a single count for
+ * numeric comparisons against a program's `ageMin`/`ageMax` band. Never
+ * approximates a month as 30.44 days; the borrow arithmetic is exact.
+ *
+ * `reference` accepts a `Date` or a `YYYY-MM-DD` string, since callers
+ * typically pass an `AcademicYear.startDate` that may arrive as either.
+ */
+export function ageInMonthsAt(
+  dob: string | null | undefined,
+  reference: Date | string,
+): number | null {
+  if (!dob || typeof dob !== "string") return null;
+
+  const birth = parseIsoDateAtNoon(dob);
+  if (!birth) return null;
+
+  let refPoint: Date | null;
+  if (typeof reference === "string") {
+    refPoint = parseIsoDateAtNoon(reference);
+  } else {
+    refPoint = new Date(
+      Date.UTC(reference.getFullYear(), reference.getMonth(), reference.getDate(), 12, 0, 0),
+    );
+    if (Number.isNaN(refPoint.getTime())) refPoint = null;
+  }
+  if (!refPoint) return null;
+
+  const diff = diffYearsMonths(birth, refPoint);
+  if (!diff) return null;
+
+  return diff.years * 12 + diff.months;
 }

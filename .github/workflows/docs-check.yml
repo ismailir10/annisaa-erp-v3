@@ -62,3 +62,9 @@ jobs:
           fi
 
           echo "✅ Docs sync OK"
+
+      # The presence check above only proves *a* doc was touched — README and
+      # CLAUDE.md can rot indefinitely while every PR stays green. This step is
+      # the truth check: it verifies the docs still describe the repo.
+      - name: Doc staleness audit
+        run: bash scripts/audit-docs.sh

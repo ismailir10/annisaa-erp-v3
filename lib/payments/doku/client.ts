@@ -19,6 +19,7 @@ import {
   type GatewayStatusRef,
   type PaymentGateway,
 } from "../types";
+import { defaultExpiresAt } from "../expiry";
 import { parseRetryAfter } from "../xendit/client";
 import { buildDigest, buildSignature } from "./signature";
 
@@ -139,10 +140,26 @@ export function normalizePhoneForDoku(raw: string | undefined): string | undefin
  * non-optional string; without this the field would silently become
  * `undefined` and surface as a type lie to every consumer.
  */
-function fallbackExpiresAt(expiryDays: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + expiryDays);
-  return d.toISOString();
+function fallbackExpiresAt(expiresAt: Date): string {
+  return expiresAt.toISOString();
+}
+
+/**
+ * Convert an absolute expiry instant into DOKU's `payment_due_date`, which is
+ * expressed in MINUTES FROM NOW rather than as a timestamp.
+ *
+ * Rounded up so a due date never lands the parent short of the minute they
+ * were promised, and floored at 1 because a zero or negative `payment_due_date`
+ * is not a short window — it is a session DOKU rejects or expires on arrival,
+ * which costs the parent their payment link entirely. Callers are expected to
+ * apply the business floor (see `resolveSessionExpiry`); this is the transport
+ * guard for an already-stale instant arriving from anywhere else.
+ *
+ * Exported for unit testing.
+ */
+export function toDokuPaymentDueDateMinutes(expiresAt: Date, now: Date = new Date()): number {
+  const minutes = Math.ceil((expiresAt.getTime() - now.getTime()) / 60_000);
+  return Math.max(1, minutes);
 }
 
 /**
@@ -256,11 +273,11 @@ export async function createDokuSession(
   params: CreateSessionParams,
   overrides?: CreateDokuSessionOverrides,
 ): Promise<GatewaySession> {
-  const expiryDays = params.expiryDays ?? 7;
+  // The 7-day fallback applies only to callers with no invoice to derive a due
+  // date from — see `CreateSessionParams.expiresAt`.
+  const expiresAt = params.expiresAt ?? defaultExpiresAt();
 
   if (process.env.DEMO_MODE === "true") {
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiryDays);
     return {
       id: `demo_session_${params.referenceId}`,
       paymentUrl: `https://demo.doku.local/checkout/${params.referenceId}`,
@@ -321,7 +338,7 @@ export async function createDokuSession(
     order,
     ...(additionalInfo && { additional_info: additionalInfo }),
     payment: {
-      payment_due_date: expiryDays * 24 * 60,
+      payment_due_date: toDokuPaymentDueDateMinutes(expiresAt),
       // Explicit rather than relying on DOKU's default. "SALE" = capture
       // immediately; the alternatives (INSTALLMENT / AUTHORIZE) are credit
       // card only and would be wrong for a school VA collection.
@@ -446,7 +463,7 @@ export async function createDokuSession(
     expiresAt:
       data?.payment?.expired_datetime ??
       data?.payment?.expired_date ??
-      fallbackExpiresAt(expiryDays),
+      fallbackExpiresAt(expiresAt),
   };
 }
 

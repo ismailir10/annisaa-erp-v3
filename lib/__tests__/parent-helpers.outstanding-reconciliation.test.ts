@@ -3,7 +3,7 @@
 // NOTE: this suite calls the helper FRESH (no cache layer). It cannot catch
 // cache-staleness divergence between /parent and /parent/invoices — that
 // regression vector is owned by the Playwright cross-page assertion in
-// e2e/parent.spec.ts (Task 5 of cycle docs/cycles/2026-05-04-parent-balance-reconcile.md).
+// e2e/parent.spec.ts (Task 5 of cycle docs/cycles/archive/2026-05-04-parent-balance-reconcile.md).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getParentOutstandingForStudents } from "../parent-helpers";

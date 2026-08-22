@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Regression guard for UAT BLOCKER U10 (parent attendance scoping wrong query).
  *
  * Diagnosis on rolled-back staging recorded in
- * docs/cycles/2026-05-10-phase0-finance-backlog-drain.md §"Task 1 — Reproduction"
+ * docs/cycles/archive/2026-05-10-phase0-finance-backlog-drain.md §"Task 1 — Reproduction"
  * found U10 does NOT reproduce post-rollback — the page query is correct
  * given the seed shape. This spec is a long-lived guard against the most
  * plausible scoping fault modes:

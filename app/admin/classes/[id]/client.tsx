@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import {
@@ -17,13 +17,14 @@ import { toast } from "sonner";
 
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -172,6 +173,18 @@ export function ClassDetailClient({
   const [studentOptions, setStudentOptions] = useState<StudentOption[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [addingStudent, setAddingStudent] = useState(false);
+  // Advisory age-band / dual-enrollment confirm step (T7) — populated from
+  // the 409 the server returns; cleared whenever the dialog closes or the
+  // selected student changes so a stale reason never rides along on an
+  // unrelated submit. AGE_OUT_OF_RANGE is overridable with a reason;
+  // ALREADY_ENROLLED is not.
+  const [enrollBlock, setEnrollBlock] = useState<
+    | { code: "AGE_OUT_OF_RANGE"; message: string }
+    | { code: "ALREADY_ENROLLED"; message: string }
+    | null
+  >(null);
+  const [ageOverrideReason, setAgeOverrideReason] = useState("");
+  const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
   // Remove-student confirm
   const [removeStudentTarget, setRemoveStudentTarget] = useState<
@@ -396,8 +409,28 @@ export function ClassDetailClient({
   // ── Roster mutations ────────────────────────────────────────────
   function openAddStudent() {
     setSelectedStudentId("");
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
     setAddStudentOpen(true);
     loadStudentOptions();
+  }
+
+  // Closes the add-student dialog and clears the advisory-warning step —
+  // the single choke point every close path (success, Batal, escape,
+  // overlay click) routes through so a stale reason/warning never survives
+  // to the next open.
+  function closeAddStudent() {
+    setAddStudentOpen(false);
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
+  }
+
+  // Steps back from the confirm step to the student picker without closing
+  // the dialog — used by "Batal" inside the AGE_OUT_OF_RANGE step and
+  // "Pilih Siswa Lain" inside the ALREADY_ENROLLED step.
+  function cancelEnrollBlock() {
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
   }
 
   async function submitAddStudent() {
@@ -405,6 +438,8 @@ export function ClassDetailClient({
       toast.error("Pilih siswa");
       return;
     }
+    const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+    if (overridingAge && !ageOverrideReason.trim()) return; // confirm button is disabled for this too — defensive only
     setAddingStudent(true);
     try {
       const res = await fetch(
@@ -412,17 +447,35 @@ export function ClassDetailClient({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ studentId: selectedStudentId }),
+          body: JSON.stringify({
+            studentId: selectedStudentId,
+            ...(overridingAge ? { ageOverrideReason: ageOverrideReason.trim() } : {}),
+          }),
         },
       );
       if (res.ok) {
         toast.success("Siswa ditambahkan");
-        setAddStudentOpen(false);
+        closeAddStudent();
         fetchDetail();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error ?? "Gagal menambahkan siswa");
+        return;
       }
+      const d = await res.json().catch(() => ({}));
+      if (
+        res.status === 409 &&
+        (d.code === "AGE_OUT_OF_RANGE" || d.code === "ALREADY_ENROLLED")
+      ) {
+        // Advisory step, not a toast — the server message already names the
+        // age/band/reference date (AGE_OUT_OF_RANGE) or the conflicting
+        // class (ALREADY_ENROLLED); render it verbatim rather than
+        // rebuilding the sentence client-side.
+        setEnrollBlock({ code: d.code, message: d.error });
+        // Move focus to the new step for screen-reader + keyboard users —
+        // deferred a tick so the ref attaches to the just-rendered banner
+        // first (same pattern as the semester-import conflict alert).
+        setTimeout(() => enrollBannerRef.current?.focus(), 0);
+        return;
+      }
+      toast.error(d.error ?? "Gagal menambahkan siswa");
     } finally {
       setAddingStudent(false);
     }
@@ -1134,61 +1187,141 @@ export function ClassDetailClient({
         </div>
       </ResponsiveFormDialog>
 
-      {/* ── Add-student dialog ──────────────────────────────────── */}
-      <ResponsiveFormDialog
-        open={addStudentOpen}
-        onOpenChange={setAddStudentOpen}
-        title="Tambah Siswa"
-        description="Pilih siswa aktif yang belum terdaftar di kelas ini."
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setAddStudentOpen(false)}
-              disabled={addingStudent}
-            >
-              Batal
+      {/* ── Add-student dialog ──────────────────────────────────────────
+          Two mutually-exclusive steps share one dialog instance: picker →
+          (409) advisory confirm step. AGE_OUT_OF_RANGE is overridable with
+          a required reason; ALREADY_ENROLLED is not. */}
+      {(() => {
+        const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+        const alreadyEnrolled = enrollBlock?.code === "ALREADY_ENROLLED";
+        const reasonEmpty = !ageOverrideReason.trim();
+
+        let body: React.ReactNode;
+        let footer: React.ReactNode;
+
+        if (alreadyEnrolled) {
+          body = (
+            <Alert ref={enrollBannerRef} tabIndex={-1} variant="destructive">
+              <AlertTitle>Siswa sudah terdaftar</AlertTitle>
+              <AlertDescription>{enrollBlock.message}</AlertDescription>
+            </Alert>
+          );
+          footer = (
+            <Button type="button" variant="ghost" onClick={cancelEnrollBlock}>
+              Pilih Siswa Lain
             </Button>
-            <Button onClick={submitAddStudent} disabled={addingStudent}>
-              {addingStudent ? "Menambahkan..." : "Tambahkan"}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-field">
-          <Field>
-            <FieldLabel htmlFor="class-student" required>Siswa</FieldLabel>
-            <Select
-              value={selectedStudentId}
-              onValueChange={(v) => setSelectedStudentId(v ?? "")}
-            >
-              <SelectTrigger id="class-student" aria-required="true">
-                <SelectValue placeholder="Pilih siswa..." />
-              </SelectTrigger>
-              <SelectContent>
-                {studentOptions.length === 0 ? (
-                  <SelectItem value="__empty" disabled>
-                    Tidak ada siswa tersedia
-                  </SelectItem>
-                ) : (
-                  studentOptions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                      {s.nis ? ` · ${s.nis}` : ""}
+          );
+        } else if (overridingAge) {
+          body = (
+            <>
+              <Alert ref={enrollBannerRef} tabIndex={-1}>
+                <AlertTitle>Usia di luar batas program</AlertTitle>
+                <AlertDescription>{enrollBlock.message}</AlertDescription>
+              </Alert>
+              <Field>
+                <FieldLabel htmlFor="class-student-age-override-reason" required>
+                  Alasan
+                </FieldLabel>
+                <Textarea
+                  id="class-student-age-override-reason"
+                  required
+                  aria-required="true"
+                  value={ageOverrideReason}
+                  onChange={(e) => setAgeOverrideReason(e.target.value)}
+                  placeholder="Contoh: penempatan sesuai kemampuan anak, atau anak telat masuk sekolah"
+                  rows={3}
+                />
+                <FieldDescription>Alasan wajib diisi sebelum melanjutkan.</FieldDescription>
+              </Field>
+            </>
+          );
+          footer = (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={cancelEnrollBlock}
+                disabled={addingStudent}
+              >
+                Batal
+              </Button>
+              <Button onClick={submitAddStudent} disabled={addingStudent || reasonEmpty}>
+                {addingStudent ? "Menambahkan..." : "Tetap Tambahkan"}
+              </Button>
+            </>
+          );
+        } else {
+          body = (
+            <Field>
+              <FieldLabel htmlFor="class-student" required>Siswa</FieldLabel>
+              <Select
+                value={selectedStudentId}
+                onValueChange={(v) => {
+                  setSelectedStudentId(v ?? "");
+                  setEnrollBlock(null);
+                  setAgeOverrideReason("");
+                }}
+              >
+                <SelectTrigger id="class-student" aria-required="true">
+                  <SelectValue placeholder="Pilih siswa..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {studentOptions.length === 0 ? (
+                    <SelectItem value="__empty" disabled>
+                      Tidak ada siswa tersedia
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Hanya siswa berstatus aktif yang muncul. Siswa yang sudah
-              terdaftar di kelas lain pada tahun ajaran ini akan ditolak oleh
-              server.
-            </p>
-          </Field>
-        </div>
-      </ResponsiveFormDialog>
+                  ) : (
+                    studentOptions.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        {s.nis ? ` · ${s.nis}` : ""}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Hanya siswa berstatus aktif yang muncul. Batas usia program
+                dan kelas lain yang sudah diikuti siswa akan diperiksa saat
+                disimpan.
+              </p>
+            </Field>
+          );
+          footer = (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={closeAddStudent}
+                disabled={addingStudent}
+              >
+                Batal
+              </Button>
+              <Button onClick={submitAddStudent} disabled={addingStudent}>
+                {addingStudent ? "Menambahkan..." : "Tambahkan"}
+              </Button>
+            </>
+          );
+        }
+
+        return (
+          <ResponsiveFormDialog
+            open={addStudentOpen}
+            onOpenChange={(o) => {
+              setAddStudentOpen(o);
+              if (!o) {
+                setEnrollBlock(null);
+                setAgeOverrideReason("");
+              }
+            }}
+            title="Tambah Siswa"
+            description="Pilih siswa aktif yang belum terdaftar di kelas ini."
+            footer={footer}
+          >
+            <div className="space-y-field">{body}</div>
+          </ResponsiveFormDialog>
+        );
+      })()}
 
       {/* ── Remove-student confirm ──────────────────────────────── */}
       <ConfirmDialog

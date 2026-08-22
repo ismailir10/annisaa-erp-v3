@@ -19,13 +19,36 @@ export async function GET(
   const student = await prisma.student.findFirst({
     where: { id, tenantId: session.tenantId },
     include: {
-      guardians: { orderBy: { isPrimary: "desc" }, include: { parent: true } },
+      guardians: {
+        orderBy: { isPrimary: "desc" },
+        include: {
+          parent: {
+            // The parent's OTHER active links are what make siblings visible
+            // on this page: a student shares a brother or sister exactly when
+            // they share a guardian. Narrow select — this is a nested list and
+            // the detail page only needs a name to render a chip.
+            include: {
+              guardians: {
+                where: { status: "ACTIVE" },
+                select: {
+                  student: { select: { id: true, name: true, status: true } },
+                },
+              },
+            },
+          },
+        },
+      },
       enrollments: {
         include: {
           classSection: {
             include: {
-              program: { select: { name: true, code: true } },
-              academicYear: { select: { name: true } },
+              // `type` + `academicYear.status` drive the detail header's
+              // primary-enrollment pick (a student can hold a school and a
+              // day-care enrollment at once, plus stale rows in archived
+              // years). The list below still renders every enrollment —
+              // the Riwayat Kelas tab is deliberately historical.
+              program: { select: { name: true, code: true, type: true } },
+              academicYear: { select: { name: true, status: true } },
               campus: { select: { name: true } },
             },
           },

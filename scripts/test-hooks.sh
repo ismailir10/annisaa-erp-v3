@@ -2,7 +2,7 @@
 # test-hooks.sh — fixture tests for .githooks/commit-msg + ADR-cell-length rule in .githooks/pre-commit
 #
 # commit-msg cases enforce docs/cycles/2026-04-20-doc-sync-hook-tighten.md.
-# pre-commit ADR cases enforce docs/cycles/2026-05-01-readme-claude-md-simplify.md (Rule 6).
+# pre-commit ADR cases enforce the cell-length rule on docs/adrs/active.md (Rule 6).
 #
 # Usage: bash scripts/test-hooks.sh
 # Exit:  0 if all scenarios match expected outcome, 1 otherwise.
@@ -177,12 +177,13 @@ echo ""
 echo "Testing .githooks/pre-commit Rule 6 (ADR cell length)..."
 echo ""
 
-# run_adr_case <name> <expect:accept|reject> <readme-content> [extra_file_path]
-# Stages README.md plus an optional second file (default: none).
+# run_adr_case <name> <expect:accept|reject> <adr-content> [extra_file_path]
+# Stages docs/adrs/active.md plus an optional second file carrying its own
+# 500-char table cell, which Rule 6 must ignore (it scans only the ADR file).
 # Pre-commit hook needs .githooks/.installed marker and a copy of itself
 # in $PWD/.githooks/pre-commit.
 run_adr_case() {
-  local name="$1" expect="$2" readme_content="$3"
+  local name="$1" expect="$2" adr_content="$3"
   local extra="${4:-}"
   local casenum=$((PASS + FAIL + 1))
   local casedir="$TMPDIR/adrcase-$casenum"
@@ -197,13 +198,14 @@ run_adr_case() {
     git init -q -b main >/dev/null 2>&1
     git config user.email "t@t"
     git config user.name "t"
-    printf '%s' "$readme_content" > README.md
-    git add README.md
+    mkdir -p docs/adrs
+    printf "%s" "$adr_content" > docs/adrs/active.md
+    git add docs/adrs/active.md
     if [ -n "$extra" ]; then
       local parent
       parent="$(dirname "$extra")"
       [ "$parent" != "." ] && mkdir -p "$parent"
-      printf 'cycle doc body\n' > "$extra"
+      printf '# other doc\n\n| A | B |\n|---|---|\n| x | %s |\n' "$S500" > "$extra"
       git add "$extra"
     fi
     bash .githooks/pre-commit >/dev/null 2>&1
@@ -226,62 +228,44 @@ run_adr_case() {
 # Build 500-char filler portably
 S500=$(printf '%500s' '' | tr ' ' x)
 
+# The ADR table moved from README.md to docs/adrs/active.md on 2026-08-20 —
+# README is the repo's public front page and no longer carries engineering
+# history. Rule 6 now scans every table row in active.md; that file holds only
+# the ADR table, so no section gating is needed.
 run_adr_case "ADR1 short cells → accept" accept \
-"# README
-
-## Architecture Decisions
+"# Architecture Decisions — active
 
 | Date | Decision | Why |
 |---|---|---|
 | 2026-04-15 | Short decision | Short reason |
-
-## Setup
 "
 
-run_adr_case "ADR2 cell at 500 chars in ADR table → reject" reject \
-"# README
-
-## Architecture Decisions
+run_adr_case "ADR2 cell at 500 chars → reject" reject \
+"# Architecture Decisions — active
 
 | Date | Decision | Why |
 |---|---|---|
 | 2026-04-15 | Short | $S500 |
-
-## Setup
 "
 
-run_adr_case "ADR3 long cell in non-ADR table → accept" accept \
-"# README
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | $S500 |
-
-## Architecture Decisions
+run_adr_case "ADR3 long cell in a non-ADR file → accept" accept \
+"# Architecture Decisions — active
 
 | Date | Decision | Why |
 |---|---|---|
 | 2026-04-15 | Short | Short |
+" "README.md"
 
-## Setup
-"
-
-# Regression: real-world commit stages README.md alongside a cycle doc.
-# Earlier case-pattern detection (case " $STAGED " in *' README.md '*) only
-# matched space-delimited lists; STAGED is newline-separated, so the rule
-# silently skipped multi-file commits. Lock the loop-based detection in.
-run_adr_case "ADR4 README + cycle-doc, 500-char ADR cell → reject" reject \
-"# README
-
-## Architecture Decisions
+# Regression: a real commit stages the ADR file alongside a cycle doc. Earlier
+# case-pattern detection (case " $STAGED " in *' README.md '*) only matched
+# space-delimited lists; STAGED is newline-separated, so the rule silently
+# skipped multi-file commits. Lock the loop-based detection in.
+run_adr_case "ADR4 ADR file + cycle-doc, 500-char cell → reject" reject \
+"# Architecture Decisions — active
 
 | Date | Decision | Why |
 |---|---|---|
 | 2026-04-15 | Short | $S500 |
-
-## Setup
 " "docs/cycles/2026-05-01-x.md"
 
 echo ""

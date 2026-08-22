@@ -20,20 +20,28 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import {
   LIVING_WITH_OPTIONS,
+  RELATIONSHIP_OPTIONS,
   REL_LABELS,
   LIVING_WITH_LABELS,
+  MATCH_REASON_LABELS,
 } from "@/lib/constants/parent-options";
+import { ParentPicker, type PickableParent } from "@/components/admin/parent-picker";
+import type { ParentCandidate } from "@/lib/parent/match";
+import { deriveSiblings } from "@/lib/parent/siblings";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
-type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null } };
-type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string }; academicYear: { name: string }; campus: { name: string } } };
+type Sibling = { id: string; name: string; status: string };
+type Guardian = { id: string; relationship: string; isPrimary: boolean; childOrder: number | null; status: string; parent: { id: string; name: string; phone: string | null; email: string | null; whatsapp: string | null; nik: string | null; education: string | null; occupation: string | null; employer: string | null; employerAddress: string | null; employerCity: string | null; incomeRange: string | null; childrenTotal: number | null; address: string | null; ktpUrl: string | null; kkUrl: string | null; guardians?: { student: Sibling }[] } };
+type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
@@ -88,6 +96,18 @@ export default function StudentDetailPage() {
   const [sections, setSections] = useState<ClassSection[]>([]);
   const [selectedSection, setSelectedSection] = useState("");
   const [enrolling, setEnrolling] = useState(false);
+  // Advisory age-band / dual-enrollment step (T7) — populated from the
+  // 409 the server returns; cleared whenever the sheet/dialog closes or a
+  // different class is picked so a stale reason can never ride along on an
+  // unrelated submit. AGE_OUT_OF_RANGE is overridable with a reason;
+  // ALREADY_ENROLLED is not.
+  const [enrollBlock, setEnrollBlock] = useState<
+    | { code: "AGE_OUT_OF_RANGE"; message: string }
+    | { code: "ALREADY_ENROLLED"; message: string }
+    | null
+  >(null);
+  const [ageOverrideReason, setAgeOverrideReason] = useState("");
+  const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
@@ -95,6 +115,19 @@ export default function StudentDetailPage() {
   const [guardianForm, setGuardianForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
+
+  // Tambah Wali has three mutually exclusive steps inside one overlay, the
+  // same shape the enroll dialog uses for its picker → 409-advisory flow:
+  //   "link"       — search an existing wali (the default; one Parent row is
+  //                  meant to be shared across siblings)
+  //   "create"     — the full bio form, for a wali genuinely not on file yet
+  //   "candidates" — the server found look-alikes and wants a decision
+  const [guardianStep, setGuardianStep] = useState<"link" | "create" | "candidates">("link");
+  const [pickedParent, setPickedParent] = useState<PickableParent | null>(null);
+  const [linkRelationship, setLinkRelationship] = useState("IBU");
+  const [linkChildOrder, setLinkChildOrder] = useState("");
+  const [candidates, setCandidates] = useState<ParentCandidate[]>([]);
+  const guardianBannerRef = useRef<HTMLDivElement | null>(null);
 
   // Promote (Naik Kelas)
   const [promoteDialog, setPromoteDialog] = useState(false);
@@ -327,6 +360,12 @@ export default function StudentDetailPage() {
   function openAddGuardian() {
     setEditingGuardian(null);
     setGuardianForm(EMPTY_GUARDIAN_FORM);
+    // Search-first: most "new" wali are a sibling's parent already on file.
+    setGuardianStep("link");
+    setPickedParent(null);
+    setLinkRelationship("IBU");
+    setLinkChildOrder("");
+    setCandidates([]);
     setGuardianDialog(true);
   }
 
@@ -374,6 +413,81 @@ export default function StudentDetailPage() {
     setSavingGuardian(false);
   }
 
+  // --- Tambah Wali: link an existing parent ---
+  async function linkExistingParent(parentId: string) {
+    setSavingGuardian(true);
+    try {
+      const res = await fetch(`/api/students/${id}/guardians`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parentId,
+          relationship: linkRelationship,
+          childOrder: linkChildOrder === "" ? null : Number(linkChildOrder),
+        }),
+      });
+      if (res.ok) {
+        toast.success("Wali ditautkan");
+        setGuardianDialog(false);
+        fetchStudent();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Gagal menautkan wali");
+      }
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSavingGuardian(false);
+    }
+  }
+
+  /**
+   * Create path. The server answers 409 PARENT_CANDIDATES when the typed
+   * name / phone / NIK / email already matches a wali on file; that is not an
+   * error to toast away but a decision to put in front of the admin, so it
+   * switches the overlay to the candidates step. `confirmNew` is the
+   * "I looked, create anyway" escape.
+   */
+  async function createNewParent(confirmNew: boolean) {
+    if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
+    setSavingGuardian(true);
+    try {
+      const payload: Record<string, unknown> = { ...guardianForm, confirmNew };
+      payload.childrenTotal = guardianForm.childrenTotal === "" ? null : Number(guardianForm.childrenTotal);
+      payload.childOrder = guardianForm.childOrder === "" ? null : Number(guardianForm.childOrder);
+
+      const res = await fetch(`/api/students/${id}/guardians`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast.success("Wali ditambahkan");
+        setGuardianDialog(false);
+        fetchStudent();
+        return;
+      }
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 && d.code === "PARENT_CANDIDATES") {
+        setCandidates(d.candidates ?? []);
+        // Carry the relationship/urutan the admin already typed so choosing
+        // "Tautkan" here doesn't silently fall back to the link-step defaults.
+        setLinkRelationship(guardianForm.relationship || "IBU");
+        setLinkChildOrder(guardianForm.childOrder ?? "");
+        setGuardianStep("candidates");
+        // Move focus to the advisory so it is announced, matching the enroll
+        // dialog's 409 handling.
+        setTimeout(() => guardianBannerRef.current?.focus(), 0);
+        return;
+      }
+      toast.error(d.error || "Gagal menambahkan wali");
+    } catch {
+      toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSavingGuardian(false);
+    }
+  }
+
   async function deactivateGuardian() {
     if (!deleteGuardianTarget) return;
     const newStatus = deleteGuardianTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
@@ -401,26 +515,65 @@ export default function StudentDetailPage() {
       if (!res.ok) { toast.error("Gagal memuat data kelas"); return; }
       setSections(await res.json());
       setSelectedSection("");
+      setEnrollBlock(null);
+      setAgeOverrideReason("");
       setEnrollDialog(true);
     } catch { toast.error("Terjadi kesalahan"); }
   }
 
+  // Closes the enroll Sheet/Dialog and clears the advisory-warning step —
+  // the single choke point every close path (success, Batal, escape,
+  // overlay click) routes through so a stale reason/warning never survives
+  // to the next open. See enrollBlock's declaration above for why.
+  function closeEnrollDialog() {
+    setEnrollDialog(false);
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
+  }
+
+  // Steps back from the confirm step to the class picker without closing
+  // the sheet/dialog — used by "Batal" inside the AGE_OUT_OF_RANGE step and
+  // "Pilih Kelas Lain" inside the ALREADY_ENROLLED step.
+  function cancelEnrollBlock() {
+    setEnrollBlock(null);
+    setAgeOverrideReason("");
+  }
+
   async function handleEnroll() {
     if (!selectedSection) { toast.error("Pilih kelas"); return; }
+    const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+    if (overridingAge && !ageOverrideReason.trim()) return; // confirm button is disabled for this too — defensive only
     setEnrolling(true);
     try {
       const res = await fetch(`/api/students/${id}/enroll`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classSectionId: selectedSection }),
+        body: JSON.stringify({
+          classSectionId: selectedSection,
+          ...(overridingAge ? { ageOverrideReason: ageOverrideReason.trim() } : {}),
+        }),
       });
       if (res.ok) {
         toast.success("Didaftarkan ke kelas");
-        setEnrollDialog(false);
+        closeEnrollDialog();
         fetchStudent();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Gagal mendaftarkan");
+        return;
       }
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 && (d.code === "AGE_OUT_OF_RANGE" || d.code === "ALREADY_ENROLLED")) {
+        // Advisory step, not a toast — the server message already names the
+        // age/band/reference date (AGE_OUT_OF_RANGE) or the conflicting
+        // class (ALREADY_ENROLLED); render it verbatim rather than
+        // rebuilding the sentence client-side.
+        setEnrollBlock({ code: d.code, message: d.error });
+        // Move focus to the new step for screen-reader + keyboard users —
+        // it replaces the picker in place, so nothing else marks that the
+        // form changed. Deferred a tick so the ref attaches to the just-
+        // rendered banner first (same pattern as the semester-import
+        // conflict alert).
+        setTimeout(() => enrollBannerRef.current?.focus(), 0);
+        return;
+      }
+      toast.error(d.error || "Gagal mendaftarkan");
     } catch {
       toast.error("Terjadi kesalahan jaringan");
     } finally {
@@ -499,7 +652,21 @@ export default function StudentDetailPage() {
   if (loading) return <DetailPageSkeleton />;
   if (!student) return <EmptyState title="Siswa tidak ditemukan" description="Data siswa tidak tersedia atau telah dihapus." />;
 
-  const activeEnrollment = student.enrollments.find(e => e.status === "ACTIVE");
+  // A student can hold a school (SEMESTER) and a day-care (YEAR_ROUND)
+  // enrollment at once, and many carry a stale ACTIVE row in an archived
+  // year. The API returns enrollments newest-first, so `.find(ACTIVE)` used
+  // to surface whichever was created last — after enrolling into day care
+  // the header announced the day-care class as the child's placement.
+  // Primary (school) first, then any other current placement, matching the
+  // students list. The Riwayat Kelas tab below still lists every row.
+  const currentEnrollments = student.enrollments.filter(
+    e => e.status === "ACTIVE" && e.classSection.academicYear.status !== "ARCHIVED",
+  );
+  const primaryEnrollment = pickPrimaryEnrollment(currentEnrollments);
+  const orderedEnrollments = primaryEnrollment
+    ? [primaryEnrollment, ...currentEnrollments.filter(e => e.id !== primaryEnrollment.id)]
+    : [];
+  const activeEnrollment = primaryEnrollment;
 
   return (
     <>
@@ -507,7 +674,13 @@ export default function StudentDetailPage() {
         backHref="/admin/students"
         backLabel="Kembali ke Daftar Siswa"
         title={student.name}
-        description={activeEnrollment ? `${activeEnrollment.classSection.program.name} · ${activeEnrollment.classSection.name}` : "Belum terdaftar di kelas"}
+        description={
+          orderedEnrollments.length > 0
+            ? orderedEnrollments
+                .map(e => `${e.classSection.program.name} · ${e.classSection.name}`)
+                .join(" + ")
+            : "Belum terdaftar di kelas"
+        }
         badge={<StatusBadge status={student.status} />}
         actions={
           <>
@@ -861,12 +1034,18 @@ export default function StudentDetailPage() {
                 {student.guardians.filter(g => g.status !== "INACTIVE").map(g => (
                   <div key={g.id} className="border-b border-border/50 last:border-0 pb-3 last:pb-0">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      {/* Only the name/badge cluster is the link — the edit and
+                          deactivate buttons stay outside it, so there is no
+                          nested interactive element to work around. */}
+                      <Link
+                        href={`/admin/guardians/${g.parent.id}`}
+                        className="flex items-center gap-2 rounded-md px-2 -mx-2 py-1 -my-1 hover:bg-accent/50 transition-colors"
+                      >
                         <p className="text-sm font-medium">{g.parent.name}</p>
                         <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
                         {g.isPrimary && <Badge className="bg-status-present-subtle text-status-present-text text-xs">Utama</Badge>}
                         {g.childOrder && <Badge variant="outline" className="text-xs">Anak ke-{g.childOrder}</Badge>}
-                      </div>
+                      </Link>
                       <div className="flex gap-1">
                         <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEditGuardian(g)} aria-label={`Edit wali ${g.parent.name}`} className="text-muted-foreground"><Pencil size={12} /></Button>
                         <Button type="button" size="icon-sm" variant="ghost" onClick={() => setDeleteGuardianTarget(g)} aria-label={`Nonaktifkan wali ${g.parent.name}`} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Nonaktifkan wali"><Trash2 size={12} /></Button>
@@ -888,6 +1067,32 @@ export default function StudentDetailPage() {
                 ))}
               </div>
             )}
+
+            {/* Saudara — other students sharing at least one ACTIVE guardian.
+                Derived from the guardians already loaded rather than a second
+                request. Hidden entirely when the student is an only child, so
+                the section never renders as a dead empty state. */}
+            {(() => {
+              const siblings = deriveSiblings(student.guardians, student.id);
+              if (siblings.length === 0) return null;
+              return (
+                <>
+                  <div className="mt-6"><SectionHeading label="Saudara" /></div>
+                  <div className="flex flex-wrap gap-2">
+                    {siblings.map((s) => (
+                      <Link
+                        key={s.id}
+                        href={`/admin/students/${s.id}`}
+                        className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-accent/50 transition-colors"
+                      >
+                        <span>{s.name}</span>
+                        <StatusBadge status={s.status} />
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         </AdminTabsContent>
 
@@ -971,10 +1176,157 @@ export default function StudentDetailPage() {
         </AdminTabsContent>
       </AdminTabs>
 
-      {/* ---------- Guardian form body (shared via GuardianFormBody) ---------- */}
+      {/* ---------- Guardian form (shared via GuardianFormBody) ----------
+          Edit keeps the plain form. Add runs three mutually-exclusive steps
+          through the same overlay — link → create → (409) candidates —
+          mirroring the enroll dialog's picker → advisory shape below. */}
       {(() => {
-        const guardianBody = <GuardianFormBody form={guardianForm} setForm={setGuardianForm} />;
-        const guardianTitle = editingGuardian ? "Edit Wali" : "Tambah Wali";
+        const addingGuardian = !editingGuardian;
+        const linkedParentIds = student.guardians
+          .filter((g) => g.status !== "INACTIVE")
+          .map((g) => g.parent.id);
+
+        let guardianBody: React.ReactNode;
+        let guardianFooter: React.ReactNode;
+
+        if (addingGuardian && guardianStep === "link") {
+          guardianBody = (
+            <div className="space-y-field">
+              <Field>
+                <FieldLabel required htmlFor="guardian-link-parent">Cari Wali</FieldLabel>
+                <ParentPicker
+                  id="guardian-link-parent"
+                  selected={pickedParent}
+                  onSelect={setPickedParent}
+                  excludeIds={linkedParentIds}
+                />
+                <FieldDescription>
+                  Satu data wali dipakai bersama untuk kakak-adik. Cari dulu sebelum menambah data baru.
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel required htmlFor="guardian-link-relationship">Hubungan</FieldLabel>
+                <Select value={linkRelationship} onValueChange={(v) => setLinkRelationship(v ?? "IBU")}>
+                  <SelectTrigger id="guardian-link-relationship" aria-required="true">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RELATIONSHIP_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="guardian-link-child-order">Anak ke-</FieldLabel>
+                <Input
+                  id="guardian-link-child-order"
+                  type="number"
+                  min={1}
+                  value={linkChildOrder}
+                  onChange={(e) => setLinkChildOrder(e.target.value)}
+                  placeholder="Contoh: 2"
+                />
+                <FieldDescription>Posisi siswa ini di keluarga wali tersebut. Boleh dikosongkan.</FieldDescription>
+              </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-0 text-primary"
+                onClick={() => setGuardianStep("create")}
+              >
+                Tidak ketemu? Tambah wali baru →
+              </Button>
+            </div>
+          );
+          guardianFooter = (
+            <>
+              <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
+              <Button
+                onClick={() => pickedParent && linkExistingParent(pickedParent.id)}
+                disabled={savingGuardian || !pickedParent}
+              >
+                {savingGuardian ? "Memproses..." : "Tautkan Wali"}
+              </Button>
+            </>
+          );
+        } else if (addingGuardian && guardianStep === "candidates") {
+          guardianFooter = (
+            <>
+              <Button variant="ghost" onClick={() => setGuardianStep("create")} disabled={savingGuardian}>
+                Kembali
+              </Button>
+              <Button variant="outline" onClick={() => createNewParent(true)} disabled={savingGuardian}>
+                {savingGuardian ? "Memproses..." : "Tetap Buat Baru"}
+              </Button>
+            </>
+          );
+          guardianBody = (
+            <div className="space-y-field">
+              <Alert ref={guardianBannerRef} tabIndex={-1}>
+                <AlertTitle>Wali serupa sudah terdaftar</AlertTitle>
+                <AlertDescription>
+                  Tautkan data yang sudah ada agar satu keluarga tidak terpecah menjadi dua profil dan dua tagihan.
+                </AlertDescription>
+              </Alert>
+              <div className="space-y-2">
+                {candidates.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-md border p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{c.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[c.phone, c.email, `${c.childCount} anak terdaftar`].filter(Boolean).join(" · ")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Cocok pada {MATCH_REASON_LABELS[c.matchReason] ?? c.matchReason}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => linkExistingParent(c.id)}
+                      disabled={savingGuardian}
+                    >
+                      Tautkan
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        } else {
+          guardianBody = <GuardianFormBody form={guardianForm} setForm={setGuardianForm} />;
+          guardianFooter = (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => (addingGuardian ? setGuardianStep("link") : setGuardianDialog(false))}
+                disabled={savingGuardian}
+              >
+                {addingGuardian ? "Kembali" : "Batal"}
+              </Button>
+              <Button
+                onClick={() => (addingGuardian ? createNewParent(false) : saveGuardian())}
+                disabled={savingGuardian}
+              >
+                {savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}
+              </Button>
+            </>
+          );
+        }
+
+        const guardianTitle = editingGuardian
+          ? "Edit Wali"
+          : guardianStep === "link"
+            ? "Tautkan Wali"
+            : guardianStep === "candidates"
+              ? "Periksa Data Wali"
+              : "Tambah Wali Baru";
+
         // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
         // benefits from full-height surface; bottom sheet would only show ~30% before scroll.
         return isMobile ? (
@@ -982,10 +1334,7 @@ export default function StudentDetailPage() {
             <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
               <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
               <div className="px-4 pb-4">{guardianBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setGuardianDialog(false)} disabled={savingGuardian}>Batal</Button>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
-              </SheetFooter>
+              <SheetFooter>{guardianFooter}</SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
@@ -996,49 +1345,102 @@ export default function StudentDetailPage() {
                   (childrenTotal + address + Data Anak section); body now
                   needs inner scroll to keep DialogFooter docked. */}
               <div className="flex-1 min-h-0 overflow-y-auto">{guardianBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={saveGuardian} disabled={savingGuardian}>{savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}</Button>
-              </DialogFooter>
+              <DialogFooter>{guardianFooter}</DialogFooter>
             </DialogContent>
           </Dialog>
         );
       })()}
 
-      {/* ---------- Enroll (1 field) — side="bottom" on mobile ---------- */}
+      {/* ---------- Enroll — side="bottom" on mobile ----------
+          Three mutually-exclusive steps share one Sheet/Dialog instance:
+          picker → (409) advisory confirm step. AGE_OUT_OF_RANGE is
+          overridable with a required reason; ALREADY_ENROLLED is not. */}
       {(() => {
-        const enrollBody = (
-          <Field>
-            <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
-            <ClassSectionCombobox
-              id="enroll-class-section"
-              sections={sections}
-              value={selectedSection}
-              onChange={setSelectedSection}
-              placeholder="Pilih kelas..."
-            />
-          </Field>
-        );
+        const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
+        const alreadyEnrolled = enrollBlock?.code === "ALREADY_ENROLLED";
+        const reasonEmpty = !ageOverrideReason.trim();
+
+        let enrollBody: React.ReactNode;
+        let footer: React.ReactNode;
+
+        if (alreadyEnrolled) {
+          enrollBody = (
+            <Alert ref={enrollBannerRef} tabIndex={-1} variant="destructive">
+              <AlertTitle>Siswa sudah terdaftar</AlertTitle>
+              <AlertDescription>{enrollBlock.message}</AlertDescription>
+            </Alert>
+          );
+          footer = (
+            <Button variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>
+          );
+        } else if (overridingAge) {
+          enrollBody = (
+            <div className="space-y-field">
+              <Alert ref={enrollBannerRef} tabIndex={-1}>
+                <AlertTitle>Usia di luar batas program</AlertTitle>
+                <AlertDescription>{enrollBlock.message}</AlertDescription>
+              </Alert>
+              <Field>
+                <FieldLabel required htmlFor="enroll-age-override-reason">Alasan</FieldLabel>
+                <Textarea
+                  id="enroll-age-override-reason"
+                  required
+                  aria-required="true"
+                  value={ageOverrideReason}
+                  onChange={(e) => setAgeOverrideReason(e.target.value)}
+                  placeholder="Contoh: penempatan sesuai kemampuan anak, atau anak telat masuk sekolah"
+                  rows={3}
+                />
+                <FieldDescription>Alasan wajib diisi sebelum melanjutkan.</FieldDescription>
+              </Field>
+            </div>
+          );
+          footer = (
+            <>
+              <Button variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
+              <Button onClick={handleEnroll} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
+            </>
+          );
+        } else {
+          enrollBody = (
+            <Field>
+              <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
+              <ClassSectionCombobox
+                id="enroll-class-section"
+                sections={sections}
+                value={selectedSection}
+                onChange={(v) => { setSelectedSection(v); setEnrollBlock(null); setAgeOverrideReason(""); }}
+                placeholder="Pilih kelas..."
+              />
+            </Field>
+          );
+          footer = (
+            <>
+              <Button variant="ghost" onClick={closeEnrollDialog} disabled={enrolling}>Batal</Button>
+              <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+            </>
+          );
+        }
+
+        const onOpenChange = (o: boolean) => {
+          setEnrollDialog(o);
+          if (!o) { setEnrollBlock(null); setAgeOverrideReason(""); }
+        };
+
         return isMobile ? (
-          <Sheet open={enrollDialog} onOpenChange={setEnrollDialog}>
+          <Sheet open={enrollDialog} onOpenChange={onOpenChange}>
             <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
               <div className="px-4 pb-4">{enrollBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setEnrollDialog(false)} disabled={enrolling}>Batal</Button>
-                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-              </SheetFooter>
+              <SheetFooter>{footer}</SheetFooter>
             </SheetContent>
           </Sheet>
         ) : (
-          <Dialog open={enrollDialog} onOpenChange={setEnrollDialog}>
+          <Dialog open={enrollDialog} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
               <div>{enrollBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
-              </DialogFooter>
+              <DialogFooter>{footer}</DialogFooter>
             </DialogContent>
           </Dialog>
         );

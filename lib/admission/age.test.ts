@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatAgeFromDob } from "./age";
+import { formatAgeFromDob, ageInMonthsAt } from "./age";
 
 describe("formatAgeFromDob", () => {
   it("returns null for missing input", () => {
@@ -53,5 +53,55 @@ describe("formatAgeFromDob", () => {
   it("handles leap-year DOB without crashing", () => {
     const ref = new Date("2026-05-11T00:00:00Z");
     expect(formatAgeFromDob("2020-02-29", ref)).toBe("6 tahun 2 bulan");
+  });
+});
+
+describe("ageInMonthsAt", () => {
+  it("returns exact months on the birthday", () => {
+    expect(ageInMonthsAt("2020-03-15", "2026-03-15")).toBe(72);
+  });
+
+  it("returns one month less the day before the birthday", () => {
+    expect(ageInMonthsAt("2020-03-15", "2026-03-14")).toBe(71);
+  });
+
+  it("borrows correctly for a leap-day DOB evaluated in a non-leap year", () => {
+    // 29 Feb 2020 doesn't recur in 2026; the day before its "virtual"
+    // birthday (28 Feb) must still borrow a month, not round up early.
+    expect(ageInMonthsAt("2020-02-29", "2026-02-28")).toBe(71);
+    expect(ageInMonthsAt("2020-02-29", "2026-03-01")).toBe(72);
+  });
+
+  it("returns a value under 12 for a child less than one year old", () => {
+    const months = ageInMonthsAt("2026-01-01", "2026-06-15");
+    expect(months).not.toBeNull();
+    expect(months as number).toBeLessThan(12);
+    expect(months).toBe(5);
+  });
+
+  it("returns null for malformed dob", () => {
+    expect(ageInMonthsAt("15/03/2020", "2026-01-01")).toBeNull();
+    expect(ageInMonthsAt("not-a-date", "2026-01-01")).toBeNull();
+    expect(ageInMonthsAt(null, "2026-01-01")).toBeNull();
+    expect(ageInMonthsAt(undefined, "2026-01-01")).toBeNull();
+  });
+
+  it("returns null for malformed reference string", () => {
+    expect(ageInMonthsAt("2020-03-15", "2026/03/15")).toBeNull();
+    expect(ageInMonthsAt("2020-03-15", "15-03-2026")).toBeNull();
+  });
+
+  it("returns null for a future DOB", () => {
+    expect(ageInMonthsAt("2030-01-01", "2026-01-01")).toBeNull();
+  });
+
+  it("treats a Date reference identically to its YYYY-MM-DD string", () => {
+    const refDate = new Date(2026, 2, 15); // local components: 15 Mar 2026
+    expect(ageInMonthsAt("2020-03-15", refDate)).toBe(ageInMonthsAt("2020-03-15", "2026-03-15"));
+
+    const refDayBefore = new Date(2026, 2, 14);
+    expect(ageInMonthsAt("2020-03-15", refDayBefore)).toBe(
+      ageInMonthsAt("2020-03-15", "2026-03-14"),
+    );
   });
 });

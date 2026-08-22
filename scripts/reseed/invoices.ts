@@ -4,6 +4,7 @@ import {
   type CreateSessionParams,
   type CreateSessionResponse,
 } from "../../lib/xendit/client";
+import { resolveSessionExpiry } from "../../lib/payments/expiry";
 import { createRng } from "./rng";
 import {
   FEE_COMPONENTS,
@@ -284,7 +285,7 @@ export async function seedInvoices(
             customerPhone: parent?.phone,
             successReturnUrl,
             cancelReturnUrl,
-            expiryDays: 7,
+            expiresAt: resolveSessionExpiry(period.dueDate),
             items: FEE_COMPONENTS.map((fc) => ({
               name: fc.label,
               quantity: 1,

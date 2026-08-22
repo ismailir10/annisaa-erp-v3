@@ -1,5 +1,5 @@
 /**
- * Captures the real login screen into `docs/proposals/login-redesign/` at
+ * Captures the real login screen into `docs/archive/legacy-doc-dirs/proposals/login-redesign/` at
  * desktop + mobile widths, and asserts the layout contract the redesign
  * promised.
  *
@@ -23,7 +23,7 @@ import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
 const BASE = process.argv[2] ?? "http://localhost:3120";
-const OUT = "docs/proposals/login-redesign";
+const OUT = "docs/archive/legacy-doc-dirs/proposals/login-redesign";
 const SHOTS = [
   { tag: "login-desktop-1280", w: 1280, h: 860 },
   { tag: "login-mobile-390", w: 390, h: 844 },
