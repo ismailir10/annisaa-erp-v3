@@ -29,7 +29,11 @@ shouting.** A red scheduled workflow notifies no one.
 
 ### Root cause
 
-Two independent blockers, either one fatal, plus the reason nobody noticed:
+Five independent blockers, any one of them fatal. Three were visible by reading;
+**blockers 4 and 5 were found only because the new self-test ran the pipeline for
+real** — both sat behind the secret check, so no amount of staring at the logs
+would have surfaced them. Setting the six secrets alone would *not* have fixed
+the backup.
 
 1. **None of the six `production` secrets exist.** `gh secret list --env production`
    returns empty; the only repo secret is `XENDIT_SECRET_KEY`. Owner action —
@@ -39,21 +43,40 @@ Two independent blockers, either one fatal, plus the reason nobody noticed:
    key during Cycle B Phase 2 (T6 ops)`. That ops phase never ran. Even with all
    six secrets set, the workflow would fail one step later at GPG import — and
    with a confusing "fingerprint mismatch" rather than the truth.
-3. **Failure was silent.** 104 red runs, zero alerts. This is the defect worth
-   fixing in code, and the only one of the three that code *can* fix.
+3. **Failure was silent.** 104 red runs, zero alerts. The defect most worth
+   fixing in code, and the reason the P0 filed in July went nowhere.
+4. **`pg_dump` would have been version 16 against a 17 server.** Installing
+   `postgresql-client-17` does not repoint `/usr/bin/pg_dump` — Debian's
+   `pg_wrapper` keeps it on the runner's preinstalled 16. Prod Supabase is 17.x:
+   ```
+   pg_dump: error: aborting because of server version mismatch
+   pg_dump: detail: server version: 17.11; pg_dump version: 16.15
+   ```
+   Fixed by prepending `/usr/lib/postgresql/17/bin` to `GITHUB_PATH` in both
+   workflows, plus an explicit assertion that `pg_dump` is v17.
+5. **The runbook's keypair command does not work.** `docs/runbooks/prod-setup.md`
+   §1 instructed `gpg --quick-generate-key "..." ed25519 sign,encr never`, with a
+   comment claiming GnuPG creates the encryption subkey automatically. It does
+   not — ED25519 is a signing curve and cannot encrypt:
+   ```
+   gpg: Key generation failed: Wrong key usage
+   ```
+   The owner would have followed the runbook and been stuck before reaching the
+   secrets. Corrected to an `ed25519 cert` primary plus an explicit
+   `cv25519 encr` subkey.
 
 Secondary defects found while reading the workflow:
 
 | # | Defect | Effect |
 |---|---|---|
-| 4 | Secret check exits on the *first* empty var | Owner sets one secret, next night reveals the next. Six serial nights to discover six missing secrets. |
-| 5 | No validation that the dump is restorable | `pg_dump` exiting 0 proves nothing. A schema-only or truncated dump uploads happily. |
-| 6 | `aws s3 ls` used as the "verification" | Proves an object was listed, not that it is complete or valid. |
-| 7 | No retention | Cycle B specced a 30-day rule; never implemented anywhere in code. |
-| 8 | Comment claims required-reviewer gating on the `production` environment | False. `GET /environments/Production` → `"rules": []`. It is a Vercel-auto-created environment with zero protection. |
-| 9 | Object key is date-only | A second run the same day silently overwrites the first. |
-| 10 | Nothing detects the job *not running at all* | Schedule disabled or workflow deleted → indefinite silence. |
-| 11 | `ops/README.md`, cited by the placeholder, does not exist | Dead pointer; the real instructions are in `docs/runbooks/prod-incident.md` §1. |
+| 6 | Secret check exits on the *first* empty var | Owner sets one secret, next night reveals the next. Six serial nights to discover six missing secrets. |
+| 7 | No validation that the dump is restorable | `pg_dump` exiting 0 proves nothing. A schema-only or truncated dump uploads happily. |
+| 8 | `aws s3 ls` used as the "verification" | Proves an object was listed, not that it is complete or valid. |
+| 9 | No retention | Cycle B specced a 30-day rule; never implemented anywhere in code. |
+| 10 | Comment claims required-reviewer gating on the `production` environment | False. `GET /environments/Production` → `"rules": []`. It is a Vercel-auto-created environment with zero protection. |
+| 11 | Object key is date-only | A second run the same day silently overwrites the first. |
+| 12 | Nothing detects the job *not running at all* | Schedule disabled or workflow deleted → indefinite silence. |
+| 13 | `ops/README.md`, cited by the placeholder, does not exist | Dead pointer; the real instructions are in `docs/runbooks/prod-setup.md` §1. |
 
 ## Spec
 
@@ -136,12 +159,36 @@ mismatch, empty bucket, and prune breaching the min-keep floor.
 
 ## Verification
 
-- `bash -n scripts/backup-prod.sh` → clean.
+- `bash -n scripts/backup-prod.sh` → clean; `shellcheck --severity=warning` → clean.
 - Both workflow files parse as YAML; jobs resolve to
   `backup`, `alert`, `resolve` and `lint-typecheck-test`, `build`, `e2e`,
   `backup-selftest`.
-- `Backup Pipeline Self-Test` in CI is the substantive proof — full pipeline plus
-  eight asserted negative cases. See the PR checks for the run.
+- **`Backup Pipeline Self-Test` passes in CI** (run `32555739105`, 55s) — the
+  substantive proof. Verbatim, every stage ran:
+
+  ```
+  == dump ==            OK — wrote dump.pgc (79094 bytes)
+  == verify-dump ==     OK — 30 TABLE DATA entries (floor 20)
+                        OK — all required tables present: User Student Parent Invoice Payment
+  == restore-test ==    OK — pg_restore into scratch database succeeded
+                        OK — restored 30 tables
+                        restored row count: 7500
+  == encrypt ==         OK — fingerprint matches BACKUP_GPG_FINGERPRINT
+                        OK — well-formed OpenPGP message with an encrypted session key
+                        OK — GPG round-trip is byte-identical
+  == upload ==          OK — remote object verified at 7289 bytes
+  == check-freshness == OK — newest backup is 0h old (budget 48h)
+  == prune ==           retention 0d: 0 within window, 1 beyond it
+                        OK — prune correctly refused to breach the min-keep floor
+  ```
+
+  All eight negative cases asserted and rejected: schema-only dump, truncated
+  dump, placeholder key, mismatched fingerprint, plaintext to `verify-encrypted`,
+  remote size mismatch, empty bucket, prune below the min-keep floor.
+
+  This is real infrastructure, not mocks: Postgres 17, a real GnuPG keypair, and
+  a real S3 API (MinIO). The encrypt→decrypt round-trip is byte-compared against
+  the original dump.
 - **Not verified, and cannot be from code:** the real prod path. The six secrets
   are unset and the GPG key is a placeholder, so no end-to-end prod run is
   possible until the owner actions below are done. No prod data or existing
@@ -159,7 +206,7 @@ before it, so there is nothing to lose.
 The backup stays broken until a human does these. No secret value appears in
 this repo, this PR, or any log.
 
-1. **Generate the backup keypair** per `docs/runbooks/prod-incident.md` §1, then
+1. **Generate the backup keypair** per `docs/runbooks/prod-setup.md` §1 (the command there is now correct — it was broken until this cycle), then
    commit the exported *public* key over `ops/backup-public.asc`. The private key
    goes to 1Password + paper safe and must never reach CI.
 2. **Create the R2 bucket** `talib-backups` per `docs/runbooks/prod-setup.md` §2,
