@@ -76,6 +76,18 @@ jobs:
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+          # The runner ships client 16, and Debian's pg_wrapper keeps
+          # /usr/bin/pg_dump pointing at it. pg_dump 16 against a 17 server
+          # aborts with "server version mismatch" — which is what the prod
+          # Supabase (17.x) dump would have done. Put the 17 binaries first.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Assert pg_dump is version 17
+        run: |
+          set -euo pipefail
+          pg_dump --version
+          pg_dump --version | grep -qE ' 17\.' \
+            || { echo "::error::pg_dump is not v17 — it would abort against the 17.x server"; exit 1; }
 
       # Refuses a placeholder key by name, and refuses any key whose fingerprint
       # does not match the secret (tamper detection on ops/backup-public.asc).

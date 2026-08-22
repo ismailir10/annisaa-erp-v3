@@ -286,7 +286,9 @@ cmd_self_test() {
   local src="${PGURL_SOURCE:?set PGURL_SOURCE to a throwaway source database}"
   local scratch="${PGURL_SCRATCH:?set PGURL_SCRATCH to a throwaway scratch database}"
   local tmp; tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
+  # Expanded now rather than at trap time: $tmp is function-local, and the trap
+  # fires after the function has returned, where it is unset under `set -u`.
+  trap "rm -rf '$tmp'" EXIT
 
   echo "== fixture: build a source database =="
   # 30 tables so the MIN_TABLES floor is meaningfully exercised, including every
