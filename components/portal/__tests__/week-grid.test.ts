@@ -1,3 +1,6 @@
+// Routed to the `jsdom` project by name in vitest.config.ts — `*.test.ts`
+// otherwise runs under `node`, and this suite renders WeekGrid rather than
+// only exercising the `isWeekGridDateEditable` predicate.
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";

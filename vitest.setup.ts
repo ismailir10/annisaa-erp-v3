@@ -1,6 +1,8 @@
-import "@testing-library/jest-dom";
-import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { vi } from "vitest";
+
+// Shared setup — loaded by BOTH the `node` and the `jsdom` project, so nothing
+// in here may touch `window` or `document`. DOM-only setup lives in
+// vitest.setup.dom.ts.
 
 // next/cache APIs (revalidateTag, revalidatePath, unstable_cache) throw when
 // called outside a Next.js request context. Stub them globally so any test
@@ -17,45 +19,3 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   unstable_cache: vi.fn((fn: unknown) => fn),
 }));
-
-// jsdom does not implement scrollIntoView — stub it globally so components that
-// call it on mount (e.g. PortalTabs) don't throw in the test environment.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(Element.prototype as any).scrollIntoView = vi.fn();
-
-// jsdom does not implement matchMedia. framer-motion's `useReducedMotion`
-// (PortalBottomNav) subscribes to `(prefers-reduced-motion: reduce)` on mount.
-// Default to "no preference" so animated code paths are the ones under test;
-// override per-test to assert reduced-motion behaviour.
-if (!window.matchMedia) {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
-  });
-}
-
-// jsdom does not implement ResizeObserver. cmdk (<Command>, behind every
-// async combobox — StudentPicker, ParentPicker, ClassSectionPicker) constructs
-// one on mount and throws without it. Guarded so a real implementation, if one
-// ever lands in the environment, wins.
-if (!globalThis.ResizeObserver) {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  };
-}
-
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-});

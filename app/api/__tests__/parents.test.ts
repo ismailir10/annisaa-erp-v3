@@ -66,9 +66,9 @@ const baseParent = {
 };
 
 // Cold-start can take >5s to resolve the dynamic imports in this file under
-// CI; bump the per-suite timeout so the first dynamic-import doesn't time out
-// before the mock chain runs.
-describe("PUT /api/parents/[id]", { timeout: 30_000 }, () => {
+// CI. That is now covered by the global `testTimeout` in vitest.config.ts —
+// this suite was the first place the stock 5s ceiling bit.
+describe("PUT /api/parents/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("updates parent fields and returns the updated row", async () => {
@@ -128,7 +128,7 @@ describe("PUT /api/parents/[id]", { timeout: 30_000 }, () => {
   });
 });
 
-describe("PATCH /api/parents/[id]", { timeout: 30_000 }, () => {
+describe("PATCH /api/parents/[id]", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("toggles status from ACTIVE to INACTIVE", async () => {
