@@ -193,8 +193,40 @@ mismatch, empty bucket, and prune breaching the min-keep floor.
   are unset and the GPG key is a placeholder, so no end-to-end prod run is
   possible until the owner actions below are done. No prod data or existing
   backup was read, written or deleted in this cycle.
-- Playwright/preview-verify: **skipped** — CI and ops config only, no `app/**`,
-  `lib/**` or frontend diff. Nothing rendered changes.
+- `Docs sync`, `Build`, `Playwright E2E`: **pass**.
+- Preview-verify: **skipped** — CI and ops config only, no `app/**`, `lib/**` or
+  frontend diff. Nothing rendered changes.
+
+### `Lint, Typecheck & Test` is red, and it is not this cycle
+
+```
+FAIL app/admin/students/[id]/__tests__/page.test.tsx
+     > StudentDetailPage — enroll override-confirm (T7)
+     > AGE_OUT_OF_RANGE: warn → enter reason → success
+Error: expect(element).toHaveAttribute("role", "alert")   Received: null
+Tests  1 failed | 3095 passed | 42 todo (3138)
+```
+
+This branch's diff is `.github/workflows/*`, `scripts/backup-prod.sh`, `CLAUDE.md`
+and two docs — **zero** app, lib or test code (`git diff --stat origin/staging...HEAD`).
+Three pieces of evidence, in increasing strength:
+
+1. The job went failure / success / success / failure / failure / failure across
+   six runs of *identical* application code, so it is non-deterministic.
+2. The file passes 9/9 in isolation; it only fails inside the full suite.
+3. **Re-running the `Lint, Typecheck & Test` job on `staging`'s own commit
+   `5187f5e1` — this branch's base, with nothing of this cycle in it — reproduces
+   the identical single failure** (job `96992896685`).
+
+So `staging` is currently flaky and merely got lucky on its first post-merge run.
+The likely origin is the interaction of #509 (enrollment, `AGE_OUT_OF_RANGE`) and
+#511 (siswa↔wali linking): each was green on its own branch, and this is the
+first branch cut from the merged result.
+
+Fixing it is out of scope here and would mean editing enrollment test code from an
+ops cycle. It is filed as separate work. **This PR must not merge until that is
+fixed** — the repo rule is no self-merge on a red required check, and the redness
+is real even though it is not ours.
 
 ## Ship Notes
 
