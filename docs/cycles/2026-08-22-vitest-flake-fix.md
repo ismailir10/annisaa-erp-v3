@@ -175,10 +175,90 @@ $ # make openAfterSheetCloses open the next overlay immediately
     AssertionError: expected <div data-open …> to have a length of +0 but got 1
 ```
 
+**T4 — `scripts/flake-hunt.sh`.** Runs the suite N times under M CPU hogs and
+prints every test that failed at least once. This is the thing that was
+missing: a static sweep cleared leave-sheet, the harness caught it 6 times out
+of 10. Registered in CLAUDE.md next to the testing gates.
+
+**Not changed, deliberately.** No product code. The
+`setTimeout(() => ref.current?.focus(), 0)` pattern in six call sites looked
+like the AGE_OUT_OF_RANGE culprit; instrumenting it showed 100 OK / 0 NULL
+across 20 stressed runs, so it was left alone. No `retry`, no removed or
+loosened assertion, no `try`/`catch` around a flaky expectation.
+
 ## Verification
 
+**Gates.** `npm run build` ✅ · `npx vitest run` ✅ 3138 tests ·
+`npx tsc --noEmit` ✅ · `npm run lint` ✅ 0 errors, 62 pre-existing warnings.
+
 - [x] Cross-checked `design-system.html`: no visual surface changed. The diff
-      is vitest config, four test files and docs — no component, page,
-      stylesheet or token — so there is nothing to check it against.
+      is vitest config, four test files, one shell script and docs — no
+      component, page, stylesheet or token — so there is nothing to check it
+      against.
+
+**Playwright** — deferred to the required CI `Playwright E2E` check. Not run
+locally: `playwright.config.ts` refuses a non-local `DATABASE_URL`, and this
+repo's `.env` points at shared staging, where the specs would create real
+`E2E …` rows. Nothing in this cycle can affect Playwright — it shares no
+config with vitest.
+
+**Preview-verify** — skipped. No runtime code changed; there is nothing for a
+Vercel preview to show.
+
+**The loop.** Before, three files under 14 CPU hogs at `--maxWorkers=14`:
+
+```
+run 15:  Tests  2 failed | 17 passed (19)     ← both AGE_OUT_OF_RANGE, "Test timed out in 5000ms"
+         2 red runs in 25            (single file alone: 1 red in 20)
+```
+
+After T1–T3, full suite × 10 under 12 hogs at `--maxWorkers=12` — the
+AGE_OUT_OF_RANGE and attendance failures are gone, and the harness finds the
+one that was left:
+
+```
+run 1: ok    run 2: FAIL   run 3: ok    run 4: ok    run 5: FAIL
+run 6: FAIL  run 7: FAIL   run 8: FAIL  run 9: ok    run 10: FAIL
+   6  FAIL |jsdom| components/teacher/__tests__/leave-sheet.test.tsx > hands off from sheet to request dialog without stacking overlays
+```
+
+After the leave-sheet fix, the same stressed harness, 12 runs:
+
+```
+run-1 … run-12:  Tests  3096 passed | 42 todo (3138)
+FAIL lines: (none)
+```
+
+And unstressed, `bash scripts/flake-hunt.sh 10 0`:
+
+```
+run 1: ok  —      Tests  3096 passed | 42 todo (3138)
+run 2: ok  —      Tests  3096 passed | 42 todo (3138)
+run 3: ok  —      Tests  3096 passed | 42 todo (3138)
+run 4: ok  —      Tests  3096 passed | 42 todo (3138)
+run 5: ok  —      Tests  3096 passed | 42 todo (3138)
+run 6: ok  —      Tests  3096 passed | 42 todo (3138)
+run 7: ok  —      Tests  3096 passed | 42 todo (3138)
+run 8: ok  —      Tests  3096 passed | 42 todo (3138)
+run 9: ok  —      Tests  3096 passed | 42 todo (3138)
+run 10: ok  —      Tests  3096 passed | 42 todo (3138)
+
+flake-hunt: 10/10 runs green.
+```
+
+**22 consecutive green full suites** (12 stressed + 10 clean), 3138 tests
+each, against 6-in-10 red on the same stressed harness before the last fix.
+
+**Suite wall-clock: 144s → 62s**, entirely from not building a jsdom for the
+224 suites that never touch one.
 
 ## Ship Notes
+
+- No migration, no env var, no runtime code. Test infrastructure only.
+- **Rollback:** revert the PR. Nothing outside `vitest.config.ts`,
+  `vitest.setup*.ts`, four test files, `scripts/flake-hunt.sh` and docs
+  changes, and no test loses an assertion on the way back.
+- Watch the `Lint, Typecheck & Test` check on the next few PRs: it should
+  also get materially faster, since the jsdom split removes ~80s of the job.
+- The `{ timeout: … }` per-test override is now a smell, not a fix — CLAUDE.md
+  says so. If one is ever needed again, the global ceiling is wrong.
