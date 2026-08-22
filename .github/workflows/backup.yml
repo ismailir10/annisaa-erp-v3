@@ -5,23 +5,57 @@ on:
     # 0 17 * * * UTC = 00:00 WIB (Asia/Jakarta)
     - cron: '0 17 * * *'
   workflow_dispatch:
+    inputs:
+      skip_prune:
+        description: 'Skip the retention prune step'
+        type: boolean
+        default: false
 
+# `issues: write` powers the failure alert below. Without it a failing backup is
+# invisible: GitHub does not reliably notify anyone about a broken *scheduled*
+# workflow, which is how this job failed 104 nights in a row unnoticed.
 permissions:
   contents: read
+  issues: write
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
 
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # `production` environment is gated by required reviewers in repo
-    # Settings → Environments. Even workflow_dispatch must be approved
-    # before the job's secrets unlock — blocks unauthorized exfiltration
-    # via a tampered branch.
+    timeout-minutes: 30
+    # Secrets live on the `Production` environment. NOTE: as of 2026-08-22 that
+    # environment has zero protection rules — it was auto-created by Vercel, not
+    # configured with required reviewers. Adding reviewers would gate every
+    # nightly run behind a human approval, so the environment is used purely as
+    # a secret scope. See docs/runbooks/prod-setup.md §3.
     environment: production
+
+    # Scratch database for the nightly restore rehearsal. Nothing production
+    # ever touches it; it exists only to prove the dump is actually restorable.
+    services:
+      scratch:
+        image: postgres:17
+        env:
+          POSTGRES_USER: scratch
+          POSTGRES_PASSWORD: scratch
+          POSTGRES_DB: scratch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Reports every missing secret at once. The previous version exited on the
+      # first empty one, turning "configure six secrets" into six failed nights.
       - name: Sanity-check required secrets
         env:
           PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
@@ -31,13 +65,9 @@ jobs:
           BACKUP_GPG_RECIPIENT: ${{ secrets.BACKUP_GPG_RECIPIENT }}
           BACKUP_GPG_FINGERPRINT: ${{ secrets.BACKUP_GPG_FINGERPRINT }}
         run: |
-          set -euo pipefail
-          for v in PROD_DB_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT BACKUP_GPG_RECIPIENT BACKUP_GPG_FINGERPRINT; do
-            if [ -z "${!v:-}" ]; then
-              echo "::error::Required secret $v is empty"
-              exit 1
-            fi
-          done
+          bash scripts/backup-prod.sh check-secrets \
+            PROD_DB_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT \
+            BACKUP_GPG_RECIPIENT BACKUP_GPG_FINGERPRINT
 
       - name: Install Postgres 17 client
         run: |
@@ -47,46 +77,44 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
 
-      - name: Verify GPG public key fingerprint + import
+      # Refuses a placeholder key by name, and refuses any key whose fingerprint
+      # does not match the secret (tamper detection on ops/backup-public.asc).
+      - name: Verify and import GPG public key
         env:
           BACKUP_GPG_FINGERPRINT: ${{ secrets.BACKUP_GPG_FINGERPRINT }}
         run: |
-          set -euo pipefail
-          # Tamper detection: refuse to encrypt against a key whose
-          # fingerprint doesn't match the secret. Blocks the attack
-          # where someone swaps ops/backup-public.asc to a key whose
-          # private half they control.
-          ACTUAL=$(gpg --with-colons --import-options show-only --import ops/backup-public.asc \
-            | awk -F: '/^fpr:/{print $10; exit}')
-          EXPECTED=$(echo "$BACKUP_GPG_FINGERPRINT" | tr -d ' ')
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::GPG fingerprint mismatch — expected $EXPECTED, got $ACTUAL"
-            exit 1
-          fi
-          gpg --import ops/backup-public.asc
+          bash scripts/backup-prod.sh check-pubkey ops/backup-public.asc "$BACKUP_GPG_FINGERPRINT"
 
       - name: Dump production database
         env:
           PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: bash scripts/backup-prod.sh dump "$PROD_DB_URL" dump.pgc
+
+      - name: Verify dump structure
+        run: bash scripts/backup-prod.sh verify-dump dump.pgc
+
+      # The DR drill, run nightly instead of never. docs/runbooks/prod-incident.md
+      # §5 has said "Last validated: TBD" since Cycle B.
+      - name: Restore rehearsal into scratch database
+        env:
+          PGPASSWORD: scratch
         run: |
-          set -euo pipefail
-          pg_dump "$PROD_DB_URL" \
-            --format=custom \
-            --no-owner \
-            --no-acl \
-            --file=dump.pgc
+          bash scripts/backup-prod.sh restore-test dump.pgc \
+            "postgresql://scratch:scratch@localhost:5432/scratch"
 
       - name: Encrypt dump
         env:
           BACKUP_GPG_RECIPIENT: ${{ secrets.BACKUP_GPG_RECIPIENT }}
         run: |
           set -euo pipefail
-          gpg --batch --yes --trust-model always \
-            --encrypt --recipient "$BACKUP_GPG_RECIPIENT" \
-            --output dump.pgc.gpg dump.pgc
-          rm -f dump.pgc
+          bash scripts/backup-prod.sh encrypt dump.pgc dump.pgc.gpg "$BACKUP_GPG_RECIPIENT"
+          bash scripts/backup-prod.sh verify-encrypted dump.pgc.gpg
+          # Plaintext must not survive into any later step or artifact.
+          shred -u dump.pgc 2>/dev/null || rm -f dump.pgc
+          test ! -f dump.pgc
 
       - name: Upload to R2
+        id: upload
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -94,6 +122,104 @@ jobs:
           AWS_DEFAULT_REGION: auto
         run: |
           set -euo pipefail
-          DATE=$(date -u +%Y/%m/%d)
-          aws s3 cp dump.pgc.gpg "s3://talib-backups/$DATE/dump.pgc.gpg"
-          aws s3 ls "s3://talib-backups/$DATE/"
+          # Timestamped so a second run in the same day adds a backup rather
+          # than overwriting the first one.
+          KEY="$(date -u +%Y/%m/%d)/dump-$(date -u +%H%M%S).pgc.gpg"
+          BYTES=$(wc -c < dump.pgc.gpg | tr -d ' ')
+          bash scripts/backup-prod.sh upload dump.pgc.gpg "s3://talib-backups/$KEY"
+          bash scripts/backup-prod.sh verify-remote "s3://talib-backups/$KEY" "$BYTES"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          echo "bytes=$BYTES" >> "$GITHUB_OUTPUT"
+
+      # Catches the failure mode where the job stops running entirely: if the
+      # newest object in the bucket is stale, fail even though tonight's own
+      # upload succeeded.
+      - name: Check bucket freshness
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: bash scripts/backup-prod.sh check-freshness talib-backups 48
+
+      # Belt to the R2 lifecycle rule's braces. Deletes only objects strictly
+      # older than the window, and refuses to run unless >= 7 recent backups
+      # survive, so it can never empty the bucket.
+      - name: Prune backups beyond retention
+        if: ${{ !inputs.skip_prune }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: bash scripts/backup-prod.sh prune talib-backups 30 7
+
+      - name: Summary
+        run: |
+          {
+            echo "### Nightly backup succeeded"
+            echo
+            echo "- Object: \`${{ steps.upload.outputs.key }}\`"
+            echo "- Size: ${{ steps.upload.outputs.bytes }} bytes"
+            echo "- Restore rehearsal: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Fail loudly. A scheduled workflow that just goes red notifies nobody — this
+  # job is the whole reason the outage lasted 104 nights.
+  # ---------------------------------------------------------------------------
+  alert:
+    needs: backup
+    if: always() && needs.backup.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the backup-failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULT: ${{ needs.backup.result }}
+        run: |
+          set -euo pipefail
+          TITLE="Nightly backup is failing"
+          BODY="The nightly production backup finished with result \`$RESULT\`.
+
+          **Prod has no fresh backup until this is fixed.**
+
+          - Run: $RUN_URL
+          - Workflow: \`.github/workflows/backup.yml\`
+          - Runbook: \`docs/runbooks/prod-setup.md\` §3 (secrets), \`docs/runbooks/prod-incident.md\` §1 (GPG keypair)
+
+          This issue is reused for every consecutive failure and closed automatically by the next green run."
+
+          EXISTING=$(gh issue list --state open --label backup-failure \
+            --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Still failing (\`$RESULT\`) — $RUN_URL"
+            echo "commented on #$EXISTING"
+          else
+            gh label create backup-failure --color B60205 \
+              --description "Nightly production backup is broken" 2>/dev/null || true
+            gh issue create --title "$TITLE" --body "$BODY" --label backup-failure
+          fi
+
+  # Close the alert once backups are healthy again, so an open issue always
+  # means "backups are broken right now".
+  resolve:
+    needs: backup
+    if: always() && needs.backup.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close any open backup-failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for n in $(gh issue list --state open --label backup-failure --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Backup succeeded again — $RUN_URL"
+          done
