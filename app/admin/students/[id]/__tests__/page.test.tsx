@@ -384,7 +384,11 @@ describe("StudentDetailPage — header placement (preview-verify regression)", (
     );
     render(<StudentDetailPage />);
 
-    expect(await screen.findByText("D'Care (Day Care) · DCARE")).toBeInTheDocument();
+    // Substring match, like the sibling cases above: the dossier header's
+    // description also carries nickname and age, so the placement is one
+    // segment of a longer subtitle rather than the whole string.
+    const header = await screen.findByText(/D'Care \(Day Care\) · DCARE/);
+    expect(header).toHaveTextContent("D'Care (Day Care) · DCARE");
   });
 
   it("still reports an unenrolled student as such", async () => {

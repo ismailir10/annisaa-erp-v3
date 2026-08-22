@@ -16,18 +16,64 @@ export async function GET(
   }
 
   const { id } = await params;
+  // Closed-set `select`, not `include`. The dossier layout renders every wali
+  // field on the student page, which concentrates NIK / KTP / KK / income on
+  // one screen; an open `include` would also ship each future Parent column
+  // there automatically. Listing the fields makes any new PII a deliberate
+  // edit. It also keeps tenantId out of the client payload.
   const student = await prisma.student.findFirst({
     where: { id, tenantId: session.tenantId },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      dateOfBirth: true,
+      gender: true,
+      address: true,
+      notes: true,
+      metadata: true,
+      status: true,
+      createdAt: true,
+      photoUrl: true,
+      nis: true,
+      nisn: true,
+      birthPlace: true,
+      nik: true,
+      kkNumber: true,
+      livingWith: true,
+      withdrawalReason: true,
+      withdrawalDate: true,
+      graduationDate: true,
       guardians: {
         orderBy: { isPrimary: "desc" },
-        include: {
+        select: {
+          id: true,
+          relationship: true,
+          isPrimary: true,
+          childOrder: true,
+          status: true,
           parent: {
-            // The parent's OTHER active links are what make siblings visible
-            // on this page: a student shares a brother or sister exactly when
-            // they share a guardian. Narrow select — this is a nested list and
-            // the detail page only needs a name to render a chip.
-            include: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+              whatsapp: true,
+              nik: true,
+              education: true,
+              occupation: true,
+              employer: true,
+              employerAddress: true,
+              employerCity: true,
+              incomeRange: true,
+              childrenTotal: true,
+              address: true,
+              ktpUrl: true,
+              kkUrl: true,
+              // The parent's OTHER active links are what make siblings visible
+              // on this page: a student shares a brother or sister exactly when
+              // they share a guardian. Narrow select — this is a nested list and
+              // the detail page only needs a name to render a chip.
               guardians: {
                 where: { status: "ACTIVE" },
                 select: {
@@ -39,14 +85,18 @@ export async function GET(
         },
       },
       enrollments: {
-        include: {
+        select: {
+          id: true,
+          enrollDate: true,
+          status: true,
           classSection: {
-            include: {
+            select: {
+              name: true,
               // `type` + `academicYear.status` drive the detail header's
               // primary-enrollment pick (a student can hold a school and a
               // day-care enrollment at once, plus stale rows in archived
               // years). The list below still renders every enrollment —
-              // the Riwayat Kelas tab is deliberately historical.
+              // the Riwayat Kelas section is deliberately historical.
               program: { select: { name: true, code: true, type: true } },
               academicYear: { select: { name: true, status: true } },
               campus: { select: { name: true } },
