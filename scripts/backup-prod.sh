@@ -288,6 +288,7 @@ cmd_self_test() {
   local tmp; tmp=$(mktemp -d)
   # Expanded now rather than at trap time: $tmp is function-local, and the trap
   # fires after the function has returned, where it is unset under `set -u`.
+  # shellcheck disable=SC2064 # expanding at definition time is deliberate here
   trap "rm -rf '$tmp'" EXIT
 
   echo "== fixture: build a source database =="
