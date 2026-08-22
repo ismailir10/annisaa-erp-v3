@@ -230,7 +230,7 @@ jobs:
           if bash scripts/backup-prod.sh check-pubkey ops/backup-public.asc "" >/dev/null 2>&1; then
             echo "OK — ops/backup-public.asc is a real key"
           else
-            echo "::warning::ops/backup-public.asc is still a placeholder — the nightly backup cannot encrypt until the owner generates the keypair (docs/runbooks/prod-incident.md §1)."
+            echo "::warning::ops/backup-public.asc is still a placeholder — the nightly backup cannot encrypt until the owner generates the keypair (docs/runbooks/prod-setup.md §1)."
           fi
 
       - name: Run the backup pipeline self-test

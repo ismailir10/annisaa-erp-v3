@@ -72,7 +72,7 @@ cmd_check_pubkey() {
   [ -f "$keyfile" ] || die "GPG public key $keyfile does not exist"
 
   if grep -q 'PLACEHOLDER' "$keyfile"; then
-    die "$keyfile is still the placeholder committed in Cycle B — the backup keypair was never generated. Follow docs/runbooks/prod-incident.md §1, then commit the real exported public key."
+    die "$keyfile is still the placeholder committed in Cycle B — the backup keypair was never generated. Follow docs/runbooks/prod-setup.md §1, then commit the real exported public key."
   fi
   grep -q 'BEGIN PGP PUBLIC KEY BLOCK' "$keyfile" \
     || die "$keyfile is not an ASCII-armored PGP public key block"
@@ -336,10 +336,15 @@ cmd_self_test() {
 
   echo "== encrypt round-trip against a generated keypair =="
   export GNUPGHOME="$tmp/gnupg"; mkdir -p "$GNUPGHOME"; chmod 700 "$GNUPGHOME"
-  gpg --batch --quick-generate-key "Backup Selftest <selftest@talib.invalid>" ed25519 sign,encr never
-  gpg --armor --export selftest@talib.invalid > "$tmp/pub.asc"
+  # Two steps, mirroring docs/runbooks/prod-setup.md §1: ED25519 is a signing
+  # curve and cannot encrypt, so `ed25519 sign,encr` fails with "Wrong key
+  # usage". The CV25519 encryption subkey has to be added explicitly.
+  local gpgopts=(--batch --passphrase '' --pinentry-mode loopback)
+  gpg "${gpgopts[@]}" --quick-generate-key "Backup Selftest <selftest@talib.invalid>" ed25519 cert never
   local fpr
   fpr=$(gpg --with-colons --fingerprint selftest@talib.invalid | awk -F: '/^fpr:/{print $10; exit}')
+  gpg "${gpgopts[@]}" --quick-add-key "$fpr" cv25519 encr never
+  gpg --armor --export selftest@talib.invalid > "$tmp/pub.asc"
   cmd_check_pubkey "$tmp/pub.asc" "$fpr"
 
   echo "== negative: a mismatched fingerprint must be rejected =="
