@@ -146,6 +146,39 @@ in `components/teacher/__tests__/leave-sheet.test.tsx` were deleted — the
 first is now the global default, and the second was the old default restated,
 so keeping it would have pinned that one assertion back under the cliff.
 
+**T3 — the races.** Four assertions in three suites:
+
+| File | Was | Now |
+|---|---|---|
+| `app/teacher/class-attendance/__tests__/page.test.tsx` | sync `getByRole("status")` after `newerSave.resolve` | `await waitFor(...)` — the preceding `findByRole` matched optimistic state and was never a barrier |
+| ″ | `firstRoster.resolve` + `waitFor` on already-visible content, then a sync negative assertion | `await act(async () => firstRoster.resolve(...))`, then the assertions |
+| `app/teacher/student-journal/students/[id]/__tests__/page.test.tsx` | same shape for the stale prior-week response | same fix |
+| `components/teacher/__tests__/leave-sheet.test.tsx` | `await user.click` then "zero overlays are up" | `fireEvent.click` — synchronous, so `openAfterSheetCloses`'s 240ms handoff timer cannot fire between the click and the assertion |
+
+The leave-sheet one was **not** in the original three. It was found by T4's
+harness after the other fixes were in, and it was the harder call: the
+assertion samples a 240ms window, so no amount of waiting makes it
+deterministic — only refusing to yield the event loop does. Fake timers were
+tried first and rejected: `vi.useFakeTimers()` deadlocks Base UI's overlay
+presence logic and hung all three tests in the file for the full 30s.
+
+Each rewritten assertion was mutation-tested — break the guard it covers, the
+test must go red:
+
+```
+$ # disable the roster stale-response guard (page.tsx:83)
+  × keeps the newest class/date roster when an earlier request resolves late
+$ # disable the journal stale-response guard (page.tsx:96)
+  × ignores a stale prior-week response after week navigation
+$ # make openAfterSheetCloses open the next overlay immediately
+  × hands off from sheet to request dialog without stacking overlays
+    AssertionError: expected <div data-open …> to have a length of +0 but got 1
+```
+
 ## Verification
+
+- [x] Cross-checked `design-system.html`: no visual surface changed. The diff
+      is vitest config, four test files and docs — no component, page,
+      stylesheet or token — so there is nothing to check it against.
 
 ## Ship Notes
