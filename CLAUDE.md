@@ -52,6 +52,10 @@ Invoke `/caveman` and `/using-superpowers` by default.
 
 E2E runs against a production build (`DEMO_MODE=true npm run start`), Chromium-only, workers: 1.
 
+**Vitest runs two projects.** `*.test.ts` → `node`, `*.test.tsx` → `jsdom` (a `.ts` suite that renders is named in `DOM_TS_SUITES` in `vitest.config.ts`). 224 of 287 suites never touch the DOM and jsdom construction cost ~2.8s each, which made the runner contend with itself and turned wall-clock ceilings into dice. Config owns the ceilings — `testTimeout` 30s, testing-library `asyncUtilTimeout` 5s — so **never add a per-test or per-suite `{ timeout: … }`**; if one is genuinely needed the global is wrong.
+
+**A green run proves nothing about flakiness.** `bash scripts/flake-hunt.sh [runs] [cpu-hogs] [paths…]` re-runs the suite under deliberate oversubscription, which is what CI's 4 vCPUs do to three vitest forks. Reach for it whenever a test fails in CI and passes locally.
+
 ### Standalone commands
 
 Neither is part of the loop; run on demand.
@@ -257,7 +261,7 @@ docs/{adrs,archive,cycles,runbooks,uat}/
 .githooks/                    pre-commit, prepare-commit-msg, commit-msg, pre-push
 scripts/                      audit-docs, setup-worktree, install-hooks, link-agent-skills,
                               sync-staging, cleanup-merged, check-role, test-hooks, reseed-staging,
-                              verify-{rls-coverage,api-auth,curriculum-readiness}
+                              flake-hunt, verify-{rls-coverage,api-auth,curriculum-readiness}
 ```
 
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
@@ -270,7 +274,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 65 |
 | `e2e/*.spec.ts` | 34 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 26 / 233 |
+| `docs/cycles` active / archived | 27 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

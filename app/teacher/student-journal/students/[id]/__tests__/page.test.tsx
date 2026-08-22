@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
@@ -97,15 +97,20 @@ describe("TeacherStudentWeekPage", () => {
     second.resolve({ ok: true, json: async () => weekData });
     await screen.findByTestId("week-grid");
 
-    first.resolve({
-      ok: true,
-      json: async () => ({ data: { ...weekData.data, dates: ["2026-07-27"] } }),
+    // Flush the stale prior-week response before asserting it was ignored.
+    // The `waitFor` this replaces was satisfied on its first poll — the
+    // heading was already rendered by the newer response — so it was not a
+    // barrier, and the range assertion below raced the stale response's
+    // flush. `await act` makes that flush deterministic.
+    await act(async () => {
+      first.resolve({
+        ok: true,
+        json: async () => ({ data: { ...weekData.data, dates: ["2026-07-27"] } }),
+      });
     });
-    await waitFor(() =>
-      expect(
-        screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
+    ).toBeInTheDocument();
     expect(screen.getByText("3 Agu – 4 Agu")).toBeInTheDocument();
   });
 });
