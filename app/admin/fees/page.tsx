@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -29,7 +30,19 @@ type FeeStructure = { id: string; feeComponentId: string; amount: number; notes:
 
 const CATEGORY_LABELS: Record<string, string> = { TUITION: "SPP", REGISTRATION: "Pendaftaran", ACTIVITY: "Kegiatan", MATERIAL: "Bahan", OTHER: "Lainnya" };
 
+const FEE_TABS = ["components", "structure", "keringanan"] as const;
+
 export default function FeesPage() {
+  // `?tab=` so other surfaces can deep-link to the right tab — the student
+  // dossier's Keringanan section links straight here, and landing on Komponen
+  // Biaya instead would make the admin hunt for the tab they asked for.
+  // Unrecognised values fall back rather than rendering an empty tab body.
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab = FEE_TABS.includes(tabParam as (typeof FEE_TABS)[number])
+    ? (tabParam as string)
+    : "components";
+
   const [components, setComponents] = useState<FeeComponent[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -198,7 +211,7 @@ export default function FeesPage() {
     <>
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
-      <AdminTabs defaultValue="components">
+      <AdminTabs defaultValue={initialTab}>
         <AdminTabsList>
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
           <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>

@@ -93,6 +93,11 @@ export type RailTile = {
   value: ReactNode;
   hint?: string;
   tone?: RailTone;
+  /**
+   * Span both columns. For the tile that carries a currency figure — it needs
+   * the width, and it keeps an odd tile count from leaving a hole in the grid.
+   */
+  wide?: boolean;
 };
 
 /**
@@ -105,7 +110,10 @@ export function RailStatTiles({ tiles }: { tiles: RailTile[] }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {tiles.map((tile) => (
-        <div key={tile.label} className="rounded-lg border p-2.5">
+        <div
+          key={tile.label}
+          className={cn("rounded-lg border p-2.5", tile.wide && "col-span-2")}
+        >
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {tile.label}
           </p>

@@ -53,6 +53,21 @@ export function StudentEnrollDialog({
   const [ageOverrideReason, setAgeOverrideReason] = useState("");
   const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * Move focus to the 409 advisory once it exists. It replaces the picker in
+   * place, so nothing else marks that the form changed.
+   *
+   * An effect, not `setTimeout(…, 0)` from the 409 handler: the macrotask can
+   * run before React commits the banner, leaving the ref null and the focus
+   * silently dropped with nothing to retry it. Same defect fixed in
+   * `app/admin/classes/[id]/client.tsx` — see
+   * `docs/cycles/2026-08-22-vitest-flake-fix.md`.
+   */
+  useEffect(() => {
+    if (!enrollBlock) return;
+    enrollBannerRef.current?.focus();
+  }, [enrollBlock]);
+
   // Load the class list when the overlay opens, and reset every step at the
   // same time — the single choke point every open path routes through.
   useEffect(() => {
@@ -112,12 +127,9 @@ export function StudentEnrollDialog({
         // age/band/reference date (AGE_OUT_OF_RANGE) or the conflicting
         // class (ALREADY_ENROLLED); render it verbatim rather than
         // rebuilding the sentence client-side.
+        // Focus moves to the banner in the effect below, once React has
+        // committed it.
         setEnrollBlock({ code: d.code, message: d.error });
-        // Move focus to the new step for screen-reader + keyboard users —
-        // it replaces the picker in place, so nothing else marks that the
-        // form changed. Deferred a tick so the ref attaches to the just-
-        // rendered banner first.
-        setTimeout(() => enrollBannerRef.current?.focus(), 0);
         return;
       }
       toast.error(d.error || "Gagal mendaftarkan");
