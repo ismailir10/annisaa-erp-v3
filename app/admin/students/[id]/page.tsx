@@ -28,7 +28,7 @@ import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { User, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, formatRupiah } from "@/lib/format";
 import { telHref, whatsappHref } from "@/lib/contact";
 import {
   LIVING_WITH_OPTIONS,
@@ -54,6 +54,13 @@ import {
 } from "@/components/admin/detail-rail";
 import { GuardianDetailCard, type GuardianCardData } from "@/components/admin/guardian-detail-card";
 import { StudentHealthBlock } from "@/components/admin/student-health-block";
+import { StudentFinanceBlock, type StudentInvoiceRow } from "@/components/admin/student-finance-block";
+import { StudentKeringananBlock } from "@/components/admin/student-keringanan-block";
+import { StudentJournalBlock } from "@/components/admin/student-journal-block";
+import {
+  summarizeStudentInvoices,
+  EMPTY_INVOICE_SUMMARY,
+} from "@/lib/finance/student-invoice-summary";
 import { MaskedValue } from "@/components/admin/masked-value";
 import {
   parseStudentMetadata,
@@ -99,6 +106,9 @@ const SECTION_KESEHATAN = "kesehatan";
 const SECTION_KELUARGA = "keluarga";
 const SECTION_RIWAYAT_KELAS = "riwayat-kelas";
 const SECTION_KEHADIRAN = "kehadiran";
+const SECTION_KEUANGAN = "keuangan";
+const SECTION_KERINGANAN = "keringanan";
+const SECTION_JURNAL = "buku-penghubung";
 const SECTION_DOKUMEN = "dokumen";
 const SECTION_STATUS = "riwayat-status";
 const SECTION_TAMBAHAN = "informasi-tambahan";
@@ -161,6 +171,18 @@ export default function StudentDetailPage() {
   const [candidates, setCandidates] = useState<ParentCandidate[]>([]);
   const guardianBannerRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * Focus the "wali serupa sudah terdaftar" advisory once React has committed
+   * it. Was `setTimeout(…, 0)` from the 409 handler, which can run before the
+   * commit — ref still null, focus silently dropped, nothing retries. Same
+   * defect as `app/admin/classes/[id]/client.tsx`; see
+   * `docs/cycles/2026-08-22-vitest-flake-fix.md`.
+   */
+  useEffect(() => {
+    if (guardianStep !== "candidates") return;
+    guardianBannerRef.current?.focus();
+  }, [guardianStep]);
+
   // Promote (Naik Kelas)
   const [promoteDialog, setPromoteDialog] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState("");
@@ -191,6 +213,20 @@ export default function StudentDetailPage() {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const attendanceRequested = useRef(false);
 
+  // --- Keuangan (increment 2) ---
+  // Eager, unlike Kehadiran: the rail's Tunggakan tile reads this summary, and
+  // a tile that only fills once the admin opens a section below the fold is a
+  // tile that always reads as zero.
+  const [invoices, setInvoices] = useState<StudentInvoiceRow[] | null>(null);
+  const [invoicesError, setInvoicesError] = useState(false);
+
+  // --- Lazy sections (increment 2) ---
+  // One-way latches: opening the section pays for the fetch, closing it again
+  // does not un-fetch, and re-opening does not re-request.
+  const [keringananActive, setKeringananActive] = useState(false);
+  const [keringananCount, setKeringananCount] = useState<number | null>(null);
+  const [jurnalActive, setJurnalActive] = useState(false);
+
   // --- Section open/collapse state ---
   // Kehadiran starts closed on every viewport: it is the one section that costs
   // a second request, and opening it is what triggers the fetch.
@@ -200,6 +236,10 @@ export default function StudentDetailPage() {
     [SECTION_KELUARGA]: true,
     [SECTION_RIWAYAT_KELAS]: true,
     [SECTION_KEHADIRAN]: false,
+    [SECTION_KEUANGAN]: true,
+    // Both cost a request, so both start closed — same rule as Kehadiran.
+    [SECTION_KERINGANAN]: false,
+    [SECTION_JURNAL]: false,
     [SECTION_DOKUMEN]: true,
     [SECTION_STATUS]: true,
     [SECTION_TAMBAHAN]: true,
@@ -242,6 +282,29 @@ export default function StudentDetailPage() {
 
   useEffect(() => { fetchStudent(); }, [fetchStudent]);
 
+  /**
+   * One page of invoices for this student. pageSize 100 because a child's
+   * whole billing history is tens of rows at most, so one request is the
+   * complete answer and the summary below it is not a partial sum.
+   *
+   * Failure is silent here — no toast. The student record still renders, and
+   * the Keuangan section states the failure with its own retry. A toast for a
+   * side-panel fetch on page load would fire on every offline hiccup.
+   */
+  const fetchInvoices = useCallback(async () => {
+    setInvoicesError(false);
+    try {
+      const res = await fetch(`/api/invoices?studentId=${encodeURIComponent(id)}&pageSize=100`);
+      if (!res.ok) { setInvoicesError(true); return; }
+      const json = await res.json();
+      setInvoices(Array.isArray(json?.data) ? json.data : []);
+    } catch {
+      setInvoicesError(true);
+    }
+  }, [id]);
+
+  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
   // Mobile default: one open section, not eight. Runs only while the admin has
   // not touched a disclosure themselves.
   useEffect(() => {
@@ -276,6 +339,8 @@ export default function StudentDetailPage() {
     (sectionId: string, open: boolean) => {
       setSectionOpen(sectionId, open);
       if (open && sectionId === SECTION_KEHADIRAN) ensureAttendance();
+      if (open && sectionId === SECTION_KERINGANAN) setKeringananActive(true);
+      if (open && sectionId === SECTION_JURNAL) setJurnalActive(true);
     },
     [setSectionOpen, ensureAttendance],
   );
@@ -612,10 +677,9 @@ export default function StudentDetailPage() {
         // "Tautkan" here doesn't silently fall back to the link-step defaults.
         setLinkRelationship(guardianForm.relationship || "IBU");
         setLinkChildOrder(guardianForm.childOrder ?? "");
-        setGuardianStep("candidates");
-        // Move focus to the advisory so it is announced, matching the enroll
+        // Focus moves to the advisory in the effect above, matching the enroll
         // dialog's 409 handling.
-        setTimeout(() => guardianBannerRef.current?.focus(), 0);
+        setGuardianStep("candidates");
         return;
       }
       toast.error(d.error || "Gagal menambahkan wali");
@@ -763,12 +827,21 @@ export default function StudentDetailPage() {
   ];
   const docsPresent = docItems.filter((d) => d.present).length;
 
+  // Summary over whatever the invoice fetch returned. Until it lands, the
+  // empty summary reads as zero everywhere — which is why the Tunggakan tile
+  // below distinguishes "not loaded yet" from "nothing owed".
+  const invoiceSummary = invoices ? summarizeStudentInvoices(invoices) : EMPTY_INVOICE_SUMMARY;
+  const invoicesLoading = invoices === null && !invoicesError;
+
   const navSections: DossierSectionDef[] = [
     { id: SECTION_DATA_ANAK, label: "Data Anak" },
     { id: SECTION_KESEHATAN, label: "Kesehatan & Kelahiran" },
     { id: SECTION_KELUARGA, label: "Keluarga & Wali" },
     { id: SECTION_RIWAYAT_KELAS, label: "Riwayat Kelas" },
     { id: SECTION_KEHADIRAN, label: "Kehadiran" },
+    { id: SECTION_KEUANGAN, label: "Keuangan" },
+    { id: SECTION_KERINGANAN, label: "Keringanan" },
+    { id: SECTION_JURNAL, label: "Buku Penghubung" },
     { id: SECTION_DOKUMEN, label: "Dokumen" },
     ...(lifecycleShown ? [{ id: SECTION_STATUS, label: "Riwayat Status" }] : []),
     { id: SECTION_TAMBAHAN, label: "Informasi Tambahan" },
@@ -782,6 +855,27 @@ export default function StudentDetailPage() {
       label: "Berkas",
       value: `${docsPresent}/${docItems.length}`,
       tone: (docsPresent < docItems.length ? "warning" : "positive") as "warning" | "positive",
+    },
+    // Real figure or an honest dash — never a zero that could mean either
+    // "paid up" or "we could not load it".
+    {
+      label: "Tunggakan",
+      wide: true,
+      value: invoicesLoading ? (
+        <span className="text-muted-foreground">Memuat…</span>
+      ) : invoicesError ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        <span className="font-currency">{formatRupiah(invoiceSummary.outstanding)}</span>
+      ),
+      tone: (invoiceSummary.outstanding > 0 ? "critical" : "positive") as "critical" | "positive",
+      hint: invoicesLoading || invoicesError
+        ? undefined
+        : invoiceSummary.unpaidCount > 0
+          ? `${invoiceSummary.unpaidCount} tagihan belum lunas${
+              invoiceSummary.nearestDue ? ` · ${formatDateShort(invoiceSummary.nearestDue)}` : ""
+            }`
+          : "Lunas semua",
     },
   ];
 
@@ -1287,6 +1381,64 @@ export default function StudentDetailPage() {
                 ))}
               </div>
             )}
+          </DossierSection>
+
+          {/* ---------- Keuangan (increment 2) ----------
+              Read-only over GET /api/invoices?studentId=. Every write still
+              belongs to the Tagihan module, so each row deep-links there. */}
+          <DossierSection
+            id={SECTION_KEUANGAN}
+            label="Keuangan"
+            badge={
+              invoiceSummary.unpaidCount > 0 ? (
+                <Badge className="bg-status-absent-subtle text-status-absent-text text-xs">
+                  {invoiceSummary.unpaidCount} belum lunas
+                </Badge>
+              ) : undefined
+            }
+            open={openSections[SECTION_KEUANGAN] ?? true}
+            onOpenChange={(o) => handleSectionOpenChange(SECTION_KEUANGAN, o)}
+          >
+            <StudentFinanceBlock
+              invoices={invoices ?? []}
+              summary={invoiceSummary}
+              loading={invoicesLoading}
+              error={invoicesError}
+              onRetry={fetchInvoices}
+            />
+          </DossierSection>
+
+          {/* ---------- Keringanan (increment 2, lazy) ---------- */}
+          <DossierSection
+            id={SECTION_KERINGANAN}
+            label="Keringanan"
+            badge={
+              keringananCount != null && keringananCount > 0 ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {keringananCount}
+                </span>
+              ) : undefined
+            }
+            open={openSections[SECTION_KERINGANAN] ?? false}
+            onOpenChange={(o) => handleSectionOpenChange(SECTION_KERINGANAN, o)}
+            keepMounted
+          >
+            <StudentKeringananBlock
+              studentId={id}
+              active={keringananActive}
+              onCountChange={setKeringananCount}
+            />
+          </DossierSection>
+
+          {/* ---------- Buku Penghubung (increment 2, lazy) ---------- */}
+          <DossierSection
+            id={SECTION_JURNAL}
+            label="Buku Penghubung"
+            open={openSections[SECTION_JURNAL] ?? false}
+            onOpenChange={(o) => handleSectionOpenChange(SECTION_JURNAL, o)}
+            keepMounted
+          >
+            <StudentJournalBlock studentId={id} active={jurnalActive} />
           </DossierSection>
 
           {/* ---------- Dokumen Keluarga ----------

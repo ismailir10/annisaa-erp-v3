@@ -27,6 +27,7 @@ export function DossierSection({
   actions,
   open,
   onOpenChange,
+  keepMounted,
   children,
 }: {
   id: string;
@@ -37,6 +38,16 @@ export function DossierSection({
   actions?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Keep the panel's children mounted while collapsed.
+   *
+   * Off by default: most sections render eagerly and unmounting a closed one
+   * is what keeps the mobile accordion cheap. Turn it on for a section whose
+   * content holds state worth surviving a collapse — a fetch already paid for,
+   * or the week an admin navigated to. Without it, collapsing and re-expanding
+   * silently re-requests and resets.
+   */
+  keepMounted?: boolean;
   children: ReactNode;
 }) {
   const contentId = `${id}-content`;
@@ -63,7 +74,7 @@ export function DossierSection({
           </CollapsibleTrigger>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
-        <CollapsibleContent id={contentId}>
+        <CollapsibleContent id={contentId} keepMounted={keepMounted}>
           <div className="border-t px-card py-4">{children}</div>
         </CollapsibleContent>
       </Collapsible>
@@ -75,7 +86,11 @@ export function DossierSection({
  * Sticky in-page nav over the sections. Clicking expands the target (a
  * collapsed section cannot be scrolled to meaningfully) and then scrolls.
  *
- * Horizontally scrollable on mobile rather than wrapping to three rows.
+ * Horizontally scrollable below `lg` rather than wrapping to three rows on a
+ * phone. From `lg` it wraps instead: increment 2 took the dossier from 8
+ * sections to 11, and a single scrolling row at 1440 pushed the last two off
+ * the right edge with no scrollbar to hint they were there — the nav silently
+ * stopped listing every section, which is the one job it has.
  */
 export function DossierNav({
   sections,
@@ -87,9 +102,9 @@ export function DossierNav({
   return (
     <nav
       aria-label="Bagian halaman"
-      className="sticky top-0 z-10 mb-3 overflow-x-auto rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80"
+      className="sticky top-0 z-10 mb-3 overflow-x-auto rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:overflow-x-visible"
     >
-      <ul className="flex min-w-max items-center gap-1">
+      <ul className="flex min-w-max items-center gap-1 lg:min-w-0 lg:flex-wrap">
         {sections.map((s) => (
           <li key={s.id}>
             <button

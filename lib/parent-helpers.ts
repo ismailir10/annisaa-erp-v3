@@ -5,6 +5,7 @@ import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone"
 import { buildReportSections, formatTermLabel } from "@/lib/raport/build";
 import type { ReportCardSection } from "@/lib/pdf/report-card";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 
 export type StudentInvoices = {
   id: string;
@@ -527,7 +528,9 @@ export async function getParentOutstandingForStudents(
     where: {
       tenantId,
       studentId: { in: studentIds },
-      status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE"] },
+      // Shared with the admin student dossier's Keuangan roll-up — the two
+      // surfaces must never disagree about what a family owes.
+      status: { in: [...UNPAID_INVOICE_STATUSES] },
     },
     select: { studentId: true, dueDate: true, totalDue: true, totalPaid: true },
   });
