@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatRupiah, formatDateShort, formatInvoicePeriod } from "@/lib/format";
 import type { StudentInvoiceSummary } from "@/lib/finance/student-invoice-summary";
+import type { InvoiceStatusGroup } from "@/lib/student/overview";
+import { getStatusConfig } from "@/components/ui/status-badge";
 
 /**
  * Keuangan block of the student dossier — read-only. Every write to an invoice
@@ -55,15 +57,45 @@ function SummaryFigure({
   );
 }
 
+/**
+ * Per-status split from the aggregate route (increment 3). The four figures
+ * above it are totals; this is where the totals came from — "2 lewat tempo"
+ * next to "6 lunas" is the shape of the problem, which a single Sisa Tagihan
+ * number does not carry.
+ *
+ * Zero-count buckets are dropped, so a family with only paid invoices gets one
+ * chip rather than a row of noughts.
+ */
+function StatusBreakdown({ groups }: { groups: InvoiceStatusGroup[] }) {
+  const shown = groups.filter((g) => g.count > 0);
+  if (shown.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {shown.map((g) => (
+        <li key={g.status} className="whitespace-nowrap">
+          <span className="font-medium text-foreground">{g.count}</span>{" "}
+          {getStatusConfig(g.status).label.toLowerCase()}
+          {g.balance > 0 && (
+            <span className="font-currency tabular-nums"> · {formatRupiah(g.balance)}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export const StudentFinanceBlock = memo(function StudentFinanceBlock({
   invoices,
   summary,
+  statusGroups,
   loading,
   error,
   onRetry,
 }: {
   invoices: StudentInvoiceRow[];
   summary: StudentInvoiceSummary;
+  /** From `GET /api/students/[id]/overview`; null until it lands or on failure. */
+  statusGroups: InvoiceStatusGroup[] | null;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
@@ -141,6 +173,8 @@ export const StudentFinanceBlock = memo(function StudentFinanceBlock({
           hint={summary.overdueCount > 0 ? `${summary.overdueCount} lewat tempo` : undefined}
         />
       </div>
+
+      {statusGroups && <StatusBreakdown groups={statusGroups} />}
 
       <ul className="space-y-0">
         {invoices.map((inv) => {
