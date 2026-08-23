@@ -57,6 +57,9 @@ import { StudentHealthBlock } from "@/components/admin/student-health-block";
 import { StudentFinanceBlock, type StudentInvoiceRow } from "@/components/admin/student-finance-block";
 import { StudentKeringananBlock } from "@/components/admin/student-keringanan-block";
 import { StudentJournalBlock } from "@/components/admin/student-journal-block";
+import { StudentAcademicsBlock } from "@/components/admin/student-academics-block";
+import { StudentEnrollmentApplicationBlock } from "@/components/admin/student-enrollment-application-block";
+import type { StudentOverview } from "@/lib/student/overview";
 import {
   summarizeStudentInvoices,
   EMPTY_INVOICE_SUMMARY,
@@ -74,7 +77,7 @@ import { formatAgeShort } from "@/lib/student/age";
 
 type Sibling = { id: string; name: string; status: string };
 type Guardian = GuardianCardData & { parent: GuardianCardData["parent"] & { guardians?: { student: Sibling }[] } };
-type Enrollment = { id: string; enrollDate: string; status: string; classSection: { name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
+type Enrollment = { id: string; enrollDate: string; status: string; classSection: { id: string; name: string; program: { name: string; code: string; type: string }; academicYear: { name: string; status: string }; campus: { name: string } } };
 type Student = {
   id: string; name: string; nickname: string | null; dateOfBirth: string | null;
   gender: string | null; address: string | null; notes: string | null; metadata: string | null; status: string;
@@ -109,6 +112,8 @@ const SECTION_KEHADIRAN = "kehadiran";
 const SECTION_KEUANGAN = "keuangan";
 const SECTION_KERINGANAN = "keringanan";
 const SECTION_JURNAL = "buku-penghubung";
+const SECTION_AKADEMIK = "akademik";
+const SECTION_PENDAFTARAN = "pendaftaran";
 const SECTION_DOKUMEN = "dokumen";
 const SECTION_STATUS = "riwayat-status";
 const SECTION_TAMBAHAN = "informasi-tambahan";
@@ -227,6 +232,17 @@ export default function StudentDetailPage() {
   const [keringananCount, setKeringananCount] = useState<number | null>(null);
   const [jurnalActive, setJurnalActive] = useState(false);
 
+  // --- Overview aggregate + lazy sections (increment 3) ---
+  // The overview route is the only *eager* addition this increment makes, and
+  // it is aggregates-only: the Kehadiran and Raport rail tiles read it, and a
+  // tile that fills only after an admin opens a section below the fold is a
+  // tile that always reads as zero. Fired alongside the student fetch, so it
+  // adds no latency to the critical path.
+  const [overview, setOverview] = useState<StudentOverview | null>(null);
+  const [overviewError, setOverviewError] = useState(false);
+  const [akademikActive, setAkademikActive] = useState(false);
+  const [pendaftaranActive, setPendaftaranActive] = useState(false);
+
   // --- Section open/collapse state ---
   // Kehadiran starts closed on every viewport: it is the one section that costs
   // a second request, and opening it is what triggers the fetch.
@@ -240,6 +256,9 @@ export default function StudentDetailPage() {
     // Both cost a request, so both start closed — same rule as Kehadiran.
     [SECTION_KERINGANAN]: false,
     [SECTION_JURNAL]: false,
+    // Increment 3's two sections follow the same rule: each costs a request.
+    [SECTION_AKADEMIK]: false,
+    [SECTION_PENDAFTARAN]: false,
     [SECTION_DOKUMEN]: true,
     [SECTION_STATUS]: true,
     [SECTION_TAMBAHAN]: true,
@@ -305,6 +324,25 @@ export default function StudentDetailPage() {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
+  /**
+   * The dossier's number tiles, as aggregates. Silent on failure for the same
+   * reason the invoice fetch is: the student record still renders, and a
+   * side-panel fetch toasting on every offline hiccup is noise. Each tile shows
+   * a dash instead — never a zero, which an admin would read as a real answer.
+   */
+  const fetchOverview = useCallback(async () => {
+    setOverviewError(false);
+    try {
+      const res = await fetch(`/api/students/${id}/overview`);
+      if (!res.ok) { setOverviewError(true); return; }
+      setOverview((await res.json()) as StudentOverview);
+    } catch {
+      setOverviewError(true);
+    }
+  }, [id]);
+
+  useEffect(() => { fetchOverview(); }, [fetchOverview]);
+
   // Mobile default: one open section, not eight. Runs only while the admin has
   // not touched a disclosure themselves.
   useEffect(() => {
@@ -341,6 +379,8 @@ export default function StudentDetailPage() {
       if (open && sectionId === SECTION_KEHADIRAN) ensureAttendance();
       if (open && sectionId === SECTION_KERINGANAN) setKeringananActive(true);
       if (open && sectionId === SECTION_JURNAL) setJurnalActive(true);
+      if (open && sectionId === SECTION_AKADEMIK) setAkademikActive(true);
+      if (open && sectionId === SECTION_PENDAFTARAN) setPendaftaranActive(true);
     },
     [setSectionOpen, ensureAttendance],
   );
@@ -355,6 +395,28 @@ export default function StudentDetailPage() {
     },
     [handleSectionOpenChange],
   );
+
+  /**
+   * `#pendaftaran`, `#akademik`, `#keuangan` … — every section id is already a
+   * DOM anchor, but the browser's own hash scroll fires before the section
+   * exists and lands on nothing when the section is collapsed. Honouring the
+   * hash ourselves is what makes a link into the dossier actually work, which
+   * is the whole point of "deep-linkable": the Pendaftaran section is a lazy,
+   * collapsed section three quarters down a long page.
+   *
+   * Runs once the student has loaded (before that there are no sections to
+   * jump to) and only marks the intent as handled after it fires, so a hash
+   * pointing at a section that renders conditionally still lands.
+   */
+  const hashHandled = useRef(false);
+  useEffect(() => {
+    if (loading || hashHandled.current) return;
+    const target = window.location.hash.replace(/^#/, "");
+    if (!target) { hashHandled.current = true; return; }
+    if (!document.getElementById(target)) return;
+    hashHandled.current = true;
+    jumpToSection(target);
+  }, [loading, jumpToSection, overview]);
 
   // --- Edit toggle ---
   function startEditing() {
@@ -824,8 +886,24 @@ export default function StudentDetailPage() {
       label: `KTP ${g.parent.name}`,
       present: !!g.parent.ktpUrl,
     })),
+    // Only for a student who came from the form. A hand-entered student never
+    // had a consent letter to sign, so listing it as missing would invent a gap.
+    ...(overview?.enrollmentApplication
+      ? [{ label: "Surat persetujuan", present: overview.documents?.consent === true }]
+      : []),
   ];
   const docsPresent = docItems.filter((d) => d.present).length;
+
+  // Increment 3 additions, all read off the one aggregate fetch.
+  // Optional-chained all the way down: a 200 with an unexpected body (a proxy
+  // error page, a future field rename) must degrade to the same dash the
+  // failure path shows, not throw the whole dossier away.
+  const application = overview?.enrollmentApplication ?? null;
+  const attendanceCounts = overview?.attendance?.counts ?? null;
+  const raportTally = overview?.raport ?? null;
+  // The class the raport deep link should preselect. Primary (school) placement
+  // rather than a day-care row — raport is a school-programme artefact.
+  const primaryClassSectionId = primaryEnrollment?.classSection.id ?? null;
 
   // Summary over whatever the invoice fetch returned. Until it lands, the
   // empty summary reads as zero everywhere — which is why the Tunggakan tile
@@ -842,6 +920,10 @@ export default function StudentDetailPage() {
     { id: SECTION_KEUANGAN, label: "Keuangan" },
     { id: SECTION_KERINGANAN, label: "Keringanan" },
     { id: SECTION_JURNAL, label: "Buku Penghubung" },
+    { id: SECTION_AKADEMIK, label: "Akademik" },
+    // Listed only when the student actually came from a pendaftaran form —
+    // a nav entry that scrolls to nothing is worse than no entry.
+    ...(application ? [{ id: SECTION_PENDAFTARAN, label: "Pendaftaran" }] : []),
     { id: SECTION_DOKUMEN, label: "Dokumen" },
     ...(lifecycleShown ? [{ id: SECTION_STATUS, label: "Riwayat Status" }] : []),
     { id: SECTION_TAMBAHAN, label: "Informasi Tambahan" },
@@ -855,6 +937,57 @@ export default function StudentDetailPage() {
       label: "Berkas",
       value: `${docsPresent}/${docItems.length}`,
       tone: (docsPresent < docItems.length ? "warning" : "positive") as "warning" | "positive",
+    },
+    // Kehadiran and Raport are the two tiles increments 1 and 2 left out rather
+    // than ship blank. They read the aggregate route, so neither costs a row
+    // dump — and both distinguish "not loaded" from a real zero.
+    {
+      label: "Hadir Bln Ini",
+      value: overviewError ? (
+        <span className="text-muted-foreground">—</span>
+      ) : !attendanceCounts ? (
+        <span className="text-muted-foreground">Memuat…</span>
+      ) : attendanceCounts.total === 0 ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        `${attendanceCounts.present}/${attendanceCounts.total}`
+      ),
+      tone: (attendanceCounts && attendanceCounts.total > 0 && attendanceCounts.absent > 0
+        ? "warning"
+        : "default") as "warning" | "default",
+      hint:
+        !attendanceCounts || overviewError
+          ? undefined
+          : attendanceCounts.total === 0
+            ? "Belum ada absensi bulan ini"
+            : [
+                attendanceCounts.absent > 0 ? `${attendanceCounts.absent} alpa` : null,
+                attendanceCounts.sick > 0 ? `${attendanceCounts.sick} sakit` : null,
+                attendanceCounts.permission > 0 ? `${attendanceCounts.permission} izin` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Hadir penuh",
+    },
+    {
+      label: "Raport",
+      value: overviewError ? (
+        <span className="text-muted-foreground">—</span>
+      ) : !raportTally ? (
+        <span className="text-muted-foreground">Memuat…</span>
+      ) : raportTally.total === 0 ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        `${raportTally.published}/${raportTally.total}`
+      ),
+      tone: "default" as const,
+      hint:
+        !raportTally || overviewError
+          ? undefined
+          : raportTally.total === 0
+            ? "Triwulan belum dibuat"
+            : raportTally.draft > 0
+              ? `${raportTally.draft} draf`
+              : "terbit",
     },
     // Real figure or an honest dash — never a zero that could mean either
     // "paid up" or "we could not load it".
@@ -1402,6 +1535,7 @@ export default function StudentDetailPage() {
             <StudentFinanceBlock
               invoices={invoices ?? []}
               summary={invoiceSummary}
+              statusGroups={overview?.finance?.byStatus ?? null}
               loading={invoicesLoading}
               error={invoicesError}
               onRetry={fetchInvoices}
@@ -1440,6 +1574,54 @@ export default function StudentDetailPage() {
           >
             <StudentJournalBlock studentId={id} active={jurnalActive} />
           </DossierSection>
+
+          {/* ---------- Akademik (increment 3, lazy) ----------
+              Raport state per triwulan + that term's penilaian coverage, over
+              GET /api/students/[id]/academics. Read-only: every row deep-links
+              to /admin/raport, which owns the authoring and the publish. */}
+          <DossierSection
+            id={SECTION_AKADEMIK}
+            label="Akademik"
+            badge={
+              raportTally && raportTally.total > 0 ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {raportTally.published}/{raportTally.total} terbit
+                </span>
+              ) : undefined
+            }
+            open={openSections[SECTION_AKADEMIK] ?? false}
+            onOpenChange={(o) => handleSectionOpenChange(SECTION_AKADEMIK, o)}
+            keepMounted
+          >
+            <StudentAcademicsBlock
+              studentId={id}
+              classSectionId={primaryClassSectionId}
+              active={akademikActive}
+            />
+          </DossierSection>
+
+          {/* ---------- Pendaftaran (increment 3, lazy) ----------
+              The original paper form, read-only. Rendered only for a student
+              converted from one — `overview` answers that from the FK, so a
+              hand-entered student never sees an empty section. */}
+          {application && (
+            <DossierSection
+              id={SECTION_PENDAFTARAN}
+              label="Formulir Pendaftaran"
+              badge={
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {application.submittedAt
+                    ? formatDateShort(application.submittedAt.slice(0, 10))
+                    : "Belum dikirim"}
+                </span>
+              }
+              open={openSections[SECTION_PENDAFTARAN] ?? false}
+              onOpenChange={(o) => handleSectionOpenChange(SECTION_PENDAFTARAN, o)}
+              keepMounted
+            >
+              <StudentEnrollmentApplicationBlock studentId={id} active={pendaftaranActive} />
+            </DossierSection>
+          )}
 
           {/* ---------- Dokumen Keluarga ----------
               Read-only KK preview resolved via primary guardian: active primary
