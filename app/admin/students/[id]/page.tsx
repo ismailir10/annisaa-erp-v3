@@ -987,7 +987,11 @@ export default function StudentDetailPage() {
             ? "Triwulan belum dibuat"
             : raportTally.draft > 0
               ? `${raportTally.draft} draf`
-              : "terbit",
+              : raportTally.published === 0
+                ? // Found in smoke: with 0 published and 0 draft this said
+                  // "terbit", which reads as though a raport had been issued.
+                  "Belum ada raport"
+                : "semua terbit",
     },
     // Real figure or an honest dash — never a zero that could mean either
     // "paid up" or "we could not load it".

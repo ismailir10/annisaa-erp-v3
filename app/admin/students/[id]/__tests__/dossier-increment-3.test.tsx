@@ -241,6 +241,20 @@ describe("student dossier — increment 3", () => {
     expect(screen.getAllByText("1 draf").length).toBeGreaterThan(0);
   });
 
+  it("does not say a raport was issued when none was", async () => {
+    // Found in smoke on a student with 1 term and no raport: the hint read
+    // "terbit" next to "0/1", which says the opposite of the truth.
+    const { fn } = stubFetch({
+      overview: { ...OVERVIEW, raport: { published: 0, draft: 0, total: 1, current: null } },
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+
+    await waitFor(() => expect(screen.getAllByText("0/1").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("Belum ada raport").length).toBeGreaterThan(0);
+    expect(screen.queryByText("terbit")).not.toBeInTheDocument();
+  });
+
   it("says so rather than showing 0 when the month has no attendance yet", async () => {
     const { fn } = stubFetch({
       overview: { ...OVERVIEW, attendance: { month: "2026-08", counts: { present: 0, absent: 0, sick: 0, permission: 0, total: 0 } } },

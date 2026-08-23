@@ -83,7 +83,7 @@ The pendaftaran gap is the sharpest. `app/api/enrollments/[id]/convert` copies a
 **Gates** — all run in `.worktrees/dossier-increment-3`, branched from `origin/staging` at `9894a501` (which is #518):
 
 - `npm run build` — ✅ `✓ Compiled successfully in 4.8s`.
-- `npx vitest run` — ✅ `Test Files 330 passed | 2 skipped (332)` · `Tests 3228 passed | 42 todo (3270)`, 31.17s. Full suite, not per-file. Increment 2 recorded 324 files / 3163 tests; this cycle adds 6 files and 65 tests.
+- `npx vitest run` — ✅ `Test Files 330 passed | 2 skipped (332)` · `Tests 3229 passed | 42 todo (3271)`, 31s. Full suite, not per-file. Increment 2 recorded 324 files / 3163 tests; this cycle adds 6 files and 66 tests.
 - `npx tsc --noEmit` — ✅ exit 0, no output.
 - `npm run lint` — ✅ `61 problems (0 errors, 61 warnings)`. Same 61 increment 2 recorded; grep confirms none is on a file this cycle added or touched.
 - `bash scripts/verify-api-auth.sh` — ✅ `194 / 194 routes have session helper or @public sentinel` (191 + the three new ones).
@@ -91,22 +91,33 @@ The pendaftaran gap is the sharpest. `app/api/enrollments/[id]/convert` copies a
 - `bash scripts/audit-docs.sh` — ✅ `10 ok, 1 warn, 0 fail`. The warn is the pre-existing 61-day ADR row, unchanged from increment 2.
 - **Playwright** — deferred to the required CI `Playwright E2E` check. Not runnable locally: `playwright.config.ts` refuses a non-local `DATABASE_URL` and this worktree's `.env` points at shared staging, where the specs would write real rows.
 
-**New tests (65).**
+**New tests (66).**
 
 - `lib/student/__tests__/overview.test.ts` — 18. Ordering, unknown status kept, Decimal-as-string, null sums, overpaid clamp, unrecognised attendance status in the denominator, coverage null-vs-zero and the >100 clamp, `NONE` rows preserved, a report card for a deleted term ignored.
 - `lib/student/__tests__/dossier-aggregates.test.ts` — 9. Term-in-window, the December holiday gap, pre-year fallback, the ACTIVE-year cap and its single-term fallback, and that `currentJakartaMonth` rolls to February at 31 Jan 22:00 UTC.
 - `app/api/students/[id]/__tests__/overview-route.test.ts` — 15. Four access cases (anon / teacher / guardian / cross-tenant), each aggregate, the no-terms and no-enrolment paths, document booleans, and one that asserts the route **never calls `findMany`** on invoices, attendance or penilaian.
 - `app/api/students/[id]/__tests__/enrollment-application-route.test.ts` — 7. Gate, FK resolution, tenant predicate inside the query, 404 for a hand-entered student, and that `accessToken` / `tokenExpiresAt` are absent from the select.
 - `app/api/students/[id]/__tests__/academics-route.test.ts` — 9. Gate, row order, labels, distinct-indicator coverage, null cohort, empty calendar, and both halves of the query cap.
-- `app/admin/students/[id]/__tests__/dossier-increment-3.test.tsx` — 11. Eager overview, both tiles, the empty-month dash, the failure dash, laziness of both sections, no re-request on re-open, the raport deep-link's three params, the section omitted for a hand-entered student, the hash deep-link, the status breakdown, and a malformed 200 body degrading rather than throwing.
+- `app/admin/students/[id]/__tests__/dossier-increment-3.test.tsx` — 12. Eager overview, both tiles, the empty-month dash, the failure dash, laziness of both sections, no re-request on re-open, the raport deep-link's three params, the section omitted for a hand-entered student, the hash deep-link, the status breakdown, a malformed 200 body degrading rather than throwing, and the raport-hint defect found in smoke (below).
 
 - [x] Cross-checked `design-system.html`: Shadcn primitives only (`Card`, `Badge`, `Skeleton`, `EmptyState`, `StatusBadge`, `Collapsible`), `px-card` spacing, `font-currency` + `tabular-nums` on every money figure, `-text` colour variants (`text-status-absent-text`, `text-muted-foreground`) rather than raw fills — the contrast rule increments 1 and 2 both recorded for the rail. The new `StatusBreakdown` reuses `getStatusConfig` so a status label is spelled the same in the chip and on the badge beside it.
 
-**Manual smoke** — local `DEMO_MODE=true npm run start` against the staging DB with a demo cookie. Screenshots at 1440 and 390 in `~/Documents/ai-builder/talib-screenshots/2026-08-23-dossier-increment-3/`.
+**Manual smoke** — local `DEMO_MODE=true next start` on port 3210 against the staging DB, demo cookie, student `cms41al32003bi5x72axm73vb` (Abdullah Faris Siregar: 16 invoices — 9 PAID, 6 SENT, 1 OVERDUE — 2 attendance rows this month, 1 term, no raport). Screenshots at 1440 and 390 in `~/Documents/ai-builder/talib-screenshots/2026-08-23-dossier-increment-3/`.
+
+Everything on the page came from real staging data:
+
+- Kehadiran tile `1/2 · 1 sakit`; Raport tile `0/1`; Tunggakan `Rp 10.940.000 · 7 tagihan belum lunas · 10 Apr 2026`, unchanged from increment 2.
+- Status breakdown line `1 lewat tempo · Rp 1.700.000 · 6 link dibuat · Rp 9.240.000 · 9 lunas`, matching the four totals above it.
+- Akademik: `TW1 · Sem 2 · 2025/2026 [berjalan] · 1 penilaian · 1/13 indikator (8%) · Belum dibuat`. The 13 is the real ACTIVE indicator count for this child's age-group cohort, so coverage is computed end-to-end, not stubbed.
+- Mobile: both new tiles join the stat grid, Akademik joins the accordion, and the coverage line wraps to two lines rather than truncating.
+
+**One defect found in that smoke and fixed before this doc was written.** The Raport tile's hint read `terbit` for a student with one term and no raport at all — `published: 0, draft: 0` fell through to the "all published" branch, so the tile said a raport had been issued next to a `0/1` saying none had. Now `Belum ada raport`, with `semua terbit` reserved for the case it was meant for. Pinned by a test.
 
 **Not verified this cycle.**
 
-- **Penilaian coverage against real entries.** Staging holds no `AssessmentEntry` rows for the sampled students, so coverage renders as `0/N` or a dash. The populated arithmetic is unit-tested instead. No rows were written to shared staging to make a screenshot look better.
+- **The Formulir Pendaftaran section against real data.** No student on staging was converted from a form — all three `EnrollmentApplication` rows have `studentId: null` — so the section correctly does not render for any staging student, and its absence for a hand-entered student is what the screenshot shows. No rows were written to shared staging to make a screenshot look better. The section's own rendering is covered by unit test, and screenshots 03/04 show the *same extracted component* (`EnrollmentApplicationView`) against the real submitted application `cmt2xqh7l000004l8ixyrryiu` on `/admin/enrollments/[id]` — which is the surface the dossier section wraps.
+- **Consent signature images.** They render as broken images locally. Not a code defect: the stored tokens are valid (`supabase:v1:enrollment/…/ayah-signature-….png`), but this machine's `.env` has no `SUPABASE_SERVICE_ROLE_KEY`, so `streamFile` cannot reach the private bucket and the proxy correctly 404s. The signature route is unchanged by this cycle. Confirm on the Vercel preview, where the key is set.
+- **Penilaian coverage above 8%.** Staging holds 4 `AssessmentEntry` rows tenant-wide. The populated arithmetic is unit-tested.
 - **Preview-verify on Vercel** — runs after the PR opens.
 
 **Environment note, not a code finding.** The worktree's `node_modules` was left truncated by an out-of-disk `npm install` mid-cycle (`@next/swc-darwin-arm64` was 865 KB instead of 88 MB, and several packages were missing outright). `npm install` does not repair that — it considers the tree satisfied. A full `rm -rf node_modules && npm install` plus `npx prisma generate` was needed. Worth knowing next time a worktree build fails with `Module not found` on packages that are plainly in `package.json`.
