@@ -149,6 +149,7 @@ describe("PATCH /api/parents/[id]", () => {
     expect(prisma.parent.update).toHaveBeenCalledWith({
       where: { id: "p1" },
       data: { status: "INACTIVE" },
+      select: { id: true, status: true },
     });
   });
 

@@ -84,7 +84,13 @@ describe("GET /api/students/[id]/enrollment-application", () => {
     const body = await res.json();
     expect(body.data.id).toBe("app1");
     expect(body.data.studentData.foodAllergy).toBe("telur");
-    expect(body.data.consentData.ayah.signatureToken).toBe("tok");
+    expect(body.data.consentData.ayah.hasSignature).toBe(true);
+  });
+
+  it("never ships the raw signature storage token in consentData", async () => {
+    const res = await GET(req(), ctx());
+    const body = await res.json();
+    expect(body.data.consentData.ayah).not.toHaveProperty("signatureToken");
   });
 
   it("resolves by the studentId FK, not by a metadata pointer", async () => {

@@ -68,6 +68,9 @@ export async function GET(
               incomeRange: true,
               childrenTotal: true,
               address: true,
+              // Fetched only to derive a presence boolean below — the raw
+              // storage tokens must never reach the client (see the
+              // response transform after this query).
               ktpUrl: true,
               kkUrl: true,
               // The parent's OTHER active links are what make siblings visible
@@ -115,7 +118,14 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json(student);
+  const response = {
+    ...student,
+    guardians: student.guardians.map((g) => {
+      const { ktpUrl, kkUrl, ...parentRest } = g.parent;
+      return { ...g, parent: { ...parentRest, hasKtp: !!ktpUrl, hasKk: !!kkUrl } };
+    }),
+  };
+  return NextResponse.json(response);
 }
 
 export async function PUT(

@@ -874,17 +874,17 @@ export default function StudentDetailPage() {
   // KK is a per-family document — resolve it through the primary wali, falling
   // back to the first active one.
   const kkGuardian = activeGuardians.find((g) => g.isPrimary) ?? activeGuardians[0] ?? null;
-  const kkUrl = kkGuardian?.parent.kkUrl ?? null;
+  const hasKk = kkGuardian?.parent.hasKk ?? false;
   const contactGuardian = kkGuardian;
 
   // Presence only — this is "is the file on record", not a required-documents
   // policy. The school has not defined one, so nothing here is called missing.
   const docItems = [
     { label: "Foto siswa", present: !!student.photoUrl },
-    { label: "KK keluarga", present: !!kkUrl },
+    { label: "KK keluarga", present: hasKk },
     ...activeGuardians.map((g) => ({
       label: `KTP ${g.parent.name}`,
-      present: !!g.parent.ktpUrl,
+      present: g.parent.hasKtp,
     })),
     // Only for a student who came from the form. A hand-entered student never
     // had a consent letter to sign, so listing it as missing would invent a gap.
@@ -1642,7 +1642,7 @@ export default function StudentDetailPage() {
               <p className="text-sm text-muted-foreground">
                 Belum ada wali aktif — tambahkan wali untuk mengunggah KK.
               </p>
-            ) : kkUrl ? (
+            ) : hasKk ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
                   KK · {kkGuardian.parent.name}

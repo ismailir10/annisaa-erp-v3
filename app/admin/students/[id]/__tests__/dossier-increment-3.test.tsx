@@ -140,7 +140,7 @@ const APPLICATION = {
     studentData: { childName: "Aisyah Putri", foodAllergy: "telur dan udang", homeLanguage: "Indonesia" },
     ayahData: { name: "Umar Ramadhan", employerName: "PT Contoh" },
     ibuData: { name: "Fatimah Zahra" },
-    consentData: { agreed: true, version: "v1", ayah: { name: "Umar Ramadhan", signatureToken: "tok" } },
+    consentData: { agreed: true, version: "v1", ayah: { name: "Umar Ramadhan", hasSignature: true } },
     program: { id: "p1", name: "TKIT" },
     admission: { id: "adm1", parentName: "Umar Ramadhan", parentPhone: "0812", parentRelationship: "AYAH" },
   },

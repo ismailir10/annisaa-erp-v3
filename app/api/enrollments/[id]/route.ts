@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { programIdSchema } from "@/lib/validations/program-id";
+import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
 
 // Admin status workflow. INVITED is owned by the parent (pre-submit) and is
 // never an admin target. A converted application (studentId set) is frozen.
@@ -34,7 +35,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const app = await prisma.enrollmentApplication.findUnique({
     where: { id },
-    include: {
+    select: {
+      id: true,
+      tenantId: true,
+      status: true,
+      studentId: true,
+      childName: true,
+      parentEmail: true,
+      dcareAddon: true,
+      submittedAt: true,
+      studentData: true,
+      ayahData: true,
+      ibuData: true,
+      consentData: true,
       program: { select: { id: true, name: true } },
       admission: { select: { id: true, parentName: true, parentPhone: true, parentRelationship: true } },
     },
@@ -42,7 +55,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!app || app.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json(app);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { tenantId, ...rest } = app;
+  return NextResponse.json({ ...rest, consentData: redactConsentSignatures(rest.consentData) });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

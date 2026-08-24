@@ -159,7 +159,7 @@ export function EnrollmentApplicationView({
         <ApplicationRow label="Ditandatangani Ibu" value={v(consent.ibu?.name)} />
         <div className="mt-3 grid grid-cols-2 gap-3">
           {(["ayah", "ibu"] as const).map((which) =>
-            consent[which]?.signatureToken ? (
+            consent[which]?.hasSignature ? (
               <figure key={which} className="rounded-lg border p-2">
                 <figcaption className="mb-1 text-xs capitalize text-muted-foreground">{which}</figcaption>
                 {/* Auth-proxied: the src is the admin-gated stream route, never

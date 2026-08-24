@@ -36,8 +36,8 @@ export type GuardianCardParent = {
   incomeRange: string | null;
   childrenTotal: number | null;
   address: string | null;
-  ktpUrl: string | null;
-  kkUrl: string | null;
+  hasKtp: boolean;
+  hasKk: boolean;
 };
 
 export type GuardianCardData = {
@@ -173,10 +173,10 @@ export const GuardianDetailCard = memo(function GuardianDetailCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2.5">
         <Badge variant="outline" className="text-xs">
-          KTP {p.ktpUrl ? "✓" : "belum"}
+          KTP {p.hasKtp ? "✓" : "belum"}
         </Badge>
         <Badge variant="outline" className="text-xs">
-          KK {p.kkUrl ? "✓" : "belum"}
+          KK {p.hasKk ? "✓" : "belum"}
         </Badge>
         <Link
           href={`/admin/guardians/${p.id}`}
