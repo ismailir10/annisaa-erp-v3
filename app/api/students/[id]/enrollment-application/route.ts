@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
 
 /**
  * GET /api/students/[id]/enrollment-application — the original pendaftaran form
@@ -23,7 +24,9 @@ import { getSession, isAdminRole } from "@/lib/auth";
  *
  * Admin-only, tenant-scoped. Closed-set `select`: `accessToken` and
  * `tokenExpiresAt` are the parent's unguessable form credentials and have no
- * business on an admin page payload.
+ * business on an admin page payload. `consentData` embeds a signature
+ * storage token per parent, redacted to a presence boolean before it leaves
+ * this route — see lib/enrollment/sanitize-consent.ts.
  */
 export async function GET(
   _req: NextRequest,
@@ -62,5 +65,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ data: application });
+  return NextResponse.json({
+    data: { ...application, consentData: redactConsentSignatures(application.consentData) },
+  });
 }
