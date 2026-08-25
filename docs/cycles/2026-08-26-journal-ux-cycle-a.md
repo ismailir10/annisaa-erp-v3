@@ -158,6 +158,33 @@ an empty class still names itself. `app/teacher/student-journal/entry/page.tsx` 
 this" is the question the old header left unanswered. Program name was deliberately not surfaced:
 the picker already shows it and it doubles the subtitle's length at 375 px.
 
+**T4 — week navigation that cannot wander.** `components/portal/week-navigator.tsx` gained two
+optional behaviours: `nextDisabled` renders the forward control as a real disabled `<button>` in
+both href and handler modes (a `Link` without an href would still focus and read as actionable) with
+an aria-label that says why, and `onToday`/`todayHref` renders the way back — only when a caller
+passes one, so surfaces that don't opt in keep their exact previous shape. `lib/format.ts` gained
+`formatWeekRangeLabel(start, end)`, printing the year once at the end (`24 Agu – 28 Agu 2026`);
+both journal surfaces and `/parent/attendance` now share it, where before the teacher journal printed
+no year at all and the parent journal printed it twice. `/parent/attendance` and
+`/teacher/assessments/weekly` consume the component unchanged — both deliberately allow looking
+ahead (attendance even has "Pekan ini belum dimulai" copy for it), so neither opts into the bound.
+
+**T5 — the parent's week survives a reload.** `/parent/student-journal` derives its week from
+`?week=YYYY-MM-DD` instead of component state, composing with the existing `?view=` tab param via
+the same `router.replace(..., { scroll: false })` pattern. A junk or impossible date falls back to
+the current week rather than erroring at the reader, and any day in a week is snapped to its Monday
+so a link to "the day Ustadzah wrote" opens that week.
+
+**T6 — copy that addresses its reader.** `components/student-journal/note-thread.tsx` takes
+`audience: "parent" | "teacher"` (admin keeps the default) and picks its empty-state description
+from one map — the teacher surface no longer tells a guru that "catatan dari guru" will appear once
+written, and the parent copy no longer repeats its own title. `lib/student-journal/note-display.ts`
+strips a trailing role parenthetical from a stored author name, so a seeded
+`Ismail Rabbani (Teacher)` renders as `Ismail Rabbani` beside the `Guru` badge instead of stating
+the role twice, once in English; initials follow the cleaned name. `components/portal/week-grid.tsx`
+returns a keyed `<Fragment>` from `categories.map` instead of a bare `<>`, clearing the React key
+warning every render of every journal grid produced.
+
 ## Verification
 
 ## Ship Notes
