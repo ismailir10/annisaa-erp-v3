@@ -197,6 +197,8 @@ warning every render of every journal grid produced.
 - **`npm run build` — not run locally; deferred to the required CI `Build` check.** Turbopack rejects `setup-worktree.sh`'s `node_modules` symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`), and the real install it needs did not fit the host's remaining disk. `tsc --noEmit` covers the type surface of this diff; no build-config, route-shape or dependency change is involved.
 - **Playwright — not run locally; deferred to the required CI `Playwright E2E` check.** No route added or removed and no e2e selector touched; the visual changes were verified directly against the staging preview instead (below).
 
+**CI on PR #521** (deployment `01a6e2e5`, base `staging`): `Docs sync` ✅ · `Lint, Typecheck & Test` ✅ 3m26s · `Build` ✅ 1m34s · `Playwright E2E` ✅ 5m9s · `Backup Pipeline Self-Test` ✅ · Vercel preview ✅. Both locally-deferred gates therefore passed on CI.
+
 **Preview-verify** — Chrome MCP against the staging preview, signed into the real accounts (`ismail10rabbanii@` teacher on class DCARE, `rightjet.hq@` parent with two children). Recorded before the branch shipped, as the review baseline; re-run after deploy per `/ship`:
 
 - Teacher `/teacher/student-journal/students/<id>?week=…` — before: no name anywhere on the page. Confirms the reported bug.
@@ -204,6 +206,17 @@ warning every render of every journal grid produced.
 - Teacher week control — before: `?week=2027-06-07` rendered `7 Jun – 11 Jun`, no year, forward control live.
 - Parent `/parent/student-journal` — before: week held in state only (URL kept `?view=` but never `?week=`), label carried the year while the teacher's did not, and a note three weeks back was reachable only by blind paging.
 - Note author on a real staging note rendered `Ismail Rabbani (Teacher)` beside a `Guru` badge.
+
+After — walked on the PR's own Vercel preview (`annisaa-erp-v3-git-feat-journa-429d58…`), signed in as each role in turn:
+
+- Teacher `/teacher/student-journal/students/cms41al32003bi5x72axm73vb?week=2026-08-25` — reads **"Abdullah Faris Siregar" / "Abdullah · DCARE"**, label `24 Agu – 28 Agu 2026 · pekan ini`, forward control disabled (`Pekan berikutnya — pekan berikutnya belum tersedia`), no reset on the current week.
+- Same page at `?week=2026-08-11` — reset "Kembali ke pekan ini" appears, forward control live again; note empty state reads "Belum ada catatan di pekan ini. Tulis catatan pertama untuk wali murid."
+- Same page at `?week=2026-08-04` — the existing note now renders `Ismail Rabbani` beside the `Guru` badge, no `(Teacher)`.
+- Teacher `/teacher/student-journal/entry?classId=…&date=2026-08-25` — subtitle reads **"DCARE · Selasa, 25 Agustus 2026"**; the note dialog opens as "Tulis catatan untuk Abdullah Faris Siregar" with "Catatan ini akan dibaca wali murid."
+- Parent `/parent/student-journal?week=2026-08-10&view=notes` — deep link restores **both** the week and the tab, landing directly on the 10 Agu catatan that previously took three blind taps to reach; reset visible.
+- Parent with no `?week=` — `24 Agu – 28 Agu 2026 · pekan ini`, forward disabled, no reset.
+
+Nothing was written to the staging database during verification: no indicator was toggled and no note saved (the compose dialog was opened and cancelled).
 
 **Copy** (`.claude/standards/voice.md` §Empty states):
 - [x] Empty states say why the surface is empty and what happens next, in the reader's own frame — teacher: "Belum ada catatan di pekan ini. Tulis catatan pertama untuk wali murid."; parent: "Tulis catatan pertama, atau tunggu catatan dari Ustadzah."
