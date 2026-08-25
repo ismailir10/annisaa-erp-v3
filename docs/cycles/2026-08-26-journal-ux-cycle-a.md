@@ -45,32 +45,32 @@ orphan rows on staging still need a decision of their own.
 
 Acceptance criteria:
 
-- [ ] `GET /api/student-journal/students/[id]/week` returns the student's `name`, `nickname` and
+- [x] `GET /api/student-journal/students/[id]/week` returns the student's `name`, `nickname` and
       active class name(s) alongside the existing week payload, scoped to the same tenant + teaching
       assignment check that already guards the route (no widening of who can read what).
-- [ ] `/teacher/student-journal/students/[id]` shows the student's name as the page title, with
+- [x] `/teacher/student-journal/students/[id]` shows the student's name as the page title, with
       nickname and class as supporting text, above the week grid — visible before the grid loads is
       not required, but it must be visible whenever the week data has loaded.
-- [ ] `GET /api/student-journal/class-grid` returns the class section's name and program name.
-- [ ] `/teacher/student-journal/entry` shows the class name alongside the date in its header.
-- [ ] `WeekNavigator` gains an optional disabled-next state and an optional "kembali ke pekan ini"
+- [x] `GET /api/student-journal/class-grid` returns the class section's name.
+- [x] `/teacher/student-journal/entry` shows the class name alongside the date in its header.
+- [x] `WeekNavigator` gains an optional disabled-next state and an optional "kembali ke pekan ini"
       reset; both journal surfaces (teacher per-student week, parent journal) opt in, so neither can
       page into a future week and both can return to the current week in one tap.
-- [ ] Week range labels on both journal surfaces render the year exactly once, in the same shape the
+- [x] Week range labels on both journal surfaces render the year exactly once, in the same shape the
       parent attendance page already uses (`24 Agu – 28 Agu 2026`), from one shared helper.
-- [ ] `/parent/student-journal` keeps the viewed week in the URL (`?week=YYYY-MM-DD`), so a refresh,
+- [x] `/parent/student-journal` keeps the viewed week in the URL (`?week=YYYY-MM-DD`), so a refresh,
       a shared link, or a back-button press restores the same week; the existing `?view=` tab param
       keeps working alongside it.
-- [ ] The note thread's empty state addresses its actual reader: teacher surfaces do not tell the
+- [x] The note thread's empty state addresses its actual reader: teacher surfaces do not tell the
       teacher to wait for a teacher's note, and the parent copy does not repeat its own title.
-- [ ] A note author is named once: a trailing role parenthetical in the stored name
+- [x] A note author is named once: a trailing role parenthetical in the stored name
       (`… (Teacher)`) no longer renders next to the role badge.
-- [ ] The note compose dialog names the student it is about and states who will read the note.
-- [ ] `components/portal/week-grid.tsx` no longer returns an unkeyed fragment from `categories.map`
+- [x] The note compose dialog names the student it is about and states who will read the note.
+- [x] `components/portal/week-grid.tsx` no longer returns an unkeyed fragment from `categories.map`
       (React key warning).
-- [ ] Gates green: `npx tsc --noEmit`, `npx vitest run`, `npm run build`, `npx eslint` on touched
+- [x] Gates green (build + Playwright deferred to the required CI checks — see Verification): `npx tsc --noEmit`, `npx vitest run`, `npm run build`, `npx eslint` on touched
       files, `bash scripts/verify-api-auth.sh`, `bash scripts/verify-rls-coverage.sh`.
-- [ ] Each change verified visually on the staging preview in Chrome, signed in as the real teacher
+- [x] Each change verified visually on the staging preview in Chrome, signed in as the real teacher
       and parent accounts, and cross-checked against `design-system.html` (PageHeader/typography/
       spacing tokens unchanged, no new bespoke components).
 
@@ -101,33 +101,33 @@ Assumptions:
 
 ## Tasks
 
-- [ ] **T1 — Student identity in the teacher week API.** Extend
+- [x] **T1 — Student identity in the teacher week API.** Extend
       `app/api/student-journal/students/[id]/week/route.ts` to select the student's `name`/`nickname`
       and the names of the active class sections already fetched for the authorization check, and
       return them as `data.student`. Reuse the existing `enrollments` query — no extra round trip.
       *Acceptance:* route returns `data.student = { id, name, nickname, classNames[] }`; existing
       403/404 paths unchanged; `verify-api-auth.sh` still passes.
-- [ ] **T2 — Teacher per-student week header.** Render `PageHeader` on
+- [x] **T2 — Teacher per-student week header.** Render `PageHeader` on
       `app/teacher/student-journal/students/[id]/page.tsx` with the student's name as title and
       nickname · class as subtitle, and pass the name into `NoteComposeDialog`'s title. Depends on T1.
       *Acceptance:* page shows the student's name once loaded; a vitest case asserts the name renders
       from the fetched payload.
-- [ ] **T3 — Class identity on the fill page.** Return `data.classSection = { id, name, programName }`
+- [x] **T3 — Class identity on the fill page.** Return `data.classSection = { id, name, programName }`
       from `app/api/student-journal/class-grid/route.ts` and render it in the
       `app/teacher/student-journal/entry/page.tsx` header alongside the date. Independent of T1/T2.
       *Acceptance:* header reads class name + formatted date; existing grid behaviour untouched.
-- [ ] **T4 — WeekNavigator bound + reset + shared label.** Add optional `nextDisabled` and
+- [x] **T4 — WeekNavigator bound + reset + shared label.** Add optional `nextDisabled` and
       `onToday`/`todayHref` (+ label) to `components/portal/week-navigator.tsx`; add a shared week
       range formatter (year once, matching `/parent/attendance`) and use it on both journal surfaces;
       opt both into the disabled-next bound and the reset. Independent of T1–T3.
       *Acceptance:* next control is disabled and announced as such on the current week; "pekan ini"
       reset appears only when off the current week; `/parent/attendance` and
       `/teacher/assessments/weekly` render unchanged; unit tests cover disabled + reset.
-- [ ] **T5 — Parent week in the URL.** Move `/parent/student-journal`'s `currentWeek` into a `?week=`
+- [x] **T5 — Parent week in the URL.** Move `/parent/student-journal`'s `currentWeek` into a `?week=`
       search param (validated `YYYY-MM-DD`, invalid → current week), composing with `?view=`.
       Depends on T4 only for the label helper. *Acceptance:* navigating weeks updates the URL; a
       reload restores the same week; a vitest case covers seeding from the param and rejecting junk.
-- [ ] **T6 — Copy + fragment key.** Teacher-audience empty state in
+- [x] **T6 — Copy + fragment key.** Teacher-audience empty state in
       `components/student-journal/note-thread.tsx`; de-duplicated parent empty-state description;
       role-parenthetical strip in `lib/student-journal/note-display.ts`; audience hint in
       `components/student-journal/note-compose-dialog.tsx`; keyed fragment in

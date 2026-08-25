@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Check, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -206,9 +207,11 @@ export function WeekGrid({
                 ? categories[lastCatIdx].indicators.length - 1
                 : -1;
             return categories.map((cat, ci) => (
-            <>
+            // Keyed Fragment: the map returned a bare `<>`, so every category
+            // block was an unkeyed list child and React warned on every render.
+            <Fragment key={cat.id}>
               {/* Category header row */}
-              <tr key={`cat-${cat.id}`}>
+              <tr>
                 <td
                   colSpan={dates.length + 1}
                   className="border-l-4 border-l-primary bg-primary/5 pl-3 py-2 text-h2 font-semibold text-foreground sticky left-0"
@@ -325,7 +328,7 @@ export function WeekGrid({
                 </tr>
                 );
               })}
-            </>
+            </Fragment>
             ));
           })()}
         </tbody>
