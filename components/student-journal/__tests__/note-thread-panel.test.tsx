@@ -27,7 +27,8 @@ describe("NoteThreadPanel", () => {
   });
 
   it("renders the thread and marks it read once on arrival", async () => {
-    const fetchMock = vi.fn((url: string) => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      void init;
       if (url.startsWith("/api/student-journal/notes/read")) return jsonOk({ lastReadAt: "x" });
       return jsonOk({ notes: [note("n1", "Alhamdulillah lancar")], nextCursor: null, unreadCount: 2 });
     });
@@ -49,9 +50,10 @@ describe("NoteThreadPanel", () => {
   });
 
   it("does not mark read when the caller says the surface is not open", async () => {
-    const fetchMock = vi.fn(() =>
-      jsonOk({ notes: [note("n1", "catatan")], nextCursor: null, unreadCount: 0 }),
-    );
+    const fetchMock = vi.fn((url: string) => {
+      void url;
+      return jsonOk({ notes: [note("n1", "catatan")], nextCursor: null, unreadCount: 0 });
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<NoteThreadPanel studentId="stu-1" audience="parent" markReadOnOpen={false} />);
@@ -65,7 +67,8 @@ describe("NoteThreadPanel", () => {
   });
 
   it("appends the next page from the cursor instead of replacing the list", async () => {
-    const fetchMock = vi.fn((url: string) => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      void init;
       if (url.startsWith("/api/student-journal/notes/read")) return jsonOk({ lastReadAt: "x" });
       if (url.includes("cursor=n1")) {
         return jsonOk({ notes: [note("n2", "catatan lama")], nextCursor: null });

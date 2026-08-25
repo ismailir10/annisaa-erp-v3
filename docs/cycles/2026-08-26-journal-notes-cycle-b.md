@@ -172,4 +172,24 @@ opening Jurnal on the "Di sekolah" tab must not silently clear a badge the wali 
 
 ## Verification
 
+**Gates** (worktree `feat/journal-notes-cycle-b`, branched from `origin/staging` `70a739d1`):
+
+- `npx tsc --noEmit -p tsconfig.json` — ✅ exit 0. First CI run caught two `TS2493`s in the new panel
+  test that a local run had missed (the local typecheck predated the file); the fetch mocks now
+  declare both call arguments.
+- `npx vitest run` — ✅ `Test Files 334 passed | 2 skipped (336)` · `Tests 3266 passed | 42 todo`.
+- `npx eslint` on every changed path — ✅ 0 errors, 0 warnings.
+- `bash scripts/verify-api-auth.sh` — ✅ `196 / 196`. The helper allowlist gained
+  `requireNoteAccessForStudent(`, which calls `getSession` internally.
+- `bash scripts/verify-rls-coverage.sh` — ✅ `42 / 42` including the new table.
+- `bash scripts/audit-docs.sh` — ✅ 0 fail (counts block regenerated: 196 routes).
+- `npm run build` + Playwright — deferred to the required CI checks, same Turbopack/worktree symlink
+  limitation as Cycle A.
+
+**Migration on staging.** `npx prisma migrate deploy` was run against the staging database from this
+worktree before preview-verify: `vercel-build.sh` deliberately skips `migrate deploy` on `feat/*`
+branches, and every preview reads the staging DB, so the new table had to exist there for the thread
+endpoint to answer. `migrate status` showed exactly one pending migration (this one) beforehand.
+Prod is untouched — it picks the migration up at the next staging→main promotion.
+
 ## Ship Notes
