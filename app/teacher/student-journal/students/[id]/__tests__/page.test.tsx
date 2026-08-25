@@ -37,6 +37,7 @@ const weekData = {
       name: "Abdullah Faris Siregar",
       nickname: "Abdullah",
       classNames: ["DCARE"],
+      classes: [{ id: "class-1", name: "DCARE" }],
     },
     categories: [],
     entries: [],
@@ -112,6 +113,30 @@ describe("TeacherStudentWeekPage", () => {
 
     await screen.findByTestId("week-grid");
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
+  it("offers a jump into the fill grid, carrying the class and the day", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => weekData }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    // Viewing a past week (?week=2026-08-03): the jump targets that week's last
+    // day rather than today, which is the day a guru paging back is fixing.
+    expect(screen.getByTestId("fill-day-link")).toHaveAttribute(
+      "href",
+      "/teacher/student-journal/entry?classId=class-1&date=2026-08-04",
+    );
+  });
+
+  it("hides the jump when the payload carries no class for the student", async () => {
+    const noClasses = {
+      data: { ...weekData.data, student: { ...weekData.data.student, classes: [] } },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => noClasses }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    expect(screen.queryByTestId("fill-day-link")).toBeNull();
   });
 
   it("ignores a stale prior-week response after week navigation", async () => {

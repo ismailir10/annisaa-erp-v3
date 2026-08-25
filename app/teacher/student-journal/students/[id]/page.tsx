@@ -16,7 +16,8 @@ import { BookHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
-import { formatWeekRangeLabel } from "@/lib/format";
+import Link from "next/link";
+import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { computeDefaultNoteDate } from "./note-date";
 
@@ -44,6 +45,8 @@ type Student = {
   name: string;
   nickname: string | null;
   classNames: string[];
+  /** Active class sections, with ids — the jump into the fill grid needs one. */
+  classes?: Array<{ id: string; name: string }>;
 };
 
 type WeekData = {
@@ -140,6 +143,21 @@ export default function TeacherStudentWeekPage() {
 
   const student = data?.student;
 
+  // Which day the jump fills: today when the current week is on screen,
+  // otherwise the last school day of the week being viewed — the day a guru
+  // paging back is most likely to be fixing.
+  const fillDate = isCurrentWeek ? today : (data?.dates?.[data.dates.length - 1] ?? null);
+  const fillClassId = student?.classes?.[0]?.id ?? null;
+  const fillHref =
+    fillClassId && fillDate
+      ? `/teacher/student-journal/entry?classId=${fillClassId}&date=${fillDate}`
+      : null;
+  const fillDayLabel = isCurrentWeek
+    ? "hari ini"
+    : fillDate
+      ? formatDate(fillDate, { day: "numeric", month: "short" })
+      : "";
+
   return (
     <div>
       <BackLink href="/teacher/student-journal" className="mb-4" />
@@ -202,13 +220,30 @@ export default function TeacherStudentWeekPage() {
         />
       ) : (
         <>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Riwayat penghubung — hanya bisa dilihat di sini
-          </p>
+          {/*
+            Read-only stays read-only, but "read-only" used to mean "go back to
+            the picker and retype the date" for a guru who spotted a missed day
+            here. The jump carries the class and the day with it.
+          */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Riwayat penghubung — hanya bisa dilihat di sini
+            </p>
+            {fillHref ? (
+              <Link
+                href={fillHref}
+                data-testid="fill-day-link"
+                className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Isi {fillDayLabel}
+              </Link>
+            ) : null}
+          </div>
           <WeekGrid
             categories={data?.categories ?? []}
             entries={data?.entries ?? []}
             dates={data?.dates ?? []}
+            emptyWeekMessage="Belum ada centang di pekan ini."
           />
 
           {/*

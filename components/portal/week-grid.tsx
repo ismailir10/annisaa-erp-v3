@@ -64,6 +64,12 @@ type WeekGridProps = {
    * to the staff term so existing admin/teacher call sites are unaffected.
    */
   featureLabel?: string;
+  /**
+   * Shown above the grid when the week holds no ticks at all. A wall of dashes
+   * reads as a broken product; saying "nobody has filled this yet" reads as a
+   * week that has not happened. Omit to keep the silent behaviour.
+   */
+  emptyWeekMessage?: string;
 };
 
 // Deterministic month abbrevs — toLocaleDateString("id-ID") silently falls back
@@ -138,6 +144,7 @@ export function WeekGrid({
   disablePastDays = true,
   earliestEditableDate,
   featureLabel = "Buku Penghubung",
+  emptyWeekMessage,
 }: WeekGridProps) {
   // Build lookup: `${indicatorId}|${date}` -> checked
   const lookup = new Map<string, boolean>();
@@ -164,8 +171,16 @@ export function WeekGrid({
     );
   }
 
+  const hasAnyCheck = entries.some((e) => e.checked);
+
   return (
-    <div className="overflow-x-auto -mx-4 px-4">
+    <div>
+      {emptyWeekMessage && !hasAnyCheck ? (
+        <p data-testid="empty-week-note" className="mb-2 text-xs text-muted-foreground">
+          {emptyWeekMessage}
+        </p>
+      ) : null}
+      <div className="overflow-x-auto -mx-4 px-4">
       <table className="w-full min-w-[324px] text-sm border-collapse">
         <thead>
           <tr>
@@ -282,23 +297,43 @@ export function WeekGrid({
                               type="button"
                               disabled
                               aria-disabled="true"
-                              className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md opacity-50 cursor-not-allowed"
+                              className="flex items-center justify-center w-[44px] h-[44px] mx-auto rounded-md cursor-not-allowed"
                               aria-label={`${ind.label} ${d} — ${checked ? "sudah diisi" : "belum diisi"} — ${lockedCellReason(d, todayYmd, disablePastDays, earliestEditableDate)}`}
                             >
+                              {/*
+                                Locked cells differ from editable ones by SHAPE,
+                                not by opacity: a wali could not tell which of
+                                two 50%-opacity squares was hers to tap. An
+                                empty box now means "you may tick this"; a dash
+                                means "not yours to fill".
+                              */}
                               {checked ? (
-                                <Check size={14} className="text-muted-foreground" strokeWidth={2} />
+                                <Check size={16} className="text-muted-foreground" strokeWidth={2} />
                               ) : (
-                                <span className="w-3.5 h-3.5 rounded border border-muted-foreground/30 block" />
+                                <span
+                                  aria-hidden="true"
+                                  className="block h-px w-3.5 bg-muted-foreground/50"
+                                />
                               )}
                             </button>
                           )
                         ) : (
                           <span
-                            className="flex h-[36px] cursor-default items-center justify-center text-sm font-semibold text-muted-foreground"
+                            className="flex h-[36px] cursor-default items-center justify-center"
                             role="img"
                             aria-label={`${ind.label} ${d} — ${checked ? "diisi" : "belum diisi"} (hanya bisa dilihat)`}
                           >
-                            {checked ? "✓" : "—"}
+                            {/*
+                              Was "✓" and "—" as text, same size and same grey:
+                              a full week and an empty one read alike at arm's
+                              length. Filled now uses the same accessible check
+                              the editable grid draws; empty stays a quiet rule.
+                            */}
+                            {checked ? (
+                              <Check size={16} className="text-primary-text" strokeWidth={2.5} />
+                            ) : (
+                              <span aria-hidden="true" className="block h-px w-3.5 bg-muted-foreground/40" />
+                            )}
                           </span>
                         )}
                         {adminEdit && adminEditDateLabel ? (
@@ -333,6 +368,7 @@ export function WeekGrid({
           })()}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

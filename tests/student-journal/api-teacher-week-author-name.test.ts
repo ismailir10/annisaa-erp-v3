@@ -131,6 +131,12 @@ describe("GET /api/student-journal/students/[id]/week — author name enrichment
       name: "Abdullah Faris Siregar",
       nickname: "Abdullah",
       classNames: ["DCARE"],
+      // Ids as well as names: the week page links back into the fill grid, and
+      // two sections can share the label "DCARE" (cycle C, T4).
+      classes: [
+        { id: "class-1", name: "DCARE" },
+        { id: "class-2", name: "DCARE" },
+      ],
     });
   });
 

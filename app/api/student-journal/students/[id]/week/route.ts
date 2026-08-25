@@ -72,18 +72,24 @@ export async function GET(
   //    Null rather than a throw when the relation is missing: the header is a
   //    nicety, the week grid is the payload, and a partial row must not 500.
   const identity = enrollments.find((e) => e.student)?.student;
+  //    `classes` carries ids as well as names because the page links back into
+  //    the fill grid for a day, and that link needs a classSectionId. Names are
+  //    de-duplicated by id, not by label: the DCARE case has two distinct
+  //    sections sharing one name.
+  const seenClassIds = new Set<string>();
+  const classes: Array<{ id: string; name: string }> = [];
+  for (const e of enrollments) {
+    if (!e.classSection || seenClassIds.has(e.classSectionId)) continue;
+    seenClassIds.add(e.classSectionId);
+    classes.push({ id: e.classSectionId, name: e.classSection.name });
+  }
   const student = identity
     ? {
         id: identity.id,
         name: identity.name,
         nickname: identity.nickname,
-        classNames: [
-          ...new Set(
-            enrollments
-              .map((e) => e.classSection?.name)
-              .filter((name): name is string => Boolean(name)),
-          ),
-        ],
+        classes,
+        classNames: [...new Set(classes.map((c) => c.name))],
       }
     : null;
 

@@ -114,6 +114,15 @@ describe("ParentStudentJournalPage", () => {
     expect(screen.getByText("Mengaji")).toBeInTheDocument();
   });
 
+  it("names the child and class the journal is showing", async () => {
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    // Was the static "Pantau kegiatan harian di sekolah dan rumah" — which
+    // named no child at all, and a single-child wali saw no name anywhere.
+    expect(await screen.findByText("Aisyah · TKA")).toBeInTheDocument();
+  });
+
   it("badges the Catatan tab with the wali's unread count", async () => {
     mockFetchWith({ ...baseWeekData, homeCategories });
     render(<ParentStudentJournalPage />);
