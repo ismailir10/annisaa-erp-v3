@@ -130,6 +130,33 @@ it is.
 
 ## Implementation
 
+**T1 — watermark table.** `StudentJournalNoteRead` in `prisma/schema.prisma` +
+`prisma/migrations/20260826000000_add_student_journal_note_read/`: one table, a unique index on
+`(userId, studentId)`, a `(tenantId, studentId)` index, RLS enabled with the `service_role` policy
+every other tenant-scoped table carries. No ALTER, no backfill — the absence of a row is meaningful.
+
+**T2 — shared note authorization.** `requireNoteAccessForStudent(studentId)` in
+`lib/student-journal/guards.ts`, lifted verbatim out of the note POST's role branching and now used
+by all three note surfaces (write, thread read, mark read). It returns the **student's** tenantId,
+which is what keeps a note written by a cross-tenant guru pengganti visible to the wali who owns it.
+`scripts/verify-api-auth.sh`'s helper allowlist gained the new function — it calls `getSession`
+internally, so a route guarded by it is genuinely authenticated, and the gate would otherwise force a
+redundant `getSession()` call at the top of the read route.
+
+**T3 — thread API.** `GET /api/student-journal/notes?studentId=&cursor=&limit=` returns notes with
+**no date filter at all**, `createdAt desc, id desc`, `take: limit + 1` where the extra row is the
+has-more probe and never reaches the client. The cursor is a note id rather than an offset: notes
+arrive while a reader scrolls, and an offset would duplicate or skip a row each time one did. `limit`
+is clamped to 50.
+
+**T4 — unread.** `lib/student-journal/note-reads.ts` owns the three operations —
+`countUnreadNotes` (one student), `countUnreadNotesByStudent` (a whole roster in one query plus an
+in-memory group, so a 30-student class is not 30 round trips), and `markNotesRead` (the upsert).
+`POST /api/student-journal/notes/read` moves the watermark, rate-limited per user after the auth
+check. Unread is surfaced in two places: the thread response carries `unreadCount` for the student it
+is about, and `class-grid` carries an `unreadNoteCounts` map for the roster badge. The week payloads
+were left alone — the surfaces that need a count already call one of those two.
+
 ## Verification
 
 ## Ship Notes
