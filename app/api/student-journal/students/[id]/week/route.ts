@@ -54,17 +54,21 @@ export async function GET(
     return NextResponse.json({ error: JOURNAL_NOT_ENROLLED_MSG }, { status: 404 });
   }
 
-  // 5. Verify teacher is assigned to one of the student's classes
-  const assignment = await prisma.teachingAssignment.findFirst({
+  // 5. Verify teacher is assigned to one of the student's classes. findMany,
+  //    not findFirst: the ids are needed again below, because a link into the
+  //    fill grid must target a class this teacher may actually fill.
+  const assignments = await prisma.teachingAssignment.findMany({
     where: {
       employeeId: session.employeeId,
       classSectionId: { in: enrollments.map((e) => e.classSectionId) },
       classSection: { tenantId: session.tenantId },
     },
+    select: { classSectionId: true },
   });
-  if (!assignment) {
+  if (assignments.length === 0) {
     return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
+  const assignedClassIds = new Set(assignments.map((a) => a.classSectionId));
 
   // 6. Identity for the page header. A student may hold several ACTIVE
   //    enrollments (day-care + school), so the class list is de-duplicated
@@ -72,18 +76,31 @@ export async function GET(
   //    Null rather than a throw when the relation is missing: the header is a
   //    nicety, the week grid is the payload, and a partial row must not 500.
   const identity = enrollments.find((e) => e.student)?.student;
+  //    `classes` carries ids as well as names because the page links back into
+  //    the fill grid, and that link needs a classSectionId — but ONLY for a
+  //    class this teacher is assigned to. Abdullah on staging holds two ACTIVE
+  //    DCARE enrollments and this guru teaches the second; linking to the first
+  //    sent him to a "Data kelas tidak bisa dimuat" + Forbidden, because the
+  //    week route grants on ANY enrollment while class-grid guards the specific
+  //    class. `classNames` stays the full list — that is identity, not a link.
+  const seenClassIds = new Set<string>();
+  const classes: Array<{ id: string; name: string }> = [];
+  const allClassNames: string[] = [];
+  for (const e of enrollments) {
+    if (!e.classSection || seenClassIds.has(e.classSectionId)) continue;
+    seenClassIds.add(e.classSectionId);
+    allClassNames.push(e.classSection.name);
+    if (assignedClassIds.has(e.classSectionId)) {
+      classes.push({ id: e.classSectionId, name: e.classSection.name });
+    }
+  }
   const student = identity
     ? {
         id: identity.id,
         name: identity.name,
         nickname: identity.nickname,
-        classNames: [
-          ...new Set(
-            enrollments
-              .map((e) => e.classSection?.name)
-              .filter((name): name is string => Boolean(name)),
-          ),
-        ],
+        classes,
+        classNames: [...new Set(allClassNames)],
       }
     : null;
 

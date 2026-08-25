@@ -279,6 +279,12 @@ export default function ParentStudentJournalPage() {
   // server route enforces against, so client and server never disagree.
   const homeEditFloor = homeEntryEditFloor(today);
   const selectedUnread = childId ? (unreadByChild[childId] ?? 0) : 0;
+  const selectedChild = children?.find((c) => c.id === childId) ?? null;
+  const selectedChildLabel = selectedChild
+    ? [selectedChild.nickname?.trim() || selectedChild.name, selectedChild.className]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
 
   return (
     <div className="space-y-6">
@@ -310,9 +316,14 @@ export default function ParentStudentJournalPage() {
         `student-journal` name; this is a copy change only. Teacher + admin
         surfaces still say "Buku Penghubung" (staff vocabulary, own cycle).
       */}
+      {/*
+        Which child is on screen was carried only by the pill state above the
+        title, and the class (TKIT-A / KB) — shown on the parent home — was
+        dropped entirely. A wali with one child saw no name at all.
+      */}
       <PageHeader
         title="Jurnal"
-        subtitle="Pantau kegiatan harian di sekolah dan rumah"
+        subtitle={selectedChildLabel ?? "Pantau kegiatan harian di sekolah dan rumah"}
       />
 
       <WeekNavigator
@@ -373,6 +384,7 @@ export default function ParentStudentJournalPage() {
               entries={data.schoolEntries}
               dates={data.dates}
               featureLabel="Jurnal"
+              emptyWeekMessage="Sekolah belum mengisi jurnal untuk pekan ini."
             />
           </TabsContent>
 
