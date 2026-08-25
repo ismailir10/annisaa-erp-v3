@@ -63,6 +63,7 @@ export default function StudentJournalEntryPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [classSection, setClassSection] = useState<ClassSection | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   /** state[studentId][indicatorId] = checked */
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
@@ -109,6 +110,7 @@ export default function StudentJournalEntryPage() {
     setStudents(loadedStudents);
     setCategories(loadedCategories);
     setClassSection(data.classSection ?? null);
+    setUnreadCounts(data.unreadNoteCounts ?? {});
 
     // Build initial grid state from pre-filled entries
     const initial: Record<string, Record<string, boolean>> = {};
@@ -327,6 +329,7 @@ export default function StudentJournalEntryPage() {
         onToggle={handleToggle}
         onAddNote={(s) => setNoteStudent(s)}
         noteCounts={noteCounts}
+        unreadCounts={unreadCounts}
         pendingCells={pendingCells}
         visibleDate={date}
       />

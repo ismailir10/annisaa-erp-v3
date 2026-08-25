@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
+import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
 
 /**
  * GET /api/student-journal/class-grid?classSectionId=&date=
@@ -95,12 +96,22 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Unread catatan per student, for the roster badge. One query for the whole
+  // class rather than one per row — a 30-student roster would otherwise be 30
+  // round trips for a number most rows render as nothing.
+  const unreadNoteCounts = await countUnreadNotesByStudent({
+    tenantId: session.tenantId,
+    studentIds: students.map((s) => s.id),
+    readerUserId: session.id,
+  });
+
   return NextResponse.json({
     data: {
       students,
       categories,
       entries,
       classSection,
+      unreadNoteCounts,
     },
   });
 }

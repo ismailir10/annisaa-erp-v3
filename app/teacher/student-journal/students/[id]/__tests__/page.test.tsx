@@ -16,8 +16,11 @@ vi.mock("sonner", () => ({ toast: { error: toastError } }));
 vi.mock("@/components/portal/week-grid", () => ({
   WeekGrid: () => <div data-testid="week-grid" />,
 }));
-vi.mock("@/components/student-journal/note-thread", () => ({
-  NoteThread: () => <div data-testid="note-thread" />,
+// The thread is its own fetching component now (covered by
+// components/student-journal/__tests__/note-thread-panel.test.tsx); this page
+// only owns the week grid, the header and the navigator.
+vi.mock("@/components/student-journal/note-thread-panel", () => ({
+  NoteThreadPanel: () => <div data-testid="note-thread" />,
 }));
 vi.mock("@/components/student-journal/note-compose-dialog", () => ({
   NoteComposeDialog: () => null,
