@@ -150,6 +150,14 @@ name into the note dialog's title. `components/student-journal/note-compose-dial
 `ResponsiveFormDialog` description slot (so it is wired to `aria-describedby`, not a loose `<p>`),
 plus a lint fix: `today` is read per render instead of memoised on `open`.
 
+**T3 — the class the grid belongs to.** `app/api/student-journal/class-grid/route.ts` fetches the
+class section alongside the enrollments (one `Promise.all`, so no added latency) and returns
+`data.classSection = { id, name }`. Fetched independently rather than read off an enrollment row so
+an empty class still names itself. `app/teacher/student-journal/entry/page.tsx` renders
+`DCARE · Selasa, 25 Agustus 2026` as its header subtitle — class first, because "which roster is
+this" is the question the old header left unanswered. Program name was deliberately not surfaced:
+the picker already shows it and it doubles the subtitle's length at 375 px.
+
 ## Verification
 
 ## Ship Notes
