@@ -157,6 +157,19 @@ check. Unread is surfaced in two places: the thread response carries `unreadCoun
 is about, and `class-grid` carries an `unreadNoteCounts` map for the roster badge. The week payloads
 were left alone — the surfaces that need a count already call one of those two.
 
+**T5 + T6 — both sides read the same thread.** `components/student-journal/note-thread-panel.tsx`
+owns fetching, paging, the mark-read call and the error/retry state, so the teacher page and the
+parent Catatan tab cannot drift on any of them; both previously rendered `weekData.notes` inline.
+The teacher's per-student page and the parent's tab pass a `reloadToken` that a write, edit or
+delete bumps. Unread shows up in three places: a `N baru` badge per roster row on the class-day grid,
+a count on the parent's Catatan tab, and a count on each child pill (`PortalTabs` already had a
+`count` prop). The parent page fetches all its children's counts in one call to the new
+`GET /api/student-journal/notes/unread`, which resolves access in bulk per role rather than guarding
+each id — a badge query fired on page load should not cost three queries per child.
+
+**Scope note.** `markReadOnOpen` is `false` for the parent until the Catatan tab is the active one:
+opening Jurnal on the "Di sekolah" tab must not silently clear a badge the wali never looked at.
+
 ## Verification
 
 ## Ship Notes

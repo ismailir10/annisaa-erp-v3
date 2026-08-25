@@ -9,7 +9,7 @@ import { WeekNavigator } from "@/components/portal/week-navigator";
 import { BackLink } from "@/components/portal/back-link";
 import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { NoteThread } from "@/components/student-journal/note-thread";
+import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { BookHeart, Plus } from "lucide-react";
@@ -91,6 +91,8 @@ export default function TeacherStudentWeekPage() {
 
   // Add-note dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Bumped after a save so the thread refetches from its first page.
+  const [noteReloadToken, setNoteReloadToken] = useState(0);
   const [noteDate, setNoteDate] = useState(today);
 
   const loadWeek = useCallback(async (weekStartYmd: string) => {
@@ -209,6 +211,11 @@ export default function TeacherStudentWeekPage() {
             dates={data?.dates ?? []}
           />
 
+          {/*
+            The thread is NOT week-scoped, unlike the grid above it: a catatan
+            is a message, and it used to vanish the Monday after it was written
+            because this section read `weekData.notes`.
+          */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-h2 font-semibold">Catatan</h2>
@@ -225,7 +232,11 @@ export default function TeacherStudentWeekPage() {
                 Tambah catatan
               </Button>
             </div>
-            <NoteThread notes={data?.notes ?? []} audience="teacher" />
+            <NoteThreadPanel
+              studentId={studentId}
+              audience="teacher"
+              reloadToken={noteReloadToken}
+            />
           </div>
         </>
       )}
@@ -243,7 +254,7 @@ export default function TeacherStudentWeekPage() {
         onSaved={() => {
           setDialogOpen(false);
           setNoteDate(computeDefaultNoteDate(ws, today));
-          loadWeek(ws);
+          setNoteReloadToken((n) => n + 1);
         }}
       />
     </div>

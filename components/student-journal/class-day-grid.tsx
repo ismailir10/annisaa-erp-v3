@@ -35,13 +35,20 @@ type ClassDayGridProps = {
   onAddNote?: (student: Student) => void;
   /** Per-student notes count (for optimistic badge next to add-note button). */
   noteCounts?: Record<string, number>;
+  /**
+   * Per-student count of catatan written by somebody else since this guru last
+   * opened that student's thread. Rendered as the only loud thing in the row —
+   * before this, a wali's reply was invisible until the guru happened to open
+   * the right student on the right week.
+   */
+  unreadCounts?: Record<string, number>;
   /** Picker date (YYYY-MM-DD) — passed through as `?week=` when the chevron drills into the per-student week view. */
   visibleDate?: string;
   /** Set of `${studentId}:${indicatorId}` keys currently saving — renders a subtle saving affordance. */
   pendingCells?: Set<string>;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate, pendingCells }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, unreadCounts, visibleDate, pendingCells }: ClassDayGridProps) {
   const router = useRouter();
   // The row-stagger ignored the OS reduced-motion setting, unlike every other
   // animated surface in the portal.
@@ -72,6 +79,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
       {students.map((student, i) => {
         const isExpanded = expandedStudents.has(student.id);
         const checkedCount = countChecked(student.id);
+        const unreadCount = unreadCounts?.[student.id] ?? 0;
 
         return (
           <motion.div
@@ -115,6 +123,15 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {unreadCount > 0 ? (
+                    <span
+                      data-testid="unread-badge"
+                      className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-white"
+                      aria-label={`${unreadCount} catatan baru untuk ${student.name}`}
+                    >
+                      {unreadCount} baru
+                    </span>
+                  ) : null}
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {checkedCount}/{totalIndicators}
                   </span>

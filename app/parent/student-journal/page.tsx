@@ -22,7 +22,7 @@ import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { WeekGrid } from "@/components/portal/week-grid";
-import { NoteThread } from "@/components/student-journal/note-thread";
+import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
@@ -164,6 +164,10 @@ export default function ParentStudentJournalPage() {
     | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // Bumped after write/edit/delete so the thread refetches from its first page.
+  const [noteReloadToken, setNoteReloadToken] = useState(0);
+  /** studentId → unread catatan, for the tab badge and the child pills. */
+  const [unreadByChild, setUnreadByChild] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState(false);
 
   // Load current session id (for own-note edit/delete affordance)
@@ -195,6 +199,23 @@ export default function ParentStudentJournalPage() {
         setChildren([]);
       });
   }, []);
+
+  // Unread catatan for every child, in one call — the badge has to be visible
+  // before the wali picks a child, otherwise it only announces what they were
+  // already looking at. The panel below reports the authoritative count for the
+  // selected child once its thread loads.
+  useEffect(() => {
+    if (!children || children.length === 0) return;
+    const ids = children.map((c) => c.id).join(",");
+    fetch(`/api/student-journal/notes/unread?studentIds=${encodeURIComponent(ids)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { data?: { unreadNoteCounts?: Record<string, number> } } | null) => {
+        if (json?.data?.unreadNoteCounts) setUnreadByChild(json.data.unreadNoteCounts);
+      })
+      .catch(() => {
+        // Non-fatal: no badge rather than a broken page.
+      });
+  }, [children]);
 
   // Load week data when child or week changes
   const loadWeekData = useCallback(
@@ -257,6 +278,7 @@ export default function ParentStudentJournalPage() {
   // every cell there locked. `homeEntryEditFloor` is the same helper the
   // server route enforces against, so client and server never disagree.
   const homeEditFloor = homeEntryEditFloor(today);
+  const selectedUnread = childId ? (unreadByChild[childId] ?? 0) : 0;
 
   return (
     <div className="space-y-6">
@@ -272,6 +294,7 @@ export default function ParentStudentJournalPage() {
           items={children.map((c) => ({
             id: c.id,
             label: c.nickname ?? c.name.trim().split(/\s+/)[0] ?? c.name,
+            count: unreadByChild[c.id] || undefined,
           }))}
           activeId={childId ?? ""}
           onSelect={setChildId}
@@ -331,6 +354,15 @@ export default function ParentStudentJournalPage() {
             </TabsTrigger>
             <TabsTrigger value="notes" className="min-h-11 flex-1">
               Catatan
+              {selectedUnread > 0 ? (
+                <span
+                  data-testid="notes-unread-badge"
+                  className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white"
+                  aria-label={`${selectedUnread} catatan baru`}
+                >
+                  {selectedUnread}
+                </span>
+              ) : null}
             </TabsTrigger>
           </TabsList>
 
@@ -397,9 +429,24 @@ export default function ParentStudentJournalPage() {
                 Tulis catatan
               </Button>
             </div>
-            <NoteThread
-              notes={data.notes}
+            {/*
+              Reads the whole thread, not `data.notes` — the week payload only
+              ever held the five days on screen, so a wali chasing last month's
+              catatan from Ustadzah had to page back through empty weeks to
+              find it.
+            */}
+            <NoteThreadPanel
+              studentId={childId ?? ""}
               audience="parent"
+              reloadToken={noteReloadToken}
+              markReadOnOpen={activeView === "notes"}
+              onUnreadChange={(unread) =>
+                setUnreadByChild((prev) =>
+                  prev[childId ?? ""] === unread
+                    ? prev
+                    : { ...prev, [childId ?? ""]: unread },
+                )
+              }
               canEdit={(note) =>
                 note.authorRole === "GUARDIAN" &&
                 !!currentUserId &&
@@ -439,6 +486,7 @@ export default function ParentStudentJournalPage() {
           noteId={noteDialog?.mode === "edit" ? noteDialog.noteId : undefined}
           placeholder="Tulis catatan rumah di sini..."
           onSaved={() => {
+            setNoteReloadToken((n) => n + 1);
             if (childId) loadWeekData(childId, currentWeek);
           }}
         />
@@ -481,7 +529,7 @@ export default function ParentStudentJournalPage() {
                   }
                   toast.success("Catatan dihapus");
                   setDeleteTarget(null);
-                  if (childId) loadWeekData(childId, currentWeek);
+                  setNoteReloadToken((n) => n + 1);
                 } catch {
                   toast.error("Koneksi terputus. Coba lagi sebentar ya.");
                 } finally {

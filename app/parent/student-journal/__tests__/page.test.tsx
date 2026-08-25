@@ -21,6 +21,12 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+// The thread fetches for itself (covered in
+// components/student-journal/__tests__/note-thread-panel.test.tsx).
+vi.mock("@/components/student-journal/note-thread-panel", () => ({
+  NoteThreadPanel: () => <div data-testid="note-thread-panel" />,
+}));
+
 import ParentStudentJournalPage from "../page";
 
 const children = [
@@ -58,6 +64,12 @@ function mockFetchWith(weekData: Record<string, unknown>) {
       }
       if (url === "/api/parent/children") {
         return Promise.resolve({ ok: true, json: async () => ({ data: children }) });
+      }
+      if (url.startsWith("/api/student-journal/notes/unread")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { unreadNoteCounts: { child_1: 3 } } }),
+        });
       }
       if (url.startsWith("/api/student-journal/children/")) {
         return Promise.resolve({ ok: true, json: async () => ({ data: weekData }) });
@@ -100,6 +112,16 @@ describe("ParentStudentJournalPage", () => {
     // indicators even though schoolEntries/homeEntries/notes are all [].
     expect(await screen.findByText("Shalat Subuh")).toBeInTheDocument();
     expect(screen.getByText("Mengaji")).toBeInTheDocument();
+  });
+
+  it("badges the Catatan tab with the wali's unread count", async () => {
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    await screen.findByRole("tab", { name: /Catatan/ });
+    const badge = await screen.findByTestId("notes-unread-badge");
+    expect(badge).toHaveTextContent("3");
+    expect(badge).toHaveAttribute("aria-label", "3 catatan baru");
   });
 
   it("opens the week named in ?week= instead of snapping back to this week", async () => {
