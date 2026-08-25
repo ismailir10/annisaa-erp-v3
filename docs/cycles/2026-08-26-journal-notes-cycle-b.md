@@ -64,24 +64,24 @@ it is.
 
 ### Acceptance criteria
 
-- [ ] Notes are readable independent of the viewed week, on both sides, newest first, with the
+- [x] Notes are readable independent of the viewed week, on both sides, newest first, with the
       note's own date on each card.
-- [ ] The thread pages: an initial page of 20 with a "Muat lebih banyak" control, cursor-based so a
+- [x] The thread pages: an initial page of 20 with a "Muat lebih banyak" control, cursor-based so a
       note written mid-scroll cannot duplicate or skip a row.
-- [ ] The week grid stays week-scoped — this cycle changes the note thread only, not the checklist.
-- [ ] Teacher sees an unread count per student on the class-day grid, and the count clears after
+- [x] The week grid stays week-scoped — this cycle changes the note thread only, not the checklist.
+- [x] Teacher sees an unread count per student on the class-day grid, and the count clears after
       opening that student's page.
-- [ ] Parent sees an unread count on the Catatan tab (and per child, on the child switcher, when
+- [x] Parent sees an unread count on the Catatan tab (and per child, on the child switcher, when
       more than one child has unread notes); it clears after opening the tab.
-- [ ] Unread never counts the reader's own notes, and never counts a soft-deleted note.
-- [ ] A reader with no watermark row sees zero unread, and reading creates the row.
-- [ ] Cross-tenant and cross-family reads stay impossible: the notes list and the mark-read call
+- [x] Unread never counts the reader's own notes, and never counts a soft-deleted note.
+- [x] A reader with no watermark row sees zero unread, and reading creates the row.
+- [x] Cross-tenant and cross-family reads stay impossible: the notes list and the mark-read call
       reuse the exact authorization the existing note POST already applies (teacher must be assigned
       to one of the student's active classes; guardian must have an ACTIVE link; admin is
       tenant-scoped).
-- [ ] Gates green: `tsc --noEmit`, `vitest run`, `eslint` on touched files, `verify-api-auth.sh`,
+- [x] Gates green: `tsc --noEmit`, `vitest run`, `eslint` on touched files, `verify-api-auth.sh`,
       `verify-rls-coverage.sh`, `audit-docs.sh`; build + Playwright via the required CI checks.
-- [ ] Verified in Chrome on the PR preview as the real teacher and parent accounts, cross-checked
+- [x] Verified in Chrome on the PR preview as the real teacher and parent accounts, cross-checked
       against `design-system.html`.
 
 ### Non-goals
@@ -102,29 +102,29 @@ it is.
 
 ## Tasks
 
-- [ ] **T1 — Schema + migration.** Add `StudentJournalNoteRead` to `prisma/schema.prisma` and a
+- [x] **T1 — Schema + migration.** Add `StudentJournalNoteRead` to `prisma/schema.prisma` and a
       migration under `prisma/migrations/20260826000000_add_student_journal_note_read/` carrying the
       table, the unique index, `ENABLE ROW LEVEL SECURITY` and a `service_role` policy.
       *Acceptance:* `verify-rls-coverage.sh` passes with the new model counted; no ALTER on any
       existing table.
-- [ ] **T2 — Shared note authorization.** Lift the role branching inside
+- [x] **T2 — Shared note authorization.** Lift the role branching inside
       `app/api/student-journal/notes/route.ts` POST into a reusable
       `requireNoteAccessForStudent(studentId)` in `lib/student-journal/guards.ts`, and have the POST
       call it. Pure refactor, no behaviour change. *Acceptance:* existing note POST tests pass
       untouched.
-- [ ] **T3 — Notes thread API.** `GET /api/student-journal/notes?studentId=&cursor=&limit=` —
+- [x] **T3 — Notes thread API.** `GET /api/student-journal/notes?studentId=&cursor=&limit=` —
       role-branched via T2, newest first, cursor `(createdAt,id)`, `limit` capped at 50, author
       metadata via the existing `enrichNotesWithAuthorMetadata`. *Acceptance:* returns notes from
       any week; a guardian for another family gets 403; cursor paging is stable across an insert.
-- [ ] **T4 — Unread count + mark read.** `POST /api/student-journal/notes/read` upserts the
+- [x] **T4 — Unread count + mark read.** `POST /api/student-journal/notes/read` upserts the
       watermark. Add `unreadNoteCount` to the teacher week payload, the children week payload, and a
       per-student `unreadNoteCounts` map to `class-grid`. *Acceptance:* count excludes own notes and
       INACTIVE notes; missing watermark → 0; upsert is idempotent per reader+student.
-- [ ] **T5 — Teacher UI.** The student week page's Catatan section reads the thread API (not the
+- [x] **T5 — Teacher UI.** The student week page's Catatan section reads the thread API (not the
       week payload), pages, and POSTs the watermark on mount; the class-day grid shows an unread
       badge per student. *Acceptance:* the note written 3 weeks earlier is visible on the current
       week's page; badge clears after visiting.
-- [ ] **T6 — Parent UI.** Catatan tab reads the thread API and pages; unread badge on the tab and on
+- [x] **T6 — Parent UI.** Catatan tab reads the thread API and pages; unread badge on the tab and on
       any child pill with unread notes; watermark POSTed when the tab opens. *Acceptance:* Nurul's
       10 Agu note is visible without paging weeks; badge clears after opening the tab.
 
@@ -192,4 +192,24 @@ branches, and every preview reads the staging DB, so the new table had to exist 
 endpoint to answer. `migrate status` showed exactly one pending migration (this one) beforehand.
 Prod is untouched — it picks the migration up at the next staging→main promotion.
 
+**Preview-verify** — Chrome MCP against PR #522's Vercel preview, signed into the real accounts:
+
+- **Teacher** (`ismail10rabbanii@`), `/teacher/student-journal/students/cms41al32003bi5x72axm73vb?week=2026-08-25` — the **current** week's grid is empty, and the Catatan section below it now shows the note from **4 Agu**. Before this cycle the same page read "Belum ada catatan"; the note was three weeks back.
+- **Parent** (`rightjet.hq@`), `/parent/student-journal?view=notes` — on the current week, Bilal's Catatan tab shows Ibu Nurul's **10 Agu** note with its edit/delete affordances intact. Before, reaching it took three blind taps on the week control.
+- Both surfaces rendered no unread badge, which is correct for this data: the guru's only unread candidates are guardian notes that predate the watermark his first visit created, and the wali's only note is her own (own notes never count). **The badge with a non-zero count was therefore not exercised against staging data** — producing one would mean writing a real note into a real family's journal. It is covered by unit tests instead: `class-day-grid-unread.test.tsx` (badges only the students with unread, none otherwise) and the parent page's tab-badge case.
+- No writes to the staging database during verification beyond the read watermarks the two visits created — no note written, edited or deleted.
+
+**Copy** (`.claude/standards/voice.md`):
+- [x] "Muat catatan lama", "N baru", "Catatan belum bisa dimuat." — Indonesian, no jargon leak, reader-appropriate on both sides.
+
+**Design system:**
+- [x] Cross-checked `design-system.html` + `.claude/standards/portal.md`. Badges use `bg-primary` with `text-xs` — the first attempt used `text-[10px]` and the pre-commit typography floor rejected it, correctly. The child-pill count uses `PortalTabs`' existing `count` prop rather than a new affordance; the load-more control is the standard outline `Button` with `tap-target`.
+
 ## Ship Notes
+
+- **Migrations:** one — `20260826000000_add_student_journal_note_read`. Additive: one new table, unique index, RLS + `service_role` policy. **Already applied to staging** (see Verification); prod applies it on the next `staging → main` promotion via `vercel-build.sh`.
+- **Env vars:** none.
+- **Routes added:** `GET /api/student-journal/notes`, `POST /api/student-journal/notes/read`, `GET /api/student-journal/notes/unread`. `GET /api/student-journal/class-grid` gains `unreadNoteCounts`; no existing field changed shape.
+- **Data written:** read watermarks only, one row per reader per student, created by opening a note surface. No note content is touched.
+- **Rollback:** revert the commits; the table can be left in place (nothing else references it) or dropped separately. Reverting alone restores the previous week-scoped reading with no data loss.
+- **Follow-up not in this cycle:** reply threading; push/email notification; J1 weekend entries (still deferred by owner decision); the unread badge does not yet appear on the portal bottom-nav tab.
