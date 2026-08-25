@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { BackLink } from "@/components/portal/back-link";
+import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
@@ -15,7 +16,7 @@ import { BookHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
-import { formatDate } from "@/lib/format";
+import { formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { computeDefaultNoteDate } from "./note-date";
 
@@ -38,13 +39,30 @@ type Note = {
   createdAt: string;
 };
 
+type Student = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  classNames: string[];
+};
+
 type WeekData = {
   weekStart: string;
   dates: string[];
+  /** Null when the payload carries no identity — the grid still renders. */
+  student?: Student | null;
   categories: Category[];
   entries: Entry[];
   notes: Note[];
 };
+
+/** "Abdullah · DCARE" — nickname first (what the guru actually calls them), class second. */
+function studentSubtitle(student: Student): string | undefined {
+  const parts = [student.nickname?.trim(), student.classNames.join(" · ")].filter(
+    (part): part is string => Boolean(part),
+  );
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
 
 function addDays(ymd: string, days: number): string {
   const d = new Date(`${ymd}T00:00:00Z`);
@@ -52,11 +70,9 @@ function addDays(ymd: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function formatWeekLabel(weekStartYmd: string, dates: string[]): string {
+function formatWeekLabel(dates: string[]): string {
   if (dates.length === 0) return "";
-  const start = formatDate(dates[0], { day: "numeric", month: "short" });
-  const end = formatDate(dates[dates.length - 1], { day: "numeric", month: "short" });
-  return `${start} – ${end}`;
+  return formatWeekRangeLabel(dates[0], dates[dates.length - 1]);
 }
 
 export default function TeacherStudentWeekPage() {
@@ -106,7 +122,6 @@ export default function TeacherStudentWeekPage() {
   }, [studentId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWeek(ws);
   }, [loadWeek, ws]);
 
@@ -118,12 +133,29 @@ export default function TeacherStudentWeekPage() {
     setWs((prev) => addDays(prev, 7));
   }
 
-  const weekLabel = data ? formatWeekLabel(data.weekStart, data.dates) : "";
+  const weekLabel = data ? formatWeekLabel(data.dates) : "";
   const isCurrentWeek = ws === weekStart(today);
+
+  const student = data?.student;
 
   return (
     <div>
       <BackLink href="/teacher/student-journal" className="mb-4" />
+
+      {/*
+        The page used to open on a bare week grid: no name, no nickname, no
+        class. A guru arriving from the class grid's chevron — or from a link in
+        chat — had no way to tell whose penghubung was on screen. Identity comes
+        from the same week payload, so it appears as soon as the week resolves.
+      */}
+      {student ? (
+        <PageHeader title={student.name} subtitle={studentSubtitle(student)} />
+      ) : loading ? (
+        <div className="mb-6 space-y-2">
+          <Skeleton className="h-7 w-48 rounded-md" />
+          <Skeleton className="h-4 w-32 rounded-md" />
+        </div>
+      ) : null}
 
       {/*
         Was a hand-rolled navigator with "Minggu sebelumnya"/"Minggu berikutnya"
@@ -142,6 +174,12 @@ export default function TeacherStudentWeekPage() {
         }
         onPrev={prevWeek}
         onNext={nextWeek}
+        // A journal week in the future holds nothing by construction: WeekGrid
+        // locks future cells and the picker caps at today. Paging into one was
+        // possible all the way into 2027 and looked exactly like an unfilled
+        // real week.
+        nextDisabled={isCurrentWeek}
+        onToday={isCurrentWeek ? undefined : () => setWs(weekStart(today))}
       />
 
       {loading ? (
@@ -187,7 +225,7 @@ export default function TeacherStudentWeekPage() {
                 Tambah catatan
               </Button>
             </div>
-            <NoteThread notes={data?.notes ?? []} />
+            <NoteThread notes={data?.notes ?? []} audience="teacher" />
           </div>
         </>
       )}
@@ -199,7 +237,8 @@ export default function TeacherStudentWeekPage() {
         studentId={studentId}
         weekDates={data?.dates ?? [noteDate]}
         initialDate={noteDate}
-        title="Tambah catatan"
+        title={student ? `Tambah catatan untuk ${student.name}` : "Tambah catatan"}
+        audience="teacher"
         placeholder="Tulis catatan di sini…"
         onSaved={() => {
           setDialogOpen(false);

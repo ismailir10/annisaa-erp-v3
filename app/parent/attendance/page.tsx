@@ -8,7 +8,7 @@ import { SectionLabel } from "@/components/portal/section-label";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helpers";
 import { prisma } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { attendanceBannerState } from "@/lib/parent-attendance-banner";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
@@ -126,7 +126,9 @@ export default async function ParentAttendancePage({
   }));
 
   const childName = selected.studentNickname ?? selected.studentName.split(" ")[0];
-  const weekRangeLabel = `${formatDate(weekStart, { day: "numeric", month: "short" })} – ${formatDate(weekEnd, { day: "numeric", month: "short", year: "numeric" })}`;
+  // Same shape as the journal surfaces, from the shared helper — the year is
+  // printed once, at the end of the range.
+  const weekRangeLabel = formatWeekRangeLabel(weekStart, weekEnd);
 
   return (
     <div className="space-y-6 pb-4">

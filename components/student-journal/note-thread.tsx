@@ -32,14 +32,24 @@ type NoteThreadProps = {
   onDelete?: (noteId: string) => void;
   canEdit?: (note: Note) => boolean;
   /**
-   * Parent-portal callers pass "parent" so TEACHER-authored notes render the
-   * warmer "Ustadzah" label (matching app/parent/attendance/page.tsx's
-   * `n.authorRole === "TEACHER" ? "Ustadzah" : "Anda"`) instead of the
-   * generic "Guru" role label, and the empty state reflects that the parent
-   * can write the first note. Admin/teacher callers omit this prop and keep
-   * the generic "Guru" label + original empty state.
+   * Who is reading. "parent" makes TEACHER-authored notes render the warmer
+   * "Ustadzah" label (matching app/parent/attendance/page.tsx's
+   * `n.authorRole === "TEACHER" ? "Ustadzah" : "Anda"`) instead of the generic
+   * "Guru" role label. Both values also pick the empty-state copy: the default
+   * ("catatan dari guru akan tampil di sini") told a guru reading their own
+   * student's week to wait for a guru. Admin callers omit the prop.
    */
-  audience?: "parent";
+  audience?: "parent" | "teacher";
+}
+
+/**
+ * Empty-state description per reader. Notes are week-scoped, so the copy says
+ * "pekan ini" rather than implying the student has never had a note.
+ */
+const EMPTY_DESCRIPTION: Record<"parent" | "teacher" | "admin", string> = {
+  parent: "Tulis catatan pertama, atau tunggu catatan dari Ustadzah.",
+  teacher: "Belum ada catatan di pekan ini. Tulis catatan pertama untuk wali murid.",
+  admin: "Catatan dari guru akan tampil di sini setelah dituliskan.",
 };
 
 export function NoteThread({
@@ -53,11 +63,7 @@ export function NoteThread({
     return (
       <EmptyState
         title="Belum ada catatan"
-        description={
-          audience === "parent"
-            ? "Belum ada catatan. Tulis catatan pertama, atau tunggu catatan dari Ustadzah."
-            : "Catatan dari guru akan tampil di sini setelah dituliskan."
-        }
+        description={EMPTY_DESCRIPTION[audience ?? "admin"]}
       />
     );
   }

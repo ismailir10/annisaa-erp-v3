@@ -29,6 +29,12 @@ const weekData = {
   data: {
     weekStart: "2026-08-03",
     dates: ["2026-08-03", "2026-08-04"],
+    student: {
+      id: "student_1",
+      name: "Abdullah Faris Siregar",
+      nickname: "Abdullah",
+      classNames: ["DCARE"],
+    },
     categories: [],
     entries: [],
     notes: [],
@@ -85,6 +91,26 @@ describe("TeacherStudentWeekPage", () => {
     }
   });
 
+  it("names the student the week belongs to, with nickname and class", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => weekData }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Abdullah Faris Siregar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Abdullah · DCARE")).toBeInTheDocument();
+  });
+
+  it("renders the grid even when the payload carries no student identity", async () => {
+    const withoutStudent = { data: { ...weekData.data, student: null } };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => withoutStudent }));
+    render(<TeacherStudentWeekPage />);
+
+    await screen.findByTestId("week-grid");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
   it("ignores a stale prior-week response after week navigation", async () => {
     const first = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     const second = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
@@ -111,6 +137,6 @@ describe("TeacherStudentWeekPage", () => {
     expect(
       screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
     ).toBeInTheDocument();
-    expect(screen.getByText("3 Agu – 4 Agu")).toBeInTheDocument();
+    expect(screen.getByText("3 Agu – 4 Agu 2026")).toBeInTheDocument();
   });
 });

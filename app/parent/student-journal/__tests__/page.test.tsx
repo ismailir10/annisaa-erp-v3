@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // T1 — the render gate in ../page.tsx must key off `schoolCategories` /
@@ -100,5 +100,58 @@ describe("ParentStudentJournalPage", () => {
     // indicators even though schoolEntries/homeEntries/notes are all [].
     expect(await screen.findByText("Shalat Subuh")).toBeInTheDocument();
     expect(screen.getByText("Mengaji")).toBeInTheDocument();
+  });
+
+  it("opens the week named in ?week= instead of snapping back to this week", async () => {
+    // Any day of the week is accepted and snapped to its Monday, so a link to
+    // "the day Ustadzah wrote" opens that week.
+    nav.params = new URLSearchParams("week=2026-08-12");
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    await screen.findByRole("tab", { name: "Di rumah" });
+    const weekFetch = (globalThis.fetch as unknown as { mock: { calls: string[][] } }).mock.calls
+      .map((call) => call[0])
+      .find((url) => url.startsWith("/api/student-journal/children/"));
+    expect(weekFetch).toContain("weekStart=2026-08-10");
+  });
+
+  it("falls back to the current week when ?week= is not a real date", async () => {
+    nav.params = new URLSearchParams("week=2026-02-31");
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    await screen.findByRole("tab", { name: "Di rumah" });
+    const weekFetch = (globalThis.fetch as unknown as { mock: { calls: string[][] } }).mock.calls
+      .map((call) => call[0])
+      .find((url) => url.startsWith("/api/student-journal/children/"));
+    expect(weekFetch).not.toContain("weekStart=2026-02-31");
+  });
+
+  it("writes the week to the URL when the reader pages back", async () => {
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    await screen.findByRole("tab", { name: "Di rumah" });
+    fireEvent.click(screen.getByRole("button", { name: "Pekan sebelumnya" }));
+
+    expect(nav.replace).toHaveBeenCalledWith(
+      expect.stringContaining("week="),
+      { scroll: false },
+    );
+  });
+
+  it("cannot page into a future week", async () => {
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+
+    await screen.findByRole("tab", { name: "Di rumah" });
+    // Opened on the current week (no ?week=), so forward is inert.
+    expect(
+      screen.getByRole("button", {
+        name: "Pekan berikutnya — pekan berikutnya belum tersedia",
+      }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Kembali ke pekan ini" })).toBeNull();
   });
 });

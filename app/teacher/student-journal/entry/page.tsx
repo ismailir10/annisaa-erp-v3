@@ -43,6 +43,11 @@ type Category = {
   indicators: Indicator[];
 };
 
+type ClassSection = {
+  id: string;
+  name: string;
+};
+
 type EntryRow = {
   id: string;
   studentId: string;
@@ -57,6 +62,7 @@ export default function StudentJournalEntryPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [classSection, setClassSection] = useState<ClassSection | null>(null);
   /** state[studentId][indicatorId] = checked */
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
@@ -102,6 +108,7 @@ export default function StudentJournalEntryPage() {
 
     setStudents(loadedStudents);
     setCategories(loadedCategories);
+    setClassSection(data.classSection ?? null);
 
     // Build initial grid state from pre-filled entries
     const initial: Record<string, Record<string, boolean>> = {};
@@ -253,11 +260,15 @@ export default function StudentJournalEntryPage() {
   const dateLabel = date
     ? formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
+  // Class first, then the day: which roster is on screen is the question a guru
+  // with two classes asks, and the header answered only the second half of it.
+  const headerSubtitle =
+    [classSection?.name, dateLabel].filter(Boolean).join(" · ") || undefined;
 
   if (loading) {
     return (
       <div className="space-y-3">
-        <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
+        <PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} />
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-16 w-full rounded-xl" />
         ))}
@@ -307,7 +318,7 @@ export default function StudentJournalEntryPage() {
     <div>
       <BackLink href="/teacher/student-journal" />
 
-      <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
+      <PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} />
 
       <ClassDayGrid
         students={students}
@@ -331,6 +342,7 @@ export default function StudentJournalEntryPage() {
           weekDates={noteWeekDates}
           initialDate={date}
           title={`Tulis catatan untuk ${noteStudent.name}`}
+          audience="teacher"
           placeholder={`Tulis catatan untuk ${noteStudent.name}…`}
           onSaved={() => {
             setNoteCounts((prev) => ({
