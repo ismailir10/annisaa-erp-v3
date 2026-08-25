@@ -26,7 +26,7 @@ import { NoteThread } from "@/components/student-journal/note-thread";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
-import { formatDateShort } from "@/lib/format";
+import { formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -77,7 +77,22 @@ function addDays(ymd: string, days: number): string {
 
 function weekLabel(dates: string[]): string {
   if (dates.length === 0) return "";
-  return `${formatDateShort(dates[0])} – ${formatDateShort(dates[dates.length - 1])}`;
+  return formatWeekRangeLabel(dates[0], dates[dates.length - 1]);
+}
+
+/**
+ * `?week=` is trusted only as far as "is this a real calendar date" — anything
+ * else falls back to the current week rather than 400-ing at the reader. The
+ * value is snapped to its Monday so a link to any day of a week opens that week.
+ */
+function resolveWeekParam(raw: string | null, todayYmd: string): string {
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T00:00:00Z`);
+    if (!Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === raw) {
+      return weekStart(raw);
+    }
+  }
+  return weekStart(todayYmd);
 }
 
 // ── Component ─────────────────────────────────────────────────────
@@ -117,10 +132,29 @@ export default function ParentStudentJournalPage() {
 
   const [children, setChildren] = useState<Child[] | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<string>(() => {
-    const today = getTodayInTimezone("Asia/Jakarta");
-    return weekStart(today);
-  });
+
+  // The viewed week lives in the URL, like the tab above it. Held in component
+  // state it did not survive a reload, a back-button press, or a link pasted to
+  // another wali — every one of those silently snapped back to this week, which
+  // is the opposite of what a parent chasing last week's catatan wants.
+  const today = getTodayInTimezone("Asia/Jakarta");
+  const thisWeek = weekStart(today);
+  const currentWeek = resolveWeekParam(searchParams.get("week"), today);
+  const isCurrentWeek = currentWeek === thisWeek;
+
+  const setCurrentWeek = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === thisWeek) {
+        params.delete("week");
+      } else {
+        params.set("week", next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams, thisWeek],
+  );
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -192,8 +226,8 @@ export default function ParentStudentJournalPage() {
     }
   }, [childId, currentWeek, loadWeekData]);
 
-  const handlePrevWeek = () => setCurrentWeek((w) => addDays(w, -7));
-  const handleNextWeek = () => setCurrentWeek((w) => addDays(w, 7));
+  const handlePrevWeek = () => setCurrentWeek(addDays(currentWeek, -7));
+  const handleNextWeek = () => setCurrentWeek(addDays(currentWeek, 7));
 
   // ── Loading state ────────────────────────────────────────────────
   if (children === null) {
@@ -222,7 +256,7 @@ export default function ParentStudentJournalPage() {
   // currently viewing) — a wali who navigates back four weeks must still see
   // every cell there locked. `homeEntryEditFloor` is the same helper the
   // server route enforces against, so client and server never disagree.
-  const homeEditFloor = homeEntryEditFloor(getTodayInTimezone("Asia/Jakarta"));
+  const homeEditFloor = homeEntryEditFloor(today);
 
   return (
     <div className="space-y-6">
@@ -259,9 +293,14 @@ export default function ParentStudentJournalPage() {
       />
 
       <WeekNavigator
-        label={weekLabel(dates)}
+        label={isCurrentWeek ? `${weekLabel(dates)} · pekan ini` : weekLabel(dates)}
         onPrev={handlePrevWeek}
         onNext={handleNextWeek}
+        // Future weeks hold nothing: school entries are written by the guru for
+        // days that have happened, and the "Di rumah" grid locks every cell
+        // after today. Paging forward only produced an empty grid.
+        nextDisabled={isCurrentWeek}
+        onToday={isCurrentWeek ? undefined : () => setCurrentWeek(thisWeek)}
       />
 
       {/* Main content */}
@@ -390,6 +429,7 @@ export default function ParentStudentJournalPage() {
           mode={noteDialog?.mode ?? "create"}
           studentId={childId}
           weekDates={dates}
+          audience="parent"
           initialDate={
             noteDialog?.mode === "edit" ? noteDialog.date : undefined
           }

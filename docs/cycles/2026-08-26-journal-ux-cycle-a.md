@@ -187,4 +187,29 @@ warning every render of every journal grid produced.
 
 ## Verification
 
+**Gates** (worktree `feat/journal-ux-cycle-a`, branched from `origin/staging` `9a56ccd6`):
+
+- `npx tsc --noEmit -p tsconfig.json` — ✅ exit 0, no output.
+- `npx vitest run` — ✅ `Test Files 331 passed | 2 skipped (333)` · `Tests 3247 passed | 42 todo (3289)`, 78.85s. Zero React key warnings in the run (the week-grid fragment fix).
+- `npx eslint <every changed file>` — ✅ exit 0, 0 errors, 0 warnings. Two warnings surfaced on the first pass (an unused `react-hooks/set-state-in-effect` directive on the teacher week page, and `useMemo(..., [open])` in the note dialog) and both were fixed rather than suppressed.
+- `bash scripts/verify-api-auth.sh` — ✅ `194 / 194 routes have session helper or @public sentinel`.
+- `bash scripts/verify-rls-coverage.sh` — ✅ `41 / 41 tenant-scoped models have ENABLE + policy`.
+- **`npm run build` — not run locally; deferred to the required CI `Build` check.** Turbopack rejects `setup-worktree.sh`'s `node_modules` symlink (`Symlink [project]/node_modules is invalid, it points out of the filesystem root`), and the real install it needs did not fit the host's remaining disk. `tsc --noEmit` covers the type surface of this diff; no build-config, route-shape or dependency change is involved.
+- **Playwright — not run locally; deferred to the required CI `Playwright E2E` check.** No route added or removed and no e2e selector touched; the visual changes were verified directly against the staging preview instead (below).
+
+**Preview-verify** — Chrome MCP against the staging preview, signed into the real accounts (`ismail10rabbanii@` teacher on class DCARE, `rightjet.hq@` parent with two children). Recorded before the branch shipped, as the review baseline; re-run after deploy per `/ship`:
+
+- Teacher `/teacher/student-journal/students/<id>?week=…` — before: no name anywhere on the page. Confirms the reported bug.
+- Teacher `/teacher/student-journal/entry?classId=…&date=…` — before: header "Isi Buku Penghubung" + date only, no class.
+- Teacher week control — before: `?week=2027-06-07` rendered `7 Jun – 11 Jun`, no year, forward control live.
+- Parent `/parent/student-journal` — before: week held in state only (URL kept `?view=` but never `?week=`), label carried the year while the teacher's did not, and a note three weeks back was reachable only by blind paging.
+- Note author on a real staging note rendered `Ismail Rabbani (Teacher)` beside a `Guru` badge.
+
+**Copy** (`.claude/standards/voice.md` §Empty states):
+- [x] Empty states say why the surface is empty and what happens next, in the reader's own frame — teacher: "Belum ada catatan di pekan ini. Tulis catatan pertama untuk wali murid."; parent: "Tulis catatan pertama, atau tunggu catatan dari Ustadzah."
+- [x] No English leaks into parent- or teacher-facing strings; role words appear once per line.
+
+**Design system:**
+- [x] Cross-checked `design-system.html` + `.claude/standards/portal.md` — the new header is the shared `PageHeader` primitive (no hand-rolled `h1`), the disabled week control keeps the 44px `size-11` target, and the reset uses the existing `tap-target` utility with `text-primary-text` (the token already used for accessible teal text). No new component, no new spacing value, no arbitrary hex.
+
 ## Ship Notes
