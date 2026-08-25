@@ -32,29 +32,29 @@ migration, no new table, no new column.
 
 ### Acceptance criteria
 
-- [ ] A teacher with exactly one teaching assignment lands on today's grid without filling a form;
+- [x] A teacher with exactly one teaching assignment lands on today's grid without filling a form;
       the picker remains reachable and is not skipped when the teacher asks for it explicitly.
-- [ ] The fill page offers a visible way back to "another class or date" — auto-routing must never
+- [x] The fill page offers a visible way back to "another class or date" — auto-routing must never
       strand a guru on today.
-- [ ] A student's expanded checklist can be marked complete, and cleared, in one gesture; the bulk
+- [x] A student's expanded checklist can be marked complete, and cleared, in one gesture; the bulk
       action writes through the same coalescer as individual taps and rolls back the same way.
-- [ ] The fill page shows how much of the class is done (`N/M siswa lengkap`), updating as cells are
+- [x] The fill page shows how much of the class is done (`N/M siswa lengkap`), updating as cells are
       tapped, not only on reload.
-- [ ] The per-student week view offers a jump into the fill grid for that student's class — no
+- [x] The per-student week view offers a jump into the fill grid for that student's class — no
       retyping a date into the picker to correct a day.
-- [ ] In the read-only grid a filled cell is unmistakable at a glance: the same check mark the
+- [x] In the read-only grid a filled cell is unmistakable at a glance: the same check mark the
       editable grid uses, in the same accessible colour, not a grey glyph the same weight as the
       empty state.
-- [ ] In an editable grid, a cell the reader may tap looks different from one they may not, before
+- [x] In an editable grid, a cell the reader may tap looks different from one they may not, before
       any interaction and without relying on opacity alone.
-- [ ] A week with no school entries at all says so in words rather than rendering a silent wall of
+- [x] A week with no school entries at all says so in words rather than rendering a silent wall of
       dashes.
-- [ ] A roster row identifies its student once: two-letter initials, and no nickname line when the
+- [x] A roster row identifies its student once: two-letter initials, and no nickname line when the
       nickname is just the first word of the name.
-- [ ] The parent journal header names the child and class it is showing.
-- [ ] Gates green: `tsc --noEmit`, `vitest run`, `eslint`, `verify-api-auth.sh`,
+- [x] The parent journal header names the child and class it is showing.
+- [x] Gates green: `tsc --noEmit`, `vitest run`, `eslint`, `verify-api-auth.sh`,
       `verify-rls-coverage.sh`, `audit-docs.sh`; build + Playwright via the required CI checks.
-- [ ] Verified in Chrome on the PR preview as the real teacher and parent accounts, cross-checked
+- [x] Verified in Chrome on the PR preview as the real teacher and parent accounts, cross-checked
       against `design-system.html`.
 
 ### Non-goals
@@ -75,38 +75,40 @@ migration, no new table, no new column.
    the existing `N/7` counter already uses per row.
 2. Auto-routing to today's grid is right for a **single-assignment** teacher only. With two or more
    classes the picker is a real question and stays.
-3. The week view's jump targets the student's first active class; a student in two classes (the
-   DCARE case) gets the first, and the picker remains the way to choose deliberately.
+3. ~~The week view's jump targets the student's first active class.~~ **Corrected during
+   preview-verify:** it must target the first class *this teacher is assigned to*. The week route
+   grants on any enrollment while `class-grid` guards the specific class, so "first enrollment" sent
+   a guru to a Forbidden screen for the real two-enrollment student on staging. See Verification.
 4. Making the read-only check mark match the editable one is a legibility fix, not a licence: the
    cell stays non-interactive.
 
 ## Tasks
 
-- [ ] **T1 — One-tap into today.** `/teacher/student-journal` auto-routes to
+- [x] **T1 — One-tap into today.** `/teacher/student-journal` auto-routes to
       `entry?classId=…&date=<today>` when the teacher holds exactly one assignment, unless
       `?pick=1`. The fill page gains a "Ganti kelas atau tanggal" control pointing back at
       `?pick=1`. *Acceptance:* single-assignment teacher reaches the grid with zero form input;
       multi-class teacher sees the picker unchanged; the escape hatch never loops.
-- [ ] **T2 — Bulk fill per student.** "Tandai semua" / "Hapus semua" inside the expanded checklist,
+- [x] **T2 — Bulk fill per student.** "Tandai semua" / "Hapus semua" inside the expanded checklist,
       routed through the existing `JournalWriteCoalescer` so one gesture is one batched request with
       the existing rollback. *Acceptance:* marking all sets every indicator for that student;
       failure rolls the whole gesture back with one toast; per-cell pending styling still applies.
-- [ ] **T3 — Class completeness.** `N/M siswa lengkap` on the fill page header, derived from live
+- [x] **T3 — Class completeness.** `N/M siswa lengkap` on the fill page header, derived from live
       grid state. *Acceptance:* the count moves as cells are tapped, and reads `0/9` on an untouched
       class-day.
-- [ ] **T4 — Jump from the week view into the day.** Teacher week API returns the student's active
+- [x] **T4 — Jump from the week view into the day.** Teacher week API returns the student's active
       class ids; the page renders a link into the fill grid for the viewed week's today (or the
       week's last school day when viewing a past week). *Acceptance:* the link carries the right
       classId + date; absent when the student has no active class.
-- [ ] **T5 — Grid legibility.** In `components/portal/week-grid.tsx`: read-only filled cells render
+- [x] **T5 — Grid legibility.** In `components/portal/week-grid.tsx`: read-only filled cells render
       the same `Check` icon in `text-primary-text` as the editable mode, empty cells a muted dash at
       the same size; editable-but-locked cells become visually distinct from editable ones by more
       than opacity. *Acceptance:* unit tests assert the read-only checked cell renders the icon, and
       that locked cells keep their existing aria reason.
-- [ ] **T6 — Empty-week copy.** When a week carries no school entries, both journal surfaces say so
+- [x] **T6 — Empty-week copy.** When a week carries no school entries, both journal surfaces say so
       above the grid instead of rendering only dashes. *Acceptance:* copy appears only when the week
       is genuinely empty, and never on a week with at least one tick.
-- [ ] **T7 — Roster row + parent header identity.** `ClassDayGrid` uses two-letter initials and drops
+- [x] **T7 — Roster row + parent header identity.** `ClassDayGrid` uses two-letter initials and drops
       a nickname that is merely the first word of the name; the parent journal header names the child
       and class. *Acceptance:* "Abdullah Faris Siregar" shows `AF` and no duplicate nickname line;
       the parent header reads `Bilal · TKIT-A`.
@@ -152,4 +154,35 @@ parent journal header's subtitle now reads `Bilal · TKIT-A` instead of a static
 
 ## Verification
 
+**Gates** (worktree `feat/journal-teacher-speed-cycle-c`, branched from `origin/staging` `18ee0a3d`):
+
+- `npx tsc --noEmit` — ✅ exit 0.
+- `npx vitest run` — ✅ `Test Files 337 passed | 2 skipped (339)` · `Tests 3285 passed | 42 todo (3327)`.
+- `npx eslint` on every touched path — ✅ 0 errors, 0 warnings. Two rounds of pushback were fixed rather than suppressed: the `react-hooks/refs` rule rejected a ref written during render (the first shape of the auto-route fix), and the pre-commit typography floor had already rejected `text-[10px]` badges in cycle B.
+- `bash scripts/verify-api-auth.sh` — ✅ `196 / 196`. `bash scripts/verify-rls-coverage.sh` — ✅ `42 / 42`. `bash scripts/audit-docs.sh` — ✅ 0 fail.
+- `npm run build` + Playwright — deferred to the required CI checks (Turbopack/worktree symlink limitation, as in cycles A and B).
+
+**A render loop caught by its first test.** The auto-route began life inside the fetch effect, whose dependency array then had to include `router`. Under the test's `useRouter` mock — and any setup where the router object is not referentially stable — the effect re-ran on its own `setState`: **642 requests in 500 ms**, measured. The redirect is now a separate, state-free effect; a re-run of it is inert. This is the argument for writing the test before believing the feature.
+
+**A real bug found by preview-verify, not by the suite.** Clicking the new "Isi hari ini" on staging landed on *"Data kelas tidak bisa dimuat"* with a `Forbidden` toast. Cause: the week route grants access when the teacher is assigned to **any** of the student's active classes, but `class-grid` guards the **specific** class — and Abdullah holds two ACTIVE DCARE enrollments, of which this guru teaches only the second. The link was built from `classes[0]`, the one he cannot fill. Fixed by returning only the caller's *assigned* classes in `student.classes` (identity still lists every class name via `classNames`), with the week route's `findFirst` widened to `findMany` to get the ids. Re-verified after the fix.
+
+**Preview-verify** — Chrome MCP on PR #523's preview, signed in as the real teacher and parent:
+
+- **Teacher** `/teacher/student-journal` → auto-routed to `entry?classId=…&date=2026-08-26`; header reads `DCARE · Rabu, 26 Agustus 2026`, `0/8 siswa lengkap`, with "Ganti kelas atau tanggal" beside it. Avatars read `AF`, `AI` — no duplicate nickname line.
+- **Bulk fill, exercised for real:** one tap on "Tandai semua" took the row to `7/7`, flipped the avatar to a check, moved the header to `1/8 siswa lengkap`, and spent the button; "Hapus semua" put it back to `0/7` and `0/8`. Staging was left as found.
+- `?pick=1` → the class/date form renders, no re-route.
+- **Teacher week view** → "Isi hari ini" present, "Belum ada centang di pekan ini." above the grid, and the jump now opens the right class-day.
+- **Parent** → header reads `Bilal · TKIT-A`; the school tab says "Sekolah belum mengisi jurnal untuk pekan ini."; on "Di rumah", Sen/Sel/Rab render tappable boxes while Kam/Jum render dashes — the editable-vs-locked distinction is now shape, not opacity.
+
+**Design system:**
+- [x] Cross-checked `design-system.html` + `.claude/standards/portal.md`. Bulk controls and the header action reuse `tap-target` with existing tokens; the read-only check is the same `Check` in `text-primary-text` the editable grid already used; no new spacing value, no arbitrary hex.
+
 ## Ship Notes
+
+- **Migrations:** none. No schema change.
+- **Env vars:** none.
+- **Routes:** none added or removed. `GET /api/student-journal/students/[id]/week` returns one added field, `student.classes` (the caller's assigned classes only).
+- **Data:** none written by this change. Preview-verify wrote and then cleared one student's ticks on staging; nothing else.
+- **Behaviour change worth announcing to teachers:** a guru with exactly one class no longer sees the class/date form on entry. It remains at `/teacher/student-journal?pick=1`, reachable from "Ganti kelas atau tanggal" on the fill page.
+- **Rollback:** revert the commits; nothing persisted, no consumer outside this repo reads `student.classes`.
+- **Follow-up:** "Salin dari kemarin" and the teacher-home completeness nudge were both scoped out (see Non-goals); J1 weekend entries still deferred.
