@@ -213,3 +213,18 @@ warning every render of every journal grid produced.
 - [x] Cross-checked `design-system.html` + `.claude/standards/portal.md` — the new header is the shared `PageHeader` primitive (no hand-rolled `h1`), the disabled week control keeps the 44px `size-11` target, and the reset uses the existing `tap-target` utility with `text-primary-text` (the token already used for accessible teal text). No new component, no new spacing value, no arbitrary hex.
 
 ## Ship Notes
+
+- **Migrations:** none. No schema change.
+- **Env vars:** none.
+- **Routes:** none added or removed. Two existing GETs return one added field each:
+  `GET /api/student-journal/students/[id]/week` → `data.student`,
+  `GET /api/student-journal/class-grid` → `data.classSection`. Both are additive; every existing
+  field keeps its shape, so an un-updated client is unaffected.
+- **Data:** none written. Every route touched is a read.
+- **URLs:** `/parent/student-journal` now accepts `?week=YYYY-MM-DD`. Existing links without it
+  behave exactly as before (current week). No redirect, no removed param.
+- **Rollback:** revert the five commits; nothing is persisted and no consumer outside this repo
+  reads the two added response fields.
+- **Follow-up:** J1 (weekend entries written but never rendered) stays open by owner decision —
+  see Context. The two orphan Saturday rows on staging
+  (`cms41al32003bi5x72axm73vb`, 2026-08-15) are still invisible in every surface.
