@@ -8,6 +8,7 @@ import {
   type CommitResultRow,
   type BatchProgressSnapshot,
 } from "../run-bulk-generate";
+import { itBehavesLikeChunk } from "./chunk.test-helpers";
 
 // --------------------------------------------------------------------------
 // This suite replaces the pre-Task-T10 version, which drove the retired
@@ -92,17 +93,7 @@ beforeEach(() => {
 // --------------------------------------------------------------------------
 
 describe("chunk", () => {
-  it("slices an array into N-sized buckets", () => {
-    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
-  });
-
-  it("returns [] for an empty array", () => {
-    expect(chunk([], 5)).toEqual([]);
-  });
-
-  it("throws on size <= 0", () => {
-    expect(() => chunk([1], 0)).toThrow();
-  });
+  itBehavesLikeChunk(chunk);
 });
 
 // --------------------------------------------------------------------------
