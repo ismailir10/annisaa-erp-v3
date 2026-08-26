@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GET } from "../attendance/my/route";
 
 // Mock dependencies
@@ -17,6 +17,12 @@ vi.mock("@/lib/auth", () => ({
 describe("GET /api/attendance/my", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // Safety net for the fake-timer test below — restores the real clock even
+  // if an assertion throws before its own vi.useRealTimers() call runs.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("Authentication", () => {
@@ -189,6 +195,14 @@ describe("GET /api/attendance/my", () => {
 
   describe("Query Parameters", () => {
     it("should use current month and year if not provided", async () => {
+      // Pinned clock: the route reads `new Date()` itself (route.ts:21-22) to
+      // default month/year when the query param is absent. Without a fixed
+      // clock, a run straddling a real month boundary between the route's
+      // `new Date()` call and this test's own `new Date()` call below would
+      // compute two different months and fail — pin both to the same instant.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-04-15T12:00:00Z"));
+
       const { getSession } = await import("@/lib/auth");
       const { prisma } = await import("@/lib/db");
 
@@ -209,15 +223,11 @@ describe("GET /api/attendance/my", () => {
       const request = new Request("http://localhost:3000/api/attendance/my");
       await GET(request as never);
 
-      const currentDate = new Date();
-      const expectedMonth = currentDate.getMonth() + 1;
-      const expectedYear = currentDate.getFullYear();
-
       expect(prisma.attendanceRecord.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             date: expect.objectContaining({
-              gte: `${expectedYear}-${String(expectedMonth).padStart(2, "0")}-01`,
+              gte: "2026-04-01",
             }),
           }),
         })

@@ -24,6 +24,11 @@ function makeSession(role: SessionUser["role"]): SessionUser {
   return { id: "u1", email: "test@test.com", name: "Test", role, tenantId: "t1", employeeId: null, parentId: null, permissions: [], customRoleCode: null };
 }
 
+// TEACHER 403, SUPER_ADMIN 200, and null-session 401 were dropped from here
+// — all three are already covered in payroll-list.test.ts (which also
+// checks pagination/tenant-scoping behavior alongside the status codes).
+// SCHOOL_ADMIN and GUARDIAN are role-specific rejections payroll-list.test.ts
+// never exercises, so they stay.
 describe("GET /api/payroll — role checks", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -37,31 +42,10 @@ describe("GET /api/payroll — role checks", () => {
     expect(body.missing).toBe("payroll.view");
   });
 
-  it("returns 403 for TEACHER", async () => {
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER"));
-    const res = await GET(makeReq() as never);
-    expect(res.status).toBe(403);
-  });
-
   it("returns 403 for GUARDIAN", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(makeSession("GUARDIAN"));
     const res = await GET(makeReq() as never);
     expect(res.status).toBe(403);
-  });
-
-  it("returns 200 for SUPER_ADMIN", async () => {
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(makeSession("SUPER_ADMIN"));
-    const res = await GET(makeReq() as never);
-    expect(res.status).toBe(200);
-  });
-
-  it("returns 401 when session is null", async () => {
-    const { getSession } = await import("@/lib/auth");
-    vi.mocked(getSession).mockResolvedValue(null);
-    const res = await GET(makeReq() as never);
-    expect(res.status).toBe(401);
   });
 });
