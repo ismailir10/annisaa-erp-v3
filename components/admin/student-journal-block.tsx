@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WeekGrid } from "@/components/portal/week-grid";
+import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { weekStart } from "@/lib/student-journal/week";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { summarizeJournalWeek, shiftWeek } from "@/lib/student/journal-week";
@@ -28,21 +29,12 @@ import { formatDateShort } from "@/lib/format";
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
 type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
-type Note = { id: string; date: string; authorRole: string; authorName?: string; body: string };
 
 type WeekData = {
   weekStart: string;
   dates: string[];
   schoolCategories: Category[];
   schoolEntries: Entry[];
-  notes: Note[];
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Admin",
-  TEACHER: "Guru",
-  PARENT: "Wali",
-  GUARDIAN: "Wali",
 };
 
 export const StudentJournalBlock = memo(function StudentJournalBlock({
@@ -114,7 +106,6 @@ export const StudentJournalBlock = memo(function StudentJournalBlock({
   const dates = data?.dates ?? [];
   const categories = data?.schoolCategories ?? [];
   const entries = data?.schoolEntries ?? [];
-  const notes = data?.notes ?? [];
   const summary = summarizeJournalWeek(categories, entries, dates);
 
   const weekLabel =
@@ -163,29 +154,22 @@ export const StudentJournalBlock = memo(function StudentJournalBlock({
         // nothing to say it is there.
         <div className="-mx-1 overflow-x-auto px-1">
           <div className="min-w-[520px]">
-            <WeekGrid categories={categories} entries={entries} dates={dates} />
+            <WeekGrid
+              categories={categories}
+              entries={entries}
+              dates={dates}
+              emptyWeekMessage="Belum ada centang di pekan ini."
+            />
           </div>
         </div>
       )}
 
-      {notes.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Catatan pekan ini
-          </p>
-          <ul className="space-y-2">
-            {notes.map((n) => (
-              <li key={n.id} className="rounded-md border p-2.5">
-                <p className="text-xs text-muted-foreground">
-                  {formatDateShort(n.date)} ·{" "}
-                  {n.authorName ?? ROLE_LABELS[n.authorRole] ?? n.authorRole}
-                </p>
-                <p className="mt-1 text-sm">{n.body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Catatan
+        </p>
+        <NoteThreadPanel studentId={studentId} />
+      </div>
 
       <Link
         href={`/admin/student-journal/students/${studentId}?weekStart=${ws}`}

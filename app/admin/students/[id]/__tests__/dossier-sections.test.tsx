@@ -101,7 +101,14 @@ const ADJUSTMENTS = [
 type Calls = { url: string; method: string }[];
 
 /** Records every request the page makes, so laziness is assertable. */
-function stubFetch(over: { invoices?: unknown; invoiceStatus?: number } = {}) {
+function stubFetch(
+  over: {
+    invoices?: unknown;
+    invoiceStatus?: number;
+    schoolCategories?: unknown[];
+    schoolEntries?: unknown[];
+  } = {},
+) {
   const calls: Calls = [];
   const fn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -118,22 +125,48 @@ function stubFetch(over: { invoices?: unknown; invoiceStatus?: number } = {}) {
     if (url.startsWith("/api/student-fee-adjustments")) {
       return Promise.resolve({ ok: true, json: async () => ({ data: ADJUSTMENTS }) } as Response);
     }
-    if (url.includes("/api/student-journal/")) {
+    if (url.includes("/api/student-journal/admin/students") && url.includes("/week?weekStart=")) {
       return Promise.resolve({
         ok: true,
         json: async () => ({
           data: {
             weekStart: "2026-08-17",
             dates: ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21"],
-            schoolCategories: [
+            schoolCategories: over.schoolCategories ?? [
               { id: "c1", name: "Ibadah", scope: "SCHOOL", indicators: [{ id: "i1", label: "Sholat", order: 1 }] },
             ],
             homeCategories: [],
-            schoolEntries: [{ id: "e1", indicatorId: "i1", date: "2026-08-17", checked: true }],
-            homeEntries: [],
-            notes: [
-              { id: "n1", date: "2026-08-18", authorRole: "TEACHER", authorName: "Bu Rina", body: "Ceria hari ini" },
+            schoolEntries: over.schoolEntries ?? [
+              { id: "e1", indicatorId: "i1", date: "2026-08-17", checked: true },
             ],
+            homeEntries: [],
+          },
+        }),
+      } as Response);
+    }
+    // `NoteThreadPanel` (used by both the dossier's Buku Penghubung card and
+    // the full journal detail page) reads the whole thread from here, not
+    // from the week payload — that is exactly the bug this cycle fixes.
+    if (url.startsWith("/api/student-journal/notes/read")) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: { lastReadAt: "x" } }) } as Response);
+    }
+    if (url.startsWith("/api/student-journal/notes")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: {
+            notes: [
+              {
+                id: "n1",
+                date: "2026-08-18",
+                authorRole: "TEACHER",
+                authorName: "Bu Rina",
+                body: "Ceria hari ini",
+                createdAt: "2026-08-18T03:00:00.000Z",
+              },
+            ],
+            nextCursor: null,
+            unreadCount: 0,
           },
         }),
       } as Response);
@@ -256,5 +289,22 @@ describe("student dossier — increment 2 sections", () => {
     );
     await waitFor(() => expect(screen.getByText("Ceria hari ini")).toBeInTheDocument());
     expect(screen.getByText("1/5 hari terisi · 1 centang")).toBeInTheDocument();
+  });
+
+  it("shows the staff empty-week copy on the Buku Penghubung grid when no cell is checked", async () => {
+    const user = userEvent.setup();
+    const { fn, calls } = stubFetch({
+      schoolEntries: [{ id: "e1", indicatorId: "i1", date: "2026-08-17", checked: false }],
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<StudentDetailPage />);
+    await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
+
+    await user.click(sectionTrigger("buku-penghubung"));
+
+    await waitFor(() =>
+      expect(urlsMatching(calls, "/api/student-journal/admin/students/s1/week")).toHaveLength(1),
+    );
+    expect(await screen.findByText("Belum ada centang di pekan ini.")).toBeInTheDocument();
   });
 });
