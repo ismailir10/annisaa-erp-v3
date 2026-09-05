@@ -14,7 +14,7 @@ None of these four touch the same file or the same subsystem; they are grouped i
 ## Spec
 
 - [x] Deactivating or activating a user in `/admin/settings/users` requires an explicit confirm step, matching the `DeactivateConfirmDialog` + plain `ConfirmDialog` pattern `app/admin/(hr)/employees/page.tsx` already uses for the identical deactivate/restore pair.
-- [ ] The three `DialogClose`/`SheetClose` call sites in `employees/page.tsx` and `leave-requests/page.tsx` use the `render` prop instead of nesting a `<Button>` as a child — no behavior change, pure markup-validity fix.
+- [x] The three `DialogClose`/`SheetClose` call sites in `employees/page.tsx` and `leave-requests/page.tsx` use the `render` prop instead of nesting a `<Button>` as a child — no behavior change, pure markup-validity fix.
 - [ ] The four dialogs named above mark their required fields with `required` + `aria-required="true"` on the control and `required` on `FieldLabel`, matching the exact pattern already shipped on Theme/SubTheme/Week cards.
 - [ ] `CompletionBadge` in `penilaian/page.tsx` uses `bg-status-present-subtle text-status-present-text` / `bg-status-late-subtle text-status-late-text` instead of the opacity-modifier + border classes.
 - [ ] No behavior change to any of the four surfaces beyond: (a) users now sees a confirm step before a status flip, exactly like every sibling settings page; (b) the two form dialogs show a visible/announced required cue before submit.
@@ -35,7 +35,7 @@ None of these four touch the same file or the same subsystem; they are grouped i
 ## Tasks
 
 - [x] **T1 — Confirm gate on user deactivate/activate.** `app/admin/settings/users/page.tsx`. *Acceptance:* clicking "Nonaktifkan"/"Aktifkan" opens a confirm dialog and fires no `PUT` until confirmed; a test proves both the no-PUT-before-confirm and the PUT-after-confirm halves for each direction.
-- [ ] **T2 — Fix nested `<button>` in three DialogClose/SheetClose call sites.** `app/admin/(hr)/employees/page.tsx` (×2), `app/admin/(hr)/leave-requests/page.tsx` (×1). *Acceptance:* all three use `render={<Button .../>}`, matching the 5+ correct call sites elsewhere in the app; `npx tsc --noEmit` and existing gates stay green.
+- [x] **T2 — Fix nested `<button>` in three DialogClose/SheetClose call sites.** `app/admin/(hr)/employees/page.tsx` (×2), `app/admin/(hr)/leave-requests/page.tsx` (×1). *Acceptance:* all three use `render={<Button .../>}`, matching the 5+ correct call sites elsewhere in the app; `npx tsc --noEmit` and existing gates stay green.
 - [ ] **T3 — Restore required-field marking on four dialogs.** `objectives/client.tsx`'s three dialogs, `academic-years/page.tsx`'s year dialog. *Acceptance:* every field the server schema requires (`content`, `competencyText`, `order`, `startDate`, `endDate`) carries `required` + `aria-required="true"` on the control and `required` on `FieldLabel`.
 - [ ] **T4 — Fix `CompletionBadge`'s status-color tokens.** `app/admin/penilaian/page.tsx`. *Acceptance:* the done/in-progress branches use the canonical `-subtle`/`-text` pair; a test locks in the exact class names and rejects the old opacity-modifier pattern.
 
@@ -45,6 +45,7 @@ All four tasks touch disjoint files with no shared state — independent, no seq
 
 - Subagent plan: driver=claude-sonnet-5, dirty-work=claude-sonnet-5. All four tasks are small, disjoint-file, pre-specced slices done inline by the driver (each is a handful of lines once the diagnosis was already done by the earlier review) — no fan-out; noted per CLAUDE.md's exception for cycles where fan-out costs more than it saves.
 - T1: `app/admin/settings/users/page.tsx` (+ new `__tests__/page.test.tsx`) — `handleToggleStatus` split into `putStatus`/`handleConfirmDeactivate`/`handleConfirmActivate`; row actions now set `deactivateTarget`/`activateTarget` state instead of firing the PUT directly; added `DeactivateConfirmDialog` (deactivate) and a plain `ConfirmDialog` (activate), mirroring `employees/page.tsx`'s existing split exactly. Cross-checked `design-system.html` — both are existing shared overlay primitives, same copy/label convention as their employees-page counterparts, no new component or token.
+- T2: `app/admin/(hr)/employees/page.tsx` (2 spots), `app/admin/(hr)/leave-requests/page.tsx` (1 spot) — `<DialogClose>`/`<SheetClose>` wrapping a `<Button>` child switched to the `render` prop, matching the form already used correctly by 5+ other dialogs in the same two files and elsewhere in the app. Cross-checked `design-system.html` — markup-validity fix only, no visual or component change.
 
 ## Verification
 
