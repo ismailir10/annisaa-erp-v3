@@ -715,23 +715,27 @@ function ObjectiveEditDialog({
       }
     >
       <Field>
-        <FieldLabel htmlFor="objective-competencyText">Capaian Perkembangan Diri</FieldLabel>
+        <FieldLabel htmlFor="objective-competencyText" required>Capaian Perkembangan Diri</FieldLabel>
         <Textarea
           id="objective-competencyText"
           rows={3}
           value={competencyText}
           onChange={(e) => setCompetencyText(e.target.value)}
           maxLength={2000}
+          required
+          aria-required="true"
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="objective-content">Tujuan Pembelajaran</FieldLabel>
+        <FieldLabel htmlFor="objective-content" required>Tujuan Pembelajaran</FieldLabel>
         <Textarea
           id="objective-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           maxLength={2000}
+          required
+          aria-required="true"
         />
       </Field>
     </ResponsiveFormDialog>
@@ -803,17 +807,19 @@ function AddIndicatorDialog({
       }
     >
       <Field>
-        <FieldLabel htmlFor="indicator-add-content">Isi Indikator</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-content" required>Isi Indikator</FieldLabel>
         <Textarea
           id="indicator-add-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           maxLength={2000}
+          required
+          aria-required="true"
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="indicator-add-order">Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-add-order" required>Urutan</FieldLabel>
         <Input
           id="indicator-add-order"
           type="number"
@@ -821,6 +827,8 @@ function AddIndicatorDialog({
           max={9999}
           value={order}
           onChange={(e) => setOrder(Number(e.target.value) || 1)}
+          required
+          aria-required="true"
         />
       </Field>
     </ResponsiveFormDialog>
@@ -888,17 +896,19 @@ function IndicatorEditDialog({
       }
     >
       <Field>
-        <FieldLabel htmlFor="indicator-edit-content">Isi indikator</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-content" required>Isi indikator</FieldLabel>
         <Textarea
           id="indicator-edit-content"
           rows={3}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           maxLength={2000}
+          required
+          aria-required="true"
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="indicator-edit-order">Urutan</FieldLabel>
+        <FieldLabel htmlFor="indicator-edit-order" required>Urutan</FieldLabel>
         <Input
           id="indicator-edit-order"
           type="number"
@@ -906,6 +916,8 @@ function IndicatorEditDialog({
           max={9999}
           value={order}
           onChange={(e) => setOrder(Number(e.target.value) || 1)}
+          required
+          aria-required="true"
         />
       </Field>
     </ResponsiveFormDialog>

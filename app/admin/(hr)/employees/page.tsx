@@ -476,7 +476,7 @@ export default function EmployeesPage() {
               />
             </div>
             <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
+              <SheetClose render={<Button variant="ghost">Batal</Button>} />
               <Button onClick={handleCreate} disabled={saving}>
                 {saving ? "Menyimpan..." : "Tambah Karyawan"}
               </Button>
@@ -501,7 +501,7 @@ export default function EmployeesPage() {
               />
             </div>
             <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+              <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
               <Button onClick={handleCreate} disabled={saving}>
                 {saving ? "Menyimpan..." : "Tambah Karyawan"}
               </Button>

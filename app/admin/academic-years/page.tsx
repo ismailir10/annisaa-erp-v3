@@ -440,8 +440,8 @@ export default function AcademicPage() {
       >
         <Field><FieldLabel required htmlFor="year-name">Nama</FieldLabel><Input id="year-name" required aria-required="true" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel htmlFor="year-startDate">Mulai</FieldLabel><Input id="year-startDate" type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
-          <Field><FieldLabel htmlFor="year-endDate">Selesai</FieldLabel><Input id="year-endDate" type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
+          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><Input id="year-startDate" type="date" required aria-required="true" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
+          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><Input id="year-endDate" type="date" required aria-required="true" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
         </div>
       </ResponsiveFormDialog>
 
