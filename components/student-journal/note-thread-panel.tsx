@@ -18,7 +18,8 @@ export type ThreadNote = {
 
 type Props = {
   studentId: string;
-  audience: "teacher" | "parent";
+  /** Omit for admin — `NoteThread` already treats no audience as the admin case. */
+  audience?: "teacher" | "parent";
   /** Bump to refetch from the first page — after a note is written, edited or deleted. */
   reloadToken?: number;
   /** Whether opening this panel should clear the reader's unread badge. */
