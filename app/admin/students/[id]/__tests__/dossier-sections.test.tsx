@@ -188,10 +188,17 @@ const urlsMatching = (calls: Calls, needle: string) =>
  * trigger toggles, so a plain name query is ambiguous and would pick the nav
  * button, which opens but never closes.
  */
-function sectionTrigger(sectionId: string): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
-  if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
-  return el;
+// Retries rather than reading the DOM once — same race as the twin helper in
+// dossier-increment-3.test.tsx, which failed CI on 2026-09-09. The `waitFor`
+// the callers run first only proves the fetch was *issued*, not that React
+// committed the render that creates this trigger. Fixed here too so the same
+// landmine is not left waiting in a sibling suite.
+async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
+  return await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
+    if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
+    return el;
+  });
 }
 
 describe("student dossier — increment 2 sections", () => {
@@ -260,7 +267,7 @@ describe("student dossier — increment 2 sections", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
 
-    const trigger = sectionTrigger("keringanan");
+    const trigger = await sectionTrigger("keringanan");
     await user.click(trigger);
 
     await waitFor(() =>
@@ -282,7 +289,7 @@ describe("student dossier — increment 2 sections", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
 
-    await user.click(sectionTrigger("buku-penghubung"));
+    await user.click(await sectionTrigger("buku-penghubung"));
 
     await waitFor(() =>
       expect(urlsMatching(calls, "/api/student-journal/admin/students/s1/week")).toHaveLength(1),
@@ -300,7 +307,7 @@ describe("student dossier — increment 2 sections", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/api/invoices")).toHaveLength(1));
 
-    await user.click(sectionTrigger("buku-penghubung"));
+    await user.click(await sectionTrigger("buku-penghubung"));
 
     await waitFor(() =>
       expect(urlsMatching(calls, "/api/student-journal/admin/students/s1/week")).toHaveLength(1),

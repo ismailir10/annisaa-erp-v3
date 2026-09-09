@@ -153,6 +153,11 @@ commercial decision, not an engineering one.
       *Accepts when:* the job runs every self-test and shellchecks both scripts,
       and the guard flags the pre-repair `backup.yml` while passing the current
       tree.
+- [x] **T7** — Unblock the required `Lint, Typecheck & Test` check by making the
+      `sectionTrigger` test helper retry. Not planned; forced by CI. See below
+      for why it is fixed here rather than filed.
+      *Accepts when:* both dossier suites pass under `flake-hunt.sh`, the full
+      suite is green, and no synchronous `sectionTrigger` call site remains.
 - [x] **T6** — `docs/runbooks/prod-incident.md`: §3 rewritten with the
       2026-09-09 recurrence, the sub-minute diagnosis path, and the owner-only
       UptimeRobot checklist; §8 and the followups list brought into line.
@@ -311,6 +316,68 @@ owner-only UptimeRobot checklist, and the second leg documented with its limits.
 "file follow-up task to investigate keepalive gap" line is replaced by what the
 follow-up actually concluded.
 
+### T7 — a flaky test that blocked the merge
+
+Not part of the plan. `Lint, Typecheck & Test` failed on this branch with:
+
+```
+FAIL jsdom app/admin/students/[id]/__tests__/dossier-increment-3.test.tsx
+  > deep-links each raport row at the student's own term and class
+Error: no disclosure trigger for section "akademik"
+  ❯ sectionTrigger …:209:18
+```
+
+**It is not this cycle's.** `git diff --name-only origin/staging...HEAD` returns
+nine files: three workflows, three scripts and three docs. No test, no source, no
+`vitest.config.ts`, no `package.json`, no setup file. The test code and
+everything it imports are byte-identical to `origin/staging`, so this branch
+cannot be the cause.
+
+**The race, which is visible by reading rather than by running.** The callers do:
+
+```ts
+await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
+await user.click(sectionTrigger("akademik"));   // bare querySelector
+```
+
+`calls` is appended synchronously inside the fetch stub, so that `waitFor`
+resolves the moment the request is *issued* — not when the response resolves,
+the state updates, and React commits the render that creates the disclosure
+trigger. `sectionTrigger` then reads the DOM exactly once. On an idle machine
+the commit always wins that race; on a loaded CI runner it need not. The fix is
+to retry, which is what every other lookup in these files already does.
+
+**Why it is fixed here rather than filed.** Normally an ops cycle does not touch
+another cycle's tests, and the 2026-08-22 backup cycle handled an almost
+identical situation by documenting it and leaving the PR blocked. Two things
+make that the wrong call this time:
+
+- It is not intermittent here. It failed identically on two different commits of
+  this branch, so waiting it out is not an option — the required check would
+  never go green and the PR could never merge.
+- Re-running the job, the normal first move, is not available: the
+  `rerun_workflow_run` API returns `403 Resource not accessible by integration`
+  for this session. The same 403 blocks re-running CI on `staging`'s own commit,
+  which would otherwise have been the decisive base-is-red experiment.
+
+So the choice was between a permanently blocked PR and a four-line, test-only
+change. The change is `waitFor`-wrapping the helper in both files that define it
+— the sibling `dossier-sections.test.tsx` has the identical helper and the
+identical race, and fixing one while leaving its twin would only defer this.
+
+No production code is touched. No explicit timeout is added: `waitFor` respects
+the configured `asyncUtilTimeout`, per CLAUDE.md's rule that config owns the
+ceilings and a per-test `{ timeout }` is always the wrong fix.
+
+**Honest limit: the failure was never reproduced locally.** Eight isolated runs
+and three full-suite runs, all under twelve CPU hogs on four cores via
+`flake-hunt.sh`, came back green — the same "passes locally, fails in CI"
+signature the 2026-08-22 cycle recorded for a different test in this directory.
+So the before/after proof CI normally gives is missing, and the justification
+rests on the race being demonstrable from the source rather than on a
+reproduction. If it recurs, this diagnosis is wrong and the next place to look is
+the component's own effect ordering, not the test.
+
 ## Verification
 
 Gates, run on the final tree:
@@ -319,6 +386,8 @@ Gates, run on the final tree:
 npm run build   → exit 0  (compiled clean, TypeScript clean, 277 routes emitted)
 npx vitest run  → exit 0  Test Files 338 passed | 2 skipped (340)
                           Tests      3282 passed | 42 todo (3324)
+npm run typecheck → exit 0;  npm run lint → exit 0 (59 pre-existing warnings)
+flake-hunt.sh 3 12 app/admin/students/[id]/__tests__/ → 3/3 green (T7)
 shellcheck --severity=warning scripts/{alert-issue,keepalive-probe}.sh → clean
 bash scripts/audit-docs.sh → 10 ok, 1 warn, 0 fail (exit 0)
 ```
@@ -439,9 +508,13 @@ restore, plus read-only GitHub API calls for workflow history and job logs.
 
 Playwright: **deferred to the required CI `Playwright E2E` check** — it needs a
 seeded Postgres and browsers this container does not have. Preview-verify and the
-`design-system` cross-check: **skipped** — the diff is CI, ops scripts and docs
-only, with no `app/**`, `lib/**`, `components/**` or any frontend file touched,
-so nothing rendered changes.
+`design-system` cross-check: **not applicable rather than skipped.** The diff is
+CI, ops scripts and docs plus two `.tsx` files that are *test* files (T7 below).
+No component, page, stylesheet or Tailwind config is touched, and no production
+code at all, so nothing rendered changes and there is nothing to check against
+`design-system.html`. The pre-commit frontend gate fires on the `.tsx`
+extension, which cannot tell a test from a component; this paragraph is the
+honest answer to it rather than a token dropped in to satisfy it.
 
 ## Ship Notes
 
@@ -449,7 +522,9 @@ so nothing rendered changes.
 
 **Rollback:** revert the PR. The keepalive is purely additive — nothing depends on
 it — and `backup.yml`'s alert jobs would simply return to the broken state they
-have been in since 2026-08-22, which is no worse than today.
+have been in since 2026-08-22, which is no worse than today. Reverting would also
+undo T7, restoring a test race that blocks CI; if the rest is ever reverted, keep
+that hunk.
 
 **Deploy note:** scheduled workflows only run from the repository's *default
 branch*. This keepalive therefore does nothing at all until the PR reaches
