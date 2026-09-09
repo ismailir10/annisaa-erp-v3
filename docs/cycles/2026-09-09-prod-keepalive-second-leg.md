@@ -147,8 +147,12 @@ commercial decision, not an engineering one.
       *Accepts when:* the workflow parses, jobs resolve to
       `keepalive`, `alert`, `resolve`, and no `gh` call lacks `GH_REPO`.
 - [x] **T5** — Wire a `Keepalive & Alert Self-Test` job into `ci.yml` so both new
-      scripts are regression-guarded on every PR.
-      *Accepts when:* the job runs both self-tests and shellchecks both scripts.
+      scripts are regression-guarded on every PR, plus
+      `scripts/check-workflow-gh-repo.py` to guard the *class* of defect T2
+      fixed, not just the instance.
+      *Accepts when:* the job runs every self-test and shellchecks both scripts,
+      and the guard flags the pre-repair `backup.yml` while passing the current
+      tree.
 - [x] **T6** — `docs/runbooks/prod-incident.md`: §3 rewritten with the
       2026-09-09 recurrence, the sub-minute diagnosis path, and the owner-only
       UptimeRobot checklist; §8 and the followups list brought into line.
@@ -258,9 +262,24 @@ cancelled by the next scheduled one mid-probe.
 
 ### T5 — `Keepalive & Alert Self-Test` job in `ci.yml`
 
-Shellchecks both new scripts and runs both self-tests. No service containers and
+Shellchecks both new scripts and runs their self-tests. No service containers and
 no secrets — the fixture server and the stub `gh` are both local, so the job is
 fast and cannot touch production.
+
+It also runs `scripts/check-workflow-gh-repo.py`, which asserts that no workflow
+step reaches the GitHub API without `GH_REPO` — directly, or through
+`alert-issue.sh`. This was not in the original plan; it was added once the
+eighteen-night alert outage turned out to be a one-line environment omission that
+nothing in the repo could have caught. Fixing the instance without guarding the
+class would have left the next one to be discovered the same way.
+
+Its detector is deliberately narrow. A first attempt matched the bare substring
+`gh ` and flagged its own source code, which is the failure mode that gets a
+guard commented out within a week; it now matches command positions only, and
+treats `alert-issue.sh self-test` and a shellcheck path as what they are — not
+API calls. The guard carries its own `--self-test` for exactly the reason the
+alert script does: a guard that never fires is indistinguishable from a clean
+repo.
 
 ### T6 — `docs/runbooks/prod-incident.md`
 
@@ -275,26 +294,36 @@ follow-up actually concluded.
 Gates, run on the final tree:
 
 ```
-npm run build   → success (Next.js 16, 100 static pages, no type errors)
-npx vitest run  → 3138 passed | 42 todo (3180), 0 failed
-shellcheck --severity=warning scripts/alert-issue.sh scripts/keepalive-probe.sh → clean
-bash -n on both scripts → clean
-bash scripts/audit-docs.sh → exit 0
+npm run build   → exit 0  (compiled clean, TypeScript clean, 277 routes emitted)
+npx vitest run  → exit 0  Test Files 338 passed | 2 skipped (340)
+                          Tests      3282 passed | 42 todo (3324)
+shellcheck --severity=warning scripts/{alert-issue,keepalive-probe}.sh → clean
+bash scripts/audit-docs.sh → 10 ok, 1 warn, 0 fail (exit 0)
 ```
 
-Substantive proof, both self-tests run locally end to end:
+The build needs the same env CI gives it (`DEMO_MODE`, a dummy `DATABASE_URL`,
+`NEXTAUTH_SECRET`); without them it fails at page-data collection on an unrelated
+route, which is pre-existing and not this cycle's.
+
+The one `warn` from `audit-docs.sh` is an ADR row 78 days past the 60-day window,
+pre-existing and unrelated. It warns rather than fails because trimming is
+judgement.
+
+### The three self-tests, run locally end to end
 
 ```
 $ bash scripts/keepalive-probe.sh self-test
-  OK — healthy: 200 + ok:true classified as healthy
-  OK — paused: 503 + db_unreachable classified as db_paused
-  OK — app error: 500 classified as app_error
-  OK — wrong body: 200 without ok:true classified as bad_body
-  OK — unreachable: connection refused classified as unreachable
+  OK — 200 + ok:true classified as healthy
+  OK — 503 + db_unreachable classified as db_paused
+  OK — 500 classified as app_error
+  OK — 503 without db_unreachable is app_error, not db_paused
+  OK — 200 without ok:true classified as bad_body
+  OK — connection failure classified as unreachable
   OK — probe exits 0 against a healthy server
-  OK — probe exits non-zero against a paused server
-  OK — probe exits non-zero against an unreachable port
+  OK — probe exits non-zero against a paused server and names runbook §3
+  OK — probe exits non-zero on HTTP 200 with the wrong body
   OK — probe recovers when a later attempt succeeds
+  OK — probe exits non-zero against an unreachable port
   OK — self-test passed
 
 $ bash scripts/alert-issue.sh self-test
@@ -304,35 +333,93 @@ $ bash scripts/alert-issue.sh self-test
   OK — assignment failure falls back to an unassigned issue
   OK — close closes every open issue carrying the label
   OK — close on no open issues is a no-op
+  OK — missing body file correctly rejected
+  OK — self-test passed
+
+$ python3 scripts/check-workflow-gh-repo.py --self-test
+  OK — good-direct.yml
+  OK — good-indirect.yml
+  OK — good-not-a-call.yml
+  OK — bad-direct.yml
+  OK — bad-indirect.yml
   OK — self-test passed
 ```
 
-Both workflows parse as YAML and their jobs resolve to the expected names
-(`keepalive`, `alert`, `resolve`; `backup`, `alert`, `resolve`).
+### Mutation-tested, because a green self-test proves nothing on its own
 
-**Asserted about the repaired alert path specifically:** every `gh` invocation in
-both workflows now runs with `GH_REPO` set and after a checkout. Grepping both
-workflow files for `gh ` outside those two conditions returns nothing.
+Each self-test was re-run against a deliberately broken copy of its script, to
+confirm the assertions actually discriminate rather than merely pass:
 
-**Not verified, and not verifiable from here:**
+| Mutation | Caught by |
+|---|---|
+| `db_paused` collapsed into `app_error` | `expected 'db_paused', got 'app_error'` |
+| `probe` reports the first attempt, so a blip pages someone | `probe failed against a healthy server` |
+| `bad_body` treated as `healthy` | `expected 'bad_body', got 'healthy'` |
+| `unreachable` never detected | `expected 'unreachable', got 'app_error'` |
+| `--assignee` dropped from issue creation | `the created issue was not assigned — nobody would be notified` |
+| dedup lookup removed, so every failure opens a duplicate | `it did not comment on the existing #42` |
+| unassigned fallback removed | assertion fired, exit 1 |
+| `require_repo` weakened | `open succeeded with no GH_REPO and no git repository` |
 
-- The live prod endpoint. This session's sandbox proxy refuses the host
+### The guard catches the real defect, not a reconstruction of it
+
+`check-workflow-gh-repo.py` was run against the pre-repair `backup.yml` taken
+from this branch's own history, and names both offending jobs:
+
+```
+$ git show ce9832f:.github/workflows/backup.yml > /tmp/before.yml
+$ python3 scripts/check-workflow-gh-repo.py /tmp/before.yml
+::error::/tmp/before.yml: reaches the GitHub API without GH_REPO in:
+  alert / Open or update the backup-failure issue;
+  resolve / Close any open backup-failure issue
+```
+
+Against the current tree all four workflows pass.
+
+### Both workflows exercised as workflows, not just as scripts
+
+The `run` blocks were extracted from the parsed YAML and executed against a stub
+`gh` and a loopback fixture — so the heredocs, the YAML block-scalar de-indent
+and the `$GITHUB_OUTPUT` plumbing are all proven, not assumed:
+
+```
+probe step, healthy fixture  → exit 0, GITHUB_OUTPUT: class=healthy
+probe step, paused fixture   → exit 1, GITHUB_OUTPUT: class=db_paused
+alert step                   → gh issue create --title "Production health probe is failing"
+                                  --body-file body.md --label prod-down --assignee ismailir10
+```
+
+The rendered issue body was inspected: the fenced `curl` / `dig` block survives
+the nested heredoc intact, which is the part most likely to have been silently
+mangled.
+
+Every `run` block in all four workflows parses under `bash -n`, and the jobs
+resolve to `keepalive` / `alert` / `resolve`, `backup` / `alert` / `resolve`, and
+`lint-typecheck-test` / `build` / `e2e` / `backup-selftest` / `keepalive-selftest`.
+
+### Not verified, and not verifiable from here
+
+- **The live prod endpoint.** This session's sandbox proxy refuses the host
   (`curl: (56) CONNECT tunnel failed, response 403`), so no request to
-  `talib.annisaasekolahku.com` was made from this cycle. The first real
-  end-to-end proof is the workflow's own first scheduled run on `main`.
-- Whether the keepalive workflow's issue actually lands in the owner's inbox.
-  That depends on the owner's GitHub notification settings, which is an owner
-  action in Ship Notes.
-- Why the UptimeRobot monitor did not hold the project awake. Owner-only
-  dashboard; the checklist is in runbook §3 rather than a guess here.
-- No production system was read, written, woken or paused in this cycle. The one
-  production touch was a read-only Supabase MCP `list_projects` to confirm the
-  restore.
+  `talib.annisaasekolahku.com` was made in this cycle. The first real end-to-end
+  proof is the workflow's own first run after promotion to `main`.
+- **That the alert reaches the owner's inbox.** That depends on GitHub
+  notification settings, which is owner action 2 in Ship Notes.
+- **Why the UptimeRobot monitor did not hold the project awake.** Owner-only
+  dashboard. The checklist is in runbook §3 rather than a guess here.
+- **The `check-cadence` step against real run history.** It calls `gh run list`
+  for this workflow, which has no history until it has run. The no-history path
+  is exercised (it exits 0 with a note); the gap-exceeded path is not.
 
-Playwright: **deferred to the required CI `Playwright E2E` check.** Preview-verify
-and `design-system` cross-check: **skipped** — the diff is CI, ops scripts and
-docs only, with no `app/**`, `lib/**`, `components/**` or any frontend file
-touched, so nothing rendered changes.
+No production system was read, written, woken or paused. The single production
+touch in this cycle was a read-only Supabase MCP `list_projects` confirming the
+restore, plus read-only GitHub API calls for workflow history and job logs.
+
+Playwright: **deferred to the required CI `Playwright E2E` check** — it needs a
+seeded Postgres and browsers this container does not have. Preview-verify and the
+`design-system` cross-check: **skipped** — the diff is CI, ops scripts and docs
+only, with no `app/**`, `lib/**`, `components/**` or any frontend file touched,
+so nothing rendered changes.
 
 ## Ship Notes
 

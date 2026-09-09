@@ -261,7 +261,8 @@ docs/{adrs,archive,cycles,runbooks,uat}/
 .githooks/                    pre-commit, prepare-commit-msg, commit-msg, pre-push
 scripts/                      audit-docs, setup-worktree, install-hooks, link-agent-skills,
                               sync-staging, cleanup-merged, check-role, test-hooks, reseed-staging,
-                              flake-hunt, verify-{rls-coverage,api-auth,curriculum-readiness}
+                              flake-hunt, verify-{rls-coverage,api-auth,curriculum-readiness},
+                              backup-prod, keepalive-probe, alert-issue, check-workflow-gh-repo
 ```
 
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
@@ -274,7 +275,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 65 |
 | `e2e/*.spec.ts` | 34 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 37 / 233 |
+| `docs/cycles` active / archived | 38 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

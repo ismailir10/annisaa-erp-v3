@@ -6,7 +6,8 @@ Operational playbook for `talib.annisaasekolahku.com` and the systems it depends
 - Hosting: Vercel Hobby, project links `main` → `talib.annisaasekolahku.com`, `staging` → preview URL
 - DB: Supabase free, prod project `vxwywmvpxetdgnxejjgk` (`annisaa-erp-v3-prod-sgp`, ap-southeast-1)
 - Backups: nightly `0 17 * * *` UTC (00:00 WIB) GitHub Actions → R2 `talib-backups`, 30-day lifecycle
-- Monitoring: UptimeRobot `/api/health` 5min, email alert
+- Monitoring: two independent legs — UptimeRobot `/api/health` 5min (email alert), and
+  `.github/workflows/keepalive.yml` every 3h (assigned `prod-down` GitHub issue). See §3.
 - Payments: Xendit prod merchant; webhook `https://talib.annisaasekolahku.com/api/xendit/webhook`
 
 **Always do first when an alert fires:**
@@ -17,7 +18,7 @@ Operational playbook for `talib.annisaasekolahku.com` and the systems it depends
 | Response | Likely cause |
 |---|---|
 | 200 `{ok:true,sha:...}` | App + DB healthy. UR alert is stale or transient. |
-| 503 `{ok:false,error:"db_unreachable"}` | DB down. Jump to §3 Supabase auto-pause or §4 DB outage. |
+| 503 `{ok:false,error:"db_unreachable"}` | DB down. `dig +short vxwywmvpxetdgnxejjgk.supabase.co` next: empty = auto-pause → §3; A records = §4. |
 | Connection refused / 5xx HTML | App down or Vercel deploy broken. Jump to §1. |
 | 200 but old SHA | Deploy stuck. Jump to §2. |
 
@@ -64,23 +65,67 @@ Verify: `/api/health` shows the new SHA.
 
 ## §3 — Supabase auto-pause (free-tier idle)
 
-Symptom: `/api/health` returns 503 + `db_unreachable`. Vercel logs show pooler timeout / connection refused. No app code changed.
+Symptom: `/api/health` returns 503 + `db_unreachable`. Vercel logs show pooler timeout / connection refused. Google sign-in fails before it reaches NextAuth. No app code changed.
 
-Free-tier projects auto-pause after 7 days idle. UptimeRobot's 5-min `/api/health` ping is supposed to keep the DB alive — if pause triggers anyway, the keepalive failed (UR was paused, network blip, etc).
+**Occurred twice: 2026-05-02 and 2026-09-09.** Free-tier projects auto-pause after 7 days idle. On 2026-09-09 the project hostname stopped resolving entirely, which is why sign-in broke at the network layer rather than showing an app error.
+
+### Diagnose in under a minute
+
+Two commands separate an auto-pause from every other cause. Run both:
 
 ```bash
-# Recovery: reactivate via Supabase dashboard
-# 1. Open https://supabase.com/dashboard/project/vxwywmvpxetdgnxejjgk
-# 2. Click "Restore project" or "Wake up" (free tier shows this when paused)
-# 3. Wait ~30-60s for the project to come back online
-# 4. curl /api/health until 200 returned
-
-# Then investigate why keepalive failed:
-# - UptimeRobot dashboard → check monitor history for the gap
-# - If UR was paused: unpause + add a backup channel (manual pg_isready cron or similar)
+curl -i https://talib.annisaasekolahku.com/api/health
+dig +short vxwywmvpxetdgnxejjgk.supabase.co
 ```
 
-Post-recovery: file follow-up task to investigate keepalive gap.
+| `/api/health` | `dig` | Verdict |
+|---|---|---|
+| 503 `db_unreachable` | **NXDOMAIN / empty** | **Auto-pause.** Recover below. |
+| 503 `db_unreachable` | returns A records | Project is up, DB is not → §4 |
+| connection refused / 5xx HTML | (either) | App or edge is down → §1 |
+| 200 with an old SHA | (either) | Stuck deploy → §2 |
+
+The empty `dig` is the tell: a paused Supabase project loses its DNS record, so the hostname disappears rather than merely refusing connections. Nothing else in this stack does that.
+
+### Recover
+
+```bash
+# 1. Open https://supabase.com/dashboard/project/vxwywmvpxetdgnxejjgk
+# 2. Click "Restore project" / "Wake up" (free tier shows this when paused)
+# 3. Wait ~30-60s
+# 4. curl /api/health until it returns 200
+```
+
+Then re-run the **Prod Keepalive** workflow (Actions → Prod Keepalive → Run workflow). A healthy probe closes the `prod-down` issue automatically, so an open one always means prod is down right now.
+
+### Why the keepalive did not prevent it
+
+`app/api/health/route.ts` runs `SELECT 1` through Prisma and is `force-dynamic`, so a request to it really is database activity. The route is not the problem. There are now **two independent legs** calling it, because one was not enough:
+
+| Leg | Runs | Alerts via | Blind spot |
+|---|---|---|---|
+| UptimeRobot | every 5 min | email to the owner | Owner-only dashboard. Nothing in the repo shows whether it is still running. |
+| `.github/workflows/keepalive.yml` | every 3 h | assigned `prod-down` GitHub issue | A schedule that stops entirely cannot notice it stopped. GitHub disables scheduled workflows after 60 days of repo inactivity. |
+
+Neither leg is sufficient alone; the point is that their failure modes do not overlap. Note the GitHub leg only runs from the **default branch** — it does nothing until promoted to `main`.
+
+### Owner checklist — why leg one failed (UNANSWERED)
+
+The UptimeRobot dashboard is owner-only, so this cannot be determined from the repo. Work through it and record the answer here; until then we have rebuilt the redundancy without diagnosing the original failure.
+
+- [ ] **Does the monitor still exist?** uptimerobot.com → Dashboard. If it was deleted, that alone explains both outages.
+- [ ] **Is it paused?** A paused monitor looks identical to a healthy one at a glance. Free-tier accounts also pause monitors when the account is left idle.
+- [ ] **What exact URL does it hit?** It must be `https://talib.annisaasekolahku.com/api/health`. Pinging `/` or a Vercel preview URL keeps the *app* warm while doing nothing for the database — the most likely silent failure, and indistinguishable from a healthy monitor on the dashboard.
+- [ ] **What does its history show for 2026-08-22 → 2026-09-09?** A clean 100% uptime bar across a window when the project was demonstrably paused means it was not really checking. A gap with no alert means the notification side failed. Note which.
+- [ ] **Is an alert contact configured and verified?** An unverified email address accepts the config and silently sends nothing.
+- [ ] **Did any alert email arrive on 2026-09-09?** Check spam. If the monitor caught it and the mail was filtered, the fix is a second contact, not a new monitor.
+- [ ] **Is the account within free-tier limits?** Over-limit accounts have monitoring suspended.
+
+### Also check — a cause no keepalive can fix
+
+A Supabase free organisation allows **two active projects**. `cxvijwljlmdmohemvvau` holds four; exactly two are active (`udbivhchbizpxoryejgz` staging-sgp, `vxwywmvpxetdgnxejjgk` prod-sgp). Waking either legacy project (`qrnbanxcrmrwganpmzmn`, `jzhujpqaxyeeokgexerc`) can force one of the live ones to pause **regardless of traffic**. If those two are dead, deleting them removes the risk.
+
+The permanent fix for auto-pause is the paid plan, where it does not exist. Everything above is a workaround for a free-tier constraint.
 
 ---
 
@@ -228,6 +273,8 @@ If alerts fire too often (false positives) or too rarely (real outages missed):
 - Adjust at: uptimerobot.com → Monitor → Edit
 - Free tier limits: 50 monitors, 5min minimum interval, email + SMS only (no WhatsApp without Pro upgrade)
 
+**Before tuning, confirm it is running at all.** The monitor was nominally in place for both auto-pause outages and prevented neither. §3's owner checklist is the diagnosis; do that first, because tuning thresholds on a monitor that is paused or pointed at the wrong URL changes nothing.
+
 ---
 
 ## §9 — Communications during incident
@@ -277,4 +324,6 @@ After resolution, send a follow-up with: what happened, when it started, when it
 - CSP graduate Report-Only → enforcing (defer +1wk post-launch once `/api/csp-report` shows zero noise from legitimate flows)
 - Sentry / Datadog observability (current MTTR = manual log-grep)
 - WhatsApp alerts via UptimeRobot Pro upgrade or Twilio integration
+- **Supabase Pro ($25/mo)** — auto-pause does not exist on paid plans. Two outages in four months is the running cost of the free tier; the second leg added on 2026-09-09 is a workaround, not a fix.
+- **§3's UptimeRobot checklist is unanswered** — we know the ping did not hold the project awake, not why.
 - Upstash Redis global rate-limit (replace in-memory once traffic warrants)
