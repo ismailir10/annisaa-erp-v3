@@ -179,6 +179,19 @@ jobs:
   # ---------------------------------------------------------------------------
   # Fail loudly. A scheduled workflow that just goes red notifies nobody — this
   # job is the whole reason the outage lasted 104 nights.
+  #
+  # It did not work. From 2026-08-22 to 2026-09-09 this job failed every single
+  # night on its first command:
+  #
+  #   failed to run git: fatal: not a git repository (or any of the parent
+  #   directories): .git
+  #
+  # `gh` resolves the target repository from GH_REPO or from the working
+  # directory's git remote, and this job had neither — no checkout, no GH_REPO.
+  # 122 red backup runs opened zero issues. Both jobs below now check out the
+  # repo, set GH_REPO explicitly, and share one self-tested implementation with
+  # the keepalive workflow (scripts/alert-issue.sh), so the same defect cannot
+  # exist in one copy and not the other.
   # ---------------------------------------------------------------------------
   alert:
     needs: backup
@@ -187,15 +200,20 @@ jobs:
     permissions:
       issues: write
     steps:
+      - uses: actions/checkout@v7
+
       - name: Open or update the backup-failure issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ALERT_LABEL_DESCRIPTION: Nightly production backup is broken
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RESULT: ${{ needs.backup.result }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          TITLE="Nightly backup is failing"
-          BODY="The nightly production backup finished with result \`$RESULT\`.
+          cat > body.md <<EOF
+          The nightly production backup finished with result \`$RESULT\`.
 
           **Prod has no fresh backup until this is fixed.**
 
@@ -203,19 +221,11 @@ jobs:
           - Workflow: \`.github/workflows/backup.yml\`
           - Runbook: \`docs/runbooks/prod-setup.md\` §3 (secrets), \`docs/runbooks/prod-incident.md\` §1 (GPG keypair)
 
-          This issue is reused for every consecutive failure and closed automatically by the next green run."
-
-          EXISTING=$(gh issue list --state open --label backup-failure \
-            --search "$TITLE in:title" --json number --jq '.[0].number // empty')
-
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "Still failing (\`$RESULT\`) — $RUN_URL"
-            echo "commented on #$EXISTING"
-          else
-            gh label create backup-failure --color B60205 \
-              --description "Nightly production backup is broken" 2>/dev/null || true
-            gh issue create --title "$TITLE" --body "$BODY" --label backup-failure
-          fi
+          @$OWNER — this issue is reused for every consecutive failure and closed
+          automatically by the next green run.
+          EOF
+          bash scripts/alert-issue.sh open backup-failure \
+            "Nightly backup is failing" body.md "$OWNER"
 
   # Close the alert once backups are healthy again, so an open issue always
   # means "backups are broken right now".
@@ -226,12 +236,12 @@ jobs:
     permissions:
       issues: write
     steps:
+      - uses: actions/checkout@v7
+
       - name: Close any open backup-failure issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -euo pipefail
-          for n in $(gh issue list --state open --label backup-failure --json number --jq '.[].number'); do
-            gh issue close "$n" --comment "Backup succeeded again — $RUN_URL"
-          done
+          bash scripts/alert-issue.sh close backup-failure "Backup succeeded again — $RUN_URL"

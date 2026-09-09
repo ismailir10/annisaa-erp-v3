@@ -204,10 +204,20 @@ function stubFetch(
 
 const urlsMatching = (calls: Calls, needle: string) => calls.filter((c) => c.url.includes(needle));
 
-function sectionTrigger(sectionId: string): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
-  if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
-  return el;
+// Retries rather than reading the DOM once. The `waitFor` the callers run
+// first only proves the overview fetch was *issued* — `calls` is appended
+// synchronously inside the stub — not that the response resolved and React
+// committed the render that creates this trigger. A bare querySelector there
+// is a race, and it is the one that failed CI on 2026-09-09 with
+// `no disclosure trigger for section "akademik"` while passing on an idle
+// machine. No explicit timeout: testing-library's configured asyncUtilTimeout
+// owns that ceiling (see CLAUDE.md § Vitest).
+async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
+  return await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
+    if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
+    return el;
+  });
 }
 
 describe("student dossier — increment 3", () => {
@@ -297,7 +307,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
-    const trigger = sectionTrigger("akademik");
+    const trigger = await sectionTrigger("akademik");
     await user.click(trigger);
 
     await waitFor(() => expect(urlsMatching(calls, "/academics")).toHaveLength(1));
@@ -316,7 +326,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
-    await user.click(sectionTrigger("akademik"));
+    await user.click(await sectionTrigger("akademik"));
     await waitFor(() => expect(screen.getByText("TW1 · Sem 1 · 2025/2026")).toBeInTheDocument());
 
     const link = screen.getAllByRole("link", { name: /Buka raport/ })[0];
@@ -332,7 +342,7 @@ describe("student dossier — increment 3", () => {
     render(<StudentDetailPage />);
     await waitFor(() => expect(urlsMatching(calls, "/overview")).toHaveLength(1));
 
-    await user.click(sectionTrigger("pendaftaran"));
+    await user.click(await sectionTrigger("pendaftaran"));
 
     await waitFor(() => expect(urlsMatching(calls, "/enrollment-application")).toHaveLength(1));
     // Data the convert route never copied onto the Student or Parent rows.
