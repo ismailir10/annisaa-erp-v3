@@ -41,10 +41,14 @@ const state = {
   lastUpdate: null as Record<string, unknown> | null,
 };
 
-vi.mock("@/lib/auth", () => ({
-  getSession: vi.fn(async () => state.session),
-  isAdminRole: (role: string) => role === "SUPER_ADMIN" || role === "SCHOOL_ADMIN",
-}));
+// isAdminRole is the REAL implementation (importOriginal), not a hand-copied
+// mirror — a role/tenant-boundary test asserting against a re-typed stand-in
+// would only prove the stand-in matches itself, not that the route's actual
+// gate holds.
+vi.mock("@/lib/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth")>();
+  return { ...actual, getSession: vi.fn(async () => state.session) };
+});
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -152,5 +156,34 @@ describe("PUT /api/admissions/[id] — campusPreference (T9)", () => {
     const res = await PUT(putReq({ campusPreference: "" }) as never, { params });
     expect(res.status).toBe(200);
     expect(state.lastUpdate?.campusPreference).toBe("campus-jakarta-1");
+  });
+});
+
+describe("PUT /api/admissions/[id] — role and tenant boundaries", () => {
+  it.each(["TEACHER", "GUARDIAN"] as const)(
+    "returns 403 for %s and never reads the admission",
+    async (role) => {
+      state.session = { ...adminSession(), role };
+      const res = await PUT(putReq({ childName: "Aisyah Putri" }) as never, { params });
+      expect(res.status).toBe(403);
+      expect(state.lastUpdate).toBeNull();
+    },
+  );
+
+  it("returns 403 when there is no session", async () => {
+    state.session = null;
+    const res = await PUT(putReq({ childName: "Aisyah Putri" }) as never, { params });
+    expect(res.status).toBe(403);
+    expect(state.lastUpdate).toBeNull();
+  });
+
+  it("returns 404 (not 403, not 500) when the admission belongs to another tenant", async () => {
+    // Same shape as the parallel guard the T11 route-behaviour todos call
+    // out for /categories and /indicators — cross-tenant reads must 404,
+    // not leak existence via a 403 or crash via an unguarded update.
+    state.admission = freshAdmission({ tenantId: "other-tenant" });
+    const res = await PUT(putReq({ childName: "Aisyah Putri" }) as never, { params });
+    expect(res.status).toBe(404);
+    expect(state.lastUpdate).toBeNull();
   });
 });

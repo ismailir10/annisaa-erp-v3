@@ -19,6 +19,8 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -66,7 +68,8 @@ type Pagination = {
 
 function buildColumns(
   onEdit: (user: UserRow) => void,
-  onToggleStatus: (user: UserRow) => void
+  onRequestDeactivate: (user: UserRow) => void,
+  onRequestActivate: (user: UserRow) => void
 ): ColumnDef<UserRow>[] {
   return [
     {
@@ -129,10 +132,10 @@ function buildColumns(
           <DataTableRowActions
             onEdit={() => onEdit(u)}
             onDeactivate={
-              u.status === "ACTIVE" ? () => onToggleStatus(u) : undefined
+              u.status === "ACTIVE" ? () => onRequestDeactivate(u) : undefined
             }
             onActivate={
-              u.status === "INACTIVE" ? () => onToggleStatus(u) : undefined
+              u.status === "INACTIVE" ? () => onRequestActivate(u) : undefined
             }
             isActive={u.status === "ACTIVE"}
           />
@@ -289,28 +292,52 @@ export default function UsersPage() {
     setEditStatus(user.status);
   }, []);
 
-  const handleToggleStatus = useCallback(
-    async (user: UserRow) => {
-      const newStatus = user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-      const res = await fetch(`/api/users/${user.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal mengubah status");
-        return;
+  // Deactivate/activate confirm — a bare dropdown click used to fire the PUT
+  // immediately with no confirmation, unlike every sibling settings page
+  // (Employees, Campuses, Holidays, Roles). A misclick locked a user out of
+  // login with zero warning.
+  const [deactivateTarget, setDeactivateTarget] = useState<UserRow | null>(null);
+  const [activateTarget, setActivateTarget] = useState<UserRow | null>(null);
+  const [togglePending, setTogglePending] = useState(false);
+
+  const putStatus = useCallback(
+    async (user: UserRow, newStatus: "ACTIVE" | "INACTIVE") => {
+      setTogglePending(true);
+      try {
+        const res = await fetch(`/api/users/${user.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.error || "Gagal mengubah status");
+          return;
+        }
+        toast.success(
+          newStatus === "ACTIVE"
+            ? "Pengguna diaktifkan"
+            : "Pengguna dinonaktifkan"
+        );
+        fetchUsers();
+      } finally {
+        setTogglePending(false);
       }
-      toast.success(
-        newStatus === "ACTIVE"
-          ? "Pengguna diaktifkan"
-          : "Pengguna dinonaktifkan"
-      );
-      fetchUsers();
     },
     [fetchUsers]
   );
+
+  const handleConfirmDeactivate = useCallback(async () => {
+    if (!deactivateTarget) return;
+    await putStatus(deactivateTarget, "INACTIVE");
+    setDeactivateTarget(null);
+  }, [deactivateTarget, putStatus]);
+
+  const handleConfirmActivate = useCallback(async () => {
+    if (!activateTarget) return;
+    await putStatus(activateTarget, "ACTIVE");
+    setActivateTarget(null);
+  }, [activateTarget, putStatus]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editTarget) return;
@@ -340,8 +367,8 @@ export default function UsersPage() {
   }, [editTarget, editRoleId, editStatus, fetchUsers]);
 
   const columns = useMemo(
-    () => buildColumns(openEdit, handleToggleStatus),
-    [openEdit, handleToggleStatus]
+    () => buildColumns(openEdit, setDeactivateTarget, setActivateTarget),
+    [openEdit]
   );
 
   return (
@@ -488,6 +515,24 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeactivateConfirmDialog
+        open={!!deactivateTarget}
+        onOpenChange={(o) => !o && setDeactivateTarget(null)}
+        entityName={deactivateTarget?.name ?? deactivateTarget?.email ?? ""}
+        onConfirm={handleConfirmDeactivate}
+        pending={togglePending}
+      />
+
+      <ConfirmDialog
+        open={!!activateTarget}
+        onOpenChange={(o) => !o && setActivateTarget(null)}
+        title={`Aktifkan "${activateTarget?.name ?? activateTarget?.email ?? ""}"?`}
+        description="Pengguna akan kembali masuk daftar aktif dan bisa login lagi."
+        confirmLabel="Aktifkan"
+        onConfirm={handleConfirmActivate}
+        loading={togglePending}
+      />
     </>
   );
 }

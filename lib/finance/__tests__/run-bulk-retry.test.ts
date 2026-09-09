@@ -8,6 +8,7 @@ import {
   type PendingResponse,
   type RetryResponse,
 } from "../run-bulk-retry";
+import { itBehavesLikeChunk } from "./chunk.test-helpers";
 
 // --------------------------------------------------------------------------
 // Helpers
@@ -70,17 +71,7 @@ beforeEach(() => {
 // --------------------------------------------------------------------------
 
 describe("chunk", () => {
-  it("slices an array into N-sized buckets", () => {
-    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
-  });
-
-  it("returns [] for an empty array", () => {
-    expect(chunk([], 5)).toEqual([]);
-  });
-
-  it("throws on size <= 0", () => {
-    expect(() => chunk([1], 0)).toThrow();
-  });
+  itBehavesLikeChunk(chunk);
 });
 
 // --------------------------------------------------------------------------

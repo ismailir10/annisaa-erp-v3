@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/ui/select", () => ({
@@ -107,8 +107,15 @@ describe("ClassAttendancePage recovery", () => {
     ]));
     expect(await screen.findByRole("button", { name: /Bilal — Hadir/ })).toBeInTheDocument();
 
-    firstRoster.resolve(ok(roster));
-    await waitFor(() => expect(screen.getByRole("button", { name: /Bilal — Hadir/ })).toBeInTheDocument());
+    // The stale response must be *handled* before we can claim it was
+    // ignored. The `waitFor` this replaces was not a barrier — Bilal is
+    // already on screen, so it passed on its first poll — which left the
+    // assertions below racing the stale response's flush. `await act`
+    // makes that flush deterministic.
+    await act(async () => {
+      firstRoster.resolve(ok(roster));
+    });
+    expect(screen.getByRole("button", { name: /Bilal — Hadir/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Aisyah — Hadir/ })).toBeNull();
   });
 
@@ -137,8 +144,15 @@ describe("ClassAttendancePage recovery", () => {
     expect(toastError).not.toHaveBeenCalled();
 
     newerSave.resolve(ok({ saved: 1 }));
+    // "Aisyah — Sakit" is already on screen from the optimistic update, so
+    // this find resolves on the first poll and is not a barrier for anything.
+    // The live region only flips to "Absensi tersimpan" once the save
+    // promise chain settles, so that assertion needs its own wait — asserting
+    // it synchronously here read "Menyimpan absensi" on a loaded CI runner.
     expect(await screen.findByRole("button", { name: /Aisyah — Sakit/ })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan"),
+    );
     expect(toastError).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,12 @@ type Assignment = {
 
 export default function StudentJournalPickerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?pick=1` means the guru asked for this form on purpose (the "Ganti kelas
+  // atau tanggal" control on the fill page). Without it, a guru who teaches a
+  // single class is answering a question with one possible answer three taps
+  // before they can tick anything.
+  const forcePicker = searchParams.get("pick") === "1";
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
   const today = getTodayInTimezone("Asia/Jakarta");
@@ -42,7 +48,7 @@ export default function StudentJournalPickerPage() {
         }
         return r.json();
       })
-      .then((data) => {
+      .then((data: Assignment[] | undefined) => {
         if (!data) return;
         setAssignments(data);
         if (data.length > 0) setSelectedClass(data[0].classSection.id);
@@ -53,6 +59,23 @@ export default function StudentJournalPickerPage() {
         setLoading(false);
       });
   }, []);
+
+  // A guru who teaches one class is answering a question with one answer, three
+  // taps before they can tick anything. Kept in its own effect, deliberately:
+  // folding it into the fetch above put `router` in a dependency array that also
+  // triggered the fetch, and since `router` is a fresh object per render under
+  // some setups the effect re-ran on its own setState — 642 requests in half a
+  // second in the test that caught it. This effect writes no state, so a
+  // re-run is inert.
+  const willAutoRoute = !forcePicker && assignments.length === 1;
+  useEffect(() => {
+    if (!willAutoRoute) return;
+    // replace, not push: Back from the grid should leave the journal, not
+    // bounce through a form that immediately re-routes.
+    router.replace(
+      `/teacher/student-journal/entry?classId=${assignments[0].classSection.id}&date=${today}`,
+    );
+  }, [willAutoRoute, assignments, router, today]);
 
   function handleSubmit() {
     if (!selectedClass) {
@@ -66,7 +89,7 @@ export default function StudentJournalPickerPage() {
     router.push(`/teacher/student-journal/entry?classId=${selectedClass}&date=${date}`);
   }
 
-  if (loading) {
+  if (loading || willAutoRoute) {
     return (
       <div className="space-y-4">
         <PageHeader title="Buku Penghubung" />

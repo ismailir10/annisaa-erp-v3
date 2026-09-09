@@ -36,8 +36,8 @@ type ParentDetail = {
   employerCity: string | null;
   incomeRange: string | null;
   childrenTotal: number | null;
-  ktpUrl: string | null;
-  kkUrl: string | null;
+  hasKtp: boolean;
+  hasKk: boolean;
   status: string;
   guardians: {
     id: string;
@@ -411,14 +411,14 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             parentId={parent.id}
             field="ktp"
             label="KTP"
-            hasFile={!!parent.ktpUrl}
+            hasFile={parent.hasKtp}
             onMutated={fetchParent}
           />
           <DocumentUploadCell
             parentId={parent.id}
             field="kk"
             label="KK"
-            hasFile={!!parent.kkUrl}
+            hasFile={parent.hasKk}
             onMutated={fetchParent}
           />
         </div>

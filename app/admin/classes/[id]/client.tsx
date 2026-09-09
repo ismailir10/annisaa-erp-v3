@@ -186,6 +186,24 @@ export function ClassDetailClient({
   const [ageOverrideReason, setAgeOverrideReason] = useState("");
   const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * Move focus to the enroll advisory when it appears.
+   *
+   * This used to be `setTimeout(() => enrollBannerRef.current?.focus(), 0)`
+   * fired from the 409 handler. That races React: on some scheduling orders
+   * the macrotask ran before the banner was committed, so the ref was still
+   * null, `focus()` no-opped, and nothing retried. A sighted user never
+   * noticed; a screen-reader user was left on the old step with a new one on
+   * screen, and CI saw it as the long-standing T7 flake — the assertion waits
+   * for a focus move that, on that run, was never going to happen.
+   *
+   * An effect runs after commit, so the ref is always attached.
+   */
+  useEffect(() => {
+    if (!enrollBlock) return;
+    enrollBannerRef.current?.focus();
+  }, [enrollBlock]);
+
   // Remove-student confirm
   const [removeStudentTarget, setRemoveStudentTarget] = useState<
     ClassDetail["enrollments"][number] | null
@@ -468,11 +486,9 @@ export function ClassDetailClient({
         // age/band/reference date (AGE_OUT_OF_RANGE) or the conflicting
         // class (ALREADY_ENROLLED); render it verbatim rather than
         // rebuilding the sentence client-side.
+        // Focus moves to the banner in the effect above, once React has
+        // actually committed it.
         setEnrollBlock({ code: d.code, message: d.error });
-        // Move focus to the new step for screen-reader + keyboard users —
-        // deferred a tick so the ref attaches to the just-rendered banner
-        // first (same pattern as the semester-import conflict alert).
-        setTimeout(() => enrollBannerRef.current?.focus(), 0);
         return;
       }
       toast.error(d.error ?? "Gagal menambahkan siswa");

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatRupiah, maskBankAccount } from "@/lib/format";
+import { formatRupiah, formatWeekRangeLabel, maskBankAccount } from "@/lib/format";
 
 describe("formatRupiah", () => {
   it("formats integer amount with Indonesian thousand separators", () => {
@@ -59,5 +59,21 @@ describe("numeric reduce defensive pattern", () => {
     const vals: Array<string | number | undefined> = ["abc", undefined, 500];
     const total = vals.reduce<number>((s, v) => s + (Number(v) || 0), 0);
     expect(total).toBe(500);
+  });
+});
+
+describe("formatWeekRangeLabel", () => {
+  it("prints the year once, at the end of the range", () => {
+    // The teacher journal printed "7 Jun – 11 Jun" — the same string in 2025,
+    // 2026 and 2027, on a control that let the reader page years away.
+    expect(formatWeekRangeLabel("2026-08-24", "2026-08-28")).toBe("24 Agu – 28 Agu 2026");
+  });
+
+  it("keeps both month names when a week straddles a month boundary", () => {
+    expect(formatWeekRangeLabel("2026-08-31", "2026-09-04")).toBe("31 Agu – 4 Sep 2026");
+  });
+
+  it("returns an empty string for an empty range so callers can fall back", () => {
+    expect(formatWeekRangeLabel("", "")).toBe("");
   });
 });

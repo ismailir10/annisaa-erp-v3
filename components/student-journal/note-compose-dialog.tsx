@@ -31,7 +31,18 @@ export type NoteComposeDialogProps = {
   title?: string;
   /** Override the textarea placeholder. Default: "Tulis catatan rumah di sini…". */
   placeholder?: string;
+  /**
+   * Who is composing. Drives the "who reads this" line under the title — a note
+   * is a message to the other side of the buku penghubung, and neither author
+   * was told that anywhere in the flow. Omit to render no line.
+   */
+  audience?: "teacher" | "parent";
   onSaved: () => void;
+};
+
+const AUDIENCE_HINT: Record<"teacher" | "parent", string> = {
+  teacher: "Catatan ini akan dibaca wali murid.",
+  parent: "Catatan ini akan dibaca Ustadzah.",
 };
 
 const MAX_LEN = 2000;
@@ -59,9 +70,13 @@ export function NoteComposeDialog({
   noteId,
   title,
   placeholder,
+  audience,
   onSaved,
 }: NoteComposeDialogProps) {
-  const today = useMemo(() => getTodayInTimezone(PORTAL_TIMEZONE), [open]);
+  // Read per render rather than memoised on `open`: the value only changes at
+  // midnight, and keying it to `open` was a lint-flagged dependency that did
+  // not describe what it recomputed for.
+  const today = getTodayInTimezone(PORTAL_TIMEZONE);
   const dateOptions = useMemo(() => {
     if (mode === "edit") return weekDates;
     return weekDates.filter((d) => d <= today);
@@ -148,6 +163,7 @@ export function NoteComposeDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={title ?? (mode === "create" ? "Tulis catatan" : "Edit catatan")}
+      description={audience ? AUDIENCE_HINT[audience] : undefined}
       size="sm"
       contentClassName="p-card"
       footer={

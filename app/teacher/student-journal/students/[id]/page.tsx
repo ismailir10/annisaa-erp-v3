@@ -7,15 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { BackLink } from "@/components/portal/back-link";
+import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { NoteThread } from "@/components/student-journal/note-thread";
+import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { BookHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
-import { formatDate } from "@/lib/format";
+import Link from "next/link";
+import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { computeDefaultNoteDate } from "./note-date";
 
@@ -38,13 +40,32 @@ type Note = {
   createdAt: string;
 };
 
+type Student = {
+  id: string;
+  name: string;
+  nickname: string | null;
+  classNames: string[];
+  /** Active class sections, with ids — the jump into the fill grid needs one. */
+  classes?: Array<{ id: string; name: string }>;
+};
+
 type WeekData = {
   weekStart: string;
   dates: string[];
+  /** Null when the payload carries no identity — the grid still renders. */
+  student?: Student | null;
   categories: Category[];
   entries: Entry[];
   notes: Note[];
 };
+
+/** "Abdullah · DCARE" — nickname first (what the guru actually calls them), class second. */
+function studentSubtitle(student: Student): string | undefined {
+  const parts = [student.nickname?.trim(), student.classNames.join(" · ")].filter(
+    (part): part is string => Boolean(part),
+  );
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
 
 function addDays(ymd: string, days: number): string {
   const d = new Date(`${ymd}T00:00:00Z`);
@@ -52,11 +73,9 @@ function addDays(ymd: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function formatWeekLabel(weekStartYmd: string, dates: string[]): string {
+function formatWeekLabel(dates: string[]): string {
   if (dates.length === 0) return "";
-  const start = formatDate(dates[0], { day: "numeric", month: "short" });
-  const end = formatDate(dates[dates.length - 1], { day: "numeric", month: "short" });
-  return `${start} – ${end}`;
+  return formatWeekRangeLabel(dates[0], dates[dates.length - 1]);
 }
 
 export default function TeacherStudentWeekPage() {
@@ -75,6 +94,8 @@ export default function TeacherStudentWeekPage() {
 
   // Add-note dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Bumped after a save so the thread refetches from its first page.
+  const [noteReloadToken, setNoteReloadToken] = useState(0);
   const [noteDate, setNoteDate] = useState(today);
 
   const loadWeek = useCallback(async (weekStartYmd: string) => {
@@ -106,7 +127,6 @@ export default function TeacherStudentWeekPage() {
   }, [studentId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWeek(ws);
   }, [loadWeek, ws]);
 
@@ -118,12 +138,44 @@ export default function TeacherStudentWeekPage() {
     setWs((prev) => addDays(prev, 7));
   }
 
-  const weekLabel = data ? formatWeekLabel(data.weekStart, data.dates) : "";
+  const weekLabel = data ? formatWeekLabel(data.dates) : "";
   const isCurrentWeek = ws === weekStart(today);
+
+  const student = data?.student;
+
+  // Which day the jump fills: today when the current week is on screen,
+  // otherwise the last school day of the week being viewed — the day a guru
+  // paging back is most likely to be fixing.
+  const fillDate = isCurrentWeek ? today : (data?.dates?.[data.dates.length - 1] ?? null);
+  const fillClassId = student?.classes?.[0]?.id ?? null;
+  const fillHref =
+    fillClassId && fillDate
+      ? `/teacher/student-journal/entry?classId=${fillClassId}&date=${fillDate}`
+      : null;
+  const fillDayLabel = isCurrentWeek
+    ? "hari ini"
+    : fillDate
+      ? formatDate(fillDate, { day: "numeric", month: "short" })
+      : "";
 
   return (
     <div>
       <BackLink href="/teacher/student-journal" className="mb-4" />
+
+      {/*
+        The page used to open on a bare week grid: no name, no nickname, no
+        class. A guru arriving from the class grid's chevron — or from a link in
+        chat — had no way to tell whose penghubung was on screen. Identity comes
+        from the same week payload, so it appears as soon as the week resolves.
+      */}
+      {student ? (
+        <PageHeader title={student.name} subtitle={studentSubtitle(student)} />
+      ) : loading ? (
+        <div className="mb-6 space-y-2">
+          <Skeleton className="h-7 w-48 rounded-md" />
+          <Skeleton className="h-4 w-32 rounded-md" />
+        </div>
+      ) : null}
 
       {/*
         Was a hand-rolled navigator with "Minggu sebelumnya"/"Minggu berikutnya"
@@ -142,6 +194,12 @@ export default function TeacherStudentWeekPage() {
         }
         onPrev={prevWeek}
         onNext={nextWeek}
+        // A journal week in the future holds nothing by construction: WeekGrid
+        // locks future cells and the picker caps at today. Paging into one was
+        // possible all the way into 2027 and looked exactly like an unfilled
+        // real week.
+        nextDisabled={isCurrentWeek}
+        onToday={isCurrentWeek ? undefined : () => setWs(weekStart(today))}
       />
 
       {loading ? (
@@ -162,15 +220,37 @@ export default function TeacherStudentWeekPage() {
         />
       ) : (
         <>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Riwayat penghubung — hanya bisa dilihat di sini
-          </p>
+          {/*
+            Read-only stays read-only, but "read-only" used to mean "go back to
+            the picker and retype the date" for a guru who spotted a missed day
+            here. The jump carries the class and the day with it.
+          */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Riwayat penghubung — hanya bisa dilihat di sini
+            </p>
+            {fillHref ? (
+              <Link
+                href={fillHref}
+                data-testid="fill-day-link"
+                className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                Isi {fillDayLabel}
+              </Link>
+            ) : null}
+          </div>
           <WeekGrid
             categories={data?.categories ?? []}
             entries={data?.entries ?? []}
             dates={data?.dates ?? []}
+            emptyWeekMessage="Belum ada centang di pekan ini."
           />
 
+          {/*
+            The thread is NOT week-scoped, unlike the grid above it: a catatan
+            is a message, and it used to vanish the Monday after it was written
+            because this section read `weekData.notes`.
+          */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-h2 font-semibold">Catatan</h2>
@@ -187,7 +267,11 @@ export default function TeacherStudentWeekPage() {
                 Tambah catatan
               </Button>
             </div>
-            <NoteThread notes={data?.notes ?? []} />
+            <NoteThreadPanel
+              studentId={studentId}
+              audience="teacher"
+              reloadToken={noteReloadToken}
+            />
           </div>
         </>
       )}
@@ -199,12 +283,13 @@ export default function TeacherStudentWeekPage() {
         studentId={studentId}
         weekDates={data?.dates ?? [noteDate]}
         initialDate={noteDate}
-        title="Tambah catatan"
+        title={student ? `Tambah catatan untuk ${student.name}` : "Tambah catatan"}
+        audience="teacher"
         placeholder="Tulis catatan di sini…"
         onSaved={() => {
           setDialogOpen(false);
           setNoteDate(computeDefaultNoteDate(ws, today));
-          loadWeek(ws);
+          setNoteReloadToken((n) => n + 1);
         }}
       />
     </div>

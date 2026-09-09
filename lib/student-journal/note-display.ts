@@ -19,6 +19,22 @@ export function roleLabel(role: string): string {
 }
 
 /**
+ * Role words that show up appended to a stored display name — seeded accounts
+ * carry them ("Ismail Rabbani (Teacher)"). The note card already renders the
+ * role as its own badge, so leaving the parenthetical in prints the role twice,
+ * once in English, right next to an Indonesian badge saying the same thing.
+ * Matching is limited to these words so a genuine parenthetical in a name
+ * (e.g. "Siti (Bu Guru TK-B)") is left alone.
+ */
+const ROLE_SUFFIX_RE =
+  /\s*\((teacher|guru|admin|administrator|parent|guardian|orang tua|wali|wali murid)\)\s*$/i;
+
+/** Strip a trailing role parenthetical: "Ismail Rabbani (Teacher)" → "Ismail Rabbani". */
+export function stripRoleSuffix(name: string): string {
+  return name.replace(ROLE_SUFFIX_RE, "").trim();
+}
+
+/**
  * Display name for a note author: the author's name when present,
  * otherwise the Indonesian role label (e.g. "Guru", "Orang Tua").
  */
@@ -27,7 +43,8 @@ export function getNoteAuthorLabel(
   role: string,
 ): string {
   const trimmed = authorName?.trim();
-  return trimmed || roleLabel(role);
+  const withoutRole = trimmed ? stripRoleSuffix(trimmed) : "";
+  return withoutRole || roleLabel(role);
 }
 
 /**
@@ -40,7 +57,7 @@ export function getNoteAuthorInitials(
   authorName: string | null | undefined,
   role: string,
 ): string {
-  const trimmed = authorName?.trim();
+  const trimmed = authorName ? stripRoleSuffix(authorName) : "";
   if (trimmed) {
     const parts = trimmed.split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {

@@ -237,7 +237,12 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
     await page.waitForURL(`**/admin/students/${adik.id}`, { timeout: 15_000 });
 
     // ---------- Saudara surfaces the sibling on the student page ----------
-    await expect(page.getByText("Saudara")).toBeVisible({ timeout: 15_000 });
+    // Target the heading, not loose text: the dossier layout nests sections
+    // deeper and adds "Saudara Kandung"/"Tiri"/"Angkat" field labels, so a bare
+    // getByText("Saudara") is ambiguous.
+    await expect(
+      page.getByRole("heading", { name: "Saudara", exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
     const saudaraLink = page.getByRole("link", {
       name: new RegExp(`E2E Kakak ${suffix}`),
     });

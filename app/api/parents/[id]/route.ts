@@ -40,7 +40,25 @@ export async function GET(
 
   const parent = await prisma.parent.findFirst({
     where: { id, tenantId: session.tenantId },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      whatsapp: true,
+      address: true,
+      status: true,
+      createdAt: true,
+      nik: true,
+      education: true,
+      occupation: true,
+      employer: true,
+      employerAddress: true,
+      employerCity: true,
+      incomeRange: true,
+      childrenTotal: true,
+      ktpUrl: true,
+      kkUrl: true,
       guardians: {
         where: { status: "ACTIVE" },
         include: {
@@ -68,7 +86,11 @@ export async function GET(
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   }
 
-  return NextResponse.json(parent);
+  // Document scans are auth-proxy storage tokens — the detail page only ever
+  // needs "is a file on record", never the token itself (that's resolved
+  // server-side by /api/parents/[id]/ktp|kk from the parent id).
+  const { ktpUrl, kkUrl, ...rest } = parent;
+  return NextResponse.json({ ...rest, hasKtp: !!ktpUrl, hasKk: !!kkUrl });
 }
 
 export async function PUT(
@@ -116,6 +138,7 @@ export async function PUT(
         incomeRange: d.incomeRange !== undefined ? (d.incomeRange?.trim() || null) : undefined,
         childrenTotal: d.childrenTotal !== undefined ? d.childrenTotal : undefined,
       },
+      select: { id: true, name: true, email: true, phone: true, whatsapp: true, address: true, status: true },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -154,6 +177,7 @@ export async function PATCH(
   const updated = await prisma.parent.update({
     where: { id },
     data: { status: parsed.data.status },
+    select: { id: true, status: true },
   });
 
   return NextResponse.json(updated);
