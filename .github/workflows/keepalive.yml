@@ -1,0 +1,173 @@
+name: Prod Keepalive
+
+# Second leg of the production keepalive, independent of UptimeRobot.
+#
+# The prod Supabase project is on the free tier, which auto-pauses after 7 days
+# idle. It has paused twice — 2026-05-02 and 2026-09-09 — each time taking Google
+# sign-in down at the network layer, because a paused project's hostname stops
+# resolving entirely. Both times an UptimeRobot monitor pinging /api/health every
+# 5 minutes was supposed to prevent exactly that.
+#
+# This workflow shares no account, scheduler or notification channel with
+# UptimeRobot, so the two legs fail independently. Each covers the other's blind
+# spot: a run that never happens cannot notice it never happened (see
+# check-cadence below), and a monitor living only in an owner-only dashboard
+# leaves no evidence in the repo. Neither is sufficient alone.
+#
+# See docs/runbooks/prod-incident.md §3.
+
+on:
+  schedule:
+    # Every 3 hours. 8 pings/day against a 7-day idle timer is ~56x margin, so
+    # the keepalive survives GitHub delaying scheduled runs under load.
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Override the probe URL (use a deliberately wrong one to rehearse the alert path)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: prod-keepalive
+  # Never cancel a probe mid-flight: a cancelled run is neither a keepalive nor
+  # a signal, and would silently skip a ping.
+  cancel-in-progress: false
+
+env:
+  PROD_HEALTH_URL: https://talib.annisaasekolahku.com/api/health
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      class: ${{ steps.probe.outputs.class }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Catches the schedule quietly becoming erratic — the analogue of the
+      # nightly backup's bucket-freshness guard. It CANNOT catch the schedule
+      # stopping outright (GitHub disables scheduled workflows after 60 days of
+      # repo inactivity), because a run that never happens cannot check itself.
+      # That specific blind spot is the one UptimeRobot covers.
+      - name: Check the schedule is actually firing
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          MAX_GAP_HOURS: '12'
+        run: |
+          set -euo pipefail
+          PREV=$(gh run list --workflow=keepalive.yml --status=success \
+            --limit 1 --json createdAt --jq '.[0].createdAt // empty')
+          if [ -z "$PREV" ]; then
+            echo "  no previous successful run — first run of this workflow, nothing to compare"
+            exit 0
+          fi
+          GAP=$(( ( $(date -u +%s) - $(date -u -d "$PREV" +%s) ) / 3600 ))
+          echo "  last successful run: $PREV (${GAP}h ago, budget ${MAX_GAP_HOURS}h)"
+          if [ "$GAP" -gt "$MAX_GAP_HOURS" ]; then
+            echo "::warning::The keepalive last succeeded ${GAP}h ago, beyond the ${MAX_GAP_HOURS}h budget for a 3-hourly schedule. The schedule may be degraded or was disabled and re-enabled."
+          fi
+
+      - name: Probe /api/health
+        id: probe
+        env:
+          URL: ${{ inputs.url || env.PROD_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          OUT=$(bash scripts/keepalive-probe.sh probe "$URL" 2>&1) && RC=0 || RC=$?
+          printf '%s\n' "$OUT"
+          printf '%s\n' "$OUT" | grep -oE '^class=.*' >> "$GITHUB_OUTPUT" || echo "class=unknown" >> "$GITHUB_OUTPUT"
+          exit "$RC"
+
+      - name: Summary
+        if: always()
+        env:
+          URL: ${{ inputs.url || env.PROD_HEALTH_URL }}
+          CLASS: ${{ steps.probe.outputs.class }}
+        run: |
+          {
+            echo "### Prod keepalive — \`$CLASS\`"
+            echo
+            echo "- URL: $URL"
+            echo "- A healthy probe runs \`SELECT 1\` on the prod database, so it is the keepalive as well as the check."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Fail loudly. A red scheduled workflow notifies nobody — backup.yml's alert
+  # job proved that twice over, first by not existing and then by being broken
+  # for eighteen nights. This one checks out the repo, sets GH_REPO, and uses
+  # the same self-tested scripts/alert-issue.sh, so it cannot repeat either.
+  # ---------------------------------------------------------------------------
+  alert:
+    needs: keepalive
+    if: always() && needs.keepalive.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Open or update the prod-down issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ALERT_LABEL_DESCRIPTION: Production health probe is failing
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CLASS: ${{ needs.keepalive.outputs.class }}
+          URL: ${{ inputs.url || env.PROD_HEALTH_URL }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          cat > body.md <<EOF
+          Production health probe failed: \`${CLASS:-unknown}\`
+
+          - URL: $URL
+          - Run: $RUN_URL
+          - Workflow: \`.github/workflows/keepalive.yml\`
+
+          ## Diagnose in under a minute
+
+          \`\`\`bash
+          curl -i https://talib.annisaasekolahku.com/api/health
+          dig +short vxwywmvpxetdgnxejjgk.supabase.co
+          \`\`\`
+
+          503 \`db_unreachable\` **and** NXDOMAIN together pin it to the prod
+          Supabase project having auto-paused. Recover per
+          \`docs/runbooks/prod-incident.md\` §3 — restore from the Supabase
+          dashboard, then re-run this workflow to confirm and auto-close.
+
+          Any other combination is not an auto-pause: see §1 (app or edge down),
+          §2 (stuck deploy) or §4 (a DB outage that is not a pause).
+
+          @$OWNER — this issue is reused for every consecutive failure and closed
+          automatically by the next healthy probe.
+          EOF
+          bash scripts/alert-issue.sh open prod-down \
+            "Production health probe is failing" body.md "$OWNER"
+
+  # Close the alert once prod is healthy again, so an open issue always means
+  # "prod is down right now".
+  resolve:
+    needs: keepalive
+    if: always() && needs.keepalive.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Close any open prod-down issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/alert-issue.sh close prod-down "Prod health probe is passing again — $RUN_URL"
