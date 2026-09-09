@@ -277,6 +277,10 @@ jobs:
       - name: Assert every workflow gh call has GH_REPO
         run: |
           set -euo pipefail
+          # Parsing the workflows properly beats grepping them; PyYAML is not
+          # guaranteed on the runner image, so do not assume it.
+          python3 -c 'import yaml' 2>/dev/null \
+            || python3 -m pip install --quiet --disable-pip-version-check pyyaml
           # A guard that never fires looks exactly like a clean repo, so prove
           # it fires first — the fixtures include the real defect's shape.
           python3 scripts/check-workflow-gh-repo.py --self-test

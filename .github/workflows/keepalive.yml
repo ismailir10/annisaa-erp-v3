@@ -45,6 +45,13 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # actions:read is what lets check-cadence below call `gh run list` against
+    # this workflow's own history. Naming a permissions block sets every scope
+    # not listed to none, so without this the cadence check 403s — silently,
+    # since it is continue-on-error.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       class: ${{ steps.probe.outputs.class }}
     steps:

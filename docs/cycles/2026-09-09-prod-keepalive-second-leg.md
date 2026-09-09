@@ -249,6 +249,11 @@ run of this same workflow and fails if the gap exceeds `KEEPALIVE_MAX_GAP_HOURS`
 backup's `check-freshness` and closes the same failure mode: a schedule that
 quietly becomes erratic.
 
+The step needs `actions: read` on the job, which is easy to miss: naming a
+`permissions` block sets every unlisted scope to none, so without it `gh run
+list` 403s — and because the step is `continue-on-error`, it would have failed
+silently forever. Caught on review, not at runtime.
+
 **Its limit, stated plainly:** a run that never happens cannot check its own
 freshness, so this does *not* catch the schedule stopping outright — which
 GitHub will do after 60 days of repo inactivity. That blind spot is exactly the
@@ -265,6 +270,10 @@ cancelled by the next scheduled one mid-probe.
 Shellchecks both new scripts and runs their self-tests. No service containers and
 no secrets — the fixture server and the stub `gh` are both local, so the job is
 fast and cannot touch production.
+
+PyYAML is installed if absent rather than assumed present on the runner image —
+the guard parses the workflows rather than grepping them, and a missing import
+would turn a guard into a red build for the wrong reason.
 
 It also runs `scripts/check-workflow-gh-repo.py`, which asserts that no workflow
 step reaches the GitHub API without `GH_REPO` — directly, or through
