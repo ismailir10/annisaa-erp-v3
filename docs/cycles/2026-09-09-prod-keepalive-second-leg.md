@@ -237,6 +237,19 @@ asserting the classification of each and asserting that the failing cases make
 `backup-prod.sh` for the same reason documented there: `die` calls `exit`, so an
 inline `if` would kill the script rather than register a false condition.
 
+Two harness bugs were found by running it rather than reading it, both of the
+kind that make a test quietly weaker instead of failing:
+
+- The fixture's port file was not truncated between servers, so the wait loop
+  saw the *previous* port and probed a socket nothing was listening on. A paused
+  server read as `unreachable` — a green-looking test asserting the wrong thing.
+- `port=$(fixture_start …)` runs in a subshell, so `FIXTURE_PID` was set there
+  and lost, and nothing was ever killed. CI's own cleanup log named it:
+  `Terminate orphan process: pid (…) (python3)`, four times, one per fixture.
+  `fixture_start` now sets `FIXTURE_PID`/`FIXTURE_PORT` in the calling shell.
+
+Both are asserted against: mutating either back makes the self-test fail.
+
 ### T4 — `.github/workflows/keepalive.yml` (new)
 
 `0 */3 * * *` plus `workflow_dispatch`. The probe step classifies; the failure

@@ -121,22 +121,35 @@ cmd_probe() {
 # Drives a real loopback HTTP server through every class. No network, no
 # production system, no credential.
 FIXTURE_PID=""
-fixture_stop() { [ -n "$FIXTURE_PID" ] && kill "$FIXTURE_PID" 2>/dev/null; FIXTURE_PID=""; }
+FIXTURE_PORT=""
+fixture_stop() {
+  [ -n "$FIXTURE_PID" ] || return 0
+  kill "$FIXTURE_PID" 2>/dev/null || true
+  wait "$FIXTURE_PID" 2>/dev/null || true
+  FIXTURE_PID=""
+}
 
-# Starts the fixture in $1 mode and echoes the port it bound.
+# Starts the fixture in $1 mode and sets FIXTURE_PID + FIXTURE_PORT.
+#
+# Deliberately NOT `port=$(fixture_start ...)`: a command substitution runs in a
+# subshell, so FIXTURE_PID would be set there and lost, leaving fixture_stop
+# with nothing to kill. That is not theoretical — the first CI run of this
+# self-test ended with "Terminate orphan process: pid (…) (python3)" four times
+# over, one per fixture.
+#
+# The port file is truncated before each start. Reusing it without truncating
+# let the wait loop see the PREVIOUS server's port still sitting in it, return
+# immediately, and probe a port nothing was listening on — which is how this
+# self-test first reported a paused server as unreachable.
 fixture_start() {
   local mode="$1" dir="$2"
-  # A fresh file per fixture. Reusing one let the wait loop below see the
-  # PREVIOUS server's port still sitting in it, return immediately, and probe a
-  # port nothing was listening on — which is how this self-test first reported
-  # a paused server as unreachable.
-  local portfile; portfile=$(mktemp "$dir/port.XXXXXX")
-  python3 "$dir/server.py" "$mode" > "$portfile" 2>/dev/null &
+  : > "$dir/port"
+  python3 "$dir/server.py" "$mode" > "$dir/port" 2>/dev/null &
   FIXTURE_PID=$!
   local i=0
-  while [ ! -s "$portfile" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
-  [ -s "$portfile" ] || die "the fixture server did not start"
-  cat "$portfile"
+  while [ ! -s "$dir/port" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  [ -s "$dir/port" ] || die "the fixture server did not start"
+  FIXTURE_PORT=$(cat "$dir/port")
 }
 
 assert_class() { # expected, curl_exit, http, body, description
@@ -199,19 +212,18 @@ PYSERVER
   export KEEPALIVE_ATTEMPTS=2 KEEPALIVE_RETRY_DELAY=0 KEEPALIVE_TIMEOUT=5
 
   echo "== probe against a real loopback server =="
-  local port
-  port=$(fixture_start healthy "$tmp")
+  fixture_start healthy "$tmp"
   # In a subshell: cmd_probe installs its own EXIT trap for its temp file, which
   # would otherwise replace this self-test's fixture_stop/rm cleanup trap.
-  ( cmd_probe "http://127.0.0.1:$port/api/health" ) >/dev/null \
+  ( cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) >/dev/null \
     || die "probe failed against a healthy server"
   ok "probe exits 0 against a healthy server"
   fixture_stop
 
-  port=$(fixture_start paused "$tmp")
-  must_fail cmd_probe "http://127.0.0.1:$port/api/health" \
+  fixture_start paused "$tmp"
+  must_fail cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" \
     || die "probe passed against a server returning 503 db_unreachable"
-  local out; out=$( ( cmd_probe "http://127.0.0.1:$port/api/health" ) 2>&1 || true )
+  local out; out=$( ( cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) 2>&1 || true )
   printf '%s\n' "$out" | grep -q 'class=db_paused' \
     || die "probe did not report class=db_paused for the auto-pause signature"
   printf '%s\n' "$out" | grep -q 'prod-incident.md §3' \
@@ -219,15 +231,15 @@ PYSERVER
   ok "probe exits non-zero against a paused server and names runbook §3"
   fixture_stop
 
-  port=$(fixture_start bad_body "$tmp")
-  must_fail cmd_probe "http://127.0.0.1:$port/api/health" \
+  fixture_start bad_body "$tmp"
+  must_fail cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" \
     || die "probe passed against a 200 that is not the health route"
   ok "probe exits non-zero on HTTP 200 with the wrong body"
   fixture_stop
 
   echo "== probe recovers when a later attempt succeeds =="
-  port=$(fixture_start flaky "$tmp")
-  ( cmd_probe "http://127.0.0.1:$port/api/health" ) >/dev/null \
+  fixture_start flaky "$tmp"
+  ( cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) >/dev/null \
     || die "probe reported down even though the second attempt succeeded — a single blip would page someone"
   ok "probe recovers when a later attempt succeeds"
   fixture_stop
