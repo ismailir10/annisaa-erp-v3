@@ -1,6 +1,6 @@
 # API Standards
 
-> Loaded on demand by `/build` when staged paths match `app/api/**`, `lib/validations/**`, or `middleware.ts`.
+> Loaded on demand by `/build` when staged paths match `app/api/**`, `lib/validations/**`, or `proxy.ts`.
 
 ## GET Lists
 

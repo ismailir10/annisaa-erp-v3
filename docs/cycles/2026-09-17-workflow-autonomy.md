@@ -46,8 +46,11 @@ Granting the loop more autonomy while those holes were open would have compounde
 - Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-5; T6 (three new `audit-docs.sh` checks) dispatched to a subagent as a self-contained, well-specced bash slice. T1–T5 and T7 kept on the driver: they are interlocking prose edits to the workflow's own definition, where a subagent would need the entire plan as context and a wrong edit silently weakens the rules that police the rest. Fan-out there would cost more than it saves — the exception CLAUDE.md § Planning allows, invoked deliberately.
 - T1: SessionStart hooks reach the assistant — `scripts/check-role.sh`, `scripts/sync-staging.sh` — every `Assistant:`-directed message moved from stderr to stdout, with a header comment recording why (Claude Code drops a zero-exit hook's stderr) so the next editor does not "tidy" it back.
 
+- T2: `middleware.ts` → `proxy.ts` — `.claude/skills/build/SKILL.md` (4 refs), `.claude/standards/{api,security}.md` (1 each). Also widened the security trigger to `lib/supabase/**`: `lib/supabase/middleware.ts` holds the demo-mode session stub and the public-route allowlist, and `lib/auth*` never matched it.
+
 ## Verification
 
+- T2: `grep -rn 'middleware\.ts' .claude/ CLAUDE.md` now returns only CLAUDE.md's line documenting the rename. The one surviving real path, `lib/supabase/middleware.ts` (cited by `docs/adrs/2026-05-03-supabase-ssr-auth.md`), was deliberately left alone — the file exists.
 - T1: `bash scripts/check-role.sh 2>/dev/null` and `bash scripts/sync-staging.sh 2>/dev/null` both print their guidance; `grep -c '>&2'` returns 0 for each. Before this task both printed nothing on stdout, which is why a 193h-stale role file never surfaced.
 
 ## Ship Notes

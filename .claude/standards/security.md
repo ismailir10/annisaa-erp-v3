@@ -1,6 +1,6 @@
 # Security
 
-> Loaded on demand by `/build` when staged paths match `app/api/**`, `lib/auth*`, or `middleware.ts`.
+> Loaded on demand by `/build` when staged paths match `app/api/**`, `lib/auth*`, `lib/supabase/**`, or `proxy.ts`.
 
 ## Every API Route Must:
 

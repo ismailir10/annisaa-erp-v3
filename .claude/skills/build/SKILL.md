@@ -53,11 +53,11 @@ Apply **`agent-skills:context-engineering`**. Read only the files this task need
 | Staged file glob | Load |
 |---|---|
 | `components/**`, `app/*/page.tsx`, `lib/format.ts` | `.claude/standards/ui.md` |
-| `app/api/**`, `lib/validations/**`, `middleware.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
+| `app/api/**`, `lib/validations/**`, `proxy.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
 | `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
 | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
 | `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
-| `lib/auth*`, `middleware.ts` | **+** `.claude/standards/security.md` |
+| `lib/auth*`, `lib/supabase/**`, `proxy.ts` | **+** `.claude/standards/security.md` |
 
 If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
 
@@ -87,7 +87,7 @@ Apply **`agent-skills:incremental-implementation`**:
 Auto-invoke domain skills based on what you're touching:
 - `app/components/**`, `app/*/page.tsx` → **`agent-skills:frontend-ui-engineering`** (Shadcn-first, accessibility, empty/loading/error states)
 - `app/api/**` → **`agent-skills:api-and-interface-design`** (pagination, Zod validation, standard response shape)
-- `app/api/**`, `lib/auth*`, `middleware.ts` → **`agent-skills:security-and-hardening`** (tenant filter, role check, rate limiting, Zod)
+- `app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts` → **`agent-skills:security-and-hardening`** (tenant filter, role check, rate limiting, Zod)
 
 ### 4. Test the slice
 Apply **`agent-skills:test-driven-development`**:
@@ -113,7 +113,7 @@ Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the tas
 
 Then apply **`agent-skills:code-simplification`** inline — reduce complexity without changing behavior.
 
-For security-sensitive diffs (`app/api/**`, `lib/auth*`, `middleware.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
+For security-sensitive diffs (`app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 
 ### 7. Update the cycle doc
 Edit the cycle doc:
