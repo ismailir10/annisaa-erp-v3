@@ -1,10 +1,9 @@
 ---
 name: ship
 description: Ship a completed cycle via PR. Opens a PR from feat/* → staging, preview-verifies it via Chrome MCP, watches CI, and self-merges once all four required checks are green. Never pushes directly to staging or main. Use after /build has completed all tasks in the current cycle doc. `/ship --to-main` promotes staging → main and is user-initiated only — never invoke it yourself.
-disable-model-invocation: true
 ---
 
-# /ship — open a PR, hand off to the user for manual merge
+# /ship — open a PR, preview-verify it, merge it green
 
 You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR, preview-verifies it via Chrome MCP, watches CI, and merges once all checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
@@ -12,8 +11,8 @@ You are shipping a completed cycle. `/build` has finished all tasks and filled `
 
 ## Invocation modes
 
-- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, then prints a two-command hand-off. All roles.
-- `/ship --to-main` — CTO-initiated staging → main promotion. Opens PR `staging` → `main`, then prints a two-command hand-off. Only runs when `role=cto`; refuse otherwise with a one-line error. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
+- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, preview-verifies, watches CI, merges when green. This is the mode the cycle reaches on its own.
+- `/ship --to-main` — staging → main promotion. Opens PR `staging` → `main`, then prints a two-command hand-off. **User-initiated only**: run it when the user says so, never as the tail of a cycle. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
 
 If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** section below instead of the default Step 2.
 

@@ -1,7 +1,6 @@
 ---
 name: build
 description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Use after /spec has created a cycle doc and the user has approved its Spec.
-disable-model-invocation: true
 ---
 
 # /build — build + test + review, looping over tasks
@@ -19,11 +18,9 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 
 ## Planning — model-tiered subagent dispatch
 
-See CLAUDE.md **§ Harness Roster & Model Tiering** for the full rule. Summary the loop enforces:
-
 **The expensive-tier driver never does cheap work.** As the driver you reason — decompose, review, synthesize, decide. Dirty work (file reads, grep/glob sweeps, per-module audits, mechanical edits, scaffolding, fixtures, single pre-specced slices) is delegated to a dirty-work-tier subagent.
 
-Which model is the driver and which is the dirty-work tier for your harness is in **CLAUDE.md § Harness Roster & Model Tiering** — read it there. This file used to restate that table and had drifted a full model generation out of date, so it no longer keeps a copy.
+Which model is the driver and which is the dirty-work tier for your harness lives in **CLAUDE.md § Harness Roster & Model Tiering** — read it there. This file used to restate that table and had drifted a full model generation out of date, so it no longer keeps a copy.
 
 **Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:
 
@@ -52,7 +49,7 @@ Read only the files this task needs — nothing "while you're in there". Check p
 | `app/api/**`, `lib/validations/**`, `proxy.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
 | `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
 | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
-| `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
+| `app/globals.css` (the `@theme` block), className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
 | `lib/auth*`, `lib/supabase/**`, `proxy.ts` | **+** `.claude/standards/security.md` |
 
 If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
@@ -63,7 +60,7 @@ If a task touches files in multiple categories, load all matching standards file
 |---|---|
 | `components/**`, `components/ui/**`, hover/focus/active/loading/empty states, transitions or keyframes | `better-ui` |
 | Any text styling — font config, type scale, headings, number/table cells, truncation, `text-wrap` | `better-typography` |
-| `app/globals.css`, `tailwind.config.*`, arbitrary-color classNames | `better-colors` (with `colors.md`) |
+| `app/globals.css` (the `@theme` block), arbitrary-color classNames | `better-colors` (with `colors.md`) |
 | `components/ui/**`, any Dialog/Sheet/Popover/Menu/custom widget, any form | `better-accessibility` |
 | `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — page/component structure | `better-layout` (with `patterns.md`) |
 | Any user-facing copy | `better-writing` (with `voice.md`) |

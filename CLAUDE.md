@@ -28,11 +28,27 @@ The skills are the source of truth for procedure. Below are only the rules that 
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
 - Playwright status must be recorded in the cycle doc's Verification before `/ship`: a local pass, or an explicit deferral to the required CI `Playwright E2E` check.
 
-### Canonical entry points
+### Orchestration — you drive the loop, not the user
 
-The user should never have to think about worktrees, hooks, or role files.
+**The user never types `/spec`, `/build`, or `/ship`.** They say what they want. You classify it and run the loop yourself. (The three are still slash commands, for when the user wants to re-enter a phase by hand.)
 
-There is no entry phrase and no role to declare. The user states what they want. If it would change tracked code, the assistant writes `.claude/session-role` (`role=cto` + its own model ID), derives a slug, runs `setup-worktree.sh`, enters the worktree, and starts the cycle — see **§ Orchestration** above.
+| Request | Action |
+|---|---|
+| Changes tracked code — `app/`, `lib/`, `components/`, `prisma/`, `scripts/`, `e2e/`, `proxy.ts`, build or CI config | **Run a cycle** |
+| A question, a code read, a grep, DB/ops work, a pure-docs edit, `~/.claude` config | **Answer inline.** No worktree, no cycle doc, no PR |
+
+Running a cycle:
+
+1. Write `.claude/session-role` with `role=cto` and **your own** model ID.
+2. Derive a kebab-case slug, `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into it.
+3. Invoke `spec`.
+4. **Stop.** Present Context / Spec / Tasks and your assumptions, and wait. This is the only human gate in the cycle — place it well, because nothing after it will ask again.
+5. On approval, invoke `build`, then `ship`, without asking again. Approving the Spec is durable authorization for that cycle's PR and its self-merge to `staging` — and for nothing beyond it.
+6. **Never chain past a red gate**, a blocked preview-verify, or a failing required check. Stop and report what failed.
+7. Re-enter the gate if the work changes shape underneath you. A task that turns out to need a schema migration, a new dependency, a production write, or a change the Spec ruled a non-goal is no longer the thing that was approved — say so and ask.
+8. `/ship --to-main` is **never** self-invoked. Promotion to production stays a typed instruction.
+
+The user should never have to think about worktrees, hooks, role files, or which command comes next.
 
 Invoke `/caveman` and `/using-superpowers` by default.
 
@@ -219,9 +235,9 @@ Three layers, weakest to strongest:
 | `portal.md` | Portal nav, Empty State Contract, fetch error contract, Household Overview, WeekGrid, cycle-tap attendance | `app/teacher/**`, `app/parent/**`, `components/{teacher,parent}/**` |
 | `api.md` | GET list pagination, mutation shape | `app/api/**`, `lib/validations/**`, `proxy.ts` |
 | `security.md` | API route checklist, data-access roles, new-route security | `app/api/**`, `lib/auth*`, `proxy.ts` |
-| `colors.md` | Color tokens + brand | `app/globals.css`, `tailwind.config.*`, `bg-status-*` edits, arbitrary `#hex` classNames |
+| `colors.md` | Color tokens + brand | `app/globals.css` (the `@theme` block), `bg-status-*` edits, arbitrary `#hex` classNames |
 
-**Frontend gate (pre-commit).** Frontend diffs (`app/**/*.{tsx,css}`, `components/**/*.tsx`, `tailwind.config.*`) require the staged cycle doc to contain the literal token `design-system`. One Verification bullet satisfies it. Keeps the reference alive against silent drift.
+**Frontend gate (pre-commit).** Frontend diffs (`app/**/*.{tsx,css}`, `components/**/*.tsx`) require the staged cycle doc to contain the literal token `design-system`. One Verification bullet satisfies it. Keeps the reference alive against silent drift. The hook also matches `tailwind.config.{ts,js,mjs,cjs}`, which is defensive only — Tailwind v4 is CSS-first here and the theme lives in `app/globals.css`'s `@theme` block, so no such file exists.
 
 ### Interface-craft skills (vendored)
 
@@ -231,7 +247,7 @@ The standards above cover **this product**. General interface craft — focus ri
 |---|---|---|
 | `better-ui` | Radius, shadows, borders, optical alignment, icons, motion restraint | `components/**`, any hover/focus/active/loading/empty state or motion diff |
 | `better-typography` | Font loading, variable fonts, type scale, heading hierarchy, tabular numerals, `text-wrap`, truncation, iOS input zoom | Any text-styling diff; font config; table/number cells |
-| `better-colors` | OKLCH, palettes, contrast, gamut/display-p3, semantic tokens, theming | `app/globals.css`, `tailwind.config.*` — **paired with `colors.md`** |
+| `better-colors` | OKLCH, palettes, contrast, gamut/display-p3, semantic tokens, theming | `app/globals.css` (the `@theme` block) — **paired with `colors.md`** |
 | `better-accessibility` | Focus + keyboard, focus traps, ARIA, form errors, screen readers, hit areas, `prefers-reduced-motion` | `components/ui/**`, any Dialog/Sheet/Popover/Menu, every form diff |
 | `better-layout` | Grouping, alignment, negative space, reading order, progressive disclosure, breakpoints, safe area | `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — **paired with `patterns.md`** |
 | `better-writing` | Button + link labels, error messages, empty states, placeholders, capitalization | Any user-facing copy diff — **paired with `voice.md`** |
@@ -272,7 +288,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 65 |
 | `e2e/*.spec.ts` | 34 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 37 / 233 |
+| `docs/cycles` active / archived | 38 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

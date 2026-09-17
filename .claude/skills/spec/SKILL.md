@@ -1,7 +1,6 @@
 ---
 name: spec
 description: Start a new development cycle. Creates a single cycle doc (docs/cycles/YYYY-MM-DD-<slug>.md) with Context, Spec, and Tasks sections before any code is written, then stops for the user to approve the spec. Use when beginning any non-trivial feature, bug fix, or change.
-disable-model-invocation: true
 ---
 
 # /spec — define + plan in one step
@@ -97,14 +96,18 @@ Do **not** start writing code. This is the define phase.
 <filled by /ship — migrations, env vars, manual steps, rollback plan>
 ```
 
-## Step 4: Present for approval
+## Step 4: Present for approval — then STOP
 
-Show the user the cycle doc's Context + Spec + Tasks sections and ask for confirmation before `/build` runs. Surface assumptions explicitly:
+Show the user the cycle doc's Context + Spec + Tasks sections. Surface assumptions explicitly:
 
 > **Assumptions I'm making:**
 > 1. [assumption]
 > 2. [assumption]
-> → Correct me now or `/build` will proceed with these.
+> → Correct me now. On your go-ahead I build and ship this without asking again.
+
+**This is a hard stop. End your turn here.** Do not invoke `build`. Do not begin a task "while waiting". The user's next message is the gate.
+
+Weight it accordingly: this is the **only** human checkpoint in the cycle. Everything downstream — every commit, the PR, the merge to `staging` — proceeds on the strength of this one approval. So put the real decisions in the Spec where they can be corrected cheaply, and state every assumption you would otherwise resolve silently. An assumption you leave unwritten is one the user never gets to veto.
 
 ## Rules
 
