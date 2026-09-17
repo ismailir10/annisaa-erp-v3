@@ -158,6 +158,140 @@ done < <(grep -oE '^\| 20[0-9]{2}-[0-9]{2}-[0-9]{2} \|' docs/adrs/active.md 2>/d
 [ -z "$STALE" ] && row ok "ADR 60-day window" "no out-of-window rows" ||
   row warn "ADR 60-day window" "move to docs/adrs/archive.md:$STALE"
 
+# ------------------------------------------------------ skill references resolve
+
+# Every `<plugin>:<skill>` token in a SKILL.md (e.g. `superpowers:test-driven-development`,
+# `feature-dev:code-reviewer`) is only a real reference if `<plugin>` is a plugin this
+# machine actually knows about — that is what filters out incidental colon pairs like
+# `tsx:42` or `focus:outline-none` in code samples without a hand-maintained denylist.
+# A token whose plugin resolves but is disabled (enabledPlugins value `false`) must FAIL:
+# that is the exact shape of the addy-agent-skills incident this check exists to catch.
+USER_SETTINGS="$HOME/.claude/settings.json"
+if [ ! -f "$USER_SETTINGS" ]; then
+  row warn "Skill references resolve" "no ~/.claude/settings.json on this machine (CI, or a Codex/opencode harness) — skipping"
+else
+  PLUGINS=$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+for key, enabled in data.get("enabledPlugins", {}).items():
+    plugin, _, marketplace = key.partition("@")
+    print(plugin + "\t" + marketplace + "\t" + str(bool(enabled)).lower())
+' "$USER_SETTINGS" 2>/dev/null)
+
+  BROKEN=""
+  while IFS= read -r tok; do
+    [ -z "$tok" ] && continue
+    plugin=${tok%%:*}
+    skill=${tok#*:}
+    match=$(printf '%s\n' "$PLUGINS" | awk -F'\t' -v p="$plugin" '$1==p{print;exit}')
+    [ -z "$match" ] && continue # plugin part isn't a known plugin — not a reference, ignore
+    marketplace=$(printf '%s' "$match" | cut -f2)
+    enabled=$(printf '%s' "$match" | cut -f3)
+    if [ "$enabled" != "true" ]; then
+      BROKEN="$BROKEN $tok(plugin-disabled)"
+      continue
+    fi
+    PLUGIN_DIR="$HOME/.claude/plugins/cache/$marketplace/$plugin"
+    SKILL_HIT=$(find "$PLUGIN_DIR" -type d -path '*/skills/'"$skill" 2>/dev/null)
+    AGENT_HIT=$(find "$PLUGIN_DIR" \( -path '*/agents/'"$skill"'.md' -o -type d -path '*/agents/'"$skill" \) 2>/dev/null)
+    [ -z "$SKILL_HIT" ] && [ -z "$AGENT_HIT" ] && BROKEN="$BROKEN $tok(not-found)"
+  done < <(grep -hoE '[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*' .claude/skills/*/SKILL.md CLAUDE.md 2>/dev/null | sort -u)
+
+  [ -z "$BROKEN" ] && row ok "Skill references resolve" "every plugin:skill token names an enabled plugin with a matching skill/agent" ||
+    row fail "Skill references resolve" "broken:$BROKEN"
+fi
+
+# --------------------------------------------------- standards-table paths exist
+
+# Converts a staged-file glob from build/SKILL.md's routing tables into a `find -path`
+# test. `find -path` (unlike shell globbing) already lets `*` cross `/`, so collapsing
+# `**` to a single `*` is enough to approximate globstar without requiring bash 4.
+path_glob_exists() {
+  local tok="$1" prefix rest items suffix item candidate pat hit
+  case "$tok" in
+    *'{'*) # brace group, e.g. components/{teacher,parent}/** — try each alternative
+      prefix=${tok%%\{*}
+      rest=${tok#*\{}
+      items=${rest%%\}*}
+      suffix=${rest#*\}}
+      for item in $(printf '%s' "$items" | tr ',' ' '); do
+        candidate="${prefix}${item}${suffix}"
+        pat="./$(printf '%s' "$candidate" | sed 's/\*\*/*/g')"
+        hit=$(find . -path "$pat" 2>/dev/null)
+        [ -n "$hit" ] && return 0
+      done
+      return 1
+      ;;
+    *)
+      pat="./$(printf '%s' "$tok" | sed 's/\*\*/*/g')"
+      hit=$(find . -path "$pat" 2>/dev/null)
+      [ -n "$hit" ]
+      ;;
+  esac
+}
+
+MISSING=""
+while IFS= read -r tok; do
+  [ -z "$tok" ] && continue
+  case "$tok" in
+    */*) ;;                     # looks like a path
+    *.ts|*.tsx|*.css) ;;        # or a bare file with a real source extension
+    *) continue ;;              # otherwise it's prose (`bg-status-*`, `text-wrap`, …) — skip
+  esac
+  path_glob_exists "$tok" || MISSING="$MISSING $tok"
+done < <(awk '
+  /^\| Staged file glob \| Load \|/ { f=1; next }
+  /^\| Frontend task touches \| Also invoke \|/ { f=1; next }
+  /^$/ { f=0 }
+  f && /^\|/ { print }
+' .claude/skills/build/SKILL.md | awk -F'|' '{print $2}' | grep -oE '`[^`]+`' | tr -d '`' | sort -u)
+
+[ -z "$MISSING" ] && row ok "Standards-table paths exist" "every staged-file glob in build/SKILL.md resolves on disk" ||
+  row fail "Standards-table paths exist" "no match on disk:$MISSING"
+
+# ------------------------------------- SessionStart hook messages reach the assistant
+
+# Claude Code only folds a SessionStart hook's STDOUT into the assistant's context;
+# stderr is silently dropped. A hook script that echoes an `Assistant:`-directed
+# message to `>&2` is writing guidance nobody will ever read.
+PROJECT_SETTINGS=".claude/settings.json"
+if [ ! -f "$PROJECT_SETTINGS" ]; then
+  row warn "SessionStart hook stdout" "no .claude/settings.json — skipping"
+else
+  HOOK_CMDS=$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+for entry in data.get("hooks", {}).get("SessionStart", []):
+    for h in entry.get("hooks", []):
+        cmd = h.get("command", "")
+        if cmd:
+            print(cmd)
+' "$PROJECT_SETTINGS" 2>/dev/null)
+
+  BROKEN=""
+  while IFS= read -r cmd; do
+    [ -z "$cmd" ] && continue
+    script=$(printf '%s\n' "$cmd" | awk '{print $2}')
+    [ -z "$script" ] && continue
+    [ -f "$script" ] || continue
+    matches=$(grep -E 'Assistant:' "$script" 2>/dev/null)
+    case "$matches" in
+      *'>&2'*) BROKEN="$BROKEN $script" ;;
+    esac
+  done < <(printf '%s\n' "$HOOK_CMDS")
+
+  [ -z "$BROKEN" ] && row ok "SessionStart hook stdout" "no Assistant: guidance sent to stderr" ||
+    row fail "SessionStart hook stdout" "stderr-only assistant message in:$BROKEN"
+fi
+
 # --------------------------------------------- File Structure paths still exist
 
 MISSING=""

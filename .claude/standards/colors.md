@@ -1,6 +1,6 @@
 # Color Standard + Brand Tokens
 
-> Loaded on demand by `/build` when staged paths match `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`).
+> Loaded on demand by `/build` when staged paths match `app/globals.css` (the `@theme` block), className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`).
 
 ## Color Standard
 
