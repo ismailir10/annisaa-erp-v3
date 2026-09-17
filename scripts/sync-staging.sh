@@ -9,6 +9,13 @@
 # - Silent when already up to date or when the fetch fails (offline).
 # - Dirty tree => warn only; assistant must surface and ask the user.
 #
+# Every message goes to STDOUT, deliberately. Claude Code folds only a
+# SessionStart hook's stdout into the assistant's context; stderr on a zero exit
+# is dropped. These messages were written to stderr until 2026-09-17, which made
+# every one of them invisible — the assistant was never told the tree was dirty
+# or the branch behind. audit-docs.sh now fails on an `Assistant:` line sent to
+# stderr from any SessionStart hook script, so this cannot silently regress.
+#
 # Feature-branch drift (base branch moving ahead of the feature) is handled in
 # /spec preflight, not here, since rebasing a feature branch is a judgment call.
 
@@ -41,19 +48,19 @@ BEHIND=$(git rev-list --count "HEAD..origin/$BRANCH" 2>/dev/null || echo "0")
 AHEAD=$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo "0")
 
 if [ "$AHEAD" != "0" ]; then
-  echo "[sync-staging] $BRANCH has $AHEAD local commits not on origin. Assistant: surface this — direct pushes to $BRANCH are blocked by pre-push; the user likely wants to open a PR via /ship." >&2
+  echo "[sync-staging] $BRANCH has $AHEAD local commits not on origin. Assistant: surface this — direct pushes to $BRANCH are blocked by pre-push; the user likely wants to open a PR via /ship."
   exit 0
 fi
 
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  echo "[sync-staging] $BRANCH is $BEHIND commits behind origin/$BRANCH, but the working tree is dirty. Not pulling. Assistant: tell the user to commit or stash, then run 'git pull --ff-only'." >&2
+  echo "[sync-staging] $BRANCH is $BEHIND commits behind origin/$BRANCH, but the working tree is dirty. Not pulling. Assistant: tell the user to commit or stash, then run 'git pull --ff-only'."
   exit 0
 fi
 
 if git merge --ff-only "origin/$BRANCH" --quiet 2>/dev/null; then
-  echo "[sync-staging] fast-forwarded $BRANCH ($BEHIND commits) to origin/$BRANCH." >&2
+  echo "[sync-staging] fast-forwarded $BRANCH ($BEHIND commits) to origin/$BRANCH."
 else
-  echo "[sync-staging] fast-forward of $BRANCH failed. Assistant: investigate with 'git status' before acting." >&2
+  echo "[sync-staging] fast-forward of $BRANCH failed. Assistant: investigate with 'git status' before acting."
 fi
 
 exit 0
