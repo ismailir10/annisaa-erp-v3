@@ -162,7 +162,7 @@ run_case "Edge feat(scope): + app/ no README → reject" \
   "app/api/invoices/route.ts"
 
 run_case "Edge Model-Trailer unknown → reject" \
-  reject $'fix: example\n\nModel-Trailer: unknown\nRole: product-builder' \
+  reject $'fix: example\n\nModel-Trailer: unknown\nRole: cto' \
   "docs/cycles/2026-06-23-x.md"
 
 run_case "Edge Role unknown → reject" \

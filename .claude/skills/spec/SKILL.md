@@ -10,24 +10,20 @@ You are starting a new development cycle. This command produces **one** artifact
 
 ## Step 0: Canonical entry
 
-The user's expected entry for a new cycle is a single sentence:
+There is no entry phrase. The user states what they want; you decide a cycle is warranted and start one — see CLAUDE.md **§ Orchestration**. Before Preflight:
 
-> `you are product-builder, <what to build>`
+1. Rewrite `.claude/session-role` with `role=cto` and your own model ID.
+2. If you are in the main checkout, derive a kebab-case slug from the request, run `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into `.worktrees/<slug>`, and rewrite `.claude/session-role` inside the worktree.
+3. Then proceed with Preflight and Step 1 on the user's original request — no confirmation needed for the setup itself.
 
-When you see this (or an equivalent: "act as product-builder, …", "product-builder mode, …"), immediately:
-
-1. Rewrite `.claude/session-role` with `role=product-builder` and your own model ID.
-2. If you are in the main checkout, follow the `SessionStart` hook's instructions: derive a kebab-case slug from the request, run `bash scripts/setup-worktree.sh <slug>`, `EnterWorktree` into `.worktrees/<slug>`, rewrite `.claude/session-role` inside the worktree.
-3. Then proceed with Preflight and Step 1 on the user's original request — no extra confirmation needed for the role switch itself.
-
-The user should never have to run `setup-worktree.sh` or `install-hooks.sh` by hand.
+The user should never have to run `setup-worktree.sh` or `install-hooks.sh` by hand, or name a command.
 
 ## Preflight
 
 Run these checks first. If any fails, stop and surface the error.
 
-1. **Session role set?** Read `.claude/session-role`. If missing, stop and use `AskUserQuestion` to ask the user whether this session is `cto` or `product-builder` — include your own model name in the question. Write the file. Do not proceed until it exists.
-2. **Worktree isolation?** Every session — regardless of role — MUST work in a git worktree, not the main checkout. Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, do NOT ask the user to run commands — set the worktree up yourself:
+1. **Session role set?** Read `.claude/session-role`. If it is missing, or its `model=` is not your own model ID, write it now with `role=cto` and your model. `prepare-commit-msg` copies it into every commit, so a stale value mis-attributes the work. Do not proceed until it is right.
+2. **Worktree isolation?** Every session MUST work in a git worktree, not the main checkout. Check: `git rev-parse --git-dir` must differ from `git rev-parse --git-common-dir`. If you are in the main checkout, do NOT ask the user to run commands — set the worktree up yourself:
    1. Derive a kebab-case slug from the user's request (2–4 words).
    2. Run `bash scripts/setup-worktree.sh <slug>` via the Bash tool. The script branches from `origin/staging`, symlinks `.env` and `node_modules`, and installs hooks.
    3. Use the `EnterWorktree` tool with `path=.worktrees/<slug>` to move into it.

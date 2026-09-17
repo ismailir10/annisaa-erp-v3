@@ -11,7 +11,7 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 ## Preflight
 
 1. **Session role set?** Check `.claude/session-role`. If missing, stop and ask the user.
-2. **Worktree isolation?** If `role=product-builder` and `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` (you're in the main checkout, not a worktree), stop and tell the user to create a worktree first. See `/spec` preflight step 2 for the commands.
+2. **Worktree isolation?** If `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` you are in the main checkout, not a worktree. Stop — you should have been in a worktree since `/spec`. See `/spec` preflight step 2 for the commands.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
