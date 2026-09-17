@@ -10,22 +10,22 @@ Auditing for that surfaced a worse class of problem: **mechanisms that are docum
 2. `check-role.sh` and `sync-staging.sh` wrote their assistant-directed instructions to **stderr**, which Claude Code drops from `SessionStart` context (only stdout is folded in). Observed directly: the session role was 193h stale and its own staleness warning never surfaced; neither did "staging is 3 commits behind, working tree dirty". Two safety mechanisms, invisible.
 3. `/build`'s standards-loading table keyed on **`middleware.ts`**, renamed to `proxy.ts` back in the Next.js 16 migration. Editing the auth/tenant middleware entry therefore loaded no `security.md` and triggered no `superpowers:code-reviewer`.
 
-Granting the loop more autonomy while those holes were open would have compounded them. So this cycle closes them first, deletes a role path that has never once been exercised, adds checks that make this class of rot fail CI, and only then flips the switch.
+Granting the loop more autonomy while those holes were open would have compounded them. So this cycle closes them first, deletes a role path that has sat unused for two months, adds checks that make this class of rot fail CI, and only then flips the switch.
 
 **Decisions taken with the user before specifying:** gate after `/spec` only · code change = cycle, everything else answered inline · remap dangling refs to installed equivalents rather than enabling a harness-local plugin · delete the product-builder path.
 
 ## Spec
 
-- [ ] The agent starts a cycle on its own when a request would change tracked code, and answers inline when it would not — the user never types `/spec`, `/build`, or `/ship`.
-- [ ] Exactly one human gate per cycle: after `/spec` presents Context / Spec / Tasks and its assumptions. Approval there is durable authorization for that cycle's PR and CTO self-merge, and nothing beyond it.
-- [ ] `/ship --to-main` is never self-invoked; promotion to production stays a typed instruction.
-- [ ] Zero unresolvable skill references remain in `.claude/skills/*/SKILL.md` — every `plugin:skill` token names an installed, enabled skill.
-- [ ] Every assistant-directed message from a `SessionStart` hook script reaches the assistant's context (stdout, not stderr).
-- [ ] No project doc, skill, or standard references `middleware.ts`; `proxy.ts` is matched by the security and API standards-loading rules.
-- [ ] The product-builder role is gone from CLAUDE.md, all skills, all scripts, and the git hooks. `.claude/session-role` survives (it feeds `Model-Trailer:` / `Role:`).
-- [ ] `scripts/audit-docs.sh` fails on: an unresolvable skill reference, a standards-table path that does not exist, and an `Assistant:`-directed hook message sent to stderr.
-- [ ] `/ship` preflight hard-requires the `Subagent plan:` bullet, the same way it already hard-requires Playwright status.
-- [ ] `bash scripts/test-hooks.sh` and `bash scripts/audit-docs.sh` both pass.
+- [x] The agent starts a cycle on its own when a request would change tracked code, and answers inline when it would not — the user never types `/spec`, `/build`, or `/ship`.
+- [x] Exactly one human gate per cycle: after `/spec` presents Context / Spec / Tasks and its assumptions. Approval there is durable authorization for that cycle's PR and CTO self-merge, and nothing beyond it.
+- [x] `/ship --to-main` is never self-invoked; promotion to production stays a typed instruction.
+- [x] Zero unresolvable skill references remain in `.claude/skills/*/SKILL.md` — every `plugin:skill` token names an installed, enabled skill.
+- [x] Every assistant-directed message from a `SessionStart` hook script reaches the assistant's context (stdout, not stderr).
+- [x] No project doc, skill, or standard references `middleware.ts`; `proxy.ts` is matched by the security and API standards-loading rules.
+- [x] The product-builder role is gone from CLAUDE.md, all skills, all scripts, and the git hooks. `.claude/session-role` survives (it feeds `Model-Trailer:` / `Role:`).
+- [x] `scripts/audit-docs.sh` fails on: an unresolvable skill reference, a standards-table path that does not exist, and an `Assistant:`-directed hook message sent to stderr.
+- [x] `/ship` preflight hard-requires the `Subagent plan:` bullet, the same way it already hard-requires Playwright status.
+- [x] `bash scripts/test-hooks.sh` and `bash scripts/audit-docs.sh` both pass.
 
 **Non-goals.** Pruning `settings.local.json`'s 202 permission entries. Re-vendoring `better-*` (all seven resolve correctly). Enabling the `agent-skills` plugin — rejected as harness-local: Codex and opencode would still get nothing. Any change to `app/`, `lib/`, or `components/`.
 
@@ -35,13 +35,13 @@ Granting the loop more autonomy while those holes were open would have compounde
 
 ## Tasks
 
-- [ ] **T1 — SessionStart hooks reach the assistant.** Route every `Assistant:`-directed message in `scripts/check-role.sh` and `scripts/sync-staging.sh` to stdout. *Accept: both scripts, run with `2>/dev/null`, still print their guidance.*
-- [ ] **T2 — `middleware.ts` → `proxy.ts`.** Six references across `.claude/skills/build/SKILL.md` and `.claude/standards/{api,security}.md`. *Accept: `grep -rn 'middleware\.ts' .claude/ CLAUDE.md` returns only the CLAUDE.md line that documents the rename.*
-- [ ] **T3 — Remap the 12 dangling `agent-skills:*` references.** Bodies and `description:` frontmatter across `spec`, `build`, `ship`, `uat`. Add `superpowers:verification-before-completion` to `/build`'s end-of-cycle gate and `/ship`'s preflight. *Accept: no `agent-skills:` token remains; every surviving `plugin:skill` token resolves to an enabled skill.*
-- [ ] **T4 — Delete the product-builder path.** ~28 references across CLAUDE.md, the four skills, `check-role.sh`, `setup-worktree.sh`, `test-hooks.sh`, `.githooks/commit-msg`. *Accept: `grep -rn 'product-builder'` is empty repo-wide; `bash scripts/test-hooks.sh` passes.*
-- [ ] **T5 — Roster de-duplication + trailer nit.** Replace `/build`'s drifted copy of the model-tier table with a link to CLAUDE.md § Harness Roster; reconcile `claude-fable-5`; make `prepare-commit-msg`'s `Co-Authored-By:` follow the actual model. *Accept: the tier table exists in exactly one file.*
-- [ ] **T6 — Make the rot fail CI.** Three checks in `scripts/audit-docs.sh` (skill references resolve · standards-table paths exist · no `Assistant:` message on stderr) plus the `Subagent plan:` preflight in `/ship`. *Accept: each new check produces a `fail` row when its defect is reintroduced, and the suite exits 0 once reverted.*
-- [ ] **T7 — Switch autonomy on.** Remove `disable-model-invocation` from `spec`/`build`/`ship`, tighten their descriptions, add the Orchestration router to CLAUDE.md, harden `/spec`'s Step 4 into a hard stop. *Accept: `audit-docs.sh` exits 0 and the router table is present in always-loaded context.* **Last, deliberately — autonomy switches on only once the checks that police it are green.**
+- [x] **T1 — SessionStart hooks reach the assistant.** Route every `Assistant:`-directed message in `scripts/check-role.sh` and `scripts/sync-staging.sh` to stdout. *Accept: both scripts, run with `2>/dev/null`, still print their guidance.*
+- [x] **T2 — `middleware.ts` → `proxy.ts`.** Six references across `.claude/skills/build/SKILL.md` and `.claude/standards/{api,security}.md`. *Accept: `grep -rn 'middleware\.ts' .claude/ CLAUDE.md` returns only the CLAUDE.md line that documents the rename.*
+- [x] **T3 — Remap the 12 dangling `agent-skills:*` references.** Bodies and `description:` frontmatter across `spec`, `build`, `ship`, `uat`. Add `superpowers:verification-before-completion` to `/build`'s end-of-cycle gate and `/ship`'s preflight. *Accept: no `agent-skills:` token remains; every surviving `plugin:skill` token resolves to an enabled skill.*
+- [x] **T4 — Delete the product-builder path.** ~28 references across CLAUDE.md, the four skills, `check-role.sh`, `setup-worktree.sh`, `test-hooks.sh`, `.githooks/commit-msg`. *Accept: `grep -rn 'product-builder'` is empty repo-wide; `bash scripts/test-hooks.sh` passes.*
+- [x] **T5 — Roster de-duplication + trailer nit.** Replace `/build`'s drifted copy of the model-tier table with a link to CLAUDE.md § Harness Roster; reconcile `claude-fable-5`; make `prepare-commit-msg`'s `Co-Authored-By:` follow the actual model. *Accept: the tier table exists in exactly one file.*
+- [x] **T6 — Make the rot fail CI.** Three checks in `scripts/audit-docs.sh` (skill references resolve · standards-table paths exist · no `Assistant:` message on stderr) plus the `Subagent plan:` preflight in `/ship`. *Accept: each new check produces a `fail` row when its defect is reintroduced, and the suite exits 0 once reverted.*
+- [x] **T7 — Switch autonomy on.** Remove `disable-model-invocation` from `spec`/`build`/`ship`, tighten their descriptions, add the Orchestration router to CLAUDE.md, harden `/spec`'s Step 4 into a hard stop. *Accept: `audit-docs.sh` exits 0 and the router table is present in always-loaded context.* **Last, deliberately — autonomy switches on only once the checks that police it are green.**
 
 ## Implementation
 
@@ -82,4 +82,16 @@ Granting the loop more autonomy while those holes were open would have compounde
 
 ## Ship Notes
 
-<!-- filled by /ship -->
+**Migrations:** none. **New env vars:** none. **Product surface touched:** none — no `app/`, `lib/`, or `components/` file is in this diff.
+
+**What changes for a reviewer.** This cycle edits how the assistant works, not what the app does, so the risk is not a runtime regression — it is a rule that now binds differently. Three things to look at:
+
+1. **`CLAUDE.md` § Orchestration** is the behavioural change. From merge onward an assistant starts a cycle on its own for any request that would change tracked code, and self-merges to `staging` on the strength of one spec approval. If that boundary is wrong, this is the section to change.
+2. **`scripts/audit-docs.sh`** gained 134 lines inside the required `Docs sync` check. If any of the three new checks is wrong, it blocks every PR, not just this one. It exits 0 on the current tree and each check was proven to fail on an injected defect.
+3. **`.githooks/prepare-commit-msg`** now emits a per-model `Co-Authored-By:`. Verified on this cycle's own commits.
+
+**Manual smoke on the preview:** not applicable — nothing in this diff is reachable from a browser.
+
+**Rollback.** `git revert` the range `3bfbfee0..14c2c1c0`, or revert `14c2c1c0` alone to put `disable-model-invocation: true` back and return to user-typed commands while keeping every fix underneath it. The seven commits are ordered so that the autonomy switch is last and independently revertible — that ordering was the point.
+
+**Follow-ups not taken here.** The ADR 60-day warn row (`2026-06-23`, 86 days) is still open; trimming is a judgement call and `audit-docs.sh` only warns. `settings.local.json`'s 202 permission entries remain unpruned.
