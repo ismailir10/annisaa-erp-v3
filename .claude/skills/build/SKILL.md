@@ -1,6 +1,6 @@
 ---
 name: build
-description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Folds in incremental-implementation, test-driven-development, source-driven-development, frontend-ui-engineering, api-and-interface-design, security-and-hardening, browser-testing-with-devtools, debugging-and-error-recovery, code-review-and-quality, and code-simplification from the upstream agent-skills plugin. Use after /spec has created a cycle doc.
+description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Use after /spec has created a cycle doc and the user has approved its Spec.
 disable-model-invocation: true
 ---
 
@@ -46,7 +46,7 @@ If a cycle is small enough that fan-out costs more than it saves (1-2 trivial me
 For each unchecked task in the cycle doc's `## Tasks` section, in order:
 
 ### 1. Load context
-Apply **`agent-skills:context-engineering`**. Read only the files this task needs. Check prior cycles in `docs/cycles/` if the area was recently touched.
+Read only the files this task needs — nothing "while you're in there". Check prior cycles in `docs/cycles/` if the area was recently touched.
 
 **Domain standards — load on demand.** For each task, identify which `.claude/standards/*.md` files the task's file list matches and read them before implementing. Load the **union** of matches — not the most specific — and re-check on every task (a previous task's loads do not carry forward).
 
@@ -75,30 +75,28 @@ If a task touches files in multiple categories, load all matching standards file
 **Conflict rule:** `.claude/standards/*` + `design-system.html` win over any `better-*` principle. Use the skill where the project standard is silent; never to contradict it. Do not edit `.claude/skills/better-*` — vendored, see `.claude/skills/VENDORED.md`.
 
 ### 2. Verify against official docs (when relevant)
-If the task uses a framework, library, or API whose current behavior you're not 100% sure of, apply **`agent-skills:source-driven-development`**:
-- Use Context7 or the project's skills (`nextjs`, `supabase`, `shadcn`, etc.) to fetch current docs.
+If the task uses a framework, library, or API whose current behavior you're not 100% sure of:
+- Fetch the current docs through the **Context7 MCP** before writing against the API.
 - Never guess API shapes. Ground every non-trivial decision in a source.
 
 ### 3. Implement the slice
-Apply **`agent-skills:incremental-implementation`**:
 - One vertical slice, one test, one concern per task.
 - Touch only files the task requires. No orthogonal "cleanup".
 
-Auto-invoke domain skills based on what you're touching:
-- `app/components/**`, `app/*/page.tsx` → **`agent-skills:frontend-ui-engineering`** (Shadcn-first, accessibility, empty/loading/error states)
-- `app/api/**` → **`agent-skills:api-and-interface-design`** (pagination, Zod validation, standard response shape)
-- `app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts` → **`agent-skills:security-and-hardening`** (tenant filter, role check, rate limiting, Zod)
+The domain rules for what you are touching are the `.claude/standards/*` files Step 1 already
+told you to load — `ui.md` + `patterns.md` for components and pages, `api.md` for route handlers,
+`security.md` for anything auth, tenant, or role. Read them there; do not re-derive them here.
 
 ### 4. Test the slice
-Apply **`agent-skills:test-driven-development`**:
+Apply **`superpowers:test-driven-development`**:
 - Write a test that proves the slice works. Prefer failing-first when practical.
-- For UI, apply **`agent-skills:browser-testing-with-devtools`** where useful.
+- For UI, drive the real page through the **Playwright MCP** where a unit test cannot reach it.
 
 ### 5. Run gates
 ```bash
 npm run build && npx vitest run
 ```
-If either fails, apply **`agent-skills:debugging-and-error-recovery`**:
+If either fails, apply **`superpowers:systematic-debugging`**:
 - Read the error. Diagnose the root cause. Don't retry blindly.
 - Fix and re-run gates until they pass.
 
@@ -111,7 +109,7 @@ Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the tas
 - **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
 - **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
 
-Then apply **`agent-skills:code-simplification`** inline — reduce complexity without changing behavior.
+Then run the **`simplify`** skill on the diff — reduce complexity without changing behavior.
 
 For security-sensitive diffs (`app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 
@@ -144,7 +142,7 @@ Then move to the next task.
 
 ## After the last task
 
-1. Run the full gates one final time: `npm run build && npx vitest run`.
+1. Run the full gates one final time: `npm run build && npx vitest run`. Apply **`superpowers:verification-before-completion`**: paste the real tail of the output into `## Verification`, never a remembered or predicted result. This applies doubly to a subagent's report — a subagent has claimed "N pre-existing failures" that did not exist. Re-run anything a subagent says passed before you record it.
 1b. **Record Playwright status in `## Verification`** (`/ship` Step 1a requires it). Run `npx playwright test` if this harness can; record the pass. If the environment cannot run Playwright locally (no browsers, staging-only `DATABASE_URL`, Turbopack symlink issue, CI-only deps), record the deferral instead — the required CI `Playwright E2E` check gates the merge:
    ```markdown
    - Playwright: local run deferred to CI (env cannot execute it — <reason>).

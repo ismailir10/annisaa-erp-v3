@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Start a new development cycle. Creates a single cycle doc (docs/cycles/YYYY-MM-DD-<slug>.md) with Context, Spec, and Tasks sections before any code is written. Folds in spec-driven-development, planning-and-task-breakdown, and idea-refine from the upstream agent-skills plugin. Use when beginning any non-trivial feature, bug fix, or change.
+description: Start a new development cycle. Creates a single cycle doc (docs/cycles/YYYY-MM-DD-<slug>.md) with Context, Spec, and Tasks sections before any code is written, then stops for the user to approve the spec. Use when beginning any non-trivial feature, bug fix, or change.
 disable-model-invocation: true
 ---
 
@@ -48,7 +48,7 @@ Run these checks first. If any fails, stop and surface the error.
 
 ## Step 1: Understand the request (optionally refine)
 
-If the user's request is vague ("make it faster", "clean up parent portal", or a one-liner like "you are product-builder, fix attendance"), invoke **`superpowers:brainstorming`** to turn it into a concrete goal before writing the cycle doc. Capture the refined problem statement in the cycle doc's `## Context` section. The upstream `agent-skills:idea-refine` stays available as a fallback if `superpowers:brainstorming` is unavailable.
+If the user's request is vague ("make it faster", "clean up parent portal", "fix attendance"), invoke **`superpowers:brainstorming`** to turn it into a concrete goal before writing the cycle doc. Capture the refined problem statement in the cycle doc's `## Context` section.
 
 If the request is already concrete, skip brainstorming.
 
@@ -67,7 +67,7 @@ Do **not** start writing code. This is the define phase.
 
 1. Pick a kebab-case slug (2–4 words). Create `docs/cycles/$(date +%Y-%m-%d)-<slug>.md` with the six-section template below.
 2. Fill `## Context` — one paragraph: the problem + intended outcome. Include why it matters.
-3. Apply **`agent-skills:spec-driven-development`** to fill `## Spec`:
+3. Fill `## Spec`:
    - Acceptance criteria as a checklist
    - Non-goals (what this cycle will *not* touch)
    - Assumptions you are making — surface them for the user to correct

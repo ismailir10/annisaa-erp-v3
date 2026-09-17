@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship a completed cycle via PR. Opens a PR from feat/* → staging and preview-verifies it via Chrome MCP. A CTO then watches CI and self-merges when all checks are green; a product-builder hands the needs-cto-review PR to a CTO. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
+description: Ship a completed cycle via PR. Opens a PR from feat/* → staging, preview-verifies it via Chrome MCP, watches CI, and self-merges once all four required checks are green. Never pushes directly to staging or main. Use after /build has completed all tasks in the current cycle doc. `/ship --to-main` promotes staging → main and is user-initiated only — never invoke it yourself.
 disable-model-invocation: true
 ---
 
@@ -26,6 +26,7 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 5. **Cycle doc complete?** Find the most recent `docs/cycles/*.md`. Verify:
    - All tasks in `## Tasks` are checked.
    - `## Implementation`, `## Verification`, `## Ship Notes` are filled.
+   - `## Implementation` opens with a `Subagent plan:` bullet. `/build` calls this mandatory, yet only 3 of the 15 cycles before 2026-09-17 had one — so check it here, the same way Step 1a checks Playwright status. If it is missing, stop and tell the user which cycle doc to fix. A bullet that invokes the "fan-out costs more than it saves" exception satisfies this, as long as it says so and says why.
    If not, stop and tell the user to finish `/build`.
 6. **Doc-staleness check (A-scope, blocking).** Invoke `/audit-docs` against the current branch. Treat any `fail` finding in the produced report as a `/ship` precondition failure — print the failing rows and tell the user:
 
@@ -40,7 +41,8 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 
    Treat `warn` findings as informational — print them but do not block. Cycle doc Verification already records the `/audit-docs` output if `/build` ran it as part of the end-of-cycle gate (Task 10); this preflight invocation reruns the same audit to catch any drift since.
 
-7. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
+7. **Claims match reality.** Apply **`superpowers:verification-before-completion`** to the cycle doc's `## Verification`: every gate it claims passed must have real output behind it. If a line was written from memory, from a prediction, or from a subagent's unverified report, re-run the command now and correct the doc before opening the PR.
+8. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 
 ## Step 1: Re-run the end-of-cycle gate
 

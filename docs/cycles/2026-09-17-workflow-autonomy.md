@@ -48,8 +48,11 @@ Granting the loop more autonomy while those holes were open would have compounde
 
 - T2: `middleware.ts` → `proxy.ts` — `.claude/skills/build/SKILL.md` (4 refs), `.claude/standards/{api,security}.md` (1 each). Also widened the security trigger to `lib/supabase/**`: `lib/supabase/middleware.ts` holds the demo-mode session stub and the public-route allowlist, and `lib/auth*` never matched it.
 
+- T3: Remapped the 12 dangling `agent-skills:*` references across `spec`, `build`, `ship`, `uat` — bodies and `description:` frontmatter. Two had genuine installed equivalents (`superpowers:test-driven-development`, `superpowers:systematic-debugging`); two became the concrete MCP that actually does the work (Context7 for docs, Playwright for UI); one became the built-in `simplify` skill; the rest were prose restating a rule already stated beside them, or already owned by `.claude/standards/*`, so the ref went and the rule stayed. Removed `/build` Step 3's "auto-invoke domain skills" list outright — it duplicated Step 1's standards table and had already drifted from it. Added `superpowers:verification-before-completion` to `/build`'s end-of-cycle gate and `/ship` preflight 7, aimed squarely at the fabricated-subagent-report failure mode. Added `/ship` preflight 5's `Subagent plan:` requirement (T6's non-bash half).
+
 ## Verification
 
+- T3: `grep -rn 'agent-skills:' .claude/skills/ CLAUDE.md` is empty. The 8 surviving `plugin:skill` tokens are `feature-dev:code-reviewer` and `superpowers:{brainstorming,code-reviewer,subagent-driven-development,systematic-debugging,test-driven-development,verification-before-completion,writing-plans}` — both plugins are `true` in `~/.claude/settings.json`. T6's new audit check enforces this from here on.
 - T2: `grep -rn 'middleware\.ts' .claude/ CLAUDE.md` now returns only CLAUDE.md's line documenting the rename. The one surviving real path, `lib/supabase/middleware.ts` (cited by `docs/adrs/2026-05-03-supabase-ssr-auth.md`), was deliberately left alone — the file exists.
 - T1: `bash scripts/check-role.sh 2>/dev/null` and `bash scripts/sync-staging.sh 2>/dev/null` both print their guidance; `grep -c '>&2'` returns 0 for each. Before this task both printed nothing on stdout, which is why a 193h-stale role file never surfaced.
 
