@@ -23,11 +23,7 @@ See CLAUDE.md **§ Harness Roster & Model Tiering** for the full rule. Summary t
 
 **The expensive-tier driver never does cheap work.** As the driver you reason — decompose, review, synthesize, decide. Dirty work (file reads, grep/glob sweeps, per-module audits, mechanical edits, scaffolding, fixtures, single pre-specced slices) is delegated to a dirty-work-tier subagent.
 
-| Harness (from `.claude/session-role`) | Driver keeps | Dirty work delegates to |
-|---|---|---|
-| Claude | Opus 4.8 | `Task`/`Agent` subagent — Sonnet 4.6 (default), Haiku 4.5 (trivial) via `model` override |
-| Codex | gpt-5.5 high reasoning | gpt-5.5 low/minimal-effort subagent |
-| opencode | glm-5.2 | glm-5.2 subagent (no cheaper tier — keep cycles small; CTO review is the backstop) |
+Which model is the driver and which is the dirty-work tier for your harness is in **CLAUDE.md § Harness Roster & Model Tiering** — read it there. This file used to restate that table and had drifted a full model generation out of date, so it no longer keeps a copy.
 
 **Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:
 
@@ -39,7 +35,7 @@ The driver reads the subagents' distilled output, not the raw files — that is 
 Record the plan as a bullet in the cycle doc's `## Implementation` before starting:
 `- Subagent plan: driver=<model>, dirty-work=<model>; tasks [N,M] parallel, tasks [X,Y,Z] sequential.`
 
-If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), note that explicitly in the bullet and proceed inline — but that is the exception, not the default.
+If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), or the tasks are interlocking prose edits where a subagent would need the whole plan as context, note that explicitly in the bullet **with the reason** and proceed inline — but that is the exception, not the default. `/ship` preflight rejects a cycle doc with no `Subagent plan:` bullet at all.
 
 ## The task loop
 

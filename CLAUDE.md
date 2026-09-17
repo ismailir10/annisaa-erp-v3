@@ -67,7 +67,7 @@ Three harnesses work this repo in parallel, each in its own worktree, sharing on
 
 | Harness | Driver (reasoning tier) | Dirty-work tier | Can down-tier? |
 |---|---|---|---|
-| **Claude** | Opus 5 | Sonnet 5, Haiku 4.5 (trivial) | Yes — `Agent` tool with `model` override |
+| **Claude** | Opus 5, or Fable 5.1 (`claude-fable-5*`) | Sonnet 5, Haiku 4.5 (trivial) | Yes — `Agent` tool with `model` override |
 | **Codex** | gpt-5.5 high reasoning | gpt-5.5 low / minimal | Yes — subagents at lower effort |
 | **opencode** | glm-5.2 | glm-5.2 (no cheaper tier) | No |
 

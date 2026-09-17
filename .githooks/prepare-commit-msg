@@ -41,9 +41,15 @@ fi
   echo ""
   echo "Model-Trailer: $MODEL"
   echo "Role: $ROLE"
-  if [ "$MODEL" != "human" ]; then
-    echo "Co-Authored-By: Claude <noreply@anthropic.com>"
-  fi
+  # Co-author the actual model, not always "Claude" — gpt-5.5 and glm-5.2 also
+  # commit here, and attributing their work to Anthropic is simply wrong.
+  case "$MODEL" in
+    human) ;;
+    claude-*) echo "Co-Authored-By: $MODEL <noreply@anthropic.com>" ;;
+    gpt-*)    echo "Co-Authored-By: $MODEL <noreply@openai.com>" ;;
+    glm-*)    echo "Co-Authored-By: $MODEL <noreply@z.ai>" ;;
+    *)        echo "Co-Authored-By: $MODEL <noreply@example.com>" ;;
+  esac
 } > "$MSG_FILE.tmp"
 mv "$MSG_FILE.tmp" "$MSG_FILE"
 
