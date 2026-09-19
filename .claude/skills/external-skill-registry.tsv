@@ -1,0 +1,9 @@
+# plugin	skill	kind
+feature-dev	code-reviewer	agent
+superpowers	brainstorming	skill
+superpowers	code-reviewer	agent
+superpowers	subagent-driven-development	skill
+superpowers	systematic-debugging	skill
+superpowers	test-driven-development	skill
+superpowers	verification-before-completion	skill
+superpowers	writing-plans	skill

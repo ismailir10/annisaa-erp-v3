@@ -189,7 +189,8 @@ const urlsMatching = (calls: Calls, needle: string) =>
  * button, which opens but never closes.
  */
 function sectionTrigger(sectionId: string): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
+  const section = document.getElementById(sectionId);
+  const el = section?.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]');
   if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
   return el;
 }

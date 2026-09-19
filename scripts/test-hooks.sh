@@ -15,6 +15,8 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HOOK="$ROOT/.githooks/commit-msg"
 PRE_COMMIT_HOOK="$ROOT/.githooks/pre-commit"
+PREPARE_COMMIT_HOOK="$ROOT/.githooks/prepare-commit-msg"
+CHECK_ROLE_SCRIPT="$ROOT/scripts/check-role.sh"
 
 if [ ! -x "$HOOK" ]; then
   echo "test-hooks: $HOOK not executable or missing" >&2
@@ -23,6 +25,15 @@ if [ ! -x "$HOOK" ]; then
 fi
 if [ ! -x "$PRE_COMMIT_HOOK" ]; then
   echo "test-hooks: $PRE_COMMIT_HOOK not executable or missing" >&2
+  exit 1
+fi
+if [ ! -x "$PREPARE_COMMIT_HOOK" ]; then
+  echo "test-hooks: $PREPARE_COMMIT_HOOK not executable or missing" >&2
+  echo "            run scripts/install-hooks.sh" >&2
+  exit 1
+fi
+if [ ! -f "$CHECK_ROLE_SCRIPT" ]; then
+  echo "test-hooks: $CHECK_ROLE_SCRIPT missing" >&2
   exit 1
 fi
 
@@ -172,6 +183,152 @@ run_case "Edge Role unknown → reject" \
 run_case "Edge known attribution trailers → accept" \
   accept $'fix: example\n\nModel-Trailer: gpt-5\nRole: cto' \
   "docs/cycles/2026-06-23-x.md"
+
+echo ""
+echo "Testing .githooks/prepare-commit-msg attribution trailers..."
+echo ""
+
+assert_contains() {
+  local haystack="$1" needle="$2"
+  case "$haystack" in
+    *"$needle"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+assert_not_contains() {
+  local haystack="$1" needle="$2"
+  case "$haystack" in
+    *"$needle"*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+record_assertion() {
+  local name="$1" ok="$2" detail="${3:-}"
+  if [ "$ok" = "0" ]; then
+    echo "  ✅ $name"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ $name${detail:+ — $detail}"
+    FAIL=$((FAIL + 1))
+    FAILED_NAMES="$FAILED_NAMES\n    - $name"
+  fi
+}
+
+# run_prepare_case <name> <model|none> <role> <expected-coauthor|none>
+run_prepare_case() {
+  local name="$1" model="$2" role="$3" expected_coauthor="$4"
+  local casenum=$((PASS + FAIL + 1))
+  local casedir="$TMPDIR/preparecase-$casenum"
+  local msg output coauthors ok=0
+
+  mkdir -p "$casedir"
+  (
+    cd "$casedir"
+    if [ "$model" != "none" ]; then
+      mkdir -p .claude
+      printf 'role=%s\nmodel=%s\n' "$role" "$model" > .claude/session-role
+    fi
+    printf 'fix: fixture\n' > .msg
+    "$PREPARE_COMMIT_HOOK" .msg >/dev/null 2>&1
+  )
+  output=$(cat "$casedir/.msg")
+
+  msg="Model-Trailer: $model"
+  [ "$model" = "none" ] && msg="Model-Trailer: human"
+  assert_contains "$output" "$msg" || ok=1
+  assert_contains "$output" "Role: $role" || ok=1
+  coauthors=$(printf '%s\n' "$output" | grep -c '^Co-Authored-By:' || true)
+  if [ "$expected_coauthor" = "none" ]; then
+    [ "$coauthors" = "0" ] || ok=1
+  else
+    assert_contains "$output" "$expected_coauthor" || ok=1
+    [ "$coauthors" = "1" ] || ok=1
+  fi
+
+  record_assertion "$name" "$ok" "output was: $(printf '%s' "$output" | tr '\n' ' ')"
+}
+
+run_prepare_case "prepare claude model gets Anthropic coauthor" \
+  "claude-opus-5" "cto" "Co-Authored-By: claude-opus-5 <noreply@anthropic.com>"
+
+run_prepare_case "prepare gpt model gets OpenAI coauthor" \
+  "gpt-5.5" "cto" "Co-Authored-By: gpt-5.5 <noreply@openai.com>"
+
+run_prepare_case "prepare glm model gets Z.ai coauthor" \
+  "glm-5.2" "cto" "Co-Authored-By: glm-5.2 <noreply@z.ai>"
+
+run_prepare_case "prepare missing session role records human without coauthor" \
+  "none" "human" "none"
+
+run_prepare_preexisting_case() {
+  local name="prepare preexisting trailer is not duplicated"
+  local casenum=$((PASS + FAIL + 1))
+  local casedir="$TMPDIR/preparecase-$casenum"
+  local output model_count coauthor_count ok=0
+
+  mkdir -p "$casedir/.claude"
+  (
+    cd "$casedir"
+    printf 'role=cto\nmodel=gpt-5.5\n' > .claude/session-role
+    printf 'fix: fixture\n\nModel-Trailer: claude-opus-5\nRole: cto\nCo-Authored-By: claude-opus-5 <noreply@anthropic.com>\n' > .msg
+    "$PREPARE_COMMIT_HOOK" .msg >/dev/null 2>&1
+  )
+  output=$(cat "$casedir/.msg")
+  model_count=$(printf '%s\n' "$output" | grep -c '^Model-Trailer:' || true)
+  coauthor_count=$(printf '%s\n' "$output" | grep -c '^Co-Authored-By:' || true)
+  [ "$model_count" = "1" ] || ok=1
+  [ "$coauthor_count" = "1" ] || ok=1
+  assert_not_contains "$output" "Model-Trailer: gpt-5.5" || ok=1
+
+  record_assertion "$name" "$ok" "output was: $(printf '%s' "$output" | tr '\n' ' ')"
+}
+
+run_prepare_preexisting_case
+
+echo ""
+echo "Testing scripts/check-role.sh stdout guidance..."
+echo ""
+
+# run_check_role_case <name> <fixture:missing|stale|wrong-role> <must-contain> <must-not-contain>
+run_check_role_case() {
+  local name="$1" fixture="$2" must_contain="$3" must_not_contain="$4"
+  local casenum=$((PASS + FAIL + 1))
+  local casedir="$TMPDIR/checkrolecase-$casenum"
+  local output ok=0
+
+  mkdir -p "$casedir/scripts" "$casedir/.claude"
+  cp "$CHECK_ROLE_SCRIPT" "$casedir/scripts/check-role.sh"
+
+  case "$fixture" in
+    missing)
+      rm -f "$casedir/.claude/session-role"
+      ;;
+    stale)
+      printf 'role=product-builder\nmodel=glm-5.2\n' > "$casedir/.claude/session-role"
+      touch -t 202001010000 "$casedir/.claude/session-role"
+      ;;
+    wrong-role)
+      printf 'role=product-builder\nmodel=gpt-5.5\n' > "$casedir/.claude/session-role"
+      ;;
+  esac
+
+  output=$(bash "$casedir/scripts/check-role.sh")
+  assert_contains "$output" "$must_contain" || ok=1
+  [ -z "$must_not_contain" ] || assert_not_contains "$output" "$must_not_contain" || ok=1
+
+  record_assertion "$name" "$ok" "stdout was: $(printf '%s' "$output" | tr '\n' ' ')"
+}
+
+run_check_role_case "check-role missing role asks direct cto write" \
+  "missing" "role=cto and model=<your-model-id>" "re-confirm"
+
+run_check_role_case "check-role stale role refreshes without question" \
+  "stale" "do not ask the user" "AskUserQuestion"
+
+run_check_role_case "check-role current wrong role refreshes without question" \
+  "wrong-role" "if role is not 'cto'" "AskUserQuestion"
 
 echo ""
 echo "Testing .githooks/pre-commit Rule 6 (ADR cell length)..."

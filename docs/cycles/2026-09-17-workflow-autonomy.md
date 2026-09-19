@@ -46,6 +46,7 @@ Granting the loop more autonomy while those holes were open would have compounde
 ## Implementation
 
 - Subagent plan: driver=claude-opus-5, dirty-work=claude-sonnet-5; T6 (three new `audit-docs.sh` checks) dispatched to a subagent as a self-contained, well-specced bash slice. T1–T5 and T7 kept on the driver: they are interlocking prose edits to the workflow's own definition, where a subagent would need the entire plan as context and a wrong edit silently weakens the rules that police the rest. Fan-out there would cost more than it saves — the exception CLAUDE.md § Planning allows, invoked deliberately.
+- PR #552 review (2026-09-19): user authorized review, fixes, and merge after green checks. Driver `gpt-6-astra`; independent audit review, workflow corrections, and CI-blocker fixes delegated to `gpt-5.5` subagents. Review changes remain in this cycle and its existing PR.
 - T1: SessionStart hooks reach the assistant — `scripts/check-role.sh`, `scripts/sync-staging.sh` — every `Assistant:`-directed message moved from stderr to stdout, with a header comment recording why (Claude Code drops a zero-exit hook's stderr) so the next editor does not "tidy" it back.
 
 - T2: `middleware.ts` → `proxy.ts` — `.claude/skills/build/SKILL.md` (4 refs), `.claude/standards/{api,security}.md` (1 each). Also widened the security trigger to `lib/supabase/**`: `lib/supabase/middleware.ts` holds the demo-mode session stub and the public-route allowlist, and `lib/auth*` never matched it.
@@ -60,7 +61,18 @@ Granting the loop more autonomy while those holes were open would have compounde
 - T6b: Chased down a claim in that subagent's report rather than accepting it — it had excluded `tailwind.config.*` from the path check because no such file exists. True (Tailwind v4, CSS-first, theme in `app/globals.css`'s `@theme` block), but that makes `tailwind.config.*` a dead trigger of exactly the `middleware.ts` kind, so the fix belonged in the 6 docs naming it, not in the check. Removed from CLAUDE.md (×2), `/build` (×2), `ui.md`, `colors.md`. The `.githooks/pre-commit` arm stays as harmless defense, now labelled as such.
 - T7: Autonomy on. `disable-model-invocation: true` removed from `spec`, `build`, `ship` (kept on `uat` and `audit-docs`, both on-demand); descriptions retargeted at the beat each should trigger on. Added CLAUDE.md **§ Orchestration** — the classify-then-run router, in always-loaded context because a skill the model must decide to read cannot be the thing that tells it to read a skill. `/spec` Step 4 is now a hard stop that ends the turn. Fixed three lines the flag removal exposed as stale: `/ship`'s title still said "hand off to the user for manual merge", its `--to-main` row still said "All roles", and `/build`'s planning section had a doubled pointer to the roster.
 
+- Review corrections: declared external skills now have a tracked registry, validated even without local Claude settings; unknown plugins and removed declarations fail. Local configuration remains a supplemental installation check. Standards paths now match tracked files rather than generated/ignored output. The earlier T6 claim that installation availability was enforced in CI was too broad: CI validates declarations; only a configured host can validate its installed plugins.
+- Workflow corrections: tracked docs use isolated PRs; authorized existing-PR maintenance continues without a new spec gate; stale roles refresh directly; simplification is portable inline work; ship's default path consistently continues to merge after checks.
+- CI corrections: the backup self-test uses the official Quay MinIO image pinned to registry digest. Dossier test locates the rendered disclosure button without depending on delayed `aria-controls` initialization. No production UI behavior changed.
+- Regression coverage: `scripts/test-hooks.sh` covers per-provider commit attribution and SessionStart guidance; `scripts/test-audit-docs.sh` checks unknown/missing skill declarations without host settings, untracked source artifacts, malformed settings, and stderr-only guidance in disposable fixtures. Both run in the required Docs sync workflow.
+
 ## Verification
+
+- PR review verification (2026-09-19): `bash scripts/test-hooks.sh` → `Summary: 32 passed, 0 failed`; `bash scripts/test-audit-docs.sh` → `Summary: 6 audit regression checks passed`; `bash scripts/audit-docs.sh` → `13 ok, 1 warn, 0 fail` (existing ADR-age warning). Audit probes use disposable minimal fixtures, never mutate the source worktree, and validate declarations with no host settings.
+- `npm run lint` → exit 0, 0 errors (59 existing warnings). Focused dossier test → 8 passed; `bash scripts/flake-hunt.sh 10 12 'app/admin/students/[id]/__tests__/dossier-sections.test.tsx'` → 10/10 green.
+- Initial full Vitest run: 337 suites / 3,281 tests passed; one suite failed during setup with `ENOSPC` before its test ran. After deleting this review's generated build cache, the affected roles suite passed (1 test). Clean full rerun: `npx vitest run --maxWorkers=3` → exit 0, `Test Files 338 passed | 2 skipped (340)`, `Tests 3282 passed | 42 todo (3324)` (133.85s). Soft-skip count remains 31 on both the base and reviewed branch; no skip added.
+- Local default Turbopack build encountered environment failures (Google Fonts network access, then worker port binding denied). The fallback `npm run build -- --webpack` compiled but its generated page-type checks rejected existing exports `canConvertAdmissionToStudent` and `normalizeWeeklyDate`; both were verified present on `origin/staging`. No runtime code was changed to accommodate the alternate bundler. The required CI `Build` uses the normal Turbopack build and must pass before merge.
+- Playwright and preview-verify remain skipped locally: workflow/scripts/config and test-only changes, no runtime product behavior changed. Required CI `Playwright E2E` gates the reviewed head.
 
 - T7 / end-of-cycle gate, run on the shipped tree:
   - `npm run build` → exit 0.
@@ -82,7 +94,7 @@ Granting the loop more autonomy while those holes were open would have compounde
 
 ## Ship Notes
 
-**Migrations:** none. **New env vars:** none. **Product surface touched:** none — no `app/`, `lib/`, or `components/` file is in this diff.
+**Migrations:** none. **New env vars:** none. **Product surface touched:** none — the review adds a test-only change under `app/`; runtime app, library, and component code remains unchanged.
 
 **What changes for a reviewer.** This cycle edits how the assistant works, not what the app does, so the risk is not a runtime regression — it is a rule that now binds differently. Three things to look at:
 
@@ -90,7 +102,7 @@ Granting the loop more autonomy while those holes were open would have compounde
 2. **`scripts/audit-docs.sh`** gained 134 lines inside the required `Docs sync` check. If any of the three new checks is wrong, it blocks every PR, not just this one. It exits 0 on the current tree and each check was proven to fail on an injected defect.
 3. **`.githooks/prepare-commit-msg`** now emits a per-model `Co-Authored-By:`. Verified on this cycle's own commits.
 
-**Manual smoke on the preview:** not applicable — nothing in this diff is reachable from a browser.
+**Manual smoke on the preview:** not applicable — no runtime product change. Playwright and preview verification remain exempt locally; the required CI Playwright check must pass on the reviewed head.
 
 **Rollback.** `git revert` the range `3bfbfee0..14c2c1c0`, or revert `14c2c1c0` alone to put `disable-model-invocation: true` back and return to user-typed commands while keeping every fix underneath it. The seven commits are ordered so that the autonomy switch is last and independently revertible — that ordering was the point.
 

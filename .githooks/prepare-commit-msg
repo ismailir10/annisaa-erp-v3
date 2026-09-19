@@ -5,9 +5,10 @@
 # Otherwise it reads .claude/session-role and appends:
 #   Model-Trailer: <model>
 #   Role: <role>
-#   Co-Authored-By: Claude <noreply@anthropic.com>
+#   Co-Authored-By: <model> <model-provider-noreply>
 #
-# If .claude/session-role is missing, it appends Model-Trailer: human.
+# If .claude/session-role is missing, it appends Model-Trailer: human and no
+# co-author.
 
 set -eu
 

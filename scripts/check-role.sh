@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # check-role.sh — session-start role check
 #
-# This script does NOT detect the model or prompt the user. It only checks
-# whether .claude/session-role exists and is fresh (< 12 hours old). If it's
-# missing or stale, it prints a one-line instruction that the assistant must
-# act on as the first thing it does in the session.
+# This script does NOT detect the model. It checks whether .claude/session-role
+# exists and is fresh (< 12 hours old). If it is missing, stale, or carries the
+# deleted product-builder role, it prints a one-line instruction that the
+# assistant must act on as the first thing it does in the session.
 #
-# The assistant then uses AskUserQuestion to ask the user which role to take
-# (naming its own model, which it knows from its system prompt), and writes
-# .claude/session-role.
+# The assistant knows its own model from its system prompt and rewrites
+# .claude/session-role directly. It should not ask the user to re-confirm the
+# role: cto is the only role.
 #
 # Why no detection: Claude Code does not reliably export CLAUDE_MODEL to hook
 # subprocesses, and other CLIs (GLM, GPT) use different variables. A file the
@@ -45,16 +45,17 @@ if command -v stat >/dev/null 2>&1; then
   NOW=$(date +%s)
   AGE_HOURS=$(( (NOW - MTIME) / 3600 ))
   if [ "$AGE_HOURS" -ge "$MAX_AGE_HOURS" ]; then
-    echo "[check-role] Session role is stale (${AGE_HOURS}h old). Assistant: re-confirm the role with the user and rewrite $ROLE_FILE."
+    echo "[check-role] Session role is stale (${AGE_HOURS}h old). Assistant: rewrite $ROLE_FILE now with role=cto and model=<your-model-id>. cto is the only role; do not ask the user to re-confirm it."
     exit 0
   fi
 fi
 
-# Role is set and fresh — but the user may be starting a NEW session with a different role.
-# Always remind the assistant to check the user's first message for a role declaration.
+# Role is set and fresh, but a previous session may have left the deleted role
+# or a different model ID behind. Always remind the assistant to refresh it
+# directly when it does not match the current session.
 ROLE=$(grep '^role=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
 MODEL=$(grep '^model=' "$ROLE_FILE" 2>/dev/null | head -1 | cut -d= -f2- || echo "unknown")
-echo "[check-role] Last session: role=$ROLE, model=$MODEL. IMPORTANT: if your own model ID differs from '$MODEL', rewrite $ROLE_FILE now (role=cto and model=<your-model-id>) before any other action, even though the file already exists. prepare-commit-msg copies this file into every commit's Model-Trailer, so inheriting a previous session's model mis-attributes your work."
+echo "[check-role] Last session: role=$ROLE, model=$MODEL. IMPORTANT: if role is not 'cto' or your own model ID differs from '$MODEL', rewrite $ROLE_FILE now (role=cto and model=<your-model-id>) before any other action, even though the file already exists. prepare-commit-msg copies this file into every commit's Model-Trailer, so inheriting a deleted role or previous model mis-attributes your work."
 
 # Worktree isolation check: EVERY session (regardless of role) MUST work in a git worktree,
 # not in the main checkout. This prevents parallel sessions from stomping on each

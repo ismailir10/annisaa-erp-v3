@@ -160,35 +160,51 @@ done < <(grep -oE '^\| 20[0-9]{2}-[0-9]{2}-[0-9]{2} \|' docs/adrs/active.md 2>/d
 
 # ------------------------------------------------------ skill references resolve
 
-# Every `<plugin>:<skill>` token in a SKILL.md (e.g. `superpowers:test-driven-development`,
-# `feature-dev:code-reviewer`) is only a real reference if `<plugin>` is a plugin this
-# machine actually knows about — that is what filters out incidental colon pairs like
-# `tsx:42` or `focus:outline-none` in code samples without a hand-maintained denylist.
-# A token whose plugin resolves but is disabled (enabledPlugins value `false`) must FAIL:
-# that is the exact shape of the addy-agent-skills incident this check exists to catch.
-USER_SETTINGS="$HOME/.claude/settings.json"
-if [ ! -f "$USER_SETTINGS" ]; then
-  row warn "Skill references resolve" "no ~/.claude/settings.json on this machine (CI, or a Codex/opencode harness) — skipping"
-else
+# Every backticked `<plugin>:<skill>` token in the workflow docs (e.g.
+# `superpowers:test-driven-development`, `feature-dev:code-reviewer`) must be
+# declared in the tracked registry below. That makes CI deterministic without
+# requiring every harness to install Claude-only plugins. When user plugin
+# settings exist locally, this check also catches disabled or missing installs.
+EXTERNAL_SKILL_REGISTRY=".claude/skills/external-skill-registry.tsv"
+USER_SETTINGS="${AUDIT_SKILL_SETTINGS:-$HOME/.claude/settings.json}"
+PLUGINS=""
+if [ -f "$USER_SETTINGS" ]; then
   PLUGINS=$(python3 -c '
 import json, sys
 try:
     with open(sys.argv[1]) as f:
         data = json.load(f)
-except Exception:
-    sys.exit(0)
+except Exception as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)
 for key, enabled in data.get("enabledPlugins", {}).items():
     plugin, _, marketplace = key.partition("@")
     print(plugin + "\t" + marketplace + "\t" + str(bool(enabled)).lower())
 ' "$USER_SETTINGS" 2>/dev/null)
+  if [ "$?" -ne 0 ]; then
+    row fail "Skill plugin settings" "cannot parse $USER_SETTINGS"
+  fi
+fi
 
-  BROKEN=""
-  while IFS= read -r tok; do
-    [ -z "$tok" ] && continue
-    plugin=${tok%%:*}
-    skill=${tok#*:}
-    match=$(printf '%s\n' "$PLUGINS" | awk -F'\t' -v p="$plugin" '$1==p{print;exit}')
-    [ -z "$match" ] && continue # plugin part isn't a known plugin — not a reference, ignore
+# The only non-skill colon token is a CSS utility in the vendored accessibility skill.
+SKILL_TOKENS=$(grep -hoE '`[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*`' .claude/skills/*/SKILL.md CLAUDE.md 2>/dev/null | tr -d '`' | grep -v '^focus:outline-none$' | sort -u)
+BROKEN=""
+while IFS= read -r tok; do
+  [ -z "$tok" ] && continue
+  plugin=${tok%%:*}
+  skill=${tok#*:}
+  if ! awk -F'\t' -v p="$plugin" -v s="$skill" '
+    $0 !~ /^#/ && $1 == p && $2 == s { found=1 }
+    END { exit found ? 0 : 1 }
+  ' "$EXTERNAL_SKILL_REGISTRY" 2>/dev/null; then
+    BROKEN="$BROKEN $tok(not-in-registry)"
+    continue
+  fi
+
+  match=$(printf '%s\n' "$PLUGINS" | awk -F'\t' -v p="$plugin" '$1==p{print;exit}')
+  if [ -f "$USER_SETTINGS" ] && [ -z "$match" ]; then
+    BROKEN="$BROKEN $tok(plugin-not-configured)"
+  elif [ -n "$match" ]; then
     marketplace=$(printf '%s' "$match" | cut -f2)
     enabled=$(printf '%s' "$match" | cut -f3)
     if [ "$enabled" != "true" ]; then
@@ -199,17 +215,17 @@ for key, enabled in data.get("enabledPlugins", {}).items():
     SKILL_HIT=$(find "$PLUGIN_DIR" -type d -path '*/skills/'"$skill" 2>/dev/null)
     AGENT_HIT=$(find "$PLUGIN_DIR" \( -path '*/agents/'"$skill"'.md' -o -type d -path '*/agents/'"$skill" \) 2>/dev/null)
     [ -z "$SKILL_HIT" ] && [ -z "$AGENT_HIT" ] && BROKEN="$BROKEN $tok(not-found)"
-  done < <(grep -hoE '[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*' .claude/skills/*/SKILL.md CLAUDE.md 2>/dev/null | sort -u)
+  fi
+done <<< "$SKILL_TOKENS"
 
-  [ -z "$BROKEN" ] && row ok "Skill references resolve" "every plugin:skill token names an enabled plugin with a matching skill/agent" ||
-    row fail "Skill references resolve" "broken:$BROKEN"
-fi
+[ -z "$BROKEN" ] && row ok "Skill references resolve" "every plugin:skill token is in the tracked registry; local plugin installs checked when settings exist" ||
+  row fail "Skill references resolve" "broken:$BROKEN"
 
 # --------------------------------------------------- standards-table paths exist
 
-# Converts a staged-file glob from build/SKILL.md's routing tables into a `find -path`
-# test. `find -path` (unlike shell globbing) already lets `*` cross `/`, so collapsing
-# `**` to a single `*` is enough to approximate globstar without requiring bash 4.
+# Converts a staged-file glob from build/SKILL.md's routing tables into a tracked-file
+# test. Source docs should resolve against committed paths, not generated artifacts,
+# ignored caches, or sibling worktrees that happen to sit under the checkout.
 path_glob_exists() {
   local tok="$1" prefix rest items suffix item candidate pat hit
   case "$tok" in
@@ -220,15 +236,15 @@ path_glob_exists() {
       suffix=${rest#*\}}
       for item in $(printf '%s' "$items" | tr ',' ' '); do
         candidate="${prefix}${item}${suffix}"
-        pat="./$(printf '%s' "$candidate" | sed 's/\*\*/*/g')"
-        hit=$(find . -path "$pat" 2>/dev/null)
+        pat=$(printf '%s' "$candidate" | sed 's/\*\*/*/g')
+        hit=$(git ls-files -- "$pat")
         [ -n "$hit" ] && return 0
       done
       return 1
       ;;
     *)
-      pat="./$(printf '%s' "$tok" | sed 's/\*\*/*/g')"
-      hit=$(find . -path "$pat" 2>/dev/null)
+      pat=$(printf '%s' "$tok" | sed 's/\*\*/*/g')
+      hit=$(git ls-files -- "$pat")
       [ -n "$hit" ]
       ;;
   esac
@@ -250,7 +266,7 @@ done < <(awk '
   f && /^\|/ { print }
 ' .claude/skills/build/SKILL.md | awk -F'|' '{print $2}' | grep -oE '`[^`]+`' | tr -d '`' | sort -u)
 
-[ -z "$MISSING" ] && row ok "Standards-table paths exist" "every staged-file glob in build/SKILL.md resolves on disk" ||
+[ -z "$MISSING" ] && row ok "Standards-table paths exist" "every staged-file glob in build/SKILL.md matches tracked source" ||
   row fail "Standards-table paths exist" "no match on disk:$MISSING"
 
 # ------------------------------------- SessionStart hook messages reach the assistant

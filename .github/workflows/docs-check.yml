@@ -68,3 +68,8 @@ jobs:
       # the truth check: it verifies the docs still describe the repo.
       - name: Doc staleness audit
         run: bash scripts/audit-docs.sh
+
+      - name: Workflow audit and hook regression tests
+        run: |
+          bash scripts/test-audit-docs.sh
+          bash scripts/test-hooks.sh

@@ -102,7 +102,7 @@ Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the tas
 - **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
 - **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
 
-Then run the **`simplify`** skill on the diff — reduce complexity without changing behavior.
+Then do a simplification pass on the diff: remove accidental complexity, collapse duplicated branches, prefer existing helpers, and keep behavior unchanged. If this harness has an installed simplification skill, use it; otherwise perform the pass inline and record any simplification in the cycle doc.
 
 For security-sensitive diffs (`app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 

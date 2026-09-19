@@ -151,9 +151,9 @@ fi
 
 If the delta is positive, stop and hand back to the user. Do not open a PR on a regression-on-the-gate.
 
-## Step 2: Open the PR (same flow for every role)
+## Step 2: Open the PR
 
-Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four required checks (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`) are green.
+Open a PR from `feat/*` → `staging`. A harness that can run Chrome-MCP preview verification continues through Step 3 and self-merges in Step 5 once preview verification and all four required checks (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`) are green. A harness without Chrome MCP labels the PR `needs-preview-verify` and hands it to one that can finish the verification and merge.
 
 1. Ensure you are on a feature branch. If somehow on `staging`, create one from HEAD:
    ```bash

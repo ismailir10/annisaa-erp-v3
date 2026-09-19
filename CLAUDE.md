@@ -35,7 +35,9 @@ The skills are the source of truth for procedure. Below are only the rules that 
 | Request | Action |
 |---|---|
 | Changes tracked code — `app/`, `lib/`, `components/`, `prisma/`, `scripts/`, `e2e/`, `proxy.ts`, build or CI config | **Run a cycle** |
-| A question, a code read, a grep, DB/ops work, a pure-docs edit, `~/.claude` config | **Answer inline.** No worktree, no cycle doc, no PR |
+| Changes tracked workflow docs — `CLAUDE.md`, `.claude/**`, `.githooks/**`, `docs/**`, root project docs | **Use the isolated PR path.** Work in a worktree and ship by PR; a lightweight docs-only cycle is enough when the change is more than a one-line maintenance fix. Pure-docs changes may skip Playwright and preview-verify with that skip recorded. |
+| Existing PR review/fix/merge work the user has already authorized | **Continue in that PR/worktree.** Do not restart `/spec` or ask for a new gate unless the fix changes scope beyond the PR/request. |
+| A question, a code read, a grep, DB/ops work, an untracked personal-doc/config edit such as `~/.claude` | **Answer inline.** No cycle doc, no PR |
 
 Running a cycle:
 
