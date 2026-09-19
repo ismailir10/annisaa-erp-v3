@@ -68,6 +68,8 @@ Granting the loop more autonomy while those holes were open would have compounde
 
 ## Verification
 
+- CI review iteration 1 (`1d26fab2`): Docs sync, normal Turbopack Build, and Vercel passed. Backup self-test rejected the first Quay digest (`manifest unknown`): the unauthenticated metadata response used a legacy manifest representation. Corrected to the Docker v2 linux/amd64 child digest `sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2`; independent GET returned HTTP 200, schemaVersion 2, and a matching SHA-256 of the response bytes. Fresh CI must exercise the actual image pull and backup pipeline before merge.
+
 - PR review verification (2026-09-19): `bash scripts/test-hooks.sh` → `Summary: 32 passed, 0 failed`; `bash scripts/test-audit-docs.sh` → `Summary: 6 audit regression checks passed`; `bash scripts/audit-docs.sh` → `13 ok, 1 warn, 0 fail` (existing ADR-age warning). Audit probes use disposable minimal fixtures, never mutate the source worktree, and validate declarations with no host settings.
 - `npm run lint` → exit 0, 0 errors (59 existing warnings). Focused dossier test → 8 passed; `bash scripts/flake-hunt.sh 10 12 'app/admin/students/[id]/__tests__/dossier-sections.test.tsx'` → 10/10 green.
 - Initial full Vitest run: 337 suites / 3,281 tests passed; one suite failed during setup with `ENOSPC` before its test ran. After deleting this review's generated build cache, the affected roles suite passed (1 test). Clean full rerun: `npx vitest run --maxWorkers=3` → exit 0, `Test Files 338 passed | 2 skipped (340)`, `Tests 3282 passed | 42 todo (3324)` (133.85s). Soft-skip count remains 31 on both the base and reviewed branch; no skip added.

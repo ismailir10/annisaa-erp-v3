@@ -202,7 +202,7 @@ jobs:
           set -euo pipefail
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=selftest -e MINIO_ROOT_PASSWORD=selftest123 \
-            quay.io/minio/minio@sha256:187b6f0d6ab63d7f7f7ba9affd188ed402251a5692e9ea189e4056c06a66e29d server /data
+            quay.io/minio/minio@sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2 server /data
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/live && break
             sleep 2
