@@ -1,19 +1,18 @@
 ---
 name: ship
-description: Ship a completed cycle via PR. Opens a PR from feat/* → staging and preview-verifies it via Chrome MCP. A CTO then watches CI and self-merges when all checks are green; a product-builder hands the needs-cto-review PR to a CTO. Never pushes directly to staging or main. Supports `/ship --to-main` for CTO-initiated staging → main promotion. Folds in git-workflow-and-versioning, ci-cd-and-automation, documentation-and-adrs, and shipping-and-launch from the upstream agent-skills plugin. Use after /build has completed all tasks in the current cycle doc.
-disable-model-invocation: true
+description: Ship a completed cycle via PR. Opens a PR from feat/* → staging, preview-verifies it via Chrome MCP, watches CI, and self-merges once all four required checks are green. Never pushes directly to staging or main. Use after /build has completed all tasks in the current cycle doc. `/ship --to-main` promotes staging → main and is user-initiated only — never invoke it yourself.
 ---
 
-# /ship — open a PR, hand off to the user for manual merge
+# /ship — open a PR, preview-verify it, merge it green
 
-You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR, preview-verifies it via Chrome MCP, then — for a **CTO** — watches CI and merges once all checks are green. A **product-builder** stops at the PR and hands off to a CTO. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
+You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens a PR, preview-verifies it via Chrome MCP, watches CI, and merges once all checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
-> **Who merges:** GitHub branch protection enforces PR + required checks. A **CTO** harness may self-merge after Chrome-MCP preview-verify (Step 3) passes AND all four protected checks go green (Step 5) — never on red or pending. A **product-builder** never merges: its PR is labeled `needs-cto-review` and a CTO reviews + merges.
+> **Who merges:** GitHub branch protection enforces PR + required checks. You may self-merge once Chrome-MCP preview-verify (Step 3) passes AND all four protected checks go green (Step 5) — never on red or pending. A harness without Chrome MCP cannot run Step 3, so it stops at the PR with a `needs-preview-verify` label instead.
 
 ## Invocation modes
 
-- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, then prints a two-command hand-off. All roles.
-- `/ship --to-main` — CTO-initiated staging → main promotion. Opens PR `staging` → `main`, then prints a two-command hand-off. Only runs when `role=cto`; refuse otherwise with a one-line error. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
+- `/ship` — default. Opens PR `feat/<cycle>` → `staging`, preview-verifies, watches CI, merges when green. This is the mode the cycle reaches on its own.
+- `/ship --to-main` — staging → main promotion. Opens PR `staging` → `main`, then prints a two-command hand-off. **User-initiated only**: run it when the user says so, never as the tail of a cycle. Use after 2–4 cycles have accumulated on staging, or when the user explicitly says "ship to prod".
 
 If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** section below instead of the default Step 2.
 
@@ -26,6 +25,7 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 5. **Cycle doc complete?** Find the most recent `docs/cycles/*.md`. Verify:
    - All tasks in `## Tasks` are checked.
    - `## Implementation`, `## Verification`, `## Ship Notes` are filled.
+   - `## Implementation` opens with a `Subagent plan:` bullet. `/build` calls this mandatory, yet only 3 of the 15 cycles before 2026-09-17 had one — so check it here, the same way Step 1a checks Playwright status. If it is missing, stop and tell the user which cycle doc to fix. A bullet that invokes the "fan-out costs more than it saves" exception satisfies this, as long as it says so and says why.
    If not, stop and tell the user to finish `/build`.
 6. **Doc-staleness check (A-scope, blocking).** Invoke `/audit-docs` against the current branch. Treat any `fail` finding in the produced report as a `/ship` precondition failure — print the failing rows and tell the user:
 
@@ -40,7 +40,8 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 
    Treat `warn` findings as informational — print them but do not block. Cycle doc Verification already records the `/audit-docs` output if `/build` ran it as part of the end-of-cycle gate (Task 10); this preflight invocation reruns the same audit to catch any drift since.
 
-7. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
+7. **Claims match reality.** Apply **`superpowers:verification-before-completion`** to the cycle doc's `## Verification`: every gate it claims passed must have real output behind it. If a line was written from memory, from a prediction, or from a subagent's unverified report, re-run the command now and correct the doc before opening the PR.
+8. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 
 ## Step 1: Re-run the end-of-cycle gate
 
@@ -150,9 +151,9 @@ fi
 
 If the delta is positive, stop and hand back to the user. Do not open a PR on a regression-on-the-gate.
 
-## Step 2: Open the PR (same flow for every role)
+## Step 2: Open the PR
 
-Every role opens a PR from `feat/*` → `staging`, then hands off to the user. The user watches CI and merges manually when all four required checks (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`) are green.
+Open a PR from `feat/*` → `staging`. A harness that can run Chrome-MCP preview verification continues through Step 3 and self-merges in Step 5 once preview verification and all four required checks (`Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`) are green. A harness without Chrome MCP labels the PR `needs-preview-verify` and hands it to one that can finish the verification and merge.
 
 1. Ensure you are on a feature branch. If somehow on `staging`, create one from HEAD:
    ```bash
@@ -196,10 +197,10 @@ BODY
 )" \
      --label "model:$MODEL")
    PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
-   # Product-builder PRs (opencode/glm) always require CTO review before merge.
-   if [ "$ROLE" = "product-builder" ]; then
-     gh pr edit "$PR_NUMBER" --add-label "needs-cto-review" || true
-   fi
+   # A harness with no Chrome MCP cannot run Step 3 — flag it for one that can.
+   case "$MODEL" in
+     glm-*) gh pr edit "$PR_NUMBER" --add-label "needs-preview-verify" || true ;;
+   esac
    ```
 
 4. **Announce, then proceed to preview verification.** Do not print the merge hand-off here — that lives in **Step 5** after the preview-verify loop clears. Print one line so the user can follow the PR while verification runs:
@@ -280,15 +281,15 @@ BODY
 
 Preview-verify requires **Chrome MCP** driving the **user's current signed-in Chrome profile** — the three portal Google accounts (`.claude/verify-accounts.json`) live in that one profile. Route by the harness in `.claude/session-role`:
 
-- **Claude** (CTO) — has Chrome MCP (`mcp__Claude_in_Chrome__*`) on the shared profile. Proceed with Step 3 directly.
-- **Codex** (CTO) — has Chrome MCP on the same shared signed-in profile. Proceed with Step 3 directly.
-- **opencode** (`role=product-builder`) — **never self-verifies.** Every opencode PR is CTO-gated. Stop after Step 2 and print:
+- **Claude** (`model=claude-*`) — has Chrome MCP (`mcp__Claude_in_Chrome__*`) on the shared profile. Proceed with Step 3 directly.
+- **Codex** (`model=gpt-*`) — has Chrome MCP on the same shared signed-in profile. Proceed with Step 3 directly.
+- **opencode** (`model=glm-*`) — **cannot self-verify:** no Chrome MCP, so it cannot reach the signed-in profile the three portal accounts live in. This is a capability limit, not a permission one. Stop after Step 2, label the PR, and print:
   ```
-  PB ship: PR $PR_URL opened and labeled needs-cto-review.
-  opencode does not run preview-verify — handing to a CTO harness (Claude/Codex)
-  for Step 3 preview-verify + review + merge.
+  PR $PR_URL opened and labeled needs-preview-verify.
+  This harness has no Chrome MCP — handing to Claude or Codex for Step 3
+  preview-verify + merge.
   ```
-  Add the `needs-cto-review` label (`gh pr edit $PR_NUMBER --add-label needs-cto-review`) and exit.
+  Add the label (`gh pr edit $PR_NUMBER --add-label needs-preview-verify`) and exit.
 
 ### 3a. Wait for preview ready
 
@@ -451,13 +452,9 @@ When Step 3 returns `blockers == 0`, post the minors-comment (if any) and procee
 - Preview-verify converged on iteration N (clean): $ITER iteration(s), $TOTAL_FIX_COMMITS fix commit(s), final preview $PREVIEW_URL.
 ```
 
-## Step 5: Merge (CTO) or hand off (product-builder)
+## Step 5: Watch checks, then merge
 
-Reached only when Step 3 exits clean (no blockers) — i.e. Chrome-MCP preview-verify already passed. Branch on `role` from `.claude/session-role`.
-
-### Step 5 — CTO (`role=cto`): watch checks, then self-merge
-
-Preview-verify is already clean (Step 3). The CTO now **actively watches CI and merges** once green — no hand-off to the user.
+Reached only when Step 3 exits clean (no blockers) — i.e. Chrome-MCP preview-verify already passed. Preview-verify being clean, you now **actively watch CI and merge** once green — no hand-off to the user.
 
 1. **Watch the required checks to completion:**
    ```bash
@@ -484,27 +481,17 @@ Preview-verify is already clean (Step 3). The CTO now **actively watches CI and 
 
 5. Then print the post-ship checklist below.
 
-**Why the CTO may self-merge:** the human-owned-merge rule existed to keep a person in the loop before code lands. For a CTO harness that rule is satisfied by the combination of (a) Chrome-MCP preview-verify (Step 3) and (b) watching all four protected checks go green here. The CTO never merges on red or pending. Product-builder still hands off — see below.
+**Why self-merging is allowed:** the human-owned-merge rule existed to keep a person in the loop before code lands. That is satisfied by the combination of (a) the user approving the Spec before any code was written, (b) Chrome-MCP preview-verify (Step 3), and (c) watching all four protected checks go green here. Never merge on red or pending.
 
-### Step 5 — product-builder (`role=product-builder`): hand off to a CTO
-
-opencode/PB does **not** self-merge. The PR is labeled `needs-cto-review`. Print the hand-off and stop:
+**A harness with no Chrome MCP never reaches this step** — it stopped at 3.0 with a `needs-preview-verify` label. Someone else finishes that PR:
 
 ```
-PR opened: $PR_URL (labeled needs-cto-review).
-
-A CTO harness (Claude/Codex) must review, run preview-verify, and merge:
-  gh pr checks $PR_NUMBER --watch
-  gh pr merge $PR_NUMBER --squash --delete-branch
-
-Do not merge this yourself — product-builder ships are CTO-gated.
+gh pr checks $PR_NUMBER --watch
+gh pr merge $PR_NUMBER --squash --delete-branch
 ```
 
-### Post-ship checklist (both roles)
+### Post-ship checklist
 
-After a CTO merge (or for the user to track after a PB hand-off):
-
-- [ ] (PB only) A CTO reviewed, preview-verified, watched all four checks green, and merged
 - [ ] Once merged, check the Vercel preview deploy on staging succeeded
 - [ ] Smoke-test the feature on the staging URL (follow `## Ship Notes` instructions)
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
@@ -538,7 +525,7 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
-- **CTO merges when CI is green; product-builder hands off.** For `role=cto`: after preview-verify (Step 3) is clean, watch `gh pr checks <number> --watch`, and once all four required checks pass run `gh pr merge <number> --squash --delete-branch`. Never merge on red or pending. For `role=product-builder`: stop at the PR (labeled `needs-cto-review`) — a CTO reviews + merges.
+- **Merge when CI is green.** After preview-verify (Step 3) is clean, watch `gh pr checks <number> --watch`, and once all four required checks pass run `gh pr merge <number> --squash --delete-branch`. Never merge on red or pending. Without Chrome MCP you cannot run Step 3 at all: stop at the PR with a `needs-preview-verify` label.
 - **Promotions merge, feature PRs squash.** `feat/* → staging` uses `--squash --delete-branch`. `staging → main` (and any reconcile PR) uses **`--merge`**, with no `--delete-branch`. Squashing a promotion rewrites staging's commits into a single new SHA on main, so staging stops being an ancestor of main and the branches diverge for good — PR #381 did exactly that and the next promotion (#406) came up CONFLICTING and had to be closed.
 - **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.
