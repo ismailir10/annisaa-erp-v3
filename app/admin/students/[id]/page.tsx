@@ -40,7 +40,7 @@ import {
 import { ParentPicker, type PickableParent } from "@/components/admin/parent-picker";
 import type { ParentCandidate } from "@/lib/parent/match";
 import { deriveSiblings } from "@/lib/parent/siblings";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, guardianCreatePayload, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
@@ -665,7 +665,13 @@ export default function StudentDetailPage() {
     // childrenTotal is a string in the form (Input value) but the schema
     // coerces — send "" as null so the schema's optional/nullable path fires
     // rather than coercing the empty string to NaN.
-    const payload: Record<string, unknown> = { ...guardianForm };
+    // FIND-010: on CREATE, strip isPrimary unless the admin switched it on
+    // so the server's sibling-count default can fire (see helper doc
+    // comment). The EDIT (PUT) path sends isPrimary as-is — demoting via the
+    // Switch is legitimate there.
+    const payload: Record<string, unknown> = editingGuardian
+      ? { ...guardianForm }
+      : { ...guardianCreatePayload(guardianForm) };
     if (payload.childrenTotal === "") payload.childrenTotal = null;
     else payload.childrenTotal = Number(payload.childrenTotal);
     // T8: same coercion for childOrder. Empty → null clears the column;
@@ -717,7 +723,8 @@ export default function StudentDetailPage() {
     if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
     setSavingGuardian(true);
     try {
-      const payload: Record<string, unknown> = { ...guardianForm, confirmNew };
+      // FIND-010: strip isPrimary unless switched on — see saveGuardian().
+      const payload: Record<string, unknown> = { ...guardianCreatePayload(guardianForm), confirmNew };
       payload.childrenTotal = guardianForm.childrenTotal === "" ? null : Number(guardianForm.childrenTotal);
       payload.childOrder = guardianForm.childOrder === "" ? null : Number(guardianForm.childOrder);
 

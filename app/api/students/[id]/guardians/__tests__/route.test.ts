@@ -385,3 +385,28 @@ describe("POST guardians — duplicate guard on the create path", () => {
     expect(res.status).toBe(201);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// FIND-010: the create-new-parent branch shares `resolvedIsPrimary` with the
+// link branch above, but until now only the link branch had coverage. The
+// dossier client used to send an explicit `isPrimary: false` on every
+// create, which is indistinguishable from an admin choice at the schema
+// layer — these tests pin the server-side default for a body that omits the
+// key entirely, `confirmNew: true` bypasses the duplicate-candidate guard so
+// the request reaches the create path.
+// ──────────────────────────────────────────────────────────────────────────
+describe("POST guardians — isPrimary default on the create-new-parent branch", () => {
+  it("auto-flags the first guardian as primary", async () => {
+    state.activeGuardianCount = 0;
+    const res = await post({ name: "Siti Aminah", relationship: "IBU", confirmNew: true });
+    expect(res.status).toBe(201);
+    expect(state.created).toMatchObject({ isPrimary: true });
+  });
+
+  it("does not auto-flag primary when the student already has one", async () => {
+    state.activeGuardianCount = 1;
+    const res = await post({ name: "Siti Aminah", relationship: "IBU", confirmNew: true });
+    expect(res.status).toBe(201);
+    expect(state.created).toMatchObject({ isPrimary: false });
+  });
+});
