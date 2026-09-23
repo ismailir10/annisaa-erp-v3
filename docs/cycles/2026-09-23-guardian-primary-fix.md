@@ -17,27 +17,27 @@ UAT input: the newest report in `docs/uat/reports/` is 2026-06-04, 111 days old 
 ### Acceptance criteria
 
 **The first guardian is primary**
-- [ ] Adding the first guardian to a student through the dossier's **Tambah wali baru** (create-a-new-parent) path yields `isPrimary = true`, with no admin action.
-- [ ] The client sends `isPrimary` only when the admin has explicitly switched it on. When the Wali Utama switch is off, the key is absent from the payload so the server default owns the decision. Both dialog paths (create-new and link-existing) behave identically.
-- [ ] Turning the Wali Utama switch on while editing an existing guardian still promotes it and demotes the incumbent — unchanged behaviour, covered by the existing PUT tests.
+- [x] Adding the first guardian to a student through the dossier's **Tambah wali baru** (create-a-new-parent) path yields `isPrimary = true`, with no admin action.
+- [x] The client sends `isPrimary` only when the admin has explicitly switched it on. When the Wali Utama switch is off, the key is absent from the payload so the server default owns the decision. Both dialog paths (create-new and link-existing) behave identically.
+- [x] Turning the Wali Utama switch on while editing an existing guardian still promotes it and demotes the incumbent — unchanged behaviour, covered by the existing PUT tests.
 
 **A deactivated guardian is never the billing contact**
-- [ ] `PATCH` to `status: "INACTIVE"` on a guardian also clears `isPrimary` on that row, in one write. Applies to both guardian routes (`/api/students/[id]/guardians/[guardianId]` and `/api/guardians/[id]`).
-- [ ] The four finance read paths additionally filter `status: "ACTIVE"` when resolving the billing parent: manual invoice create, invoice detail GET, payment-session creation, bulk billing-run materialisation.
-- [ ] Deactivating the only primary guardian leaves the student with zero primaries (the documented "at most one" invariant, per [`e2e/admin-guardian-primary-invariant.spec.ts`](../../e2e/admin-guardian-primary-invariant.spec.ts)) — it does **not** auto-promote a sibling. Promotion stays an explicit admin act.
+- [x] `PATCH` to `status: "INACTIVE"` on a guardian also clears `isPrimary` on that row, in one write. Applies to both guardian routes (`/api/students/[id]/guardians/[guardianId]` and `/api/guardians/[id]`).
+- [x] The four finance read paths additionally filter `status: "ACTIVE"` when resolving the billing parent: manual invoice create, invoice detail GET, payment-session creation, bulk billing-run materialisation.
+- [x] Deactivating the only primary guardian leaves the student with zero primaries (the documented "at most one" invariant, per [`e2e/admin-guardian-primary-invariant.spec.ts`](../../e2e/admin-guardian-primary-invariant.spec.ts)) — it does **not** auto-promote a sibling. Promotion stays an explicit admin act.
 
 **Making someone primary takes one click**
-- [ ] The guardian card on the student dossier exposes a **Jadikan wali utama** action on non-primary guardians, next to the existing edit and deactivate buttons. Today the only control is a Switch below the fold of a scrollable form behind the pencil icon.
-- [ ] The action confirms before writing, naming the guardian who will be demoted, following the `ConfirmDialog` shape already used for Nonaktifkan/Aktifkan. Neutral styling, not destructive.
-- [ ] Frontend diff follows `design-system`: reuses `Button size="icon-sm" variant="ghost"`, the existing card action cluster, and the "Utama" badge already rendered at [guardian-detail-card.tsx:92](../../components/admin/guardian-detail-card.tsx). No new component, no new spacing scale.
+- [x] The guardian card on the student dossier exposes a **Jadikan wali utama** action on non-primary guardians, next to the existing edit and deactivate buttons. Today the only control is a Switch below the fold of a scrollable form behind the pencil icon.
+- [x] The action confirms before writing, naming the guardian who will be demoted, following the `ConfirmDialog` shape already used for Nonaktifkan/Aktifkan. Neutral styling, not destructive.
+- [x] Frontend diff follows `design-system`: reuses `Button size="icon-sm" variant="ghost"`, the existing card action cluster, and the "Utama" badge already rendered at [guardian-detail-card.tsx:92](../../components/admin/guardian-detail-card.tsx). No new component, no new spacing scale.
 
 **Proof**
-- [ ] Vitest covers: the create-a-new-parent branch auto-defaulting to primary (currently untested — only the link branch is), the client omitting `isPrimary` when the switch is off, `PATCH`-to-INACTIVE clearing `isPrimary`, and each finance read path's `status: "ACTIVE"` filter.
-- [ ] A regression test asserts a manual invoice for a student whose only guardian came through the create path carries a non-null `parentId`.
-- [ ] `npm run build && npx vitest run` green; `npx playwright test` green or explicitly deferred to the required CI check.
+- [x] Vitest covers: the create-a-new-parent branch auto-defaulting to primary (currently untested — only the link branch is), the client omitting `isPrimary` when the switch is off, `PATCH`-to-INACTIVE clearing `isPrimary`, and each finance read path's `status: "ACTIVE"` filter.
+- [x] A regression test asserts a manual invoice for a student whose only guardian came through the create path carries a non-null `parentId`.
+- [x] `npm run build && npx vitest run` green; `npx playwright test` green or explicitly deferred to the required CI check.
 
 **Audit, report only**
-- [ ] The count of students holding an ACTIVE guardian set with **no** primary row, and the count holding an **INACTIVE** primary, are measured on staging and on production and recorded in Verification. No rows are updated on either environment as part of this cycle.
+- [x] The count of students holding an ACTIVE guardian set with **no** primary row, and the count holding an **INACTIVE** primary, are measured on staging and on production and recorded in Verification. No rows are updated on either environment as part of this cycle.
 
 ### Non-goals
 
@@ -94,5 +94,46 @@ UAT input: the newest report in `docs/uat/reports/` is 2026-06-04, 111 days old 
   - **Staging** (`udbivhchbizpxoryejgz`): 30 students with guardians — 0 with no active primary, 0 holding an INACTIVE primary, 0 with multiple primaries.
   - **Production** (`vxwywmvpxetdgnxejjgk`), read 2026-09-24: 172 students with guardians — **6 with no active primary** (3 ACTIVE, 3 GRADUATED), 0 holding an INACTIVE primary, 0 with multiple primaries. All six have exactly one ACTIVE guardian and **0 invoices**, so nothing has been billed wrong yet; the next billing run would have issued the three ACTIVE students' invoices with `parentId: null`. Origin: 5 have `stu_*` ids created 2026-07-26 with relationship `WALI` — the roster import (`scripts/import-roster/build-import-sql.ts` copies `isPrimary` from a pre-wipe snapshot), not the dossier. 1 has a cuid id created 2026-07-28 with relationship `IBU` — the dossier create path this cycle fixes. The prod test student from the DOKU run is still present and not among the six (hand-patched on 2026-09-23).
   - Read: T3 is defense-in-depth today (no INACTIVE primaries exist anywhere); T1 stops the six-student class from growing. The six need a one-time, user-approved promotion — see Ship Notes.
+- Playwright: local run deferred to CI (env cannot execute it — `playwright.config.ts`'s `assertLocalDatabaseForE2E()` refuses a non-local `DATABASE_URL`, this worktree's `.env` points at the shared staging database, and no local Postgres is available; overriding with `E2E_ALLOW_REMOTE_DB=1` would write e2e fixtures into staging). Required CI check `Playwright E2E` gates the merge; CTO will not merge on red. Specs most exposed to this diff: `e2e/admin-guardian-primary-invariant.spec.ts` (PUT promote/demote — every body it sends carries an explicit `isPrimary`, so T1 does not change its path) and `e2e/admin-guardian-detail.spec.ts`.
 
 ## Ship Notes
+
+**Migrations:** none. **New env vars:** none. **Schema:** unchanged.
+
+**Behaviour that changes on merge.**
+1. A student's first guardian added through **Tambah wali baru** becomes wali utama automatically — the same thing the link-existing path already did.
+2. Deactivating a guardian also drops their wali-utama flag. Reactivating does not give it back; the admin promotes explicitly.
+3. Manual invoices, invoice detail, payment sessions and billing runs only ever resolve an **active** wali utama as the billing parent. A student with none gets `parentId: null`, as before.
+4. The guardian card on the dossier gets a star action, **Jadikan <nama> wali utama**, on non-primary active guardians.
+
+**Manual smoke on the preview** (admin portal, staging data):
+1. Open a student with two active guardians. Click the star on the non-primary one → the dialog names both guardians → confirm → toast `<nama> kini wali utama`, and the **Utama** badge moves.
+2. Create a throwaway student, open **Tambah Wali → Tambah wali baru**, save a guardian with the Wali Utama switch left off → the card shows **Utama** without any further action.
+3. Nonaktifkan the primary guardian of a throwaway student → reactivate → the **Utama** badge does not come back.
+
+**Post-merge data step — needs the user's go-ahead, not done by this cycle.** Six production students hold one active guardian and no primary (T6, 2026-09-24). None has an invoice yet. The fix for each is to promote its only active guardian — now one click per student in the UI, or in a single statement that touches only those rows:
+
+```sql
+-- production (vxwywmvpxetdgnxejjgk); promotes the sole ACTIVE guardian of
+-- each student that has active guardians but no active primary.
+update "StudentGuardian" sg set "isPrimary" = true
+where sg.status = 'ACTIVE'
+  and sg."studentId" in (
+    select "studentId" from "StudentGuardian"
+    group by "studentId"
+    having count(*) filter (where status = 'ACTIVE') = 1
+       and not bool_or("isPrimary" and status = 'ACTIVE')
+  );
+-- expect: UPDATE 6 (the same selector as a read-only count returned 6 on 2026-09-24)
+```
+
+The prod DOKU test student ("Testing Ismail Rabbani", hand-patched on 2026-09-23) is still present and needs deleting as part of that test's cleanup; it is not one of the six.
+
+**Follow-ups not taken here** (each outside this Spec; none reachable by current data):
+- `app/api/students/export/route.ts:85` — CSV export reads the guardian contact with `isPrimary: true` and no status filter. Same class as T3; unreachable for new data after T2, and 0 INACTIVE primaries exist today.
+- `PUT` on either guardian route will promote an INACTIVE guardian if asked; only the UI prevents it (the star is hidden on INACTIVE cards, and the dossier lists active guardians only). A server-side rejection belongs with the demote-then-write consolidation cycle.
+- `scripts/import-roster/build-import-sql.ts` step 6 copies `isPrimary` verbatim from a pre-wipe snapshot — the origin of five of the six prod students above. Any future roster import will reproduce it.
+- `scripts/reseed/people.ts` writes `isPrimary: true` unconditionally per parent-child link; two parents sharing a child index would yield two primaries.
+- The three hand-copied demote-then-write implementations (POST helper, two PUT `runPrimaryTx`) — consolidation deferred per Non-goals.
+
+**Rollback.** `git revert` the six cycle commits; no migration to undo. Reverting T2 does not restore `isPrimary` on guardians deactivated after the merge — harmless, since T3's reads would ignore them anyway and a reverted T3 would simply have no INACTIVE primary to find.
