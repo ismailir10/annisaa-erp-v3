@@ -162,6 +162,7 @@ export default function StudentDetailPage() {
   const [guardianForm, setGuardianForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
+  const [setPrimaryTarget, setSetPrimaryTarget] = useState<Guardian | null>(null);
 
   // Tambah Wali has three mutually exclusive steps inside one overlay, the
   // same shape the enroll dialog uses for its picker → 409-advisory flow:
@@ -777,6 +778,23 @@ export default function StudentDetailPage() {
     }
   }
 
+  async function setPrimaryGuardian() {
+    if (!setPrimaryTarget) return;
+    const res = await fetch(`/api/students/${id}/guardians/${setPrimaryTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPrimary: true }),
+    });
+    if (res.ok) {
+      toast.success(`${setPrimaryTarget.parent.name} kini wali utama`);
+      setSetPrimaryTarget(null);
+      fetchStudent();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menjadikan wali utama");
+    }
+  }
+
   // --- Promote (Naik Kelas) ---
   async function openPromoteDialog() {
     try {
@@ -883,6 +901,13 @@ export default function StudentDetailPage() {
   const kkGuardian = activeGuardians.find((g) => g.isPrimary) ?? activeGuardians[0] ?? null;
   const hasKk = kkGuardian?.parent.hasKk ?? false;
   const contactGuardian = kkGuardian;
+
+  const currentPrimary = activeGuardians.find((g) => g.isPrimary);
+  const setPrimaryDescription = setPrimaryTarget
+    ? `${setPrimaryTarget.parent.name} akan menjadi wali utama${
+        currentPrimary ? `, menggantikan ${currentPrimary.parent.name}` : ""
+      }. Tagihan dan tautan pembayaran akan dikirim ke wali utama.`
+    : undefined;
 
   // Presence only — this is "is the file on record", not a required-documents
   // policy. The school has not defined one, so nothing here is called missing.
@@ -1406,6 +1431,7 @@ export default function StudentDetailPage() {
                     guardian={g}
                     onEdit={openEditGuardian}
                     onToggleStatus={setDeleteGuardianTarget}
+                    onSetPrimary={setSetPrimaryTarget}
                   />
                 ))}
               </div>
@@ -2096,6 +2122,15 @@ export default function StudentDetailPage() {
         confirmLabel={deleteGuardianTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         destructive={deleteGuardianTarget?.status !== "INACTIVE"}
         onConfirm={deactivateGuardian}
+      />
+
+      <ConfirmDialog
+        open={!!setPrimaryTarget}
+        onOpenChange={(o) => !o && setSetPrimaryTarget(null)}
+        title="Jadikan wali utama?"
+        description={setPrimaryDescription}
+        confirmLabel="Jadikan Wali Utama"
+        onConfirm={setPrimaryGuardian}
       />
     </>
   );

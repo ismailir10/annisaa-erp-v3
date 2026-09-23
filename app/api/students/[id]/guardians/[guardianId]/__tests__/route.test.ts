@@ -369,6 +369,75 @@ describe("PUT /api/students/[id]/guardians/[guardianId] — childOrder + isPrima
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// T4 — a bare `{ isPrimary: true }` PUT (the new card action's payload) must
+// not blank the parent's bio or disturb relationship/childOrder.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PUT /api/students/[id]/guardians/[guardianId] — bare isPrimary payload is bio-safe (T4)", () => {
+  it("writes the CURRENT phone/email/whatsapp/name back, not null, for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    // Every bio field falls through to its CURRENT value (name/relationship
+    // by `||` fallback, the rest by `!== undefined ? … : current`) — none of
+    // them may come out null or blank just because the body omitted them.
+    expect(state.lastParentUpdate?.name).toBe("Pak Budi");
+    expect(state.lastParentUpdate?.phone).toBe("08111");
+    expect(state.lastParentUpdate?.email).toBe("budi@x");
+    expect(state.lastParentUpdate?.whatsapp).toBe("08111");
+    // The rest are `undefined` (Prisma "do not touch"), never null.
+    for (const key of [
+      "nik", "education", "occupation", "employer",
+      "employerAddress", "employerCity", "incomeRange", "address", "childrenTotal",
+    ] as const) {
+      expect(state.lastParentUpdate?.[key]).toBeUndefined();
+    }
+    // The in-memory parent row proves nothing was actually blanked.
+    expect(state.guardian?.parent.phone).toBe("08111");
+    expect(state.guardian?.parent.email).toBe("budi@x");
+    expect(state.guardian?.parent.whatsapp).toBe("08111");
+  });
+
+  it("keeps the current relationship and does not touch childOrder for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.guardian.relationship = "IBU";
+    state.guardian.childOrder = 2;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    expect(state.lastJunctionUpdate?.relationship).toBe("IBU");
+    expect(state.lastJunctionUpdate?.isPrimary).toBe(true);
+    expect(state.lastJunctionUpdate?.childOrder).toBeUndefined();
+    expect(state.guardian?.childOrder).toBe(2);
+  });
+
+  it("still demotes the sibling primary for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    expect(state.lastUpdateMany).toEqual({ isPrimary: false });
+    expect(state.otherGuardians[0].isPrimary).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 // T2 — PATCH status toggle clears isPrimary on deactivation
 // ──────────────────────────────────────────────────────────────────────────
 
