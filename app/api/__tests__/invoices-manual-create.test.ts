@@ -291,6 +291,51 @@ describe("POST /api/invoices — happy path", () => {
   });
 });
 
+describe("POST /api/invoices — guardian lookup", () => {
+  it("excludes an INACTIVE primary guardian from the billing-parent lookup", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
+      studentId: "s-1",
+    } as never);
+    vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
+      { id: "fc-1", label: "SPP" },
+      { id: "fc-2", label: "Seragam" },
+    ] as never);
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue({
+      parentId: "p-1",
+    } as never);
+
+    wireHappyPath();
+
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+    });
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-new",
+      invoiceNumber: "INV-2026-0001",
+      totalDue: 150_000,
+      status: "SENT",
+      xenditPaymentUrl: "https://checkout.xendit.co/web/inv-new",
+      xenditSessionId: "xnd-sess-1",
+      paymentLinkError: null,
+      lines: [],
+    } as never);
+
+    await POST(makeReq(validBody) as never);
+
+    expect(prisma.studentGuardian.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isPrimary: true, status: "ACTIVE" }),
+      }),
+    );
+  });
+});
+
 describe("POST /api/invoices — Xendit failure paths", () => {
   it("helper throws → 201, status=PENDING_PAYMENT_LINK, paymentLinkError set, xenditError surfaced", async () => {
     const { getSession } = await import("@/lib/auth");
