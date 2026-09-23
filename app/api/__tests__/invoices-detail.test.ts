@@ -73,6 +73,29 @@ describe("GET /api/invoices/[id]", () => {
     );
   });
 
+  it("only resolves an ACTIVE primary guardian as the billing contact", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "tnt-1",
+      status: "DRAFT",
+      totalDue: 100_000,
+      lines: [],
+      payments: [],
+      student: { guardians: [] },
+    });
+
+    const { GET } = await import("../invoices/[id]/route");
+    await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    const call = findUnique.mock.calls[0][0];
+    expect(call.include.student.include.guardians.where).toEqual({
+      isPrimary: true,
+      status: "ACTIVE",
+    });
+  });
+
   it("404 when the row exists but for another tenant", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(adminSession()); // tnt-1

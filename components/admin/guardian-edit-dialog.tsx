@@ -79,6 +79,24 @@ export const EMPTY_GUARDIAN_FORM: GuardianForm = {
   isPrimary: false,
 };
 
+/**
+ * FIND-010: the server only defaults isPrimary from the sibling count
+ * (`resolvedIsPrimary = isPrimary ?? priorGuardianCount === 0` in
+ * app/api/students/[id]/guardians/route.ts) when the key is absent from the
+ * body. `EMPTY_GUARDIAN_FORM.isPrimary` starts `false` for the Switch's
+ * display state, so sending the form straight through on CREATE always sent
+ * an explicit `false` and defeated that default — a student's first guardian
+ * landed non-primary. CREATE call sites must use this helper instead of
+ * spreading the form directly; the EDIT (PUT) path is unaffected and keeps
+ * sending isPrimary as-is since demoting via the Switch is legitimate there.
+ */
+export function guardianCreatePayload(
+  form: GuardianForm,
+): Omit<GuardianForm, "isPrimary"> & { isPrimary?: true } {
+  const { isPrimary, ...rest } = form;
+  return isPrimary ? { ...rest, isPrimary: true } : rest;
+}
+
 export function GuardianFormBody({
   form,
   setForm,
