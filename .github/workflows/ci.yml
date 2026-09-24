@@ -243,3 +243,45 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_DEFAULT_REGION: auto
         run: bash scripts/backup-prod.sh self-test
+
+  keepalive-selftest:
+    name: Keepalive & Alert Self-Test
+    runs-on: ubuntu-latest
+    # Regression guard for the two scripts that stand between a production
+    # outage and somebody finding out about it. Both are exercised against
+    # local fixtures — a loopback HTTP server and a stub `gh` — so this job is
+    # fast, needs no service container, and cannot touch production.
+    #
+    # It exists because alerting code only ever runs during an incident. The
+    # inline alert this replaces was broken for eighteen consecutive nights and
+    # nothing noticed, since nothing tested it.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Shellcheck the keepalive and alert scripts
+        run: shellcheck --severity=warning scripts/keepalive-probe.sh scripts/alert-issue.sh
+
+      - name: Run the keepalive probe self-test
+        env:
+          # Retries exist to absorb blips in production, not to slow CI down.
+          KEEPALIVE_ATTEMPTS: '2'
+          KEEPALIVE_RETRY_DELAY: '0'
+        run: bash scripts/keepalive-probe.sh self-test
+
+      - name: Run the alert-issue self-test
+        run: bash scripts/alert-issue.sh self-test
+
+      # The defect that silenced backup.yml for eighteen nights was a gh call
+      # in a job with no GH_REPO and no checkout. Assert by inspection that no
+      # such call exists in any workflow, so it cannot come back.
+      - name: Assert every workflow gh call has GH_REPO
+        run: |
+          set -euo pipefail
+          # Parsing the workflows properly beats grepping them; PyYAML is not
+          # guaranteed on the runner image, so do not assume it.
+          python3 -c 'import yaml' 2>/dev/null \
+            || python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          # A guard that never fires looks exactly like a clean repo, so prove
+          # it fires first — the fixtures include the real defect's shape.
+          python3 scripts/check-workflow-gh-repo.py --self-test
+          python3 scripts/check-workflow-gh-repo.py .github/workflows/*.yml
