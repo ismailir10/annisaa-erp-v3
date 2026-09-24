@@ -41,6 +41,29 @@ require_repo() {
   die "neither GH_REPO nor a git repository is available, so gh cannot resolve the target repository. Add 'GH_REPO: \${{ github.repository }}' to the job's env (and an actions/checkout step if the job needs this script)."
 }
 
+# Runs an issue lookup and distinguishes "no results" from "the lookup failed".
+# Both callers below used `2>/dev/null || true`, which collapsed the two: a
+# broken token, a 5xx, or an unreachable API read as an empty list. That is the
+# worst possible reading for an alerting tool — `close` reports a recovery that
+# never happened, and `open` skips the dedup check and files a duplicate
+# incident. An alert path that cannot reach the API must say so, not guess.
+# It returns non-zero rather than calling `die`, and every caller checks that
+# status explicitly. `die` would be wrong here: it runs inside a command
+# substitution, so its `exit` only kills the substitution's own subshell and
+# the caller sails on with an empty string. The script's `set -e` papers over
+# that at top level but is switched off inside any `&&`/`||` list, so the guard
+# would silently disappear for some callers and hold for others. An explicit
+# status check holds everywhere.
+gh_issue_lookup() {
+  local out rc
+  out=$("$GH_BIN" issue list "$@" 2>&1) && rc=0 || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "::error::could not query issues (gh exited $rc). This is a failed lookup, not an empty result — refusing to guess, because treating it as 'nothing found' would report a false recovery or open a duplicate incident. gh said: ${out:-<no output>}" >&2
+    return 1
+  fi
+  printf '%s' "$out"
+}
+
 # --- open -------------------------------------------------------------------
 # Comments on the existing open issue if there is one, otherwise creates it.
 cmd_open() {
@@ -52,8 +75,8 @@ cmd_open() {
   [ -f "$body_file" ] || die "body file $body_file does not exist"
 
   local existing
-  existing=$("$GH_BIN" issue list --state open --label "$label" \
-    --search "$title in:title" --json number --jq '.[0].number // empty' 2>/dev/null || true)
+  existing=$(gh_issue_lookup --state open --label "$label" \
+    --search "$title in:title" --json number --jq '.[0].number // empty') || exit 1
 
   if [ -n "$existing" ]; then
     "$GH_BIN" issue comment "$existing" --body-file "$body_file" \
@@ -93,8 +116,8 @@ cmd_close() {
   require_repo
 
   local numbers n closed=0
-  numbers=$("$GH_BIN" issue list --state open --label "$label" \
-    --json number --jq '.[].number' 2>/dev/null || true)
+  numbers=$(gh_issue_lookup --state open --label "$label" \
+    --json number --jq '.[].number') || exit 1
 
   for n in $numbers; do
     "$GH_BIN" issue close "$n" --comment "$comment" || die "could not close #$n"
@@ -124,6 +147,11 @@ cmd_self_test() {
 printf '%s\n' "$*" >> "$GH_LOG"
 case "$1 $2" in
   "issue list")
+    # Fails the lookup while leaving create/comment working — the case that
+    # turns a silently-empty lookup into a duplicate incident.
+    if [ "${STUB_LIST_FAILS:-0}" = "1" ]; then
+      echo "HTTP 503: search is unavailable" >&2; exit 1
+    fi
     # The dedup lookup passes --search; the close sweep does not.
     if printf '%s\n' "$@" | grep -q -- '--search'; then
       printf '%s\n' "${STUB_EXISTING:-}"
@@ -191,6 +219,39 @@ STUB
   STUB_OPEN_NUMBERS="" cmd_close prod-down "recovered" >/dev/null
   grep -q 'issue close' "$GH_LOG" && die "it closed something when nothing was open"
   ok "close on no open issues is a no-op"
+
+  echo "== negative: a failed lookup must NOT read as 'no results' =="
+  # The defect the CTO review caught on 2026-09-24. With gh unusable, the old
+  # code exited 0 from `close` and reported no open issue — a recovery signal
+  # for an outage nobody had fixed. Both paths are asserted, because each
+  # misreads a failed lookup differently: close invents a recovery, open skips
+  # dedup and files a duplicate.
+  local gone="$tmp/no-such-gh"
+  ( GH_BIN="$gone" cmd_close prod-down "recovered" ) >"$tmp/e2" 2>&1 \
+    && die "close exited 0 when the issue lookup failed — that is a false recovery"
+  grep -q 'failed lookup' "$tmp/e2" \
+    || die "the close-path lookup failure does not say it was a failed lookup: $(cat "$tmp/e2")"
+  ok "a failed lookup makes close fail loudly, not report a false recovery"
+
+  # Deliberately NOT a missing binary here: with gh gone the *create* would fail
+  # too, so the test would pass even with the guard removed. The stub fails only
+  # the lookup, leaving create working — so the only thing that can stop a
+  # duplicate incident being filed is the guard itself.
+  GH_LOG="$tmp/log5"; export GH_LOG; : > "$GH_LOG"
+  ( STUB_LIST_FAILS=1 cmd_open prod-down "Prod is down" "$tmp/body.md" theowner ) \
+    >"$tmp/e3" 2>&1 \
+    && die "open exited 0 when the issue lookup failed but create still worked"
+  grep -q 'failed lookup' "$tmp/e3" \
+    || die "the open-path lookup failure does not say it was a failed lookup: $(cat "$tmp/e3")"
+  grep -q 'issue create' "$GH_LOG" \
+    && die "open filed an issue after a failed dedup lookup — that is the duplicate-incident bug"
+  ok "a failed lookup makes open fail loudly, and files nothing"
+
+  echo "== a genuinely empty result is still not an error =="
+  GH_LOG="$tmp/log6"; export GH_LOG; : > "$GH_LOG"
+  STUB_OPEN_NUMBERS="" cmd_close prod-down "recovered" >/dev/null \
+    || die "close failed on a real empty result — the guard is too aggressive"
+  ok "an empty lookup result is still a clean no-op"
 
   echo "== negative: a missing body file must be rejected =="
   must_fail cmd_open prod-down "T" "$tmp/nope.md" \

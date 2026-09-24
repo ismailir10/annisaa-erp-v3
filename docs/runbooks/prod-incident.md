@@ -107,7 +107,7 @@ Then re-run the **Prod Keepalive** workflow (Actions → Prod Keepalive → Run 
 | UptimeRobot | every 5 min | email to the owner | Owner-only dashboard. Nothing in the repo shows whether it is still running. |
 | `.github/workflows/keepalive.yml` | every 3 h | assigned `prod-down` GitHub issue | A schedule that stops entirely cannot notice it stopped. GitHub disables scheduled workflows after 60 days of repo inactivity. |
 
-Neither leg is sufficient alone; the point is that their failure modes do not overlap. Note the GitHub leg only runs from the **default branch** — it does nothing until promoted to `main`.
+Neither leg is sufficient alone; the point is that their failure modes do not overlap. The GitHub leg runs from the repository's **default branch**, which here is `staging` — so it is live as soon as the workflow is on `staging`, and a revert there is what stops it.
 
 ### Owner checklist — why leg one failed (UNANSWERED)
 

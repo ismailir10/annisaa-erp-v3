@@ -158,6 +158,11 @@ commercial decision, not an engineering one.
       for why it is fixed here rather than filed.
       *Accepts when:* both dossier suites pass under `flake-hunt.sh`, the full
       suite is green, and no synchronous `sectionTrigger` call site remains.
+- [x] **T8** — Address the 2026-09-24 CTO review: propagate failed issue
+      lookups with negative tests on both paths, correct the default-branch
+      claim, and merge current `staging`.
+      *Accepts when:* the reviewer's reproduction exits non-zero, mutation tests
+      catch a removed guard, and the gates pass on the merged tree.
 - [x] **T6** — `docs/runbooks/prod-incident.md`: §3 rewritten with the
       2026-09-09 recurrence, the sub-minute diagnosis path, and the owner-only
       UptimeRobot checklist; §8 and the followups list brought into line.
@@ -378,6 +383,60 @@ rests on the race being demonstrable from the source rather than on a
 reproduction. If it recurs, this diagnosis is wrong and the next place to look is
 the component's own effect ordering, not the test.
 
+### T8 — CTO review round (2026-09-24)
+
+The review found three things. All three were real; none were style.
+
+**1. A failed issue lookup read as "no issues".** Both lookups in
+`alert-issue.sh` ran under `2>/dev/null || true`, so a bad token, a 5xx or an
+unreachable API produced an empty string — indistinguishable from a genuine
+empty result. The reviewer's reproduction is exact:
+
+```
+$ GH_REPO=… GH_BIN=/bin/false bash scripts/alert-issue.sh close prod-down recovered
+  OK — no open 'prod-down' issue to close        # exit 0
+```
+
+That is an alerting tool reporting a recovery that never happened. On the open
+path the same silence skips the dedup check and files a duplicate incident.
+Lookups now fail loudly, with negative tests on both paths.
+
+**Writing the test exposed a second defect underneath the first.** The obvious
+fix was `die` inside `gh_issue_lookup` — but that function runs inside a command
+substitution, where `exit` kills only the substitution's subshell and the caller
+continues with an empty string. The script's `set -e` masks that at top level
+and is switched off inside any `&&`/`||` list, so the guard would have held for
+the workflow and silently vanished for anything that wrapped the call in a
+conditional. It now returns a status every caller checks explicitly.
+
+**A weak test caught by mutation, not by passing.** The first open-path negative
+test pointed `GH_BIN` at a missing binary — which also breaks `issue create`, so
+the test passed even with the guard removed. It now uses a stub that fails
+*only* the lookup while create keeps working, which is both the dangerous real
+case (flaky search, healthy write) and the only shape that actually exercises
+the guard. All four mutations are now caught: suppressing the failure, either
+caller ignoring the status, and the guard returning success.
+
+**2. The default branch is `staging`, not `main`.** The rollout note claimed the
+keepalive stayed dormant until `/ship --to-main`. Wrong: `git remote show origin`
+reports `HEAD branch: staging`, so scheduled workflows run from `staging` and
+probing begins at that merge. The evidence was already in this document and I
+misread it — every nightly-backup run quoted in Context carries
+`"head_branch":"staging"`. Deploy and rollback notes corrected.
+
+**3. Draft with merge conflicts.** Merged `origin/staging` (two cycles: workflow
+autonomy #552, guardian primary #553). Three files conflicted:
+
+- `CLAUDE.md` — the generated counts block; regenerated from the tree rather
+  than picking a side.
+- `.github/workflows/ci.yml` — auto-merged.
+- `dossier-sections.test.tsx` — a real semantic conflict worth naming. Staging
+  had rewritten `sectionTrigger` to find the trigger via
+  `getElementById(sectionId)` + `[data-slot="collapsible-trigger"]`, because the
+  guardian work changed the markup, but kept it a one-shot synchronous read. So
+  their selector is right and my retry is right. The resolution keeps both;
+  taking either side alone would have reintroduced a bug.
+
 ## Verification
 
 Gates, run on the final tree:
@@ -493,7 +552,7 @@ resolve to `keepalive` / `alert` / `resolve`, `backup` / `alert` / `resolve`, an
 - **The live prod endpoint.** This session's sandbox proxy refuses the host
   (`curl: (56) CONNECT tunnel failed, response 403`), so no request to
   `talib.annisaasekolahku.com` was made in this cycle. The first real end-to-end
-  proof is the workflow's own first run after promotion to `main`.
+  proof is the workflow's own first run once this is on the default branch.
 - **That the alert reaches the owner's inbox.** That depends on GitHub
   notification settings, which is owner action 2 in Ship Notes.
 - **Why the UptimeRobot monitor did not hold the project awake.** Owner-only
@@ -520,16 +579,30 @@ honest answer to it rather than a token dropped in to satisfy it.
 
 **Migrations:** none. **Env vars:** none. **Secrets:** none added, none read.
 
-**Rollback:** revert the PR. The keepalive is purely additive — nothing depends on
-it — and `backup.yml`'s alert jobs would simply return to the broken state they
-have been in since 2026-08-22, which is no worse than today. Reverting would also
+**Rollback:** revert the PR on `staging`, which is both where it merges and the
+branch the scheduler reads, so the revert stops the probing immediately. The
+keepalive is purely additive — nothing depends on it — and `backup.yml`'s alert
+jobs would simply return to the broken state they have been in since
+2026-08-22, which is no worse than today. Reverting would also
 undo T7, restoring a test race that blocks CI; if the rest is ever reverted, keep
 that hunk.
 
 **Deploy note:** scheduled workflows only run from the repository's *default
-branch*. This keepalive therefore does nothing at all until the PR reaches
-`main` via `/ship --to-main`. Merging to `staging` alone is not enough, and the
-absence of runs before that promotion is expected, not a fault.
+branch*, and this repository's default branch is **`staging`**, not `main`
+(`git remote show origin` → `HEAD branch: staging`). So the keepalive starts
+probing production as soon as this PR merges to `staging` — no promotion to
+`main` is needed, and none should be waited for.
+
+An earlier draft of this cycle claimed the opposite, and the CTO review caught
+it. The evidence was already in hand and misread: every nightly-backup run
+quoted in the Context section carries `"head_branch":"staging"`, which is the
+scheduler telling us plainly which branch it runs from.
+
+**What that means in practice.** The first scheduled run lands within three
+hours of the merge to `staging`, against real production. If prod is unhealthy
+at that moment the workflow will open an assigned `prod-down` issue straight
+away — that is the design working, not a misfire. Rollback is therefore also a
+staging-level action: reverting on `staging` stops the probing.
 
 ### Owner actions
 
@@ -539,8 +612,8 @@ what the monitor's history shows for 2026-08-22 → 2026-09-09. Until that is
 answered we do not know whether leg one is working, and this cycle has only
 rebuilt the redundancy, not diagnosed the original failure.
 
-**2. Confirm the alert actually reaches you.** After the promotion to `main`,
-dispatch the keepalive workflow manually with a deliberately wrong URL
+**2. Confirm the alert actually reaches you.** Once this is on `staging` (the
+default branch), dispatch the keepalive workflow manually with a wrong URL
 (`workflow_dispatch` accepts a `url` input for exactly this rehearsal) and
 confirm an assigned `prod-down` issue appears *and* that you receive the
 notification. An alert path first exercised during an outage is not an alert
