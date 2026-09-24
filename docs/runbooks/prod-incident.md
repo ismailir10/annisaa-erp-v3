@@ -96,7 +96,23 @@ The empty `dig` is the tell: a paused Supabase project loses its DNS record, so 
 # 4. curl /api/health until it returns 200
 ```
 
-Then re-run the **Prod Keepalive** workflow (Actions → Prod Keepalive → Run workflow). A healthy probe closes the `prod-down` issue automatically, so an open one always means prod is down right now.
+Then re-run the **Prod Keepalive** workflow (Actions → Prod Keepalive → Run workflow). A healthy probe closes the `prod-down` issue automatically.
+
+### What an open `prod-down` issue does and does not mean
+
+It means **the probe failed**, not that production is confirmed down. The issue is opened for any failure of the keepalive job — which includes a checkout, runner or script failure, and the rehearsal you are told to run below with a deliberately wrong `url`. Always confirm against the real URL before declaring an outage. The issue body carries the class, and the class is what narrows it:
+
+| Class in the issue | What the probe established | Go to |
+|---|---|---|
+| `db_paused` | 503 `db_unreachable` **and** the DB hostname no longer resolves — both halves of the diagnosis above, checked automatically | §3 (here) |
+| `db_unreachable` | 503, but the hostname still resolves: the project is up, the database is not reachable from the app. **Not** a pause — restoring will not help | §4 |
+| `unreachable` | curl never connected at all — DNS, TLS or the Vercel edge | §1 |
+| `app_error` / `bad_body` | The app answered, wrongly — broken app or deploy | §1, §2 |
+| `unknown` | The probe step did not finish. Read the run log first; this is a workflow failure, not evidence about prod | — |
+
+The distinction between `db_paused` and `db_unreachable` matters because `/api/health` cannot make it: `app/api/health/route.ts` returns the identical 503 `db_unreachable` body for *every* Prisma failure — bad credentials, an exhausted pooler, connection limits, a Supabase incident. Only the missing DNS record separates a pause from the rest, which is why the probe checks both signals before naming one.
+
+A second label, **`keepalive-degraded`**, is a different alarm: the schedule itself has not run inside its 12-hour budget. That is a monitoring problem, and prod may be perfectly healthy — most often GitHub has disabled the schedule after 60 days of repository inactivity. Re-enable under Actions → Prod Keepalive. While it is open, this leg is not holding the database awake and UptimeRobot is once again the single point of failure.
 
 ### Why the keepalive did not prevent it
 
@@ -105,7 +121,7 @@ Then re-run the **Prod Keepalive** workflow (Actions → Prod Keepalive → Run 
 | Leg | Runs | Alerts via | Blind spot |
 |---|---|---|---|
 | UptimeRobot | every 5 min | email to the owner | Owner-only dashboard. Nothing in the repo shows whether it is still running. |
-| `.github/workflows/keepalive.yml` | every 3 h | assigned `prod-down` GitHub issue | A schedule that stops entirely cannot notice it stopped. GitHub disables scheduled workflows after 60 days of repo inactivity. |
+| `.github/workflows/keepalive.yml` | every 3 h | assigned `prod-down` issue (probe failed) or `keepalive-degraded` issue (schedule slipped its budget) | A schedule that stops *entirely* cannot notice it stopped — the cadence check only fires when a run happens. GitHub disables scheduled workflows after 60 days of repo inactivity. |
 
 Neither leg is sufficient alone; the point is that their failure modes do not overlap. The GitHub leg runs from the repository's **default branch**, which here is `staging` — so it is live as soon as the workflow is on `staging`, and a revert there is what stops it.
 

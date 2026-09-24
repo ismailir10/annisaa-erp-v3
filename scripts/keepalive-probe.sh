@@ -14,6 +14,7 @@
 #
 # Usage: bash scripts/keepalive-probe.sh probe <url>
 #        bash scripts/keepalive-probe.sh classify <curl-exit> <http-code> <body>
+#        bash scripts/keepalive-probe.sh refine <class> <resolves|nxdomain|unknown>
 #        bash scripts/keepalive-probe.sh self-test      # no network needed
 #
 set -euo pipefail
@@ -22,6 +23,11 @@ set -euo pipefail
 KEEPALIVE_ATTEMPTS="${KEEPALIVE_ATTEMPTS:-3}"
 KEEPALIVE_RETRY_DELAY="${KEEPALIVE_RETRY_DELAY:-20}"
 KEEPALIVE_TIMEOUT="${KEEPALIVE_TIMEOUT:-30}"
+
+# The database hostname whose disappearance distinguishes an auto-pause from
+# every other database failure. Injectable so the self-test never does DNS.
+KEEPALIVE_DB_HOST="${KEEPALIVE_DB_HOST:-vxwywmvpxetdgnxejjgk.supabase.co}"
+KEEPALIVE_RESOLVER="${KEEPALIVE_RESOLVER:-}"
 
 die() { echo "::error::$*" >&2; exit 1; }
 note() { echo "  $*"; }
@@ -37,14 +43,23 @@ must_fail() { if ( "$@" ) >/dev/null 2>&1; then return 1; else return 0; fi; }
 # Pure: (curl exit, HTTP status, body) → one failure class. Kept separate from
 # the network so the interesting cases are testable without one.
 #
-#   healthy      200 + {"ok":true}          nothing to do
-#   db_paused    503 + db_unreachable       THE auto-pause signature → runbook §3
-#   app_error    any other non-2xx          app or deploy broken     → runbook §1/§2
-#   unreachable  curl could not connect     DNS / TLS / Vercel edge  → runbook §1
-#   bad_body     200 without ok:true        served, but not our health route
+#   healthy         200 + {"ok":true}       nothing to do
+#   db_unreachable  503 + db_unreachable    the app is up, the database is not
+#   app_error       any other non-2xx       app or deploy broken  → runbook §1/§2
+#   unreachable     curl could not connect  DNS / TLS / Vercel edge → runbook §1
+#   bad_body        200 without ok:true     served, but not our health route
 #
-# db_paused must never be reported as app_error: they point at different runbook
-# sections and different owner actions.
+# db_unreachable must never be reported as app_error: they point at different
+# runbook sections and different owner actions.
+#
+# It is deliberately NOT reported as `db_paused` either, however tempting the
+# 2026-09-09 shape makes that. app/api/health/route.ts returns the identical
+# 503 `db_unreachable` body for every Prisma exception — bad credentials, an
+# exhausted pooler, connection limits, a Supabase incident — and an auto-pause
+# is only one of them. Telling the owner "the project auto-paused" on that
+# evidence alone sends them to click Restore on a project that is running.
+# The pause is pinned by the SECOND signal, DNS, in cmd_refine below: the
+# runbook's own diagnosis is the PAIR of commands, not the curl alone.
 cmd_classify() {
   local curl_exit="${1:?usage: classify <curl-exit> <http-code> <body>}"
   local http="${2:?missing http code}"
@@ -61,12 +76,57 @@ cmd_classify() {
       ;;
     503)
       case "$body" in
-        *db_unreachable*) echo "db_paused" ;;
+        *db_unreachable*) echo "db_unreachable" ;;
         *) echo "app_error" ;;
       esac
       ;;
     *) echo "app_error" ;;
   esac
+}
+
+# --- refine -----------------------------------------------------------------
+# Pure: (class, DNS state) → class. The second half of the runbook's two-command
+# diagnosis, applied automatically so the alert names a cause rather than
+# handing the owner a symptom.
+#
+# A paused Supabase project loses its DNS record outright, which nothing else in
+# this stack does: a project that is merely unhealthy still resolves. So only the
+# pair (503 db_unreachable, hostname does not resolve) may be called db_paused.
+#
+#   db_unreachable + nxdomain  → db_paused       project auto-paused  → §3
+#   db_unreachable + resolves  → db_unreachable  project up, DB isn't → §4
+#   db_unreachable + unknown   → db_unreachable  cannot tell; do not guess
+#
+# Anything that is not db_unreachable passes through untouched: DNS says nothing
+# about a broken deploy.
+cmd_refine() {
+  local class="${1:?usage: refine <class> <resolves|nxdomain|unknown>}"
+  local dns="${2:?missing dns state}"
+
+  if [ "$class" = "db_unreachable" ] && [ "$dns" = "nxdomain" ]; then
+    echo "db_paused"
+  else
+    echo "$class"
+  fi
+}
+
+# Resolves a hostname to one of: resolves | nxdomain | unknown.
+#
+# `getent hosts` exits non-zero both for NXDOMAIN and for a resolver that is
+# itself broken, which would normally be exactly the kind of conflation this
+# script exists to avoid. It is safe here only because of where it is called
+# from: refinement runs after curl has already reached the app and got a 503
+# back, so this runner's DNS demonstrably works. A failure to resolve the
+# database host specifically, from a runner that just resolved the app host, is
+# the real thing.
+resolve_state() {
+  local host="$1"
+  if [ -n "$KEEPALIVE_RESOLVER" ]; then
+    if "$KEEPALIVE_RESOLVER" "$host" >/dev/null 2>&1; then echo "resolves"; else echo "nxdomain"; fi
+    return 0
+  fi
+  if ! command -v getent >/dev/null 2>&1; then echo "unknown"; return 0; fi
+  if getent hosts "$host" >/dev/null 2>&1; then echo "resolves"; else echo "nxdomain"; fi
 }
 
 # --- probe ------------------------------------------------------------------
@@ -104,10 +164,20 @@ cmd_probe() {
     [ "$attempt" -le "$KEEPALIVE_ATTEMPTS" ] && sleep "$KEEPALIVE_RETRY_DELAY"
   done
 
+  # Second signal. Only asked for when the first one warrants it — there is no
+  # reason to look up the database host because a deploy is broken.
+  if [ "$class" = "db_unreachable" ]; then
+    local dns; dns=$(resolve_state "$KEEPALIVE_DB_HOST")
+    note "dns: $KEEPALIVE_DB_HOST → $dns"
+    class=$(cmd_refine "$class" "$dns")
+  fi
+
   echo "class=$class"
   case "$class" in
     db_paused)
-      die "$url returned 503 db_unreachable on every attempt — the prod Supabase project has almost certainly auto-paused. Confirm with 'dig +short vxwywmvpxetdgnxejjgk.supabase.co' (NXDOMAIN pins it) and recover per docs/runbooks/prod-incident.md §3." ;;
+      die "$url returned 503 db_unreachable on every attempt AND $KEEPALIVE_DB_HOST does not resolve. That pair is the auto-pause signature — a paused project loses its DNS record, and nothing else here does. Recover per docs/runbooks/prod-incident.md §3." ;;
+    db_unreachable)
+      die "$url returned 503 db_unreachable on every attempt, but $KEEPALIVE_DB_HOST still resolves — so the project is running and the database is not reachable from the app: credentials, an exhausted pooler, connection limits, or a Supabase incident. This is NOT an auto-pause and restoring the project will not fix it. See docs/runbooks/prod-incident.md §4." ;;
     unreachable)
       die "$url could not be reached on any attempt (curl exit $curl_exit) — DNS, TLS or the Vercel edge. See docs/runbooks/prod-incident.md §1." ;;
     bad_body)
@@ -150,6 +220,12 @@ fixture_start() {
   while [ ! -s "$dir/port" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
   [ -s "$dir/port" ] || die "the fixture server did not start"
   FIXTURE_PORT=$(cat "$dir/port")
+}
+
+assert_refine() { # expected, class, dns, description
+  local got; got=$(cmd_refine "$2" "$3")
+  [ "$got" = "$1" ] || die "$4: expected '$1', got '$got'"
+  ok "$4"
 }
 
 assert_class() { # expected, curl_exit, http, body, description
@@ -202,11 +278,44 @@ PYSERVER
 
   echo "== classify: every class, without a network =="
   assert_class healthy     0 200 '{"ok":true,"sha":"abc"}'              "200 + ok:true classified as healthy"
-  assert_class db_paused   0 503 '{"ok":false,"error":"db_unreachable"}' "503 + db_unreachable classified as db_paused"
+  assert_class db_unreachable 0 503 '{"ok":false,"error":"db_unreachable"}' "503 + db_unreachable classified as db_unreachable"
   assert_class app_error   0 500 'Internal Server Error'                "500 classified as app_error"
-  assert_class app_error   0 503 'upstream unavailable'                 "503 without db_unreachable is app_error, not db_paused"
+  assert_class app_error   0 503 'upstream unavailable'                 "503 without db_unreachable is app_error, not db_unreachable"
   assert_class bad_body    0 200 '<html>nope</html>'                    "200 without ok:true classified as bad_body"
   assert_class unreachable 6 000 ''                                     "connection failure classified as unreachable"
+  assert_class db_unreachable 0 503 '{"ok":false,"error":"db_unreachable"}' \
+    "classify alone never says db_paused — only refine may, and only with DNS"
+
+  # Stub resolvers, so the self-test asserts the DNS branch without doing DNS.
+  printf '#!/bin/sh\nexit 1\n' > "$tmp/dns-nxdomain"; chmod +x "$tmp/dns-nxdomain"
+  printf '#!/bin/sh\nexit 0\n' > "$tmp/dns-resolves"; chmod +x "$tmp/dns-resolves"
+
+  echo
+  echo "== resolve_state: what the DNS half actually reports =="
+  mkdir -p "$tmp/nobin"
+  local rs
+  rs=$( ( KEEPALIVE_RESOLVER="$tmp/dns-nxdomain"; resolve_state example.invalid ) )
+  [ "$rs" = "nxdomain" ] || die "an injected failing resolver must report nxdomain, got '$rs'"
+  ok "a host that does not resolve reports nxdomain"
+  rs=$( ( KEEPALIVE_RESOLVER="$tmp/dns-resolves"; resolve_state example.invalid ) )
+  [ "$rs" = "resolves" ] || die "an injected succeeding resolver must report resolves, got '$rs'"
+  ok "a host that resolves reports resolves"
+  # With no resolver available at all, the honest answer is "I do not know" —
+  # NOT nxdomain. Reading a missing lookup tool as a vanished hostname would
+  # turn every database failure on such a runner back into a false auto-pause.
+  # shellcheck disable=SC2123 # emptying PATH is the point: it is how this test
+  # simulates a runner with no getent, and it is scoped to the subshell.
+  rs=$( ( PATH="$tmp/nobin"; KEEPALIVE_RESOLVER=""; resolve_state example.invalid ) )
+  [ "$rs" = "unknown" ] || die "with no resolver on PATH, resolve_state must report unknown, got '$rs'"
+  ok "no resolver available reports unknown, not nxdomain"
+
+  echo
+  echo "== refine: only 503 + a vanished hostname is an auto-pause =="
+  assert_refine db_paused      db_unreachable nxdomain "503 + NXDOMAIN is the auto-pause signature"
+  assert_refine db_unreachable db_unreachable resolves "503 while the host still resolves is NOT a pause (§4)"
+  assert_refine db_unreachable db_unreachable unknown  "503 with no resolver answer stays generic rather than guessing"
+  assert_refine app_error      app_error      nxdomain "DNS does not reclassify a broken app"
+  assert_refine healthy        healthy        nxdomain "DNS does not reclassify a healthy probe"
 
   # Retries would make the negative cases take KEEPALIVE_ATTEMPTS * delay.
   export KEEPALIVE_ATTEMPTS=2 KEEPALIVE_RETRY_DELAY=0 KEEPALIVE_TIMEOUT=5
@@ -223,12 +332,25 @@ PYSERVER
   fixture_start paused "$tmp"
   must_fail cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" \
     || die "probe passed against a server returning 503 db_unreachable"
-  local out; out=$( ( cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) 2>&1 || true )
+
+  local out
+  out=$( ( KEEPALIVE_RESOLVER="$tmp/dns-nxdomain"; cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) 2>&1 || true )
   printf '%s\n' "$out" | grep -q 'class=db_paused' \
-    || die "probe did not report class=db_paused for the auto-pause signature"
+    || die "probe did not report class=db_paused for 503 + a hostname that does not resolve"
   printf '%s\n' "$out" | grep -q 'prod-incident.md §3' \
     || die "the db_paused failure does not point at runbook §3"
-  ok "probe exits non-zero against a paused server and names runbook §3"
+  ok "503 + NXDOMAIN → db_paused, naming runbook §3"
+
+  # The regression Codex caught: before refinement, ANY database failure read as
+  # a pause and sent the owner to click Restore on a running project.
+  out=$( ( KEEPALIVE_RESOLVER="$tmp/dns-resolves"; cmd_probe "http://127.0.0.1:$FIXTURE_PORT/api/health" ) 2>&1 || true )
+  printf '%s\n' "$out" | grep -q 'class=db_unreachable' \
+    || die "a 503 whose host still resolves must NOT be reported as a pause"
+  printf '%s\n' "$out" | grep -q 'prod-incident.md §4' \
+    || die "the db_unreachable failure does not point at runbook §4"
+  printf '%s\n' "$out" | grep -q 'NOT an auto-pause' \
+    || die "the db_unreachable failure does not say plainly that it is not a pause"
+  ok "503 + a host that resolves → db_unreachable, naming runbook §4"
   fixture_stop
 
   fixture_start bad_body "$tmp"
@@ -263,10 +385,12 @@ sub="${1:-}"; shift || true
 case "$sub" in
   probe)     cmd_probe "$@" ;;
   classify)  cmd_classify "$@" ;;
+  refine)    cmd_refine "$@" ;;
   self-test) cmd_self_test ;;
   *)
-    echo "usage: bash scripts/keepalive-probe.sh <probe|classify|self-test> [args]" >&2
+    echo "usage: bash scripts/keepalive-probe.sh <probe|classify|refine|self-test> [args]" >&2
     echo "  probe    <url>" >&2
     echo "  classify <curl-exit> <http-code> <body>" >&2
+    echo "  refine   <class> <resolves|nxdomain|unknown>" >&2
     exit 2 ;;
 esac

@@ -437,6 +437,80 @@ autonomy #552, guardian primary #553). Three files conflicted:
   their selector is right and my retry is right. The resolution keeps both;
   taking either side alone would have reintroduced a bug.
 
+### T9 — Codex review round (2026-09-24)
+
+The draft→ready transition triggered the repo's Codex reviewer, which raised
+three P2s on `864a8db`. All three were real; all three are fixed here.
+
+**1. A database failure is not the same thing as a pause.** The sharpest of the
+three, because it undercut the cycle's own premise. `classify` mapped
+503 + `db_unreachable` straight to `db_paused`, and the failure message said the
+project "has almost certainly auto-paused" — but `app/api/health/route.ts`
+returns that identical body for *every* Prisma exception: bad credentials, an
+exhausted pooler, connection limits, a Supabase incident. One HTTP response
+cannot tell those apart from a pause. The alert would have sent the owner to
+click "Restore project" on a project that was running, which is precisely the
+wrong-runbook-section error this cycle was built to prevent — and the evidence
+was in my own runbook, which says the diagnosis is the *pair* of commands and
+then had the script use only the first.
+
+Fixed by implementing the second half rather than softening the claim:
+
+- `classify` now returns a generic `db_unreachable`. It is pure and stays pure.
+- A new pure `refine <class> <resolves|nxdomain|unknown>` promotes
+  `db_unreachable` + `nxdomain` → `db_paused`, and nothing else. A paused
+  Supabase project loses its DNS record outright; nothing else in this stack
+  does, which is what makes the pair conclusive where either half alone is not.
+- `probe` looks up the DB host only when the class warrants it, via an
+  injectable `KEEPALIVE_RESOLVER` so the self-test never does DNS.
+- The two failures now carry different messages and different sections:
+  `db_paused` → §3 restore; `db_unreachable` → §4, saying in words that it is
+  **not** a pause and that restoring will not help.
+
+A note on `getent`, which exits non-zero for a broken resolver as well as for
+NXDOMAIN — normally exactly the conflation this script exists to avoid. It is
+sound only because of *where* it is called: refinement runs after curl already
+reached the app and got a 503 back, so the runner's DNS demonstrably works. A
+host that fails to resolve there is the real thing. Where no resolver exists at
+all the answer is `unknown`, not `nxdomain` — a missing tool must never read as
+a vanished hostname.
+
+**2. A cadence breach notified nobody.** The schedule-freshness check emitted
+`::warning::` and was `continue-on-error`, and the `alert` job only runs when
+the probe fails — so a keepalive whose schedule had gone erratic was visible
+only in a run log nobody opens. That is the same silent-failure shape as
+`backup.yml`'s broken alert, one level up, inside the very workflow written to
+fix it.
+
+The step now writes `cadence=ok|degraded|unknown` to `$GITHUB_OUTPUT`, and two
+new jobs open and close a **`keepalive-degraded`** issue — a distinct label, a
+distinct title and a yellow colour, deliberately not `prod-down`. Prod can be
+perfectly healthy while the schedule is degraded, and crying outage over a
+scheduling problem is how an alarm teaches its owner to ignore it. The step
+keeps `continue-on-error` (the probe is the actual keepalive and a broken
+check-on-a-check must never stop the ping) and drops `set -e`, because a step
+that aborts writes no output, and a missing output is indistinguishable from a
+healthy one.
+
+**3. An open `prod-down` issue did not mean prod was down.** The issue opens on
+*any* keepalive-job failure — checkout, runner, script — and the rehearsal the
+Ship Notes ask for deliberately dispatches a wrong URL while production is fine.
+Both the issue body and runbook §3 asserted flatly that an open issue meant prod
+was down right now. Both now say the probe failed, tell the reader to confirm
+against the real URL first, and carry a class table mapping each class to what
+the probe actually established and which section to go to. The `resolve` job's
+comment claimed the same thing and is corrected too.
+
+Verification for this round: six mutations against the refinement logic, all
+caught — reverting `classify` to `db_paused`, making `refine` ignore DNS, making
+it never refine, removing the call from `probe`, reading a missing resolver as
+`nxdomain`, and ignoring the injected resolver. The first pass at the resolver
+test missed that last pair, because a machine that has `getent` never takes the
+fallback branch; `resolve_state` is now asserted directly. The new cadence
+`run` block was extracted from the parsed YAML and driven through all four
+states (fresh success, 30h-stale, no history, `gh` lookup failing) against a
+stub — every one writes an output, including the failure path.
+
 ## Verification
 
 Gates, run on the final tree:
