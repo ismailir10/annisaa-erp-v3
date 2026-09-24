@@ -40,7 +40,7 @@ import {
 import { ParentPicker, type PickableParent } from "@/components/admin/parent-picker";
 import type { ParentCandidate } from "@/lib/parent/match";
 import { deriveSiblings } from "@/lib/parent/siblings";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, guardianCreatePayload, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
@@ -162,6 +162,7 @@ export default function StudentDetailPage() {
   const [guardianForm, setGuardianForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
+  const [setPrimaryTarget, setSetPrimaryTarget] = useState<Guardian | null>(null);
 
   // Tambah Wali has three mutually exclusive steps inside one overlay, the
   // same shape the enroll dialog uses for its picker → 409-advisory flow:
@@ -665,7 +666,13 @@ export default function StudentDetailPage() {
     // childrenTotal is a string in the form (Input value) but the schema
     // coerces — send "" as null so the schema's optional/nullable path fires
     // rather than coercing the empty string to NaN.
-    const payload: Record<string, unknown> = { ...guardianForm };
+    // FIND-010: on CREATE, strip isPrimary unless the admin switched it on
+    // so the server's sibling-count default can fire (see helper doc
+    // comment). The EDIT (PUT) path sends isPrimary as-is — demoting via the
+    // Switch is legitimate there.
+    const payload: Record<string, unknown> = editingGuardian
+      ? { ...guardianForm }
+      : { ...guardianCreatePayload(guardianForm) };
     if (payload.childrenTotal === "") payload.childrenTotal = null;
     else payload.childrenTotal = Number(payload.childrenTotal);
     // T8: same coercion for childOrder. Empty → null clears the column;
@@ -717,7 +724,8 @@ export default function StudentDetailPage() {
     if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
     setSavingGuardian(true);
     try {
-      const payload: Record<string, unknown> = { ...guardianForm, confirmNew };
+      // FIND-010: strip isPrimary unless switched on — see saveGuardian().
+      const payload: Record<string, unknown> = { ...guardianCreatePayload(guardianForm), confirmNew };
       payload.childrenTotal = guardianForm.childrenTotal === "" ? null : Number(guardianForm.childrenTotal);
       payload.childOrder = guardianForm.childOrder === "" ? null : Number(guardianForm.childOrder);
 
@@ -767,6 +775,23 @@ export default function StudentDetailPage() {
     } else {
       const err = await res.json().catch(() => ({}));
       toast.error(err.error || "Gagal mengubah status wali");
+    }
+  }
+
+  async function setPrimaryGuardian() {
+    if (!setPrimaryTarget) return;
+    const res = await fetch(`/api/students/${id}/guardians/${setPrimaryTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPrimary: true }),
+    });
+    if (res.ok) {
+      toast.success(`${setPrimaryTarget.parent.name} kini wali utama`);
+      setSetPrimaryTarget(null);
+      fetchStudent();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error || "Gagal menjadikan wali utama");
     }
   }
 
@@ -876,6 +901,13 @@ export default function StudentDetailPage() {
   const kkGuardian = activeGuardians.find((g) => g.isPrimary) ?? activeGuardians[0] ?? null;
   const hasKk = kkGuardian?.parent.hasKk ?? false;
   const contactGuardian = kkGuardian;
+
+  const currentPrimary = activeGuardians.find((g) => g.isPrimary);
+  const setPrimaryDescription = setPrimaryTarget
+    ? `${setPrimaryTarget.parent.name} akan menjadi wali utama${
+        currentPrimary ? `, menggantikan ${currentPrimary.parent.name}` : ""
+      }. Tagihan dan tautan pembayaran akan dikirim ke wali utama.`
+    : undefined;
 
   // Presence only — this is "is the file on record", not a required-documents
   // policy. The school has not defined one, so nothing here is called missing.
@@ -1399,6 +1431,7 @@ export default function StudentDetailPage() {
                     guardian={g}
                     onEdit={openEditGuardian}
                     onToggleStatus={setDeleteGuardianTarget}
+                    onSetPrimary={setSetPrimaryTarget}
                   />
                 ))}
               </div>
@@ -2089,6 +2122,15 @@ export default function StudentDetailPage() {
         confirmLabel={deleteGuardianTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         destructive={deleteGuardianTarget?.status !== "INACTIVE"}
         onConfirm={deactivateGuardian}
+      />
+
+      <ConfirmDialog
+        open={!!setPrimaryTarget}
+        onOpenChange={(o) => !o && setSetPrimaryTarget(null)}
+        title="Jadikan wali utama?"
+        description={setPrimaryDescription}
+        confirmLabel="Jadikan Wali Utama"
+        onConfirm={setPrimaryGuardian}
       />
     </>
   );

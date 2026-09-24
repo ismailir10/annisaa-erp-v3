@@ -1,7 +1,6 @@
 ---
 name: build
-description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Folds in incremental-implementation, test-driven-development, source-driven-development, frontend-ui-engineering, api-and-interface-design, security-and-hardening, browser-testing-with-devtools, debugging-and-error-recovery, code-review-and-quality, and code-simplification from the upstream agent-skills plugin. Use after /spec has created a cycle doc.
-disable-model-invocation: true
+description: Execute the tasks in the current development cycle doc. Loops over tasks one at a time, implementing, testing, reviewing, and committing each separately with gates enforced between tasks. Use after /spec has created a cycle doc and the user has approved its Spec.
 ---
 
 # /build — build + test + review, looping over tasks
@@ -11,7 +10,7 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 ## Preflight
 
 1. **Session role set?** Check `.claude/session-role`. If missing, stop and ask the user.
-2. **Worktree isolation?** If `role=product-builder` and `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` (you're in the main checkout, not a worktree), stop and tell the user to create a worktree first. See `/spec` preflight step 2 for the commands.
+2. **Worktree isolation?** If `git rev-parse --git-dir` equals `git rev-parse --git-common-dir` you are in the main checkout, not a worktree. Stop — you should have been in a worktree since `/spec`. See `/spec` preflight step 2 for the commands.
 3. **Hooks installed?** Check `.githooks/.installed`. If missing, tell the user to run `scripts/install-hooks.sh`.
 4. **Current cycle doc?** Find the most recent `docs/cycles/*.md`. If its Tasks section is empty or missing, tell the user to run `/spec` first.
 5. **Working tree clean?** If not, ask whether to commit existing work, stash it, or abort. Never silently inherit someone else's dirty state.
@@ -19,15 +18,9 @@ You are executing the tasks from the current cycle doc. This is a **per-task loo
 
 ## Planning — model-tiered subagent dispatch
 
-See CLAUDE.md **§ Harness Roster & Model Tiering** for the full rule. Summary the loop enforces:
-
 **The expensive-tier driver never does cheap work.** As the driver you reason — decompose, review, synthesize, decide. Dirty work (file reads, grep/glob sweeps, per-module audits, mechanical edits, scaffolding, fixtures, single pre-specced slices) is delegated to a dirty-work-tier subagent.
 
-| Harness (from `.claude/session-role`) | Driver keeps | Dirty work delegates to |
-|---|---|---|
-| Claude | Opus 4.8 | `Task`/`Agent` subagent — Sonnet 4.6 (default), Haiku 4.5 (trivial) via `model` override |
-| Codex | gpt-5.5 high reasoning | gpt-5.5 low/minimal-effort subagent |
-| opencode | glm-5.2 | glm-5.2 subagent (no cheaper tier — keep cycles small; CTO review is the backstop) |
+Which model is the driver and which is the dirty-work tier for your harness lives in **CLAUDE.md § Harness Roster & Model Tiering** — read it there. This file used to restate that table and had drifted a full model generation out of date, so it no longer keeps a copy.
 
 **Mandatory fan-out — no cycle runs in a single context.** Before entering the loop, invoke **`superpowers:subagent-driven-development`** and classify:
 
@@ -39,25 +32,25 @@ The driver reads the subagents' distilled output, not the raw files — that is 
 Record the plan as a bullet in the cycle doc's `## Implementation` before starting:
 `- Subagent plan: driver=<model>, dirty-work=<model>; tasks [N,M] parallel, tasks [X,Y,Z] sequential.`
 
-If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), note that explicitly in the bullet and proceed inline — but that is the exception, not the default.
+If a cycle is small enough that fan-out costs more than it saves (1-2 trivial mechanical tasks), or the tasks are interlocking prose edits where a subagent would need the whole plan as context, note that explicitly in the bullet **with the reason** and proceed inline — but that is the exception, not the default. `/ship` preflight rejects a cycle doc with no `Subagent plan:` bullet at all.
 
 ## The task loop
 
 For each unchecked task in the cycle doc's `## Tasks` section, in order:
 
 ### 1. Load context
-Apply **`agent-skills:context-engineering`**. Read only the files this task needs. Check prior cycles in `docs/cycles/` if the area was recently touched.
+Read only the files this task needs — nothing "while you're in there". Check prior cycles in `docs/cycles/` if the area was recently touched.
 
 **Domain standards — load on demand.** For each task, identify which `.claude/standards/*.md` files the task's file list matches and read them before implementing. Load the **union** of matches — not the most specific — and re-check on every task (a previous task's loads do not carry forward).
 
 | Staged file glob | Load |
 |---|---|
 | `components/**`, `app/*/page.tsx`, `lib/format.ts` | `.claude/standards/ui.md` |
-| `app/api/**`, `lib/validations/**`, `middleware.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
+| `app/api/**`, `lib/validations/**`, `proxy.ts` | `.claude/standards/api.md` + `.claude/standards/security.md` |
 | `app/admin/**` **and** file contains `<Dialog` / `FormField` / `<Field` / a create-or-edit form pattern | **+** `.claude/standards/crud.md` |
 | `app/teacher/**`, `app/parent/**`, `app/**/layout.tsx`, `components/{teacher,parent}/**`, `lib/format.ts` | **+** `.claude/standards/portal.md` |
-| `app/globals.css`, `tailwind.config.*`, className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
-| `lib/auth*`, `middleware.ts` | **+** `.claude/standards/security.md` |
+| `app/globals.css` (the `@theme` block), className edits touching `bg-status-*` / `text-status-*`, or files containing arbitrary-color classNames (`text-[#…]`, `bg-[#…]`, `border-[#…]`) | **+** `.claude/standards/colors.md` |
+| `lib/auth*`, `lib/supabase/**`, `proxy.ts` | **+** `.claude/standards/security.md` |
 
 If a task touches files in multiple categories, load all matching standards files (e.g. an admin CRUD form that posts to an API route loads `ui.md` + `crud.md` + `api.md` + `security.md`).
 
@@ -67,7 +60,7 @@ If a task touches files in multiple categories, load all matching standards file
 |---|---|
 | `components/**`, `components/ui/**`, hover/focus/active/loading/empty states, transitions or keyframes | `better-ui` |
 | Any text styling — font config, type scale, headings, number/table cells, truncation, `text-wrap` | `better-typography` |
-| `app/globals.css`, `tailwind.config.*`, arbitrary-color classNames | `better-colors` (with `colors.md`) |
+| `app/globals.css` (the `@theme` block), arbitrary-color classNames | `better-colors` (with `colors.md`) |
 | `components/ui/**`, any Dialog/Sheet/Popover/Menu/custom widget, any form | `better-accessibility` |
 | `app/*/page.tsx`, `app/**/client.tsx`, `app/**/layout.tsx` — page/component structure | `better-layout` (with `patterns.md`) |
 | Any user-facing copy | `better-writing` (with `voice.md`) |
@@ -75,30 +68,28 @@ If a task touches files in multiple categories, load all matching standards file
 **Conflict rule:** `.claude/standards/*` + `design-system.html` win over any `better-*` principle. Use the skill where the project standard is silent; never to contradict it. Do not edit `.claude/skills/better-*` — vendored, see `.claude/skills/VENDORED.md`.
 
 ### 2. Verify against official docs (when relevant)
-If the task uses a framework, library, or API whose current behavior you're not 100% sure of, apply **`agent-skills:source-driven-development`**:
-- Use Context7 or the project's skills (`nextjs`, `supabase`, `shadcn`, etc.) to fetch current docs.
+If the task uses a framework, library, or API whose current behavior you're not 100% sure of:
+- Fetch the current docs through the **Context7 MCP** before writing against the API.
 - Never guess API shapes. Ground every non-trivial decision in a source.
 
 ### 3. Implement the slice
-Apply **`agent-skills:incremental-implementation`**:
 - One vertical slice, one test, one concern per task.
 - Touch only files the task requires. No orthogonal "cleanup".
 
-Auto-invoke domain skills based on what you're touching:
-- `app/components/**`, `app/*/page.tsx` → **`agent-skills:frontend-ui-engineering`** (Shadcn-first, accessibility, empty/loading/error states)
-- `app/api/**` → **`agent-skills:api-and-interface-design`** (pagination, Zod validation, standard response shape)
-- `app/api/**`, `lib/auth*`, `middleware.ts` → **`agent-skills:security-and-hardening`** (tenant filter, role check, rate limiting, Zod)
+The domain rules for what you are touching are the `.claude/standards/*` files Step 1 already
+told you to load — `ui.md` + `patterns.md` for components and pages, `api.md` for route handlers,
+`security.md` for anything auth, tenant, or role. Read them there; do not re-derive them here.
 
 ### 4. Test the slice
-Apply **`agent-skills:test-driven-development`**:
+Apply **`superpowers:test-driven-development`**:
 - Write a test that proves the slice works. Prefer failing-first when practical.
-- For UI, apply **`agent-skills:browser-testing-with-devtools`** where useful.
+- For UI, drive the real page through the **Playwright MCP** where a unit test cannot reach it.
 
 ### 5. Run gates
 ```bash
 npm run build && npx vitest run
 ```
-If either fails, apply **`agent-skills:debugging-and-error-recovery`**:
+If either fails, apply **`superpowers:systematic-debugging`**:
 - Read the error. Diagnose the root cause. Don't retry blindly.
 - Fix and re-run gates until they pass.
 
@@ -111,9 +102,9 @@ Before committing, dispatch the **`feature-dev:code-reviewer`** agent on the tas
 - **Blocker / high-confidence bug or security issue** → fix in this task, re-run gates, re-review. Do not commit until clean.
 - **Low-confidence or style nits** → note in the cycle doc's Implementation bullet; do not block the commit.
 
-Then apply **`agent-skills:code-simplification`** inline — reduce complexity without changing behavior.
+Then do a simplification pass on the diff: remove accidental complexity, collapse duplicated branches, prefer existing helpers, and keep behavior unchanged. If this harness has an installed simplification skill, use it; otherwise perform the pass inline and record any simplification in the cycle doc.
 
-For security-sensitive diffs (`app/api/**`, `lib/auth*`, `middleware.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
+For security-sensitive diffs (`app/api/**`, `lib/auth*`, `lib/supabase/**`, `proxy.ts`, or tenant/role logic), also dispatch **`superpowers:code-reviewer`** in parallel with `feature-dev:code-reviewer`. Both must clear before commit.
 
 ### 7. Update the cycle doc
 Edit the cycle doc:
@@ -144,7 +135,7 @@ Then move to the next task.
 
 ## After the last task
 
-1. Run the full gates one final time: `npm run build && npx vitest run`.
+1. Run the full gates one final time: `npm run build && npx vitest run`. Apply **`superpowers:verification-before-completion`**: paste the real tail of the output into `## Verification`, never a remembered or predicted result. This applies doubly to a subagent's report — a subagent has claimed "N pre-existing failures" that did not exist. Re-run anything a subagent says passed before you record it.
 1b. **Record Playwright status in `## Verification`** (`/ship` Step 1a requires it). Run `npx playwright test` if this harness can; record the pass. If the environment cannot run Playwright locally (no browsers, staging-only `DATABASE_URL`, Turbopack symlink issue, CI-only deps), record the deferral instead — the required CI `Playwright E2E` check gates the merge:
    ```markdown
    - Playwright: local run deferred to CI (env cannot execute it — <reason>).

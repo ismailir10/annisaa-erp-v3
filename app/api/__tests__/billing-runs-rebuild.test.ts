@@ -331,6 +331,22 @@ describe("POST /api/billing-runs/[id]/rebuild — happy path", () => {
     });
   });
 
+  it("only resolves ACTIVE primary guardians as the billing parent", async () => {
+    await primeAdminSession();
+    await wireRun(draftRun);
+    const wire = wireEligibleStudents([{ id: "s-1", name: "Budi" }]);
+    await wire();
+
+    await rebuildRun(
+      makeReq("http://localhost/api/billing-runs/run-1/rebuild", { confirm: true }) as never,
+      makeParams("run-1"),
+    );
+
+    const { prisma } = await import("@/lib/db");
+    const where = vi.mocked(prisma.studentGuardian.findMany).mock.calls[0][0]?.where;
+    expect(where).toMatchObject({ isPrimary: true, status: "ACTIVE" });
+  });
+
   it("drops a student who is no longer in scope", async () => {
     await primeAdminSession();
     // s-2 previously had a row on the draft (reflected via the EXCLUDED

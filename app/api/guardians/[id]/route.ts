@@ -157,7 +157,10 @@ export async function PATCH(
 
   const updated = await prisma.studentGuardian.update({
     where: { id },
-    data: { status: newStatus },
+    // T2: deactivating clears isPrimary in the same write — an INACTIVE
+    // guardian must never stay billed/contacted as primary. Reactivation
+    // leaves isPrimary untouched; re-promotion stays an explicit admin act.
+    data: newStatus === "INACTIVE" ? { status: newStatus, isPrimary: false } : { status: newStatus },
     include: { parent: true },
   });
 

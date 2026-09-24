@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import Link from "next/link";
-import { Pencil, Trash2, Phone, Mail, MessageCircle } from "lucide-react";
+import { Pencil, Trash2, Star, Phone, Mail, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MaskedValue } from "@/components/admin/masked-value";
@@ -67,10 +67,12 @@ export const GuardianDetailCard = memo(function GuardianDetailCard({
   guardian,
   onEdit,
   onToggleStatus,
+  onSetPrimary,
 }: {
   guardian: GuardianCardData;
   onEdit?: (g: GuardianCardData) => void;
   onToggleStatus?: (g: GuardianCardData) => void;
+  onSetPrimary?: (g: GuardianCardData) => void;
 }) {
   const p = guardian.parent;
   const workplace = [p.employer, p.employerCity].filter(Boolean).join(", ");
@@ -102,6 +104,19 @@ export const GuardianDetailCard = memo(function GuardianDetailCard({
           </div>
         </Link>
         <div className="flex shrink-0 gap-1">
+          {onSetPrimary && !guardian.isPrimary && guardian.status !== "INACTIVE" && (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              aria-label={`Jadikan ${p.name} wali utama`}
+              title="Jadikan wali utama"
+              onClick={() => onSetPrimary(guardian)}
+            >
+              <Star size={12} aria-hidden="true" />
+            </Button>
+          )}
           {onEdit && (
             <Button
               type="button"

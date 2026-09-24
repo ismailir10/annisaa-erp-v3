@@ -58,7 +58,7 @@ export async function createPaymentSessionForInvoice(
     include: {
       student: {
         include: {
-          guardians: { where: { isPrimary: true }, take: 1, include: { parent: true } },
+          guardians: { where: { isPrimary: true, status: "ACTIVE" }, take: 1, include: { parent: true } },
         },
       },
       lines: true,

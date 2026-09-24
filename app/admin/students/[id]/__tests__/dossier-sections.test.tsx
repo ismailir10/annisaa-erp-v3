@@ -188,14 +188,15 @@ const urlsMatching = (calls: Calls, needle: string) =>
  * trigger toggles, so a plain name query is ambiguous and would pick the nav
  * button, which opens but never closes.
  */
-// Retries rather than reading the DOM once — same race as the twin helper in
-// dossier-increment-3.test.tsx, which failed CI on 2026-09-09. The `waitFor`
-// the callers run first only proves the fetch was *issued*, not that React
-// committed the render that creates this trigger. Fixed here too so the same
-// landmine is not left waiting in a sibling suite.
+// Staging moved the lookup to the section's data-slot trigger (the markup the
+// guardian work introduced); this keeps that selector and re-adds the retry.
+// The `waitFor` the callers run first only proves the fetch was *issued*, not
+// that React committed the render that creates this trigger, so a one-shot
+// read is a race — the one that failed CI on 2026-09-09 in the twin suite.
 async function sectionTrigger(sectionId: string): Promise<HTMLElement> {
   return await waitFor(() => {
-    const el = document.querySelector<HTMLElement>(`[aria-controls="${sectionId}-content"]`);
+    const section = document.getElementById(sectionId);
+    const el = section?.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]');
     if (!el) throw new Error(`no disclosure trigger for section "${sectionId}"`);
     return el;
   });
