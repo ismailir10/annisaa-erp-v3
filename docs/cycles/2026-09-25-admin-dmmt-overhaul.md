@@ -237,6 +237,12 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - report-cards: "Buat/Edit Triwulan" becomes "Tambah/Ubah Triwulan", with trigger, title and submit aligned.
   - Page wrappers are fixed on report-cards, report-cards/templates, assessments, and classes (classes keeps `min-w-0` for table overflow).
   - Review: no issues.
+- T6a: guardians/[id] Dossier.
+  - Files: `app/admin/guardians/[id]/page.tsx` and the new `__tests__/dossier-sections.test.tsx`.
+  - AdminTabs and the loose cards become DossierNav plus 4 sections, `profile`, `documents`, `children`, `invoices`, with a DetailRail (child count, invoices, receivables tiles, quick contact, document checklist) built from the already-fetched data.
+  - Hash deep-link and mobile collapse effects mirror students/[id].
+  - Review: no issues on this page.
+
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
