@@ -1,21 +1,22 @@
 "use client";
 
-import { Column } from "@tanstack/react-table";
+import type { LegacyColumn as Column } from "@tanstack/react-table/legacy";
+import type { RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-interface DataTableColumnHeaderProps<TData, TValue> {
-  column: Column<TData, TValue>;
+interface DataTableColumnHeaderProps<TData extends RowData> {
+  column: Column<TData>;
   title: string;
   className?: string;
 }
 
-export function DataTableColumnHeader<TData, TValue>({
+export function DataTableColumnHeader<TData extends RowData>({
   column,
   title,
   className,
-}: DataTableColumnHeaderProps<TData, TValue>) {
+}: DataTableColumnHeaderProps<TData>) {
   if (!column.getCanSort()) {
     return <div className={cn(className)}>{title}</div>;
   }

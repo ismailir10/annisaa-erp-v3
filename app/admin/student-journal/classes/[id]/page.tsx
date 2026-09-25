@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Progress } from "@/components/ui/progress";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { Button } from "@/components/ui/button";

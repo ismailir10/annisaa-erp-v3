@@ -1,14 +1,14 @@
 "use client";
 
+import { flexRender } from "@tanstack/react-table";
+import type { RowData, SortingState } from "@tanstack/react-table";
 import {
-  ColumnDef,
-  flexRender,
   getCoreRowModel,
-  useReactTable,
-  SortingState,
-  getSortedRowModel,
   getPaginationRowModel,
-} from "@tanstack/react-table";
+  getSortedRowModel,
+  useLegacyTable,
+} from "@tanstack/react-table/legacy";
+import type { LegacyColumnDef } from "@tanstack/react-table/legacy";
 import { useEffect, useState } from "react";
 import {
   Table,
@@ -23,8 +23,8 @@ import { EmptyState } from "./empty-state";
 import { Skeleton } from "./skeleton";
 import { Inbox } from "lucide-react";
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+interface DataTableProps<TData extends RowData> {
+  columns: LegacyColumnDef<TData>[];
   data: TData[];
   pagination?: {
     page: number;
@@ -41,7 +41,7 @@ interface DataTableProps<TData, TValue> {
   loading?: boolean;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   pagination,
@@ -52,7 +52,7 @@ export function DataTable<TData, TValue>({
   emptyTitle = "Belum ada data untuk ditampilkan",
   emptyDescription,
   loading = false,
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>(
     defaultSort
       ? [{ id: defaultSort.field, desc: defaultSort.order === "desc" }]
@@ -78,7 +78,7 @@ export function DataTable<TData, TValue>({
     setClientPage((page) => Math.min(page, clientTotalPages));
   }, [clientTotalPages, isClientPaginated]);
 
-  const table = useReactTable({
+  const table = useLegacyTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),

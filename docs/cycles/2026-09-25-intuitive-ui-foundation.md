@@ -65,6 +65,8 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 - Responsive browser verification found shared StatCard labels overlapping their icons at 320 px (finance and payroll). The text column now permits long-word wrapping and the narrow-screen label/icon gap uses the smaller existing spacing utility. Full labels, values, icons, semantic tokens, and the design-system stat-card hierarchy are retained; no typography-size reduction or hidden text.
 
+- A second visual pass found that wrapping alone fragmented ordinary words at 320 px. Decorative stat icons now use 24 px containers and 16 px glyphs below the existing `sm` breakpoint, recovering 16 px for readable labels while retaining 40 px/20 px desktop icons and wrapping as a fallback.
+
 ## Verification
 
 - Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.

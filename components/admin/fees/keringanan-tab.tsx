@@ -16,7 +16,7 @@
 // `reason` / validity window.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
