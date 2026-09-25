@@ -313,7 +313,7 @@ export type ParentReportCard = {
  * so it is fetched in a second query and joined by `termId` in memory.
  *
  * Cached 2 minutes, tagged `parent-report-cards` so admin publish/unpublish
- * (app/api/admin/raport/_helpers.ts `setPublishState`) can invalidate it.
+ * (app/api/admin/report-cards/_helpers.ts `setPublishState`) can invalidate it.
  */
 export const getPublishedReportCardsForStudent = unstable_cache(
   async (studentId: string, tenantId: string): Promise<ParentReportCard[]> => {
@@ -376,7 +376,7 @@ export const getPublishedReportCardsForStudent = unstable_cache(
   },
   ["parent-report-cards"],
   // Tag must stay in sync with the revalidateTag call in
-  // app/api/admin/raport/_helpers.ts `setPublishState`.
+  // app/api/admin/report-cards/_helpers.ts `setPublishState`.
   { revalidate: 120, tags: ["parent-report-cards"] },
 );
 

@@ -21,7 +21,7 @@ function stubFetch() {
         }),
       });
     }
-    // /api/admin/raport/templates
+    // /api/admin/report-cards/templates
     return Promise.resolve({
       ok: true,
       json: async () => ({ data: { bucketed: {}, closing: {} } }),
@@ -42,7 +42,7 @@ describe("RaportTemplatesPage header action", () => {
     render(<RaportTemplatesPage />);
 
     const link = await screen.findByRole("link", { name: "Susun Rapor" });
-    expect(link).toHaveAttribute("href", "/admin/raport");
+    expect(link).toHaveAttribute("href", "/admin/report-cards");
     expect(screen.queryByRole("link", { name: "Ke Rapor Siswa" })).not.toBeInTheDocument();
   });
 

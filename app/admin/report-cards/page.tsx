@@ -149,7 +149,7 @@ export default function AdminRaportPage() {
     setLoadingRoster(true);
     setRosterError(null);
     try {
-      const res = await fetch(`/api/admin/raport?termId=${termId}&classSectionId=${classId}`);
+      const res = await fetch(`/api/admin/report-cards?termId=${termId}&classSectionId=${classId}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         setRosterError(body.error ?? "Gagal memuat daftar siswa.");

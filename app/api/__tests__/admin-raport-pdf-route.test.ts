@@ -24,7 +24,7 @@ vi.mock("@react-pdf/renderer", () => ({
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
-import { GET } from "@/app/api/admin/raport/[studentId]/[termId]/pdf/route";
+import { GET } from "@/app/api/admin/report-cards/[studentId]/[termId]/pdf/route";
 
 const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
 const DENY = { error: Response.json({ error: "forbidden" }, { status: 403 }) };
@@ -33,7 +33,7 @@ const TERM = { id: "term1", number: 1, startDate: new Date(), endDate: new Date(
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("GET /api/admin/raport/[studentId]/[termId]/pdf", () => {
+describe("GET /api/admin/report-cards/[studentId]/[termId]/pdf", () => {
   it("403 when denied", async () => {
     requirePermission.mockResolvedValue(DENY);
     expect((await GET({} as never, ctx)).status).toBe(403);

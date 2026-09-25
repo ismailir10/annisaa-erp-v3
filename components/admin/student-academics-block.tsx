@@ -12,7 +12,7 @@ import { formatDateShort } from "@/lib/format";
  * state and how much of the child's IKTP indicator set has been assessed in it.
  *
  * Read-only, like Keuangan and Keringanan. Authoring a raport is a long form
- * with its own bank-narasi and publish workflow on `/admin/raport`, and
+ * with its own bank-narasi and publish workflow on `/admin/report-cards`, and
  * recording penilaian belongs to the teacher — so every row deep-links out
  * rather than growing an editor here. The dossier's job is to answer "where is
  * this child's raport, and is anyone assessing them".
@@ -58,7 +58,7 @@ function coverageTone(pct: number | null): string {
 function raportHref(studentId: string, termId: string, classSectionId: string | null): string {
   const params = new URLSearchParams({ termId, studentId });
   if (classSectionId) params.set("classSectionId", classSectionId);
-  return `/admin/raport?${params.toString()}`;
+  return `/admin/report-cards?${params.toString()}`;
 }
 
 export const StudentAcademicsBlock = memo(function StudentAcademicsBlock({
@@ -106,7 +106,7 @@ export const StudentAcademicsBlock = memo(function StudentAcademicsBlock({
   }, [active]);
 
   const penilaianLink = (
-    <Link href="/admin/penilaian" className="text-sm text-primary-text hover:underline">
+    <Link href="/admin/assessments" className="text-sm text-primary-text hover:underline">
       Buka monitor Penilaian →
     </Link>
   );

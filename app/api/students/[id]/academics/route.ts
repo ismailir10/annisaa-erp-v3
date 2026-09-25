@@ -17,7 +17,7 @@ import {
  * term's penilaian coverage.
  *
  * Read-only and aggregates-only, like `/overview`. The Akademik section it
- * feeds owns no writes at all — authoring a raport lives on `/admin/raport` and
+ * feeds owns no writes at all — authoring a raport lives on `/admin/report-cards` and
  * recording penilaian lives with the teacher, so each row deep-links out rather
  * than growing an editor here.
  *

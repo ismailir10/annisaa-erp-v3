@@ -76,7 +76,7 @@ test.describe("Parent rapor (ReportCardEntry)", () => {
     // As guardian: a bogus student/term → flat 404 (ownership + existence).
     await loginAs(page, guardianUserId);
     const notOwned = await page.request.get(
-      "/api/guardian/raport/does-not-exist/does-not-exist/pdf",
+      "/api/guardian/report-cards/does-not-exist/does-not-exist/pdf",
     );
     expect(notOwned.status()).toBe(404);
 
@@ -85,7 +85,7 @@ test.describe("Parent rapor (ReportCardEntry)", () => {
     await page.context().clearCookies();
     await loginAs(page, adminUserId);
     const asAdmin = await page.request.get(
-      "/api/guardian/raport/does-not-exist/does-not-exist/pdf",
+      "/api/guardian/report-cards/does-not-exist/does-not-exist/pdf",
     );
     expect(asAdmin.status()).toBe(403);
   });

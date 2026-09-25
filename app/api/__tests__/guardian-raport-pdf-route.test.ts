@@ -25,7 +25,7 @@ vi.mock("@react-pdf/renderer", () => ({
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
-import { GET } from "@/app/api/guardian/raport/[studentId]/[termId]/pdf/route";
+import { GET } from "@/app/api/guardian/report-cards/[studentId]/[termId]/pdf/route";
 
 const GUARDIAN = { tenantId: "t1", parentId: "p1", email: "siti@x.com", role: "GUARDIAN" };
 const ctx = { params: Promise.resolve({ studentId: "s1", termId: "term1" }) };
@@ -48,7 +48,7 @@ const ENTRY = {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("GET /api/guardian/raport/[studentId]/[termId]/pdf", () => {
+describe("GET /api/guardian/report-cards/[studentId]/[termId]/pdf", () => {
   it("403 when not a guardian session", async () => {
     getSession.mockResolvedValue({ tenantId: "t1", role: "SCHOOL_ADMIN" });
     expect((await GET({} as never, ctx)).status).toBe(403);

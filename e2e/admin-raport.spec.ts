@@ -20,8 +20,8 @@ test.describe("Admin raport", () => {
         sameSite: "Lax",
       },
     ]);
-    await page.goto("/admin/raport");
-    await page.waitForURL("**/admin/raport", { timeout: 15_000 });
+    await page.goto("/admin/report-cards");
+    await page.waitForURL("**/admin/report-cards", { timeout: 15_000 });
   });
 
   test("raport surface loads", async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe("Admin raport", () => {
     expect(Array.isArray(termsJson.data)).toBe(true);
 
     // Missing params → 400, proving the roster route is wired + validated.
-    const roster = await page.request.get("/api/admin/raport");
+    const roster = await page.request.get("/api/admin/report-cards");
     expect(roster.status()).toBe(400);
   });
 });

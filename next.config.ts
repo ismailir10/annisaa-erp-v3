@@ -28,29 +28,46 @@ const nextConfig: NextConfig = {
       },
       {
         // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
-        // admin surfaces retired → single new monitor at /admin/penilaian.
+        // admin surfaces retired → single new monitor, now at /admin/assessments
+        // (renamed from /admin/penilaian on 2026-09-25 — English-only route
+        // slugs; see /admin/penilaian → /admin/assessments rules below).
         //
         // As of 2026-07-31 the page files behind these paths are deleted, so
         // these rules are no longer masking dead code — they ARE the handler.
         // Kept deliberately: staff bookmarks from the pre-consolidation UI
         // would otherwise 404, and a redirect rule costs nothing.
-        source: "/admin/assessments",
-        destination: "/admin/penilaian",
-        permanent: true,
-      },
-      {
-        source: "/admin/assessments/:path*",
-        destination: "/admin/penilaian",
-        permanent: true,
-      },
-      {
+        //
+        // NOTE: /admin/assessments and /admin/assessments/:path* are NOT
+        // redirect sources here — since 2026-09-25 that path IS the real
+        // monitor page, not a legacy alias.
         source: "/admin/assessment-templates",
-        destination: "/admin/penilaian",
+        destination: "/admin/assessments",
         permanent: true,
       },
       {
         source: "/admin/assessment-templates/:path*",
-        destination: "/admin/penilaian",
+        destination: "/admin/assessments",
+        permanent: true,
+      },
+      {
+        // English-only URL slugs (2026-09-25): old Indonesian admin routes.
+        source: "/admin/penilaian",
+        destination: "/admin/assessments",
+        permanent: true,
+      },
+      {
+        source: "/admin/penilaian/:path*",
+        destination: "/admin/assessments/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/raport",
+        destination: "/admin/report-cards",
+        permanent: true,
+      },
+      {
+        source: "/admin/raport/:path*",
+        destination: "/admin/report-cards/:path*",
         permanent: true,
       },
       {

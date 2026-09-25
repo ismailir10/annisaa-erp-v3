@@ -23,7 +23,7 @@ function resolveYmd(param: string | null): { ymd: string; date: Date } | null {
 }
 
 /**
- * GET /api/admin/penilaian?week=YYYY-MM-DD&day=YYYY-MM-DD
+ * GET /api/admin/assessments?week=YYYY-MM-DD&day=YYYY-MM-DD
  *
  * Read-only admin monitor over the new IKTP penilaian (`AssessmentEntry`):
  * walas-weekly completion per class + sentra-daily entries per center for

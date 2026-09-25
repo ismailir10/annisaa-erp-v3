@@ -9,7 +9,7 @@ import { resolveTerm } from "../../../_helpers";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 /**
- * GET /api/admin/raport/[studentId]/[termId]/pdf
+ * GET /api/admin/report-cards/[studentId]/[termId]/pdf
  *
  * Streams the per-student raport as a PDF (@react-pdf/renderer). Requires a
  * saved entry (404 otherwise). Gated by `reportCard.read`. Tenant-scoped.

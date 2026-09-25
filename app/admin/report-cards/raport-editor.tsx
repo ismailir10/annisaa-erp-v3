@@ -152,7 +152,7 @@ export function RaportEditor({
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`/api/admin/raport/${studentId}/${termId}`);
+      const res = await fetch(`/api/admin/report-cards/${studentId}/${termId}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         setError(body.error ?? "Gagal memuat rapor.");
@@ -221,7 +221,7 @@ export function RaportEditor({
       const sectionNarratives: Record<string, string> = {};
       for (const [k, v] of Object.entries(narratives)) if (v.trim()) sectionNarratives[k] = v.trim();
 
-      const res = await fetch(`/api/admin/raport/${studentId}/${termId}`, {
+      const res = await fetch(`/api/admin/report-cards/${studentId}/${termId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -258,7 +258,7 @@ export function RaportEditor({
       // Persist current edits first so publish acts on what the admin sees.
       if (publish && !(await save())) return;
       const res = await fetch(
-        `/api/admin/raport/${studentId}/${termId}/${publish ? "publish" : "unpublish"}`,
+        `/api/admin/report-cards/${studentId}/${termId}/${publish ? "publish" : "unpublish"}`,
         { method: "POST" },
       );
       if (!res.ok) {
@@ -385,7 +385,7 @@ export function RaportEditor({
         )}
         <Button
           variant="ghost"
-          onClick={() => window.open(`/api/admin/raport/${studentId}/${termId}/pdf`, "_blank")}
+          onClick={() => window.open(`/api/admin/report-cards/${studentId}/${termId}/pdf`, "_blank")}
           disabled={status === "NONE"}
         >
           <Download className="size-4" /> Unduh PDF

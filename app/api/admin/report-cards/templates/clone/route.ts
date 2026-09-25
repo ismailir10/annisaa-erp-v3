@@ -14,7 +14,7 @@ import {
 import { loadTemplateGrid } from "../_shared";
 
 /**
- * POST /api/admin/raport/templates/clone
+ * POST /api/admin/report-cards/templates/clone
  *
  * Copy a cohort's bank narasi into another (term, ageGroup) — the "reusable
  * next academic year" path from the master design §2.3.

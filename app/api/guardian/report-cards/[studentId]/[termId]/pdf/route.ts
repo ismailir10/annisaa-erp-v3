@@ -5,13 +5,13 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { ReportCardPdf } from "@/lib/pdf/report-card";
 import { buildReportCardData } from "@/lib/raport/build";
-import { resolveTerm } from "@/app/api/admin/raport/_helpers";
+import { resolveTerm } from "@/app/api/admin/report-cards/_helpers";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 type Ctx = { params: Promise<{ studentId: string; termId: string }> };
 
 /**
- * GET /api/guardian/raport/[studentId]/[termId]/pdf
+ * GET /api/guardian/report-cards/[studentId]/[termId]/pdf
  *
  * Guardian-facing raport PDF — the parent portal's "Unduh PDF". Mirrors the
  * admin PDF route's render (shared `buildReportCardData` + `ReportCardPdf`) but

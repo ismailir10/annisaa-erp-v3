@@ -43,7 +43,7 @@ async function resolveAgeGroup(
 }
 
 /**
- * GET /api/admin/raport/[studentId]/[termId]
+ * GET /api/admin/report-cards/[studentId]/[termId]
  *
  * Returns the saved report card (if any) PLUS the always-computed auto-draft
  * (suggested section levels + counts + auto-pulled attendance) so the UI can
@@ -101,7 +101,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 }
 
 /**
- * PUT /api/admin/raport/[studentId]/[termId]
+ * PUT /api/admin/report-cards/[studentId]/[termId]
  *
  * Upsert the admin's report card (section levels + narratives + attendance +
  * hafalan + measurements). Does NOT change publish state (separate endpoint).

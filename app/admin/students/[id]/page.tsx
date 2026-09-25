@@ -1615,7 +1615,7 @@ export default function StudentDetailPage() {
           {/* ---------- Akademik (increment 3, lazy) ----------
               Raport state per triwulan + that term's penilaian coverage, over
               GET /api/students/[id]/academics. Read-only: every row deep-links
-              to /admin/raport, which owns the authoring and the publish. */}
+              to /admin/report-cards, which owns the authoring and the publish. */}
           <DossierSection
             id={SECTION_AKADEMIK}
             label="Akademik"

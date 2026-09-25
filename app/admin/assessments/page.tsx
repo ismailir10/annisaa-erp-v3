@@ -66,7 +66,7 @@ export default function AdminPenilaianPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ week: weekDate, day: sentraDay });
-      const res = await fetch(`/api/admin/penilaian?${params}`);
+      const res = await fetch(`/api/admin/assessments?${params}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         setError(body.error ?? "Gagal memuat data penilaian.");
@@ -97,7 +97,7 @@ export default function AdminPenilaianPage() {
             : "Pantau kelengkapan penilaian walas pekanan & sentra harian"
         }
         actions={
-          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+          <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <FileText className="size-4" /> Susun Rapor
           </Link>
         }

@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth-guards";
 import { resolveTerm } from "./_helpers";
 
 /**
- * GET /api/admin/raport?termId=&classSectionId=
+ * GET /api/admin/report-cards?termId=&classSectionId=
  *
  * Roster for one class + term with each student's raport status
  * (NONE | DRAFT | PUBLISHED). Gated by `reportCard.read`. Tenant-scoped.

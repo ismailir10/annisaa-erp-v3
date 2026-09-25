@@ -79,7 +79,7 @@ export default function RaportTemplatesPage() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/admin/raport/templates?termId=${encodeURIComponent(termId)}&ageGroup=${ageGroup}`,
+        `/api/admin/report-cards/templates?termId=${encodeURIComponent(termId)}&ageGroup=${ageGroup}`,
       );
       const body = (await res.json()) as {
         data?: { bucketed: Record<string, string>; closing: Record<string, string> };
@@ -123,7 +123,7 @@ export default function RaportTemplatesPage() {
         section,
         content: closing[section] ?? "",
       }));
-      const res = await fetch("/api/admin/raport/templates", {
+      const res = await fetch("/api/admin/report-cards/templates", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ termId, ageGroup, narratives, closings }),
@@ -152,7 +152,7 @@ export default function RaportTemplatesPage() {
     if (!termId || !cloneSourceTermId) return;
     setCloning(true);
     try {
-      const res = await fetch("/api/admin/raport/templates/clone", {
+      const res = await fetch("/api/admin/report-cards/templates/clone", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ export default function RaportTemplatesPage() {
         title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
-          <Link href="/admin/raport" className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
             Susun Rapor
           </Link>
         }
@@ -245,7 +245,7 @@ export default function RaportTemplatesPage() {
           title="Belum ada triwulan"
           description="Buat triwulan terlebih dahulu di halaman Rapor sebelum menyusun narasi."
           actionLabel="Susun Rapor"
-          actionHref="/admin/raport"
+          actionHref="/admin/report-cards"
         />
       )}
 
