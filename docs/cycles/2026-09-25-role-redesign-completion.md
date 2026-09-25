@@ -21,7 +21,7 @@ The route inventory at the start of this cycle is 41 admin pages, 13 teacher pag
 - [x] Task 2: Make parent home and child journeys family-first with persistent identity and authoritative billing states.
 - [x] Task 3: Add the permission-filtered admin work queue and close the invoice-create authorization gap.
 - [x] Task 4: Apply and document shared consistency across all 62 portal page routes, recording route-level coverage and preserving capabilities.
-- [ ] Task 5: Complete independent review, responsive/browser verification, full gates, and ship evidence.
+- [x] Task 5: Complete independent review, responsive/browser verification, full gates, and ship evidence.
 
 ## Implementation
 
@@ -109,9 +109,11 @@ Every route below was included in the first desktop browser sweep at 320/390/768
 
 ## Verification
 
+- Final runtime source `563b992d9fe311f44b475c7d5c0dc02dd3578f16`, build `xTOXuhXswtbMxUmw5eEZ0`: production build and all **3,456 unit tests passed**; full local Playwright **151 passed, eight existing skips, zero failures/retries**. The final two-detail rendered check passed **6/6** at 320/390/1440, including actual email/identifier text bounds and badge bounds within cards. Both final clipping findings are resolved. Evidence: `docs/cycles/screenshots/role-redesign-completion/details-563b992d/detail-verification.json` and its six screenshots; earlier source-specific route/frame/contrast evidence is preserved separately.
+
 - Shipping review: test-skip count remains 31 → 31 against staging `13661f07`; no new skip, TODO, or demo-mode bypass. Actual diff remains auth-impacting. Final detail wrapping modifies only Tailwind class names, preserving handlers, domain state, permissions, and existing desktop columns.
 
-- Final narrow-content review on `59254ff4`: 16-route automated delta and reference-frame checks passed; manual screenshots caught guardian contact/child-badge clipping and overlapping long student NIS/NISN values at 320px. The final responsive field-layout correction passed the production build, all 3,456 unit tests, scoped lint, and independent class-only diff review; its targeted rendered recheck follows. Automated page-width checks alone did not detect clipped card contents.
+- Final narrow-content review on `59254ff4`: 16-route automated delta and reference-frame checks passed; manual screenshots caught guardian contact/child-badge clipping and overlapping long student NIS/NISN values at 320px. The final responsive field-layout correction passed the production build, all 3,456 unit tests, scoped lint, and independent class-only diff review; its targeted rendered recheck passed as recorded above. Automated page-width checks alone did not detect clipped card contents.
 
 - Final frame/contrast correction batch: production build passed, original Next config restored byte-for-byte, and full Vitest passed **366 suites / 3,456 tests** (two skipped suites, 42 TODO). The parent journal regression now waits for the actual child/week request effect and verifies sibling navigation preserves week/notes; its scheduling race was reproduced and resolved, then all 13 tests passed three stress runs with two CPU hogs. Scoped ESLint and independent review passed for every final changed file.
 - Final contrast changes are exclusively semantic text-token substitutions: 22 meaningful text uses across 15 files. `primary-text` measures 5.00:1 against white and 4.57:1 against the attendance highlight. No layout, state, event, or permission behavior changed.
@@ -134,7 +136,7 @@ Every route below was included in the first desktop browser sweep at 320/390/768
 
 ## Ship Notes
 
-- Runtime implementation is committed in role slices; browser-discovered corrections and final acceptance are in progress. Task 5 remains open until current-source gates and rendered verification are complete. Do not merge on pending/red checks.
+- Runtime implementation and all local acceptance tasks are complete in reviewable commits. Signed-in preview verification and the four protected checks gate staging merge; do not merge on pending/red checks.
 - Verification route: **auth-impacting** because the diff tightens teacher roster, finance, and leave guards. Signed-in, role-specific PR preview verification is required in addition to local demo-auth/disposable-database checks. Use the already authorized local role-account configuration; do not commit account identifiers or private preview data.
-- Final Playwright, rebuilt all-route screenshots/reference-frame verification, signed-in preview, and the four protected CI checks remain required. Native 200% zoom passed as recorded above. Mobile layouts and synthetic keyboard/failure checks do not constitute testing on physical mobile hardware.
+- Full local Playwright, all-route screenshots, rebuilt reference-frame verification, final detail checks, and native 200% zoom passed as recorded above. Signed-in preview and the four protected CI checks remain required. Mobile layouts and synthetic keyboard/failure checks do not constitute testing on physical mobile hardware.
 - No migration, dependency change, or new environment variable. Rollback is a revert of this cycle's commits. Production promotion is separate and is not part of this cycle.
