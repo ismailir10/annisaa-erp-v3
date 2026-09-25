@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     // this legacy tab and the session-based "Sesi Hari Ini" card can never
     // both create a row for the same student/day (was silently double-
     // counting in the admin monthly recap, which groups by status without
-    // deduping by date — see docs/cycles/2026-07-12-pilot-readiness-audit.md
+    // deduping by date — see docs/cycles/archive/2026-07-12-pilot-readiness-audit.md
     // T2). Multi-shift days (DCARE MORNING+AFTERNOON) have >1 session and
     // fall back to the pre-existing sessionId:null path unchanged — Task 7
     // still owns fully resolving that case.

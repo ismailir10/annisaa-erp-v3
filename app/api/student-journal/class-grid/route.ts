@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { JournalStatus } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/db";
 import { requireTeacherForClass } from "@/lib/student-journal/guards";
+import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
 
 /**
  * GET /api/student-journal/class-grid?classSectionId=&date=
@@ -27,19 +28,29 @@ export async function GET(req: NextRequest) {
   if (guard.error) return guard.error;
   const { session } = guard;
 
-  // Fetch active student enrollments sorted by student name
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: {
-      classSectionId,
-      status: "ACTIVE",
-    },
-    include: {
-      student: {
-        select: { id: true, name: true, nickname: true },
+  // Fetch active student enrollments sorted by student name, plus the class the
+  // grid is for — the entry page header said only "Isi Buku Penghubung" + a
+  // date, so a guru teaching two classes could not tell which roster was open.
+  // Fetched here rather than derived from an enrollment row so an empty class
+  // still names itself.
+  const [enrollments, classSection] = await Promise.all([
+    prisma.studentEnrollment.findMany({
+      where: {
+        classSectionId,
+        status: "ACTIVE",
       },
-    },
-    orderBy: { student: { name: "asc" } },
-  });
+      include: {
+        student: {
+          select: { id: true, name: true, nickname: true },
+        },
+      },
+      orderBy: { student: { name: "asc" } },
+    }),
+    prisma.classSection.findFirst({
+      where: { id: classSectionId, tenantId: session.tenantId },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   const students = enrollments.map((e) => ({
     id: e.student.id,
@@ -85,5 +96,22 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ data: { students, categories, entries } });
+  // Unread catatan per student, for the roster badge. One query for the whole
+  // class rather than one per row — a 30-student roster would otherwise be 30
+  // round trips for a number most rows render as nothing.
+  const unreadNoteCounts = await countUnreadNotesByStudent({
+    tenantId: session.tenantId,
+    studentIds: students.map((s) => s.id),
+    readerUserId: session.id,
+  });
+
+  return NextResponse.json({
+    data: {
+      students,
+      categories,
+      entries,
+      classSection,
+      unreadNoteCounts,
+    },
+  });
 }

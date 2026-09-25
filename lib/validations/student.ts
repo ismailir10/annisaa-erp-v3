@@ -38,6 +38,11 @@ export const updateStudentSchema = createStudentSchema.partial().extend({
 
 export const enrollStudentSchema = z.object({
   classSectionId: z.string().min(1, "Kelas wajib dipilih"),
+  // Required only when the age-fit check comes back BELOW_MIN/ABOVE_MAX and
+  // the admin chooses to proceed anyway — see evaluateAgeFit in
+  // lib/enrollment/age-fit.ts. Free text, non-empty; written into the
+  // AuditLog `after` payload for `student.enroll.age-override`.
+  ageOverrideReason: z.string().trim().min(1).optional(),
 });
 
 export const graduateStudentSchema = z.object({

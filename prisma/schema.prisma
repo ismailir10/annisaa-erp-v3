@@ -1094,6 +1094,26 @@ model StudentJournalNote {
   @@index([tenantId, studentId, date])
 }
 
+/// Read watermark for the Buku Penghubung note thread — one row per reader per
+/// student, not a receipt per note. Unread for a reader is
+/// `notes where authorUserId != reader AND createdAt > lastReadAt AND ACTIVE`.
+///
+/// A missing row means "nothing unread", not "everything unread": the
+/// alternative would greet every wali on rollout with a badge counting months
+/// of already-read history. The row is created the first time the reader opens
+/// the notes surface, and everything written after that counts.
+model StudentJournalNoteRead {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String
+  studentId  String
+  lastReadAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, studentId])
+  @@index([tenantId, studentId])
+}
+
 model StudentJournalAudit {
   id              String   @id @default(cuid())
   tenantId        String

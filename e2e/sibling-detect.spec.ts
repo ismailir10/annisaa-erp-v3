@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Phase 1.2 — sibling auto-detect e2e.
  *
  * Covers the four behaviours called out in
- * docs/cycles/2026-05-11-sibling-auto-detect.md AC7:
+ * docs/cycles/archive/2026-05-11-sibling-auto-detect.md AC7:
  *   1. applicant-facing /daftar UX unchanged when match exists
  *   2. admin sees chip on the matched row + dash on the unmatched row
  *   3. hover reveals the matched parent's name + linked-student list

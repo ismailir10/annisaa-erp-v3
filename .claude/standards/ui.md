@@ -6,7 +6,7 @@
 
 **Every frontend change MUST be cross-checked against `.claude/standards/design-system.html`** before it lands. The file is a 4000-line HTML reference covering brand, colors, typography, spacing, icons, buttons, forms, status badges, DataTable, empty/loading/error states, stat cards, portal shells, overlays (Dialog / Sheet / AlertDialog / Toast), student journal, attendance flows, and voice & tone. It is the single source of truth when tokens, recipes, or copy disagree across this repo.
 
-When `/build` touches frontend (`app/**/*.tsx`, `components/**/*.tsx`, `app/globals.css`, `tailwind.config.*`), open the HTML file and scan the sections relevant to the change before editing. Follow the **frontend gate** (pre-commit Rule 4) — the cycle doc Verification section MUST cite the `design-system` reference.
+When `/build` touches frontend (`app/**/*.tsx`, `components/**/*.tsx`, `app/globals.css`), open the HTML file and scan the sections relevant to the change before editing. Follow the **frontend gate** (pre-commit Rule 4) — the cycle doc Verification section MUST cite the `design-system` reference.
 
 ## Design Tokens — Spacing & Typography
 

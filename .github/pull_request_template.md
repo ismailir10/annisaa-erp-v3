@@ -13,8 +13,8 @@ If you are filling it manually, replace the placeholders in each section.
 
 ## Session
 
-- **Model:** <!-- e.g. claude-sonnet-4-6, claude-haiku-4-5, glm-5.2, gpt-5 -->
-- **Role:** <!-- cto | product-builder -->
+- **Model:** <!-- e.g. claude-opus-5, claude-sonnet-5, claude-haiku-4-5, gpt-5.5, glm-5.2 -->
+- **Role:** cto
 
 ## Gates
 

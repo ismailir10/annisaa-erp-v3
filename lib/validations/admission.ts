@@ -8,7 +8,7 @@ import { optionalTrimmed, optionalEnum } from "./zod-helpers";
  * payload from an unfilled HTML input (e.g. `parentEmail: ""`) is coerced
  * to `undefined` before the inner validator runs. Without this, `.email()`
  * on `""` returns "Email tidak valid" and admin edits 400 — see
- * `docs/cycles/2026-05-11-admin-admissions-empty-string-fix.md`.
+ * `docs/cycles/archive/2026-05-11-admin-admissions-empty-string-fix.md`.
  *
  * `childAge` is NOT exposed here — it is auto-derived from `dateOfBirth`
  * via `lib/admission/age.ts:formatAgeFromDob` at display time. The schema

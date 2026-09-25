@@ -44,6 +44,14 @@ function makeReq(body: unknown) {
   });
 }
 
+function makePatchReq(body: unknown) {
+  return new Request("http://localhost:3000/api/guardians/g-1", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 function makeSession(): SessionUser {
   return {
     id: "u1",
@@ -144,5 +152,57 @@ describe("PUT /api/guardians/[id]", () => {
       data: { isPrimary: false },
     });
     expect(txUpdateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * T2 — deactivating a guardian via PATCH must clear isPrimary in the same
+ * write (finance code later bills a deactivated-but-still-primary parent).
+ * Reactivation must NOT touch isPrimary — re-promotion stays an explicit
+ * admin act.
+ */
+describe("PATCH /api/guardians/[id] — status toggle clears isPrimary (T2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('writes status: "INACTIVE", isPrimary: false when deactivating', async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(baseGuardian() as never);
+    vi.mocked(prisma.studentGuardian.update).mockResolvedValue({ id: "g-1", status: "INACTIVE", isPrimary: false } as never);
+
+    const { PATCH } = await import("../guardians/[id]/route");
+    const res = await PATCH(makePatchReq({ status: "INACTIVE" }) as never, {
+      params: Promise.resolve({ id: "g-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(prisma.studentGuardian.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "g-1" },
+        data: { status: "INACTIVE", isPrimary: false },
+      }),
+    );
+  });
+
+  it('writes status: "ACTIVE" with no isPrimary key when reactivating', async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue({
+      ...baseGuardian(),
+      status: "INACTIVE",
+    } as never);
+    vi.mocked(prisma.studentGuardian.update).mockResolvedValue({ id: "g-1", status: "ACTIVE" } as never);
+
+    const { PATCH } = await import("../guardians/[id]/route");
+    const res = await PATCH(makePatchReq({ status: "ACTIVE" }) as never, {
+      params: Promise.resolve({ id: "g-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const call = vi.mocked(prisma.studentGuardian.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(call.data).toEqual({ status: "ACTIVE" });
+    expect("isPrimary" in call.data).toBe(false);
   });
 });

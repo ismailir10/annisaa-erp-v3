@@ -11,7 +11,7 @@ import type { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   enrollmentFindMany: vi.fn(),
-  assignmentFindFirst: vi.fn(),
+  assignmentFindMany: vi.fn(),
   templateFindUnique: vi.fn(),
   categoryFindMany: vi.fn(),
   entryFindMany: vi.fn(),
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     studentEnrollment: { findMany: mocks.enrollmentFindMany },
-    teachingAssignment: { findFirst: mocks.assignmentFindFirst },
+    teachingAssignment: { findMany: mocks.assignmentFindMany },
     studentJournalTemplate: { findUnique: mocks.templateFindUnique },
     studentJournalCategory: { findMany: mocks.categoryFindMany },
     studentJournalEntry: { findMany: mocks.entryFindMany },
@@ -62,8 +62,14 @@ describe("GET /api/student-journal/students/[id]/week — author name enrichment
       customRoleCode: null,
     } as never);
 
-    mocks.enrollmentFindMany.mockResolvedValue([{ classSectionId: "class-1" }]);
-    mocks.assignmentFindFirst.mockResolvedValue({ id: "assign-1" });
+    mocks.enrollmentFindMany.mockResolvedValue([
+      {
+        classSectionId: "class-1",
+        classSection: { name: "TKA" },
+        student: { id: "stu-1", name: "Aisyah Nuraini", nickname: "Aisyah" },
+      },
+    ]);
+    mocks.assignmentFindMany.mockResolvedValue([{ classSectionId: "class-1" }]);
     mocks.templateFindUnique.mockResolvedValue({ id: "tmpl-1" });
     mocks.categoryFindMany.mockResolvedValue([]);
     mocks.entryFindMany.mockResolvedValue([]);
@@ -96,6 +102,41 @@ describe("GET /api/student-journal/students/[id]/week — author name enrichment
     expect(json.data.notes[0].authorName).toBe("Bu Sari");
     expect(json.data.notes[0].authorUserId).toBe("teacher-1");
     expect(json.data.notes[0].updatedAt).toBe("2026-07-14T02:00:00.000Z");
+  });
+
+  it("names the student the week belongs to, de-duplicating repeated class names", async () => {
+    // The DCARE case on staging: one student, two ACTIVE enrollments, both
+    // classes carrying the same name.
+    mocks.enrollmentFindMany.mockResolvedValue([
+      {
+        classSectionId: "class-1",
+        classSection: { name: "DCARE" },
+        student: { id: "stu-1", name: "Abdullah Faris Siregar", nickname: "Abdullah" },
+      },
+      {
+        classSectionId: "class-2",
+        classSection: { name: "DCARE" },
+        student: { id: "stu-1", name: "Abdullah Faris Siregar", nickname: "Abdullah" },
+      },
+    ]);
+    mocks.assignmentFindMany.mockResolvedValue([{ classSectionId: "class-2" }]);
+
+    const res = await GET(
+      buildReq("http://localhost/api/student-journal/students/stu-1/week?weekStart=2026-07-13"),
+      { params: Promise.resolve({ id: "stu-1" }) },
+    );
+
+    const json = await res.json();
+    expect(json.data.student).toEqual({
+      id: "stu-1",
+      name: "Abdullah Faris Siregar",
+      nickname: "Abdullah",
+      classNames: ["DCARE"],
+      // Only the class this guru is assigned to gets an id: the link goes into
+      // the fill grid, which guards the specific class, while the week route
+      // grants on ANY enrollment (cycle C, T4).
+      classes: [{ id: "class-2", name: "DCARE" }],
+    });
   });
 
   it("falls back to role label when no user row matches the author", async () => {

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession, isAdminRole, type SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  JOURNAL_FORBIDDEN_MSG,
+  JOURNAL_NOT_ENROLLED_MSG,
+} from "@/lib/student-journal/messages";
 
 /**
  * Admin guard for Student Journal routes.
@@ -76,6 +80,89 @@ export async function requireTeacherForClass(classSectionId: string): Promise<
   return {
     session: session as SessionUser & { tenantId: string; employeeId: string },
   };
+}
+
+/**
+ * Note-surface guard — who may read or write the note thread of one student.
+ *
+ * Lifted verbatim out of `app/api/student-journal/notes/route.ts`'s POST, which
+ * was the only caller until the thread read + mark-read routes arrived. Three
+ * surfaces answering "may this session touch this student's catatan?" with
+ * three copies of the branching is exactly how one of them ends up subtly
+ * looser than the others, so they share this.
+ *
+ * - **Admin** (SUPER_ADMIN | SCHOOL_ADMIN): tenant scope only. Admins write on
+ *   behalf of staff and are not assigned to classes.
+ * - **Teacher**: must hold a TeachingAssignment for at least ONE of the
+ *   student's ACTIVE enrollments. A student may sit in several (day-care plus
+ *   school), and checking only the first 403s a guru who is legitimately
+ *   assigned via the other.
+ * - **Guardian**: delegates to `requireGuardianForStudent`.
+ *
+ * Returns the student's own `tenantId` alongside the session: a note is tagged
+ * to the student's tenant, not the author's, so a guru pengganti reading across
+ * a tenant boundary cannot strand a note where the wali will never see it.
+ */
+export async function requireNoteAccessForStudent(studentId: string): Promise<
+  | { session: SessionUser; studentTenantId: string; error?: undefined }
+  | { session?: undefined; studentTenantId?: undefined; error: NextResponse }
+> {
+  const session = await getSession();
+  if (!session) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  const studentForTenant = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { tenantId: true },
+  });
+  if (!studentForTenant) {
+    return { error: NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 }) };
+  }
+
+  const forbidden = () =>
+    NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
+
+  if (isAdminRole(session.role)) {
+    if (!session.tenantId) return { error: forbidden() };
+    const studentInTenant = await prisma.student.findFirst({
+      where: { id: studentId, tenantId: session.tenantId },
+      select: { id: true },
+    });
+    if (!studentInTenant) return { error: forbidden() };
+  } else if (session.role === "TEACHER") {
+    if (!session.tenantId || !session.employeeId) return { error: forbidden() };
+
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: {
+        studentId,
+        status: "ACTIVE",
+        classSection: { tenantId: session.tenantId },
+      },
+      select: { classSectionId: true },
+    });
+    if (enrollments.length === 0) {
+      return {
+        error: NextResponse.json({ error: JOURNAL_NOT_ENROLLED_MSG }, { status: 404 }),
+      };
+    }
+
+    const assignment = await prisma.teachingAssignment.findFirst({
+      where: {
+        employeeId: session.employeeId,
+        classSectionId: { in: enrollments.map((e) => e.classSectionId) },
+        classSection: { tenantId: session.tenantId },
+      },
+    });
+    if (!assignment) return { error: forbidden() };
+  } else if (session.role === "GUARDIAN") {
+    const guard = await requireGuardianForStudent(studentId);
+    if (guard.error) return { error: guard.error };
+  } else {
+    return { error: forbidden() };
+  }
+
+  return { session, studentTenantId: studentForTenant.tenantId };
 }
 
 /**

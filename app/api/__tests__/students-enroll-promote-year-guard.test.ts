@@ -112,7 +112,8 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
       id: "cs1",
       tenantId: "t1",
       academicYearId: "y-cur",
-      program: { ageMin: null, ageMax: null },
+      program: { id: "p1", type: "SEMESTER", name: "KB", ageMin: null, ageMax: null },
+      academicYear: { startDate: "2026-07-01" },
     } as never);
     vi.mocked(prisma.academicYear.findFirst).mockResolvedValue({
       status: "ACTIVE",
@@ -128,6 +129,8 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
             .mockResolvedValue({ id: "e1", studentId: "s1", classSectionId: "cs1" }),
         },
         $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10 }]),
+        // Student-stream advisory lock taken first inside the transaction.
+        $executeRaw: vi.fn().mockResolvedValue(1),
       }),
     );
 
@@ -230,6 +233,7 @@ describe("POST /api/students/[id]/promote — academic-year guard", () => {
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
       id: "cs-target",
       academicYearId: "y-old",
+      program: { type: "SEMESTER" },
     } as never);
     vi.mocked(prisma.academicYear.findFirst).mockResolvedValue({
       status: "ARCHIVED",
@@ -257,6 +261,7 @@ describe("POST /api/students/[id]/promote — academic-year guard", () => {
     vi.mocked(prisma.classSection.findFirst).mockResolvedValue({
       id: "cs-target",
       academicYearId: "y-cur",
+      program: { type: "SEMESTER" },
     } as never);
     vi.mocked(prisma.academicYear.findFirst).mockResolvedValue({
       status: "ACTIVE",

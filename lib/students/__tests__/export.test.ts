@@ -24,10 +24,11 @@ function row(overrides: Partial<StudentExportRow> = {}): StudentExportRow {
     livingWith: "ORANG_TUA",
     enrollments: [
       {
+        id: "enr-1",
         enrollDate: "2025-07-01",
         classSection: {
           name: "TKIT A",
-          program: { name: "Taman Kanak-kanak" },
+          program: { name: "Taman Kanak-kanak", type: "SEMESTER" },
           academicYear: { name: "2025/2026" },
         },
       },
@@ -97,6 +98,44 @@ describe("buildStudentCsv", () => {
     const csv = buildStudentCsv([row()], ["classSection", "program", "academicYear", "enrollDate"]);
     const [, dataLine] = csv.trimEnd().split("\r\n");
     expect(dataLine).toBe('"TKIT A","Taman Kanak-kanak","2025/2026","2025-07-01"');
+  });
+
+  it("joins both classes/programs when a student holds two active enrollments (sekolah + daycare), primary (SEMESTER) first", () => {
+    const dual = row({
+      enrollments: [
+        {
+          id: "enr-daycare",
+          enrollDate: "2025-06-01",
+          classSection: {
+            name: "Daycare 1",
+            program: { name: "Daycare", type: "YEAR_ROUND" },
+            academicYear: { name: "2025/2026" },
+          },
+        },
+        {
+          id: "enr-1",
+          enrollDate: "2025-07-01",
+          classSection: {
+            name: "TKIT A",
+            program: { name: "Taman Kanak-kanak", type: "SEMESTER" },
+            academicYear: { name: "2025/2026" },
+          },
+        },
+      ],
+    });
+    const csv = buildStudentCsv([dual], ["classSection", "program", "academicYear", "enrollDate"]);
+    const [, dataLine] = csv.trimEnd().split("\r\n");
+    // SEMESTER (sekolah) enrollment ordered first even though it was listed
+    // second in the input array and has a later enrollDate.
+    expect(dataLine).toBe(
+      '"TKIT A / Daycare 1","Taman Kanak-kanak / Daycare","2025/2026 / 2025/2026","2025-07-01 / 2025-06-01"',
+    );
+  });
+
+  it("keeps the single-enrollment cell byte-identical to before (no trailing separator)", () => {
+    const csv = buildStudentCsv([row()], ["classSection"]);
+    const [, dataLine] = csv.trimEnd().split("\r\n");
+    expect(dataLine).toBe('"TKIT A"');
   });
 
   it("blanks enrollment + guardian columns when the student has none", () => {

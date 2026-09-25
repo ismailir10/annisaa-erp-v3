@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth-guards";
 import { ReportCardPdf } from "@/lib/pdf/report-card";
 import { buildReportCardData } from "@/lib/raport/build";
 import { resolveTerm } from "../../../_helpers";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 /**
  * GET /api/admin/raport/[studentId]/[termId]/pdf
@@ -29,9 +30,25 @@ export async function GET(
       select: {
         name: true,
         enrollments: {
-          where: { status: "ACTIVE" },
-          select: { classSection: { select: { name: true } } },
-          take: 1,
+          where: {
+            status: "ACTIVE",
+            // Exclude ARCHIVED-year rows. Un-closed prior-year ACTIVE
+            // enrollments (bulk-import artifact — see T9 regression,
+            // docs/cycles/2026-08-21-enrollment-flexibility.md) would
+            // otherwise sit in `pickPrimaryEnrollment`'s pool alongside the
+            // real current-year row and can win its earliest-enrollDate
+            // tiebreak, naming last year's class on the raport.
+            classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+          },
+          // No `take: 1` — a dual-enrolled student (sekolah + daycare) needs
+          // every ACTIVE row so `pickPrimaryEnrollment` below can pick the
+          // SEMESTER (sekolah) one. A raport must never name the daycare
+          // class.
+          select: {
+            id: true,
+            enrollDate: true,
+            classSection: { select: { name: true, program: { select: { type: true } } } },
+          },
         },
       },
     }),
@@ -55,10 +72,15 @@ export async function GET(
     );
   }
 
+  const primaryEnrollment =
+    student.enrollments.length <= 1
+      ? (student.enrollments[0] ?? null)
+      : pickPrimaryEnrollment(student.enrollments);
+
   const data = buildReportCardData({
     schoolName: tenant?.name ?? "Sekolah",
     studentName: student.name,
-    className: student.enrollments[0]?.classSection.name ?? null,
+    className: primaryEnrollment?.classSection.name ?? null,
     termNumber: term.number,
     semesterNumber: term.semester.number,
     academicYear: term.semester.academicYear.name,

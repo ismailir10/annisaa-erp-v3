@@ -106,6 +106,24 @@ export function formatDateShort(dateStr: string): string {
 }
 
 /**
+ * Format a Mon–Fri week as one range label: `24 Agu – 28 Agu 2026`.
+ *
+ * The year belongs on the label — the teacher journal printed `7 Jun – 11 Jun`,
+ * which is the same string for 2025, 2026 and 2027, and the week control let a
+ * reader wander years away from today without any cue. Printing it once, at the
+ * end, is the shape `/parent/attendance` already used; this is that shape,
+ * shared, so the two journal surfaces stop disagreeing with each other.
+ *
+ * Returns "" for an empty range so callers can fall back to their own text.
+ */
+export function formatWeekRangeLabel(startYmd: string, endYmd: string): string {
+  if (!startYmd || !endYmd) return "";
+  const start = formatDate(startYmd, { day: "numeric", month: "short" });
+  const end = formatDate(endYmd, { day: "numeric", month: "short", year: "numeric" });
+  return `${start} – ${end}`;
+}
+
+/**
  * Format month + year as "Januari 2026" (Indonesian).
  */
 export function formatMonthLabel(year: number, month: number): string {

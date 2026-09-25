@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -476,7 +476,7 @@ export default function EmployeesPage() {
               />
             </div>
             <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
+              <SheetClose render={<Button variant="ghost">Batal</Button>} />
               <Button onClick={handleCreate} disabled={saving}>
                 {saving ? "Menyimpan..." : "Tambah Karyawan"}
               </Button>
@@ -501,7 +501,7 @@ export default function EmployeesPage() {
               />
             </div>
             <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+              <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
               <Button onClick={handleCreate} disabled={saving}>
                 {saving ? "Menyimpan..." : "Tambah Karyawan"}
               </Button>

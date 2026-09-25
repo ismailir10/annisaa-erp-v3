@@ -1,3 +1,6 @@
+// Routed to the `jsdom` project by name in vitest.config.ts — `*.test.ts`
+// otherwise runs under `node`, and this suite renders WeekGrid rather than
+// only exercising the `isWeekGridDateEditable` predicate.
 import { render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -58,8 +61,14 @@ describe("isWeekGridDateEditable", () => {
       dates: ["2026-07-29", "2026-07-30"],
     }));
 
-    expect(screen.getByRole("img", { name: "Merapi 2026-07-29 — diisi (hanya bisa dilihat)" })).toHaveTextContent("✓");
-    expect(screen.getByRole("img", { name: "Merapi 2026-07-30 — belum diisi (hanya bisa dilihat)" })).toHaveTextContent("—");
+    // The glyphs are drawn, not typed: "✓"/"—" as text rendered a filled week
+    // and an empty one at the same weight and colour (cycle C, T5). The
+    // accessible names carry the meaning either way, and neither cell is a
+    // control in readonly mode.
+    const filled = screen.getByRole("img", { name: "Merapi 2026-07-29 — diisi (hanya bisa dilihat)" });
+    const empty = screen.getByRole("img", { name: "Merapi 2026-07-30 — belum diisi (hanya bisa dilihat)" });
+    expect(filled.querySelector("svg")).not.toBeNull();
+    expect(empty.querySelector("svg")).toBeNull();
     expect(screen.queryByRole("button", { name: /Merapi/ })).toBeNull();
   });
 

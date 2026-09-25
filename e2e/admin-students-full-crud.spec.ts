@@ -161,7 +161,17 @@ test.describe("Admin students — full-field CRUD round-trip", () => {
     await expect(page.getByText(payload.nis).first()).toBeVisible();
     await expect(page.getByText(payload.nisn).first()).toBeVisible();
     await expect(page.getByText(payload.birthPlace).first()).toBeVisible();
+
+    // NIK and No. KK are specific personal data under UU PDP 27/2022, so the
+    // dossier masks them by default and reveals per field on request. Assert
+    // both halves of that contract: hidden first, then shown on click.
+    await expect(page.getByText(payload.nik)).toHaveCount(0);
+    await expect(page.getByText(payload.kkNumber)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Tampilkan NIK siswa" }).click();
     await expect(page.getByText(payload.nik).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Tampilkan No. KK" }).click();
     await expect(page.getByText(payload.kkNumber).first()).toBeVisible();
 
     // ----- Edit notes via API (UI Edit dialog opens via row action; here we

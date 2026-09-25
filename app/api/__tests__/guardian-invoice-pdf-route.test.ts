@@ -95,6 +95,49 @@ describe("GET /api/guardian/invoices/[id]/pdf", () => {
     expect(renderToBuffer).not.toHaveBeenCalled();
   });
 
+  it("names the SEMESTER (sekolah) class, never the daycare one, for a dual-enrolled student", async () => {
+    getSession.mockResolvedValue(guardianSession());
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });
+    db.invoice.findUnique.mockResolvedValue({
+      id: "inv-1",
+      tenantId: "t-1",
+      studentId: "stu-1",
+      invoiceNumber: "INV-0001",
+      periodLabel: "April 2026",
+      dueDate: new Date("2026-04-30"),
+      totalDue: 250_000,
+      totalPaid: 250_000,
+      status: "PAID",
+      paidAt: new Date("2026-04-15"),
+      lines: [],
+      payments: [],
+      student: {
+        name: "Anak",
+        nickname: "Nak",
+        enrollments: [
+          {
+            id: "enr-daycare",
+            enrollDate: "2025-06-01",
+            classSection: { name: "Daycare 1", program: { name: "Daycare", type: "YEAR_ROUND" } },
+          },
+          {
+            id: "enr-sekolah",
+            enrollDate: "2025-07-01",
+            classSection: { name: "TKIT A", program: { name: "TKIT", type: "SEMESTER" } },
+          },
+        ],
+      },
+    });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    const props = renderToBuffer.mock.calls[0]![0].props.data;
+    expect(props.className).toBe("TKIT A");
+    expect(props.programName).toBe("TKIT");
+  });
+
   it("404 for a non-PAID invoice — no unpaid receipt leaks", async () => {
     getSession.mockResolvedValue(guardianSession());
     db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "stu-1" }] });

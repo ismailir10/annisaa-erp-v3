@@ -59,4 +59,17 @@ describe("AdminPenilaianPage", () => {
     expect(badge.className).toContain("status-late");
     expect(badge.className).not.toContain("text-primary");
   });
+
+  it("uses the canonical -subtle/-text token pair, not a raw opacity modifier, on the completion badge", async () => {
+    stubFetchOnce();
+    render(<AdminPenilaianPage />);
+
+    // Regression guard: this badge used to hand-roll bg-status-late/10
+    // text-status-late border-status-late/20, bypassing the 2026-08-19
+    // contrast fix that -text variants carry (see colors.md).
+    const badge = await screen.findByText("4/10 dinilai");
+    expect(badge.className).toContain("bg-status-late-subtle");
+    expect(badge.className).toContain("text-status-late-text");
+    expect(badge.className).not.toMatch(/status-late\/\d+/);
+  });
 });

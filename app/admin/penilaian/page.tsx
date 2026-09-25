@@ -43,9 +43,9 @@ function CompletionBadge({ assessed, enrolled }: { assessed: number; enrolled: n
   const done = assessed >= enrolled;
   const started = assessed > 0;
   const cls = done
-    ? "bg-status-present/10 text-status-present border-status-present/20"
+    ? "bg-status-present-subtle text-status-present-text"
     : started
-      ? "bg-status-late/10 text-status-late border-status-late/20"
+      ? "bg-status-late-subtle text-status-late-text"
       : "text-muted-foreground";
   return (
     <Badge variant="outline" className={cn(cls, "font-currency")}>

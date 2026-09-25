@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -34,6 +34,7 @@ type Guardian = {
   whatsapp: string | null;
   status: string;
   _count: { guardians: number };
+  guardians: { student: { id: string; name: string } }[];
 };
 
 type Pagination = {
@@ -72,9 +73,25 @@ const columns: ColumnDef<Guardian>[] = [
   {
     id: "students",
     header: "Siswa",
-    cell: ({ row }) => (
-      <span className="text-sm">{row.original._count.guardians} siswa</span>
-    ),
+    cell: ({ row }) => {
+      const total = row.original._count.guardians;
+      // The API sends the first two children by name; the count stays
+      // authoritative. Naming them lets an admin recognise the family without
+      // opening the row.
+      const names = (row.original.guardians ?? []).map((g) => g.student.name);
+      if (total === 0) return <span className="text-xs text-muted-foreground">—</span>;
+      return (
+        <div className="text-sm">
+          <span>{total} siswa</span>
+          {names.length > 0 && (
+            <span className="text-xs text-muted-foreground ml-1.5">
+              {names.join(", ")}
+              {total > names.length ? ` +${total - names.length}` : ""}
+            </span>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "status",

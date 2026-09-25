@@ -83,7 +83,48 @@ Spec gap to track:
 
 If you add a new E2E spec that creates DB rows, add a teardown immediately AND add an entry to the "Scope of pollution" table above so future CTOs know what to look for.
 
+## Diagnostic — stale ACTIVE enrollments in an ARCHIVED year
+
+> Added 2026-08-21 (cycle `enrollment-flexibility`). **Read-only. Do not "clean" these rows.**
+
+A student promoted into a new academic year should leave the prior year's `StudentEnrollment` at `GRADUATED`. Rows bulk-loaded by the roster imports did not go through the promote route, so on staging **16 of the 21 current-year students** carry a stale `ACTIVE` row in the ARCHIVED 2024/2025 year alongside their real current-year row. Every one is shaped `X/2024-2025(ARCHIVED) + Y/2025-2026(ACTIVE)`; there are zero same-year doubles.
+
+These rows are **deliberately preserved** — [`docs/cycles/archive/2026-07-21-historical-roster-visibility.md`](../cycles/archive/2026-07-21-historical-roster-visibility.md) made archived-year enrollments visible on purpose, and mass-closing them would destroy that history. The `enrollment-flexibility` cycle made them inert instead, by scoping every guard, billing query and display query to a specific academic year. Run this when you need to know the current blast radius, or when triaging a report of a wrong class appearing on a raport or invoice.
+
+```sql
+-- Students holding more than one ACTIVE enrollment, with the shape of each.
+-- A row whose shape spans two years is a stale prior-year row (expected).
+-- A row with two ACTIVE enrollments in the SAME year and the SAME program
+-- type violates the cycle's invariant and IS worth investigating.
+SELECT s.name,
+       string_agg(
+         p.code || '/' || p.type || '/' || ay.name || '(' || ay.status || ')',
+         ' + ' ORDER BY ay.name
+       ) AS shape,
+       count(*) AS active_rows
+FROM "StudentEnrollment" se
+JOIN "ClassSection"  cs ON cs.id = se."classSectionId"
+JOIN "Program"       p  ON p.id  = cs."programId"
+JOIN "AcademicYear"  ay ON ay.id = cs."academicYearId"
+JOIN "Student"       s  ON s.id  = se."studentId"
+WHERE se.status = 'ACTIVE'
+GROUP BY s.id, s.name
+HAVING count(*) > 1
+ORDER BY active_rows DESC, s.name;
+```
+
+Reading the result:
+
+| Shape | Meaning | Action |
+|---|---|---|
+| `KB/SEMESTER/2024-2025(ARCHIVED) + TKIT-A/SEMESTER/2025-2026(ACTIVE)` | Stale prior-year row. Expected on staging. | None — preserved by design. |
+| `KB/SEMESTER/2025-2026(ACTIVE) + DCARE/YEAR_ROUND/2025-2026(ACTIVE)` | A genuine school + day-care placement. | None — this is the feature. |
+| Two rows, same year, **same** `Program.type` | Violates "one ACTIVE per program type per year". Should be unreachable: both enrol doors take a `pg_advisory_xact_lock` on `studentId:academicYearId:programType`. | Investigate — either a pre-existing import artefact, or a real gap in the guard. |
+
+There is no database constraint backing that invariant (adding one would need `Program.type` denormalised onto `StudentEnrollment`), so this query is the only detector. Worth running before a billing run.
+
 ## Related
 
 - [docs/runbooks/reseed-staging.md](./reseed-staging.md) — full staging reseed (nuke + rebuild). Use this when pollution is not isolated to a known pattern.
 - UAT report: `docs/uat/reports/2026-05-12-admin-full-walkthrough.md` — admin M1 and B1.
+- [docs/cycles/2026-08-21-enrollment-flexibility.md](../cycles/2026-08-21-enrollment-flexibility.md) — why the stale rows are inert rather than cleaned.
