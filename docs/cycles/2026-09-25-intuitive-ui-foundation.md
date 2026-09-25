@@ -67,6 +67,8 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 - A second visual pass found that wrapping alone fragmented ordinary words at 320 px. Decorative stat icons now use 24 px containers and 16 px glyphs below the existing `sm` breakpoint, recovering 16 px for readable labels while retaining 40 px/20 px desktop icons and wrapping as a fallback.
 
+- The staging integration brought new TanStack v9 pagination regressions with obsolete button selectors. They now select the existing destination-aware accessible labels (`Halaman berikutnya, 2/3`) while retaining the server callback, unchanged server rows, client page-size reset, and shrinking-data clamp assertions. Production pagination behavior is unchanged.
+
 ## Verification
 
 - Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.
@@ -90,6 +92,10 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 - First local full Playwright run completed with 143 passed, 8 existing skips, and 2 failures: stale childless Rapor URL matching and a stale success-toast expectation on an unpaid callback. After the test-only corrections, `npx playwright test e2e/payment.spec.ts e2e/parent.spec.ts --workers=1 --reporter=line` passed all 15 tests in 13.1 s against the production server and disposable local Postgres. Initial sandbox port binding failed before tests; the authorized local-server rerun succeeded. A fresh full Playwright run remains required.
 
+- CI at `5f51b606` found two failing upstream TanStack v9 compatibility tests because their selectors omitted the destination number in pagination labels (348 files/3345 tests passed; 2 tests failed). After aligning those selectors, all four focused DataTable suites passed (10/10 tests, `--maxWorkers=1`), including the new v9 sorting/pagination regressions; scoped ESLint and diff checks passed.
+
 ## Ship Notes
+
+- Local invoice verification exposed a 320px resume-draft banner collision when an existing billing draft is present. Its two actions now occupy a wrapping row below the message instead of overlapping the title; this is a scoped layout fix with no billing state change. Final rebuilt visual verification remains pending.
 
 - No planned migrations or new environment variables. Rollback through PR revert. Preserve role permissions, parent ownership and settlement truth. Production promotion remains separate.
