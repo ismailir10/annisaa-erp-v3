@@ -10,7 +10,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
 import { SectionLabel } from "@/components/portal/section-label";
-import { getParentChildById } from "@/lib/parent-helpers";
+import { getParentChildById, getParentWithChildren } from "@/lib/parent-helpers";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import {
   formatDate,
@@ -19,6 +19,8 @@ import {
 } from "@/lib/format";
 import { ElementProgressRow } from "@/components/parent/element-progress-row";
 import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
+import { ContextStrip } from "@/components/portal/context-strip";
+import { parentHref } from "@/lib/parent/navigation";
 
 export default async function ParentPerkembanganDetailPage({
   params,
@@ -32,25 +34,28 @@ export default async function ParentPerkembanganDetailPage({
   const { studentId } = await params;
   const child = await getParentChildById(session, studentId);
   if (!child) notFound();
+  const { children: linkedChildren } = await getParentWithChildren(session);
 
   const data = await loadStudentPerkembangan(session.tenantId, studentId);
 
   return (
     <div className="space-y-5">
       <Link
-        href="/parent/perkembangan"
+        href={linkedChildren.length > 1 ? "/parent/perkembangan" : parentHref("/parent", studentId)}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground"
       >
-        <ChevronLeft className="size-4" /> Perkembangan
+        <ChevronLeft className="size-4" /> {linkedChildren.length > 1 ? "Pilih anak" : "Beranda"}
       </Link>
 
+      <ContextStrip
+        name={child.studentName}
+        detail={[child.className, child.programName].filter(Boolean).join(" · ") || "Data perkembangan anak"}
+        className="rounded-lg border-x border-t"
+      />
+
       <PageHeader
-        title={child.studentName}
-        subtitle={
-          [child.className, child.programName]
-            .filter(Boolean)
-            .join(" · ") || "—"
-        }
+        title="Perkembangan"
+        subtitle="Catatan perkembangan dari sekolah"
       />
 
       {!data.semester ? (
@@ -65,11 +70,11 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-elements-heading"
           >
-            <header className="flex items-center justify-between gap-2">
+            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <SectionLabel as="h2" id="perkembangan-elements-heading" className="mb-0">
                 Capaian per elemen
               </SectionLabel>
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="min-w-0 break-words text-xs text-muted-foreground">
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
             </header>

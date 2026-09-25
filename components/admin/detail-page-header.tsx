@@ -21,7 +21,7 @@ export function DetailPageHeader({
     <div className="mb-section min-w-0">
       <Link
         href={backHref}
-        className="mb-field inline-flex items-center gap-1.5 text-small text-muted-foreground transition-colors hover:text-foreground"
+        className="mb-field inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 -ml-2 text-body text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft size={14} aria-hidden="true" />
         {backLabel}
@@ -29,7 +29,7 @@ export function DetailPageHeader({
       <div className="flex min-w-0 flex-col gap-field sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="text-h1 font-bold tracking-tight text-foreground">
+            <h1 className="text-h1 text-balance break-words font-bold leading-tight tracking-tight text-foreground">
               {title}
             </h1>
             {badge}
@@ -39,7 +39,7 @@ export function DetailPageHeader({
           )}
         </div>
         {actions && (
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {actions}
           </div>
         )}

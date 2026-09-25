@@ -62,7 +62,7 @@ const columns: ColumnDef<PayrollRun>[] = [
           href={`/admin/payroll/${run.id}`}
           className="group"
         >
-          <span className="text-sm font-medium group-hover:text-primary transition-colors">
+          <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
             {run.periodStart} — {run.periodEnd}
           </span>
         </Link>

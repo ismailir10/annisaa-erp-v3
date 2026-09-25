@@ -9,6 +9,7 @@ import {
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { InvoicesClient } from "./client";
 import { prisma } from "@/lib/db";
+import { ContextStrip } from "@/components/portal/context-strip";
 
 export default async function ParentInvoicesPage({
   searchParams,
@@ -86,6 +87,11 @@ export default async function ParentInvoicesPage({
         items={childTabsData}
         selectedChildId={selected.studentId}
         sticky
+      />
+      <ContextStrip
+        name={selected.studentName}
+        detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Tagihan anak terpilih"}
+        className="mb-6 rounded-lg border-x border-t"
       />
       <InvoicesClient
         data={data}

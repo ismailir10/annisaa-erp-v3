@@ -1,0 +1,502 @@
+{
+  "candidate": {
+    "sourceSha": "59254ff4b6f10dddeca4b5caefad7ea4a5ec5479",
+    "baseSha": "13661f071f2dfc3bd682e3a6a927c1ebd7d7239a",
+    "cleanWorktree": true,
+    "buildId": "plrMlxc-INlApTTSKBLnx",
+    "buildMode": "next build --webpack; temporary in-memory compiler cache; original config restored byte-for-byte",
+    "baseURL": "http://127.0.0.1:3015",
+    "database": "loopback:55440/talib_redesign",
+    "at": "2026-09-25T12:35:53.216011+00:00"
+  },
+  "baselineEvidence": "../route-coverage-064cb83c.json",
+  "scope": "13 changed app routes, design reference, two shared portal-tab routes at320/1440; three role homes at320/390/768/1440. Synthetic local data only.",
+  "accounts": {
+    "admin": {
+      "role": "SUPER_ADMIN",
+      "fixtureId": "u_super_admin",
+      "selection": "explicit synthetic fixture"
+    },
+    "teacher": {
+      "role": "TEACHER",
+      "fixtureId": "u_teacher",
+      "selection": "explicit synthetic fixture"
+    },
+    "parent": {
+      "role": "GUARDIAN",
+      "fixtureId": "u_rightjet",
+      "selection": "explicit synthetic fixture"
+    }
+  },
+  "counts": {
+    "manifestRoutes": 16,
+    "visitedRoutePatterns": 16,
+    "visits": 44,
+    "findingVisits": 0,
+    "visitsWithBlockedMutations": 4,
+    "unavailableRoutes": 0
+  },
+  "routes": [
+    {
+      "route": "/admin/employees",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/payroll",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/academic-years",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/design-system",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/fees",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/invoices",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/work-hours",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/students",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/payroll/[id]",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/guardians/[id]",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/invoices/[id]",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/admin/students/[id]",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/teacher/student-journal",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/teacher/slips/[id]",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/parent/attendance",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    },
+    {
+      "route": "/parent/student-journal",
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "findings": [],
+          "pageErrors": [],
+          "httpErrors": []
+        }
+      ]
+    }
+  ],
+  "frameChecks": [
+    {
+      "url": "/admin/design-system-reference.html",
+      "status": 200,
+      "xFrameOptions": "SAMEORIGIN",
+      "ancestor": "frame-ancestors 'self'",
+      "result": "passed"
+    },
+    {
+      "url": "/admin",
+      "status": 200,
+      "xFrameOptions": "DENY",
+      "ancestor": "frame-ancestors 'none'",
+      "result": "passed"
+    },
+    {
+      "url": "/admin/design-system-reference.html-other",
+      "status": 404,
+      "xFrameOptions": "DENY",
+      "ancestor": "frame-ancestors 'none'",
+      "result": "passed"
+    },
+    {
+      "name": "Actual embedded #brand content visible",
+      "result": "passed"
+    }
+  ],
+  "frameBlockedReports": 55,
+  "resolvedBaselineFindings": [
+    "Embedded design reference #brand now renders. SAMEORIGIN/frame-ancestors self apply only to exact reference path; unrelated and lookalike routes remain DENY/none.",
+    "Payroll net amount and teacher payslip headings now use dark semantic primary-text; visual confirmation at320/1440."
+  ],
+  "manualReview": {
+    "all13ChangedAppRoutesReviewedAt": [
+      320,
+      1440
+    ],
+    "roleHomeHierarchy": "unchanged from064; household/card contexts retained; teacher current-class and admin action queue hierarchy preserved",
+    "remainingFindings": [
+      {
+        "route": "/admin/guardians/[id]",
+        "width": 320,
+        "finding": "Long guardian email clips inside two-column identity card; child-row badges extend beyond card. No document overflow, so only manual review detects clipping.",
+        "state": "reported to root for bounded fix"
+      },
+      {
+        "route": "/admin/students/[id]",
+        "width": 320,
+        "finding": "Long synthetic NIS/NISN values overlap in the official-identity grid.",
+        "state": "reported to root for bounded fix"
+      }
+    ]
+  },
+  "limitations": [
+    "Heuristic visual review, not representative-user UAT.",
+    "Read-only sweep does not exercise hidden dialogs or hover states unless already rendered by fixture URL.",
+    "Employee/payroll list fixtures include create=1 and capture their responsive forms; list hover-only token change also inspected in source.",
+    "Automatic CSP/read-watermark POSTs are blocked and recorded separately from failures."
+  ],
+  "screenshots": [
+    "admin-home-admin-390.png",
+    "admin-home-admin-1440.png",
+    "admin-route-admin-employees-320.png",
+    "admin-route-admin-employees-1440.png",
+    "admin-route-admin-payroll-320.png",
+    "admin-route-admin-payroll-1440.png",
+    "admin-route-admin-academic-years-320.png",
+    "admin-route-admin-academic-years-1440.png",
+    "admin-route-admin-design-system-320.png",
+    "admin-route-admin-design-system-1440.png",
+    "admin-route-admin-fees-320.png",
+    "admin-route-admin-fees-1440.png",
+    "admin-route-admin-invoices-320.png",
+    "admin-route-admin-invoices-1440.png",
+    "admin-route-admin-settings-work-hours-320.png",
+    "admin-route-admin-settings-work-hours-1440.png",
+    "admin-route-admin-students-320.png",
+    "admin-route-admin-students-1440.png",
+    "admin-route-admin-payroll-id-320.png",
+    "admin-route-admin-payroll-id-1440.png",
+    "admin-route-admin-guardians-id-320.png",
+    "admin-route-admin-guardians-id-1440.png",
+    "admin-route-admin-invoices-id-320.png",
+    "admin-route-admin-invoices-id-1440.png",
+    "admin-route-admin-students-id-320.png",
+    "admin-route-admin-students-id-1440.png",
+    "teacher-home-teacher-390.png",
+    "teacher-home-teacher-1440.png",
+    "teacher-route-teacher-student-journal-320.png",
+    "teacher-route-teacher-student-journal-1440.png",
+    "teacher-route-teacher-slips-id-320.png",
+    "teacher-route-teacher-slips-id-1440.png",
+    "parent-home-parent-390.png",
+    "parent-home-parent-1440.png",
+    "parent-route-parent-attendance-320.png",
+    "parent-route-parent-attendance-1440.png",
+    "parent-route-parent-student-journal-320.png",
+    "parent-route-parent-student-journal-1440.png",
+    "reference-320.png",
+    "reference-1440.png"
+  ],
+  "environmentObservations": [
+    {
+      "path": "/_vercel/insights/script.js",
+      "status": 404,
+      "responses": 44
+    },
+    {
+      "path": "/_vercel/speed-insights/script.js",
+      "status": 404,
+      "responses": 44
+    }
+  ],
+  "blockedAutomaticWrites": [
+    {
+      "path": "/api/csp-report",
+      "method": "POST",
+      "requests": 109
+    },
+    {
+      "path": "/api/student-journal/notes/read",
+      "method": "POST",
+      "requests": 2
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextResponse } from "next/server";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { getPendingPaymentLinkBreakdown } from "@/lib/finance/pending-breakdown";
@@ -27,7 +28,7 @@ import { getPendingPaymentLinkBreakdown } from "@/lib/finance/pending-breakdown"
  */
 export async function GET() {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

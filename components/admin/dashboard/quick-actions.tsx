@@ -7,9 +7,15 @@ type QuickAction = { label: string; href: string; icon: LucideIcon };
 export function QuickActions({
   canSeePayroll,
   canSeeHr,
+  canSeeAttendance = false,
+  canSeeLeave = false,
+  canCreateEmployee = false,
 }: {
   canSeePayroll: boolean;
   canSeeHr: boolean;
+  canSeeAttendance?: boolean;
+  canSeeLeave?: boolean;
+  canCreateEmployee?: boolean;
 }) {
   // /admin/payroll lives inside the (hr) route group, so even a custom role
   // with `payroll.view` will hit the `assertPermission("hr.view")` layout gate
@@ -20,9 +26,9 @@ export function QuickActions({
       : []),
     ...(canSeeHr
       ? [
-          { label: "Lihat Kehadiran", href: "/admin/employee-attendance", icon: ClipboardList },
-          { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff },
-          { label: "Tambah Karyawan", href: "/admin/employees?create=1", icon: UserPlus },
+          ...(canSeeAttendance ? [{ label: "Lihat kehadiran", href: "/admin/employee-attendance", icon: ClipboardList }] : []),
+          ...(canSeeLeave ? [{ label: "Pengajuan izin", href: "/admin/leave-requests", icon: CalendarOff }] : []),
+          ...(canCreateEmployee ? [{ label: "Tambah karyawan", href: "/admin/employees?create=1", icon: UserPlus }] : []),
         ]
       : []),
   ];
@@ -48,7 +54,7 @@ export function QuickActions({
                   <span className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                     <Icon size={18} />
                   </span>
-                  <span className="text-xs font-medium transition-colors group-hover:text-primary">
+                  <span className="text-xs font-medium transition-colors group-hover:text-primary-text">
                     {action.label}
                   </span>
                 </CardContent>

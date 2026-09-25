@@ -55,7 +55,7 @@ export async function proxy(request: NextRequest) {
   // /api/csp-report receives the violation reports themselves — applying
   // CSP headers here would be redundant and could create report loops.
   if (!request.nextUrl.pathname.startsWith("/api/csp-report")) {
-    applySecurityHeaders(response);
+    applySecurityHeaders(response, request.nextUrl.pathname);
   }
   return response;
 }

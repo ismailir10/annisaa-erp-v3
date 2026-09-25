@@ -4,11 +4,12 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { recordPaymentSchema } from "@/lib/validations/invoice";
+import { hasPermission } from "@/lib/permissions";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "payments.record")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

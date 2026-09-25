@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
   const auth = await requirePermission("leave.view");
   if ("error" in auth) return auth.error;
   const { session } = auth;
+  if (!hasPermission(session, "hr.view")) return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const { skip, take, page, pageSize } = parsePagination(searchParams);
@@ -167,6 +168,7 @@ export async function GET(req: NextRequest) {
   const { orderBy } = sort;
   const status = searchParams.get("status");
   const search = searchParams.get("search") ?? "";
+  const requestId = searchParams.get("requestId");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const employeeFilter: any = { tenantId: session.tenantId };
@@ -175,6 +177,7 @@ export async function GET(req: NextRequest) {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = { employee: employeeFilter };
+  if (requestId) where.id = requestId;
   if (status && status !== "all") where.status = status;
 
   const [requests, total] = await Promise.all([
@@ -192,5 +195,5 @@ export async function GET(req: NextRequest) {
     prisma.leaveRequest.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(requests, total, page, pageSize));
+  return NextResponse.json({ ...paginatedResponse(requests, total, page, pageSize), capabilities: { approve: hasPermission(session, "leave.approve") } });
 }

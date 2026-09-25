@@ -1,0 +1,44 @@
+{
+  "sourceSha": "563b992d9fe311f44b475c7d5c0dc02dd3578f16",
+  "preview": "https://annisaa-erp-v3-a3q85xmor-ismails-projects-196d40d3.vercel.app",
+  "deployment": "dpl_DjHWXuvd12Eq7bFUtAxzZ44Lbox9",
+  "auth": "Normal Google OAuth with the authorized role-specific accounts; no demo cookies",
+  "flows": [
+    {
+      "role": "admin",
+      "flow": "queue to enrollment, leave detail and draft payroll",
+      "result": "pass",
+      "network": "leave/requests, leave/stats, payroll detail and compare 200"
+    },
+    {
+      "role": "teacher",
+      "flow": "home to assigned class attendance and journal, class/date reload",
+      "result": "pass",
+      "network": "teaching-assignments/my, student-attendance, student-journal/class-grid 200"
+    },
+    {
+      "role": "parent",
+      "flow": "second child card to notes tab, reload then child-scoped bills",
+      "result": "pass"
+    },
+    {
+      "role": "parent",
+      "flow": "household bill disclosure, unpaid invoice detail and forged paid callback",
+      "result": "pass",
+      "serverStatus": "SENT",
+      "totalPaid": 0,
+      "callback": "Paid parameter removed; unpaid invoice and selected child retained; no payment initiated",
+      "network": "guardian invoice detail 200"
+    }
+  ],
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "observedWorkflowHttpErrors": 0,
+  "screenshots": "Private screenshot evidence in task browser output. Public repository screenshots contain synthetic local data only.",
+  "limitations": [
+    "Preview checks did not submit educational records, messages, financial approvals or payments.",
+    "Mutation persistence, failure recovery, ownership and restricted-role checks covered using disposable local fixtures.",
+    "No representative-user usability measurement or physical mobile device testing."
+  ],
+  "viewportOverrideReset": true
+}

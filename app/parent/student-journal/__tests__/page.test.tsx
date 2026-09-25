@@ -107,22 +107,49 @@ describe("ParentStudentJournalPage", () => {
     ];
     nav.params = new URLSearchParams("child=child_2&view=notes&week=2026-08-10");
     mockFetchWith({ ...baseWeekData, homeCategories }, family);
-    render(<ParentStudentJournalPage />);
-    await screen.findByText("Yusuf · TKB");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-      expect.stringContaining("/children/child_2/week"),
-    );
+    const { rerender } = render(<ParentStudentJournalPage />);
+    await screen.findByText("Yusuf Rahman · TKB");
+    // Identity renders from the children response; the week request starts in
+    // a subsequent effect. Wait for that observable request, not its heading.
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/student-journal/children/child_2/week?weekStart=2026-08-10",
+    ));
+    expect(await screen.findByTestId("note-thread-panel")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /Aisyah/ }));
-    expect(nav.push).toHaveBeenCalledWith(
-      "/parent/student-journal?child=child_1&view=notes&week=2026-08-10",
-    );
+    const destination = "/parent/student-journal?child=child_1&view=notes&week=2026-08-10";
+    expect(nav.push).toHaveBeenCalledWith(destination);
+
+    // Complete the router transition so the selected sibling's request and
+    // preserved note/week context are checked, not just a mocked push call.
+    nav.params = new URL(destination, "http://localhost").searchParams;
+    rerender(<ParentStudentJournalPage />);
+    await screen.findByText("Aisyah Nuraini · TKA");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/student-journal/children/child_1/week?weekStart=2026-08-10",
+    ));
+    expect(await screen.findByTestId("note-thread-panel")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Catatan/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps full child identity visible when siblings share a nickname", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Aisyah Zahra", nickname: "Aisyah", className: "TKB" },
+    ];
+    nav.params = new URLSearchParams("child=child_2&view=notes");
+    mockFetchWith({ ...baseWeekData, homeCategories }, family);
+    const { container } = render(<ParentStudentJournalPage />);
+    expect(await screen.findByText("Aisyah Zahra · TKB")).toBeVisible();
+    expect(container.querySelector('[data-slot="context-strip"]')).toHaveTextContent("Aisyah Zahra");
+    expect(container.querySelector('[data-slot="context-strip"]')).not.toHaveTextContent("Aisyah Nuraini");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining("/children/child_2/week")));
   });
 
   it("falls back to a linked child when the URL names another family's child", async () => {
     nav.params = new URLSearchParams("child=foreign");
     mockFetchWith({ ...baseWeekData, homeCategories });
     render(<ParentStudentJournalPage />);
-    await screen.findByText("Aisyah · TKA");
+    await screen.findByText("Aisyah Nuraini · TKA");
     // The child heading renders before the effect starts its week request.
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringContaining("/children/child_1/week"),
@@ -166,7 +193,7 @@ describe("ParentStudentJournalPage", () => {
 
     // Was the static "Pantau kegiatan harian di sekolah dan rumah" — which
     // named no child at all, and a single-child wali saw no name anywhere.
-    expect(await screen.findByText("Aisyah · TKA")).toBeInTheDocument();
+    expect(await screen.findByText("Aisyah Nuraini · TKA")).toBeInTheDocument();
   });
 
   it("badges the Catatan tab with the wali's unread count", async () => {

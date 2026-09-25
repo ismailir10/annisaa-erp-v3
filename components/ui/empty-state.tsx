@@ -72,9 +72,9 @@ export function EmptyState({
           />
         </div>
       )}
-      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-body font-semibold text-foreground text-balance">{title}</p>
       {description && (
-        <p className="text-xs text-muted-foreground mt-1 max-w-sm">{description}</p>
+        <p className="mt-1 max-w-sm text-small leading-relaxed text-muted-foreground text-pretty">{description}</p>
       )}
       {/*
         `size="sm"` is `h-7` — a 28px primary action, and an empty state's CTA
@@ -82,12 +82,12 @@ export function EmptyState({
         raises it to the 44px minimum without changing the visual size class.
       */}
       {actionLabel && actionHref && (
-        <Link href={actionHref} className="mt-4">
-          <Button size="sm" className="tap-target">{actionLabel}</Button>
+        <Link href={actionHref} className="mt-4 max-w-full">
+          <Button size="sm" className="tap-target max-w-full whitespace-normal text-wrap">{actionLabel}</Button>
         </Link>
       )}
       {actionLabel && onAction && !actionHref && (
-        <Button size="sm" onClick={onAction} className="tap-target mt-4">
+        <Button size="sm" onClick={onAction} className="tap-target mt-4 max-w-full whitespace-normal text-wrap">
           {actionLabel}
         </Button>
       )}

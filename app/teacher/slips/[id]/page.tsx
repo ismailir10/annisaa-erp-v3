@@ -205,7 +205,7 @@ export default async function SlipDetailPage({
 
       {/* Pendapatan (Income) section */}
       <Card className="p-card">
-        <h2 className="text-small font-semibold uppercase tracking-wide text-primary mb-3">
+        <h2 className="text-small font-semibold uppercase tracking-wide text-primary-text mb-3">
           Pendapatan
         </h2>
 
@@ -241,7 +241,7 @@ export default async function SlipDetailPage({
       {/* Potongan (Deductions) section — hidden if zero deductions */}
       {deductionLines.length > 0 && (
         <Card className="p-card">
-          <h2 className="text-small font-semibold uppercase tracking-wide text-primary mb-3">
+          <h2 className="text-small font-semibold uppercase tracking-wide text-primary-text mb-3">
             Potongan
           </h2>
 
@@ -278,7 +278,7 @@ export default async function SlipDetailPage({
       )}
 
       {/* Take Home Pay — prominent brand highlight (matches teal netBox in PDF) */}
-      <div className="rounded-xl bg-primary p-card flex items-center gap-3">
+      <div className="rounded-xl bg-primary p-card flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-small font-semibold uppercase tracking-wide text-primary-foreground opacity-80">
             Take Home Pay

@@ -208,10 +208,10 @@ export default function AttendancePage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full sm:w-44" />
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>
             {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -33,7 +33,9 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ------------------------------------------------------------------
 // Types
@@ -145,6 +147,18 @@ function LeaveReviewBody({
 
 export default function AdminLeavePage() {
   const isMobile = useIsMobile();
+  const routeSearchParams = useSearchParams();
+  const requestId = routeSearchParams.get("requestId");
+  const router = useRouter();
+  const closedRequest = useRef<string | null>(null);
+  const pageHeading = useRef<HTMLDivElement>(null);
+  const openedFromLink = useRef(false);
+  const [canApprove, setCanApprove] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [deepLinkError, setDeepLinkError] = useState(false);
+  const [deepLinkLoading, setDeepLinkLoading] = useState(false);
+  const [deepLinkRetry, setDeepLinkRetry] = useState(0);
+  const [statsState, setStatsState] = useState<"loading" | "ready" | "error">("loading");
   const [data, setData] = useState<LeaveRequest[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -165,8 +179,9 @@ export default function AdminLeavePage() {
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch("/api/leave/stats");
-      if (!res.ok) return; // Stats stay at default zeros — non-critical
+      if (!res.ok) throw new Error("stats unavailable");
       const json = await res.json();
+      setStatsState("ready");
       setStats({
         total: json.total ?? 0,
         pending: json.pending ?? 0,
@@ -174,7 +189,7 @@ export default function AdminLeavePage() {
         rejected: json.rejected ?? 0,
       });
     } catch {
-      // Stats stay at default zeros — non-critical
+      setStatsState("error");
     }
   }, []);
 
@@ -191,6 +206,7 @@ export default function AdminLeavePage() {
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -201,12 +217,15 @@ export default function AdminLeavePage() {
       if (search) params.set("search", search);
       if (statusFilter !== "all") params.set("status", statusFilter);
 
+
       const res = await fetch(`/api/leave/requests?${params}`);
+      if (!res.ok) throw new Error("leave unavailable");
       const json = await res.json();
+      setCanApprove(json.capabilities?.approve === true);
       setData(json.data ?? []);
       if (json.pagination) setPagination(json.pagination);
     } catch {
-      toast.error("Gagal memuat data cuti");
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -215,6 +234,46 @@ export default function AdminLeavePage() {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  useEffect(() => {
+    if (!requestId) {
+      closedRequest.current = null;
+      if (openedFromLink.current) setReviewTarget(null);
+      return;
+    }
+    if (closedRequest.current === requestId) return;
+    let active = true;
+    setReviewTarget(null);
+    setDeepLinkLoading(true);
+    setDeepLinkError(false);
+    // Resolve the selected record independently of table search, status and page.
+    fetch(`/api/leave/requests?requestId=${encodeURIComponent(requestId)}&page=1&pageSize=1`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("request unavailable");
+        const json = await res.json();
+        if (!active) return;
+        const record = json.data?.find((row: LeaveRequest) => row.id === requestId);
+        if (!record) { setDeepLinkError(true); return; }
+        setCanApprove(json.capabilities?.approve === true);
+        openReview(record, "view", true);
+      })
+      .catch(() => { if (active) setDeepLinkError(true); })
+      .finally(() => { if (active) setDeepLinkLoading(false); });
+    return () => { active = false; };
+  }, [requestId, deepLinkRetry]);
+
+  function closeReview() {
+    setDeepLinkError(false);
+    setDeepLinkLoading(false);
+    setReviewTarget(null);
+    setViewOnly(false);
+    if (requestId) {
+      closedRequest.current = requestId;
+      const next = new URLSearchParams(routeSearchParams.toString());
+      next.delete("requestId");
+      router.replace(`/admin/leave-requests${next.size ? `?${next}` : ""}`, { scroll: false });
+    }
+  }
 
   // ------------------------------------------------------------------
   // Handlers
@@ -239,7 +298,8 @@ export default function AdminLeavePage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  function openReview(req: LeaveRequest, action: "approve" | "reject" | "view") {
+  function openReview(req: LeaveRequest, action: "approve" | "reject" | "view", fromLink = false) {
+    openedFromLink.current = fromLink;
     setReviewTarget(req);
     setReviewNote("");
     if (action === "view") {
@@ -251,12 +311,13 @@ export default function AdminLeavePage() {
   }
 
   async function handleReview() {
-    if (!reviewTarget) return;
+    if (!reviewTarget || !canApprove) return;
     if (reviewAction === "reject" && !reviewNote.trim()) {
       toast.error("Alasan penolakan wajib diisi");
       return;
     }
     setReviewing(true);
+    try {
     const res = await fetch(`/api/leave/requests/${reviewTarget.id}/${reviewAction}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -264,14 +325,16 @@ export default function AdminLeavePage() {
     });
     if (res.ok) {
       toast.success(reviewAction === "approve" ? "Cuti disetujui" : "Cuti ditolak");
-      setReviewTarget(null);
+      closeReview();
       fetchRequests();
       fetchStats();
     } else {
       const d = await res.json();
       toast.error(d.error || "Gagal memproses pengajuan cuti. Coba lagi.");
     }
-    setReviewing(false);
+    } catch {
+      toast.error("Pengajuan belum tersimpan. Periksa koneksi dan coba lagi.");
+    } finally { setReviewing(false); }
   }
 
   // ------------------------------------------------------------------
@@ -356,7 +419,7 @@ export default function AdminLeavePage() {
       header: "",
       cell: ({ row }) => {
         const r = row.original;
-        const isPending = r.status === "PENDING";
+        const isPending = canApprove && r.status === "PENDING";
         return (
           <DataTableRowActions
             onView={() => openReview(r, "view")}
@@ -385,17 +448,22 @@ export default function AdminLeavePage() {
 
   return (
     <>
-      <PageHeader
-        title="Pengajuan Cuti"
-        description={`${pagination.total} pengajuan`}
-      />
+      <div ref={pageHeading} tabIndex={-1} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+        <PageHeader
+          title="Pengajuan Cuti"
+          description={fetchError ? "Daftar pengajuan belum tersedia" : loading ? "Memuat pengajuan…" : `${pagination.total} pengajuan`}
+        />
+      </div>
 
-      <StatsCardsRow>
+      {deepLinkLoading && <p role="status" className="mb-field text-body">Memuat pengajuan yang dipilih…</p>}
+      {deepLinkError && <Alert className="mb-field"><AlertTitle>Pengajuan tidak tersedia</AlertTitle><AlertDescription><p>Pengajuan tidak ditemukan atau tidak dapat dibuka dengan akses Anda.</p><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setDeepLinkRetry(value => value + 1)}>Coba lagi</Button><Button variant="ghost" onClick={closeReview}>Lihat daftar pengajuan</Button></div></AlertDescription></Alert>}
+      {statsState === "error" && <Alert className="mb-field"><AlertTitle>Ringkasan izin belum tersedia</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
+      {statsState === "ready" && <StatsCardsRow>
         <StatCard label="Total Pengajuan" value={stats.total} icon={FileText} color="primary" index={0} />
         <StatCard label="Menunggu" value={stats.pending} icon={Clock} color="warning" index={1} />
         <StatCard label="Disetujui" value={stats.approved} icon={CheckCircle} color="success" index={2} />
         <StatCard label="Ditolak" value={stats.rejected} icon={XCircle} color="error" index={3} />
-      </StatsCardsRow>
+      </StatsCardsRow>}
 
       <DataTableToolbar
         searchPlaceholder="Cari nama karyawan..."
@@ -426,7 +494,7 @@ export default function AdminLeavePage() {
         }
       />
 
-      <DataTable
+      {fetchError ? <Alert><AlertTitle>Daftar pengajuan belum dapat dimuat</AlertTitle><AlertDescription><Button onClick={fetchRequests} variant="outline">Coba lagi</Button></AlertDescription></Alert> : <DataTable
         columns={columns}
         data={data}
         pagination={pagination}
@@ -437,16 +505,16 @@ export default function AdminLeavePage() {
         loading={loading}
         emptyTitle="Tidak ada pengajuan cuti"
         emptyDescription="Pengajuan cuti dari guru akan muncul di sini."
-      />
+      />}
 
       {/* Review dialog/sheet — split by viewport */}
       {reviewTarget && (
         isMobile ? (
           <Sheet
             open={!!reviewTarget}
-            onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}
+            onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}
           >
-            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+            <SheetContent finalFocus={() => openedFromLink.current ? pageHeading.current : true} side="bottom" className="max-h-[90vh] overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>
                   {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
@@ -467,7 +535,7 @@ export default function AdminLeavePage() {
                 />
                 <div className="flex flex-col-reverse gap-2 pt-2">
                   {/* FIND-018: mirror row-kebab Setujui/Tolak in detail view. */}
-                  {viewOnly && reviewTarget.status === "PENDING" && (
+                  {viewOnly && canApprove && reviewTarget.status === "PENDING" && (
                     <>
                       <Button onClick={() => { setReviewAction("approve"); setViewOnly(false); }}>
                         Setujui
@@ -508,8 +576,8 @@ export default function AdminLeavePage() {
             </SheetContent>
           </Sheet>
         ) : (
-          <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o) { setReviewTarget(null); setViewOnly(false); } }}>
-            <DialogContent className="p-card sm:max-w-2xl">
+          <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}>
+            <DialogContent finalFocus={() => openedFromLink.current ? pageHeading.current : true} className="p-card sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
@@ -539,7 +607,7 @@ export default function AdminLeavePage() {
                     detail dialog footer when the leave is still PENDING. Pre-fix
                     the detail view only offered Tutup, forcing admins to close
                     and re-open via the kebab to act. */}
-                {viewOnly && reviewTarget.status === "PENDING" && (
+                {viewOnly && canApprove && reviewTarget.status === "PENDING" && (
                   <>
                     <Button
                       variant="outline"

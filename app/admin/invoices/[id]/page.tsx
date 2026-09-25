@@ -29,6 +29,7 @@ import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-met
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
 type InvoiceDetail = {
+  capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities;
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
   paymentLinkError: string | null;
@@ -87,6 +88,7 @@ export default function InvoiceDetailPage() {
   const isMobile = useIsMobile();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
   const [paying, setPaying] = useState(false);
@@ -101,9 +103,15 @@ export default function InvoiceDetailPage() {
   const [activityKey, setActivityKey] = useState(0);
 
   const fetchInvoice = useCallback(async () => {
-    const res = await fetch(`/api/invoices/${id}`);
-    if (res.ok) setInvoice(await res.json());
-    setLoading(false);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch(`/api/invoices/${id}`);
+      if (res.status === 404 || res.status === 403) { setInvoice(null); return; }
+      if (!res.ok) throw new Error("invoice unavailable");
+      setInvoice(await res.json());
+    } catch { setLoadError(true); }
+    finally { setLoading(false); }
   }, [id]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -233,19 +241,20 @@ export default function InvoiceDetailPage() {
   }
 
   if (loading) return <DetailPageSkeleton />;
-  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
+  if (loadError) return <EmptyState title="Tagihan belum dapat dimuat" description="Periksa koneksi dan coba lagi. Pembayaran tidak diubah." actionLabel="Coba lagi" onAction={fetchInvoice} />;
+  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia dengan akses Anda." actionLabel="Kembali ke daftar tagihan" actionHref="/admin/invoices" />;
 
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
-  const canVoid =
+  const canVoid = invoice.capabilities?.void && (
     invoice.status === "DRAFT" ||
     invoice.status === "SENT" ||
-    invoice.status === "PENDING_PAYMENT_LINK";
+    invoice.status === "PENDING_PAYMENT_LINK");
   // Only meaningful once a checkout exists at the gateway. A CANCELLED
   // invoice is terminal — the processor refuses to credit it either way, so
   // offering the action would only produce a confusing no-op.
-  const canRefreshPayment =
+  const canRefreshPayment = invoice.capabilities?.recordPayment &&
     !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED";
 
   return (
@@ -275,14 +284,14 @@ export default function InvoiceDetailPage() {
             )}
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
               <>
-                {!invoice.xenditPaymentUrl && (
+                {invoice.capabilities?.create && !invoice.xenditPaymentUrl && (
                   <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
                     {creatingXendit ? "Membuat..." : "Buat Link Pembayaran"}
                   </Button>
                 )}
-                <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
+                {invoice.capabilities?.recordPayment && <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
                   <CreditCard size={14} className="mr-1" /> Catat Pembayaran
-                </Button>
+                </Button>}
               </>
             )}
             {canVoid && (
@@ -338,9 +347,9 @@ export default function InvoiceDetailPage() {
                 );
               })()}
             </div>
-            <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
+            {invoice.capabilities?.create && <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
               {retrying ? "..." : "Coba Lagi"}
-            </Button>
+            </Button>}
           </div>
         </Card>
       )}
@@ -386,7 +395,7 @@ export default function InvoiceDetailPage() {
           {invoice.xenditPaymentUrl && (
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
-              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">{invoice.xenditPaymentUrl}</a>
+              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-text hover:underline break-all">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
               </Button>

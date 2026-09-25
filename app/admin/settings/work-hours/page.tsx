@@ -99,7 +99,7 @@ export default function OrgConfigPage() {
                 key={d.key}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
                   form.workingDays.includes(d.key)
-                    ? "border-primary bg-primary/5 text-primary"
+                    ? "border-primary bg-primary/5 text-primary-text"
                     : "border-border text-muted-foreground hover:border-primary/30"
                 }`}
               >

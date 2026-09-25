@@ -1860,7 +1860,7 @@
             </div>
             <div class="recipe-body">
               <h4 class="recipe-title">Admin List</h4>
-              <p class="recipe-desc">Page header → filter toolbar → DataTable → pagination. Used for Siswa, Guru, Tagihan, Cuti.</p>
+              <p class="recipe-desc">Page header → primary action → filter toolbar → DataTable → pagination. Keep loading, empty, error, disabled, and permission states in the same predictable region.</p>
             </div>
           </div>
 
@@ -1879,7 +1879,7 @@
             </div>
             <div class="recipe-body">
               <h4 class="recipe-title">Admin Detail</h4>
-              <p class="recipe-desc">Header with actions → 2-column: main content (tabs) + side metadata. Used for Siswa detail, Tagihan detail.</p>
+              <p class="recipe-desc">Header with identity and permitted actions → persistent record context → main content + side metadata. Long names and action groups must reflow at 320 px and 200% zoom.</p>
             </div>
           </div>
 
@@ -1917,7 +1917,7 @@
             </div>
             <div class="recipe-body">
               <h4 class="recipe-title">Portal Dashboard</h4>
-              <p class="recipe-desc">Stat cards → recent items → quick actions. Used for parent home, teacher home.</p>
+              <p class="recipe-desc">Current context → work needing attention → supporting summary. Teacher starts with the current class; parent starts with household actions and explicit per-child signals. Analytics stay secondary.</p>
             </div>
           </div>
 
@@ -1937,8 +1937,8 @@
               </div>
             </div>
             <div class="recipe-body">
-              <h4 class="recipe-title">Workflow Queue</h4>
-              <p class="recipe-desc">Pending items with inline approve/reject. Used for LeaveRequest approval, Admission conversion.</p>
+              <h4 class="recipe-title">Authoritative Work Queue</h4>
+              <p class="recipe-desc">Permission- and tenant-filtered domain records link to their real review surface. A row disappears only after its authoritative state changes; never add a generic local completion toggle.</p>
             </div>
           </div>
 
@@ -1964,6 +1964,9 @@
 
         <div class="callout" style="margin-top: 1.5rem;">
           <strong>How this maps to <code>.claude/standards/</code> →</strong> Each recipe will have a one-page spec in <code>.claude/standards/patterns.md</code> with its JSX skeleton and "required pieces" checklist. <code>/build</code> loads it automatically for any file matching <code>app/*/page.tsx</code>.
+        </div>
+        <div class="callout" style="margin-top: 0.75rem;">
+          <strong>Task-first consistency →</strong> Every route must make location, person/class/record context, the most important current state, and the next permitted action scannable without guessing. Reuse <code>PageHeader</code>, <code>ContextStrip</code>, <code>TaskList</code>/<code>TaskRow</code>, <code>SaveStatus</code>, <code>EmptyState</code>, and <code>DataTable</code>. Keep truthful saving, saved, retryable error, disabled, and unavailable states in place rather than relying on transient toasts.
         </div>
       </section>
 

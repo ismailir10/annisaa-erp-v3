@@ -109,7 +109,7 @@ async function primeAdminSession(role: string = "SUPER_ADMIN") {
 function wireSingleEligibleStudent() {
   return async () => {
     const { prisma } = await import("@/lib/db");
-    vi.mocked(prisma.classSection.findMany).mockResolvedValue([{ id: "cs-1" }] as never);
+    vi.mocked(prisma.classSection.findMany).mockResolvedValue([{ id: "cs-1", academicYearId: "ay-1" }] as never);
     vi.mocked(prisma.student.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.studentEnrollment.findMany).mockResolvedValue([
       {
@@ -302,10 +302,22 @@ describe("POST /api/billing-runs — tenant scoping", () => {
     expect(txMock.billingRun.create).not.toHaveBeenCalled();
   });
 
+  it("rejects a same-tenant class from another year before materializing an empty draft", async () => {
+    await primeAdminSession();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.classSection.findMany).mockResolvedValue([{ id: "cs-1", academicYearId: "ay-other" }] as never);
+    const res = await createRun(makeReq("http://localhost/api/billing-runs", validCreateBody) as never);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "Kelas tidak sesuai tahun ajaran yang dipilih. Pilih ulang kelas atau ubah tahun ajaran." });
+    expect(prisma.classSection.findMany).toHaveBeenCalledWith({ where: { id: { in: ["cs-1"] }, tenantId: "tnt-1" }, select: { id: true, academicYearId: true } });
+    expect(prisma.studentEnrollment.findMany).not.toHaveBeenCalled();
+    expect(txMock.billingRun.create).not.toHaveBeenCalled();
+  });
+
   it("returns 404 when an includeStudentId belongs to another tenant, and nothing is created", async () => {
     await primeAdminSession();
     const { prisma } = await import("@/lib/db");
-    vi.mocked(prisma.classSection.findMany).mockResolvedValue([{ id: "cs-1" }] as never);
+    vi.mocked(prisma.classSection.findMany).mockResolvedValue([{ id: "cs-1", academicYearId: "ay-1" }] as never);
     vi.mocked(prisma.student.findMany).mockResolvedValue([] as never); // s-foreign not found
 
     const res = await createRun(

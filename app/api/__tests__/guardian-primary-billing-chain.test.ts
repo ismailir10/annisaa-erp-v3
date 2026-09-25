@@ -277,7 +277,7 @@ function adminSession() {
     name: "Admin",
     employeeId: null,
     parentId: null,
-    permissions: [] as string[],
+    permissions: ["invoices.create"] as string[],
     customRoleCode: null,
   };
 }

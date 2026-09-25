@@ -1,0 +1,2511 @@
+{
+  "candidate": {
+    "sourceSha": "064cb83c8d463f459dae76e59f046d8afaa52d87",
+    "baseSha": "13661f071f2dfc3bd682e3a6a927c1ebd7d7239a",
+    "cleanWorktree": true,
+    "buildId": "hmWbEZqc-8ug0uez-0V9V",
+    "buildMode": "next build --webpack; temporary in-memory compiler cache; original config restored byte-for-byte",
+    "baseURL": "http://127.0.0.1:3015",
+    "database": "loopback:55440/talib_redesign",
+    "at": "2026-09-25T12:13:15.758388+00:00"
+  },
+  "run": {
+    "startedAt": "2026-09-25T12:22:15.685Z",
+    "finishedAt": "2026-09-25T12:29:00.787Z",
+    "accounts": {
+      "admin": {
+        "role": "SUPER_ADMIN",
+        "fixtureId": "u_super_admin",
+        "selection": "explicit synthetic fixture"
+      },
+      "teacher": {
+        "role": "TEACHER",
+        "fixtureId": "u_teacher",
+        "selection": "explicit synthetic fixture"
+      },
+      "parent": {
+        "role": "GUARDIAN",
+        "fixtureId": "u_rightjet",
+        "selection": "explicit synthetic fixture"
+      }
+    },
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "counts": {
+      "manifestRoutes": 62,
+      "visitedRoutePatterns": 62,
+      "visits": 260,
+      "findingVisits": 0,
+      "visitsWithBlockedMutations": 12,
+      "unavailableRoutes": 0
+    }
+  },
+  "policy": "Read-only browser GET/HEAD navigation, synthetic local database only. Automatic writes blocked; no real payments. Record counts can change during parallel local E2E.",
+  "routes": [
+    {
+      "route": "/admin/employee-attendance/monthly",
+      "role": "admin",
+      "headings": [
+        "Kehadiran Bulanan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/employee-attendance",
+      "role": "admin",
+      "headings": [
+        "Kehadiran Hari Ini"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/employees",
+      "role": "admin",
+      "headings": [
+        "Karyawan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/leave-requests",
+      "role": "admin",
+      "headings": [
+        "Pengajuan Cuti"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/payroll",
+      "role": "admin",
+      "headings": [
+        "Penggajian"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/salary-components",
+      "role": "admin",
+      "headings": [
+        "Komponen Gaji"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/academic-years",
+      "role": "admin",
+      "headings": [
+        "Tahun Ajaran"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/admissions",
+      "role": "admin",
+      "headings": [
+        "Pendaftaran"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/classes",
+      "role": "admin",
+      "headings": [
+        "Kelas"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/design-system",
+      "role": "admin",
+      "headings": [
+        "Design System"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/enrollments",
+      "role": "admin",
+      "headings": [
+        "Formulir Pendaftaran"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/fees",
+      "role": "admin",
+      "headings": [
+        "Biaya & Tagihan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/guardians",
+      "role": "admin",
+      "headings": [
+        "Wali Murid"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/invoices",
+      "role": "admin",
+      "headings": [
+        "Tagihan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin",
+      "role": "admin",
+      "headings": [
+        "Perlu ditangani"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/payments",
+      "role": "admin",
+      "headings": [
+        "Penerimaan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/penilaian",
+      "role": "admin",
+      "headings": [
+        "Pemantauan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/raport",
+      "role": "admin",
+      "headings": [
+        "Rapor"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/raport/templates",
+      "role": "admin",
+      "headings": [
+        "Bank Narasi Rapor"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/semesters",
+      "role": "admin",
+      "headings": [
+        "Kurikulum — Semester"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/campuses",
+      "role": "admin",
+      "headings": [
+        "Kampus"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/holidays",
+      "role": "admin",
+      "headings": [
+        "Hari Libur"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/roles",
+      "role": "admin",
+      "headings": [
+        "Peran & Izin"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/users",
+      "role": "admin",
+      "headings": [
+        "Pengguna"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings/work-hours",
+      "role": "admin",
+      "headings": [
+        "Jam Kerja"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/student-attendance",
+      "role": "admin",
+      "headings": [
+        "Kehadiran Siswa"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/student-journal/monitoring",
+      "role": "admin",
+      "headings": [
+        "Buku Penghubung — Pemantauan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/student-journal",
+      "role": "admin",
+      "headings": [
+        "Buku Penghubung — Templat"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/students",
+      "role": "admin",
+      "headings": [
+        "Siswa"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/employees/[id]",
+      "role": "admin",
+      "headings": [
+        "Staf Enam"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/payroll/[id]",
+      "role": "admin",
+      "headings": [
+        "2026-09-21 — 2026-10-20"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/classes/[id]",
+      "role": "admin",
+      "headings": [
+        "TKIT A · 2025/2026"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/enrollments/[id]",
+      "role": "admin",
+      "headings": [
+        "Uji lokal SUBMITTED"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/guardians/[id]",
+      "role": "admin",
+      "headings": [
+        "E2E Primary A 1790338974597"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/invoices/[id]",
+      "role": "admin",
+      "headings": [
+        "LOCAL-REDESIGN-PENDING-LINK"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/semesters/[id]/objectives",
+      "role": "admin",
+      "headings": [
+        "E2E PROMES Import 1790337136527 · Semester 1 · Tujuan Pembelajaran"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/semesters/[id]/themes",
+      "role": "admin",
+      "headings": [
+        "E2E PROMES Import 1790337136527 · Semester 1"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/student-journal/classes/[id]",
+      "role": "admin",
+      "headings": [
+        "TKIT A — TK Islam Terpadu"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/student-journal/students/[id]",
+      "role": "admin",
+      "headings": [
+        "Ahmad Zafran Hidayat"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/students/[id]",
+      "role": "admin",
+      "headings": [
+        "E2E Full 1790339053272"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/admin/semesters/[id]/import",
+      "role": "admin",
+      "headings": [
+        "Impor PROMES (Program Semester)"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 0
+        }
+      ]
+    },
+    {
+      "route": "/teacher/assessments",
+      "role": "teacher",
+      "headings": [
+        "Penilaian"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/assessments/weekly",
+      "role": "teacher",
+      "headings": [
+        "Penilaian pekanan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/attendance",
+      "role": "teacher",
+      "headings": [
+        "Kehadiran saya"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/class-attendance",
+      "role": "teacher",
+      "headings": [
+        "Absensi kelas"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher",
+      "role": "teacher",
+      "headings": [
+        "Selamat malam, Guru Tiga"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/profile",
+      "role": "teacher",
+      "headings": [
+        "Profil saya"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/slips",
+      "role": "teacher",
+      "headings": [
+        "Slip gaji"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/student-journal/entry",
+      "role": "teacher",
+      "headings": [
+        "Isi Buku Penghubung"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/student-journal",
+      "role": "teacher",
+      "headings": [
+        "Buku Penghubung"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/assessments/center/[center]",
+      "role": "teacher",
+      "headings": [
+        "Sentra Ibadah"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5,
+          "domainStates": [
+            {
+              "status": 422,
+              "path": "/api/teacher/assessment-entries/center/WORSHIP",
+              "reason": "no_active_week"
+            }
+          ]
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5,
+          "domainStates": [
+            {
+              "status": 422,
+              "path": "/api/teacher/assessment-entries/center/WORSHIP",
+              "reason": "no_active_week"
+            }
+          ]
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5,
+          "domainStates": [
+            {
+              "status": 422,
+              "path": "/api/teacher/assessment-entries/center/WORSHIP",
+              "reason": "no_active_week"
+            }
+          ]
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5,
+          "domainStates": [
+            {
+              "status": 422,
+              "path": "/api/teacher/assessment-entries/center/WORSHIP",
+              "reason": "no_active_week"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/teacher/sessions/[id]",
+      "role": "teacher",
+      "headings": [
+        "Kelas uji penjemputan lokal"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/slips/[id]",
+      "role": "teacher",
+      "headings": [
+        "Agustus 2026"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/teacher/student-journal/students/[id]",
+      "role": "teacher",
+      "headings": [
+        "Ahmad Zafran Hidayat"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/attendance",
+      "role": "parent",
+      "headings": [
+        "Kehadiran"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/invoices",
+      "role": "parent",
+      "headings": [
+        "Tagihan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent",
+      "role": "parent",
+      "headings": [
+        "Kabar keluarga hari ini"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/perkembangan",
+      "role": "parent",
+      "headings": [
+        "Perkembangan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/profile",
+      "role": "parent",
+      "headings": [
+        "Profil"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/reports",
+      "role": "parent",
+      "headings": [
+        "Rapor"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/student-journal",
+      "role": "parent",
+      "headings": [
+        "Jurnal"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    },
+    {
+      "route": "/parent/perkembangan/[studentId]",
+      "role": "parent",
+      "headings": [
+        "Perkembangan"
+      ],
+      "widths": [
+        {
+          "width": 320,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 390,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 768,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        },
+        {
+          "width": 1440,
+          "status": 200,
+          "overflowPixels": 0,
+          "mainHeadingCount": 1,
+          "navigationSlots": 5
+        }
+      ]
+    }
+  ],
+  "parentAdminChecks": [
+    {
+      "name": "Parent cards show named children and explicit teacher-note destination",
+      "status": "passed"
+    },
+    {
+      "name": "Teacher note opens notes tab for the named child",
+      "status": "passed"
+    },
+    {
+      "name": "Client note failure offers retry and recovers on a real GET",
+      "status": "passed"
+    },
+    {
+      "name": "Sibling context survives tab navigation, reload and browser back",
+      "status": "passed"
+    },
+    {
+      "name": "Server-authoritative pending payment return",
+      "status": "passed"
+    },
+    {
+      "name": "Server-authoritative partial payment return",
+      "status": "passed"
+    },
+    {
+      "name": "Server-authoritative paid payment return",
+      "status": "passed"
+    },
+    {
+      "name": "Forged and foreign invoice IDs cannot open payment details or claim paid",
+      "status": "passed"
+    },
+    {
+      "name": "Unavailable payment link shows non-payment guidance",
+      "status": "passed"
+    },
+    {
+      "name": "Admin queue filters named records and opens leave deep link",
+      "status": "passed"
+    },
+    {
+      "name": "Admin queue record links identify actual invoice and enrollment",
+      "status": "passed"
+    },
+    {
+      "name": "School admin sees finance/admissions work but no HR work or HR GET",
+      "status": "passed"
+    },
+    {
+      "name": "Restricted local roles show only permitted queue actions and GET surfaces",
+      "status": "passed"
+    },
+    {
+      "name": "Mobile settings editor uses Sheet and returns focus to trigger",
+      "status": "passed"
+    }
+  ],
+  "manualReview": {
+    "reviewed": [
+      "Three role homes at 390/1440",
+      "Previously overflowing pages at 320",
+      "Parent child context and household disclosure",
+      "School admin permissions"
+    ],
+    "knownFindings": [
+      {
+        "route": "/admin/design-system",
+        "state": "reference-only follow-up pending",
+        "finding": "Embedded reference blocked by X-Frame-Options DENY from security middleware. Narrow path-specific fix is tracked separately."
+      },
+      {
+        "route": "/admin/payroll/[id]",
+        "state": "contrast follow-up pending",
+        "finding": "Total Bersih uses light primary teal on white: 2.42:1, below 3:1 for large text. Existing primary-text token is the proposed correction.",
+        "alsoObservedOn": "/teacher/slips/[id]: PENDAPATAN/POTONGAN section labels use same text-primary token"
+      }
+    ]
+  },
+  "harnessNotes": [
+    "Earlier discovery-order run used different teacher/guardian accounts and mismatched teacher record fixtures; that run is superseded by this explicit-identity run.",
+    "First targeted admin flow encountered already-sent pending-link fixture. Exact fixture state was restored by the fixture owner; all 14 targeted checks passed on rerun."
+  ],
+  "limitations": [
+    "Candidate source identity must be verified externally; candidate-ref is the supplied source SHA.",
+    "Visual smoke only: no save/payment/reply mutations, keyboard journeys, native zoom, or fault injection.",
+    "Only one discovered account per role. Restricted roles, siblings, and alternate classes need separate journeys.",
+    "Missing dynamic fixtures are explicitly uncovered. Empty-state screenshots do not prove populated workflows.",
+    "Blocked automatic mutations (including read watermarks) are recorded separately from application findings and may affect rendering.",
+    "This read-only sweep does not assert that primary actions work; those require targeted workflow journeys.",
+    "Heuristic review, not measured usability or representative-user UAT.",
+    "Local evidence does not replace role-specific staging OAuth preview verification."
+  ],
+  "screenshots": [
+    "admin-home-390.png",
+    "admin-home-1440.png",
+    "teacher-home-390.png",
+    "teacher-home-1440.png",
+    "parent-home-390.png",
+    "parent-home-1440.png",
+    "admin-employee-attendance-320.png",
+    "admin-employee-attendance-monthly-320.png",
+    "admin-employees-id-320.png",
+    "admin-payroll-id-320.png",
+    "admin-classes-320.png",
+    "admin-fees-320.png",
+    "admin-invoices-320.png",
+    "admin-settings-roles-320.png",
+    "admin-student-journal-students-id-320.png",
+    "teacher-class-attendance-320.png",
+    "teacher-assessments-center-center-320.png",
+    "teacher-slips-id-320.png",
+    "parent-perkembangan-studentId-320.png",
+    "admin-school-admin-390.png"
+  ],
+  "environmentObservations": [
+    {
+      "path": "/_vercel/insights/script.js",
+      "status": 404,
+      "responses": 260
+    },
+    {
+      "path": "/_vercel/speed-insights/script.js",
+      "status": 404,
+      "responses": 260
+    }
+  ],
+  "blockedAutomaticWrites": [
+    {
+      "path": "/api/csp-report",
+      "method": "POST",
+      "requests": 4
+    },
+    {
+      "path": "/api/student-journal/notes/read",
+      "method": "POST",
+      "requests": 8
+    }
+  ]
+}

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { SaveStatus } from "@/components/portal/save-status";
+import { Button } from "@/components/ui/button";
+import { getJournalProgress, resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
@@ -59,7 +62,14 @@ type EntryRow = {
 export default function StudentJournalEntryPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get("classId") ?? "";
-  const date = searchParams.get("date") ?? "";
+  const date = resolveTeacherDate(searchParams.get("date"), "");
+  const context = `${classId}:${date}`;
+  const contextToken = useMemo(() => ({context}), [context]);
+  const activeContext = useRef<typeof contextToken | null>(contextToken);
+  useEffect(() => { activeContext.current = contextToken; return () => { activeContext.current = null; }; }, [contextToken]);
+  const sequence = useRef(0);
+  const [failedCells, setFailedCells] = useState<Record<string, {studentId:string;indicatorId:string;checked:boolean}>>({});
+  const [hasSaved, setHasSaved] = useState(false);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -68,6 +78,7 @@ export default function StudentJournalEntryPage() {
   /** state[studentId][indicatorId] = checked */
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
+  const confirmedGrid = useRef<GridState>({});
   const latestSaveRequestIds = useRef<Record<string, number | undefined>>({});
   const coalescerRef = useRef<JournalWriteCoalescer | null>(null);
   const [pendingCells, setPendingCells] = useState<Set<string>>(() => new Set());
@@ -89,6 +100,7 @@ export default function StudentJournalEntryPage() {
     if (!classId || !date) { setLoading(false); return; }
     setLoading(true);
     setLoadError(false);
+    setFailedCells({}); setHasSaved(false);
     try {
     const res = await fetch(
       `/api/student-journal/class-grid?classSectionId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`
@@ -119,10 +131,10 @@ export default function StudentJournalEntryPage() {
       initial[student.id] = {};
     }
     for (const entry of loadedEntries) {
-      if (!initial[entry.studentId]) initial[entry.studentId] = {};
-      initial[entry.studentId][entry.indicatorId] = entry.checked;
+      if (initial[entry.studentId] && loadedCategories.some(c => c.indicators.some(i => i.id === entry.indicatorId))) initial[entry.studentId][entry.indicatorId] = entry.checked;
     }
     gridStateRef.current = initial;
+    confirmedGrid.current = initial;
     latestSaveRequestIds.current = {};
     setPendingCells(new Set());
     setGridState(initial);
@@ -178,6 +190,7 @@ export default function StudentJournalEntryPage() {
         failed = true;
       }
 
+      if (activeContext.current !== contextToken) return;
       // Roll back every cell this flush carried, skipping any the teacher has
       // retapped since — that newer tap owns the cell now and is already
       // buffered for the next flush.
@@ -198,8 +211,9 @@ export default function StudentJournalEntryPage() {
             next,
             w.studentId,
             w.indicatorId,
-            w.previousChecked,
+            confirmedGrid.current[w.studentId]?.[w.indicatorId] ?? false,
           );
+          setFailedCells(prev => ({...prev, [cellKey]: {studentId:w.studentId, indicatorId:w.indicatorId, checked:w.checked}}));
           rolledBack = true;
         }
         if (rolledBack) {
@@ -209,6 +223,10 @@ export default function StudentJournalEntryPage() {
         }
       }
 
+      if (!failed) {
+        for (const w of batch.writes.values()) confirmedGrid.current = applyJournalCellValue(confirmedGrid.current, w.studentId, w.indicatorId, w.checked);
+        setHasSaved(true);
+      }
       for (const [cellKey, w] of batch.writes) {
         if (
           shouldApplyJournalSaveResult(
@@ -222,7 +240,7 @@ export default function StudentJournalEntryPage() {
         }
       }
     },
-    [classId, date],
+    [classId, date, contextToken],
   );
 
   // One coalescer per class-day. Rebuilding it on a date change would strand
@@ -264,7 +282,8 @@ export default function StudentJournalEntryPage() {
   function setCell(studentId: string, indicatorId: string, checked: boolean) {
     const previousChecked = gridStateRef.current[studentId]?.[indicatorId] ?? false;
     const cellKey = getJournalCellKey(studentId, indicatorId);
-    const requestId = (latestSaveRequestIds.current[cellKey] ?? 0) + 1;
+    const requestId = ++sequence.current;
+    setFailedCells(prev => { const copy = {...prev}; delete copy[cellKey]; return copy; });
 
     latestSaveRequestIds.current[cellKey] = requestId;
     setCellPending(cellKey, true);
@@ -294,22 +313,16 @@ export default function StudentJournalEntryPage() {
   // How far along the class is, derived from live grid state rather than the
   // loaded payload — the guru is looking at this number precisely while they
   // tap, and a figure that only moved on reload would be worse than none.
-  const totalIndicators = categories.reduce(
-    (sum, cat) => sum + cat.indicators.length,
-    0,
-  );
-  const completeStudents =
-    totalIndicators === 0
-      ? 0
-      : students.filter(
-          (s) =>
-            Object.values(gridState[s.id] ?? {}).filter(Boolean).length ===
-            totalIndicators,
-        ).length;
+  const progress = getJournalProgress({
+    studentIds: students.map(s => s.id), indicatorIds: categories.flatMap(c => c.indicators.map(i => i.id)),
+    entries: Object.entries(gridState).flatMap(([studentId, row]) => Object.entries(row).map(([indicatorId, checked]) => ({studentId, indicatorId, checked}))),
+  });
+  const completeStudents = progress.completeStudents;
 
+  const pickerHref = `/teacher/student-journal?pick=1&classId=${encodeURIComponent(classId)}&date=${date}`;
   const changePicker = (
     <Link
-      href="/teacher/student-journal?pick=1"
+      href={pickerHref}
       className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       Ganti kelas atau tanggal
@@ -330,6 +343,7 @@ export default function StudentJournalEntryPage() {
   if (!classId || !date) {
     return (
       <div>
+        <PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} />
         <EmptyState
           icon={Users}
           title="Kelas dan tanggal belum dipilih"
@@ -343,19 +357,20 @@ export default function StudentJournalEntryPage() {
 
   if (loadError) {
     return (
-      <EmptyState
+      <div><PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} /><EmptyState
         icon={Users}
         title="Data kelas tidak bisa dimuat"
         description="Periksa koneksi, lalu coba lagi."
         actionLabel="Coba lagi"
         onAction={loadGrid}
-      />
+      /></div>
     );
   }
 
   if (students.length === 0) {
     return (
       <div>
+        <PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} />
         <EmptyState
           icon={Users}
           title="Belum ada siswa di kelas ini"
@@ -367,7 +382,7 @@ export default function StudentJournalEntryPage() {
 
   return (
     <div>
-      <BackLink href="/teacher/student-journal?pick=1" />
+      <BackLink href={pickerHref} />
 
       <PageHeader
         title="Isi Buku Penghubung"
@@ -376,8 +391,13 @@ export default function StudentJournalEntryPage() {
       />
 
       <p className="-mt-4 mb-4 text-xs text-muted-foreground" data-testid="class-progress">
-        {completeStudents}/{students.length} siswa lengkap
+        {progress.configured ? `${completeStudents}/${students.length} siswa lengkap` : "Indikator sekolah belum disiapkan. Hubungi admin."}
       </p>
+
+      {pendingCells.size > 0 || Object.keys(failedCells).length > 0 || hasSaved ? <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <SaveStatus state={Object.keys(failedCells).length > 0 ? "error" : pendingCells.size > 0 ? "saving" : "saved"} message={Object.keys(failedCells).length > 0 ? "Sebagian perubahan belum tersimpan." : pendingCells.size > 0 ? "Menyimpan jurnal…" : "Jurnal tersimpan"} />
+        {Object.keys(failedCells).length > 0 ? <Button variant="outline" className="min-h-11" onClick={() => Object.values(failedCells).forEach(cell => setCell(cell.studentId, cell.indicatorId, cell.checked))}>Coba simpan lagi</Button> : null}
+      </div> : null}
 
       <ClassDayGrid
         students={students}

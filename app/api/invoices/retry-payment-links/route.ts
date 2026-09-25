@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { retryPaymentLinksSchema } from "@/lib/validations/invoice";
 import { retryPaymentLinks } from "@/lib/finance/xendit-retry";
+import { hasPermission } from "@/lib/permissions";
 
 /**
  * POST /api/invoices/retry-payment-links
@@ -20,7 +21,7 @@ import { retryPaymentLinks } from "@/lib/finance/xendit-retry";
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

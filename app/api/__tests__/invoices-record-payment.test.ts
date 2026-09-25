@@ -45,7 +45,7 @@ const ADMIN = {
   tenantId: "t-1",
   employeeId: null,
   parentId: null,
-  permissions: [] as string[],
+  permissions: ["payments.record"] as string[],
   customRoleCode: null,
 };
 

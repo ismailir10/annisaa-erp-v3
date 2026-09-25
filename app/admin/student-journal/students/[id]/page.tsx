@@ -143,7 +143,7 @@ export default function StudentJournalDetailPage({
     fetch(`/api/students/${studentId}`)
       .then((r) => r.json())
       .then((json) => {
-        if (json.data?.name) setStudentName(json.data.name);
+        if (typeof json.name === "string" && json.name.trim()) setStudentName(json.name);
       })
       // Silent: optional header-name populate; primary data load has its own toast.error path.
       .catch(() => {});
@@ -294,7 +294,7 @@ export default function StudentJournalDetailPage({
         title={studentName || "Detail Jurnal Siswa"}
         description="Buku Penghubung — rincian per minggu"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Week picker */}
             <Button
               variant="outline"
@@ -306,7 +306,7 @@ export default function StudentJournalDetailPage({
             >
               <ChevronLeft size={14} />
             </Button>
-            <span className="text-sm font-medium min-w-[140px] text-center">
+            <span className="min-w-[104px] text-center text-sm font-medium sm:min-w-[140px]">
               {formatWeekLabel(ws)}
             </span>
             <Button

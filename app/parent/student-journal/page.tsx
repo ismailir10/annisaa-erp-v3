@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
+import { ContextStrip } from "@/components/portal/context-strip";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
@@ -314,7 +315,7 @@ export default function ParentStudentJournalPage() {
   const selectedUnread = childId ? (unreadByChild[childId] ?? 0) : 0;
   const selectedChild = children?.find((c) => c.id === childId) ?? null;
   const selectedChildLabel = selectedChild
-    ? [selectedChild.nickname?.trim() || selectedChild.name, selectedChild.className]
+    ? [selectedChild.name, selectedChild.className]
         .filter(Boolean)
         .join(" · ")
     : null;
@@ -341,6 +342,14 @@ export default function ParentStudentJournalPage() {
           ariaLabel="Pilih anak"
         />
       )}
+
+      {selectedChild ? (
+        <ContextStrip
+          name={selectedChild.name}
+          detail={selectedChild.className || "Jurnal anak terpilih"}
+          className="rounded-lg border-x border-t"
+        />
+      ) : null}
 
       {/*
         Parent-facing label is "Jurnal" — it has to match the bottom-nav tab,
@@ -401,7 +410,7 @@ export default function ParentStudentJournalPage() {
               {selectedUnread > 0 ? (
                 <span
                   data-testid="notes-unread-badge"
-                  className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white"
+                  className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-primary-foreground"
                   aria-label={`${selectedUnread} catatan baru`}
                 >
                   {selectedUnread}

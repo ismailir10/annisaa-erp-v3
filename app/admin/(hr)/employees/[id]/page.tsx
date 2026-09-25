@@ -289,14 +289,14 @@ export default function EmployeeDetailPage() {
                 {/* Kontak */}
                 <div>
                   <SectionHeading label="Kontak" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
+                      <div className="min-w-0"><p className="text-xs text-muted-foreground">Email</p><p className="text-sm break-words">{e.email}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
+                      <div className="min-w-0"><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm break-words">{e.noHp || "—"}</p></div>
                     </div>
                   </div>
                 </div>

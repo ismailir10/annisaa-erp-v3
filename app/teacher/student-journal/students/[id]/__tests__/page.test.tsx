@@ -112,7 +112,7 @@ describe("TeacherStudentWeekPage", () => {
     render(<TeacherStudentWeekPage />);
 
     await screen.findByTestId("week-grid");
-    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Buku Penghubung siswa");
   });
 
   it("offers a jump into the fill grid, carrying the class and the day", async () => {

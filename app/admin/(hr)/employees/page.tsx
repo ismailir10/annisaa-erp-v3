@@ -76,7 +76,7 @@ const columns: ColumnDef<Employee>[] = [
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium group-hover:text-primary transition-colors">
+              <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
                 {e.nama}
               </span>
               <span className="font-currency text-xs text-muted-foreground">

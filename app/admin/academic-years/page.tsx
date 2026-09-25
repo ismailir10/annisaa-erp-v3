@@ -287,7 +287,7 @@ export default function AcademicPage() {
       cell: ({ row }) => (
         <Link
           href={`/admin/classes?yearId=${row.original.id}`}
-          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+          className="text-xs text-primary-text hover:underline inline-flex items-center gap-1"
         >
           Kelola kelas tahun ini
           <ArrowRightCircle size={12} />

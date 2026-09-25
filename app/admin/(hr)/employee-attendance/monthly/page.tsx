@@ -109,7 +109,7 @@ export default function MonthlyAttendancePage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <button onClick={prevMonth} aria-label="Bulan sebelumnya" className="p-2 rounded-lg hover:bg-accent"><ChevronLeft size={16} /></button>
         <span className="text-sm font-semibold w-40 text-center capitalize">{monthLabel}</span>
         <button onClick={nextMonth} aria-label="Bulan berikutnya" className="p-2 rounded-lg hover:bg-accent"><ChevronRight size={16} /></button>

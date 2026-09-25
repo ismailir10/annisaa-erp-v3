@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Admin session — passes route's authz gate.
 vi.mock("@/lib/auth", () => ({
-  getSession: vi.fn(async () => ({ tenantId: "tnt-1", role: "ADMIN", userId: "u-1" })),
+  getSession: vi.fn(async () => ({ tenantId: "tnt-1", role: "ADMIN", userId: "u-1", permissions: ["invoices.create"] })),
   isAdminRole: (r: string) => r === "ADMIN" || r === "SUPER_ADMIN",
 }));
 

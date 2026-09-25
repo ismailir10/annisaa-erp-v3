@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const tenantId = session.tenantId;

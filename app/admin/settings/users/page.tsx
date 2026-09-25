@@ -11,14 +11,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import {
@@ -457,16 +450,17 @@ export default function UsersPage() {
       />
 
       {/* Edit Dialog */}
-      <Dialog
+      <ResponsiveFormDialog
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
+        title="Edit Pengguna"
+        footer={<>
+          <Button variant="ghost" onClick={() => setEditTarget(null)}>Batal</Button>
+          <Button onClick={handleSaveEdit} disabled={saving}>
+            {saving ? "Menyimpan..." : "Simpan Perubahan"}
+          </Button>
+        </>}
       >
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Pengguna</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
             <div>
               <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
               <p className="text-xs text-muted-foreground">
@@ -503,18 +497,7 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </Field>
-          </div>
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>
-              Batal
-            </DialogClose>
-            <Button onClick={handleSaveEdit} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan Perubahan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog
         open={!!deactivateTarget}

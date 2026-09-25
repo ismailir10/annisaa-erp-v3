@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InvoicesClient } from "../client";
 
@@ -123,12 +123,21 @@ describe("InvoicesClient (cycle-4)", () => {
       render(<InvoicesClient data={mockInvoices} />);
       expect(screen.getByText("Agustus 2024")).toBeInTheDocument();
       expect(screen.getByText("September 2024")).toBeInTheDocument();
+      const list = screen.getByRole("list", { name: "Tagihan belum dibayar" });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+      expect(within(list).getByRole("button", { name: /Agustus 2024/ })).toBeVisible();
     });
 
-    it("renders Riwayat pembayaran eyebrow when paid history exists", () => {
+    it("keeps paid history behind an explicit disclosure after outstanding rows", async () => {
+      const user = userEvent.setup();
       render(<InvoicesClient data={mockInvoices} />);
-      expect(screen.getByText("Riwayat pembayaran")).toBeInTheDocument();
+      const history = screen.getByRole("button", { name: /Riwayat pembayaran/ });
+      expect(history).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("Juli 2024")).not.toBeInTheDocument();
+      await user.click(history);
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
+      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.getByText("Agustus 2024").compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });
 
@@ -144,14 +153,16 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.getByText(/Alhamdulillah, semua tagihan lunas/)).toBeInTheDocument();
     });
 
-    it("still shows Riwayat pembayaran with paid rows", () => {
+    it("still offers paid history when all invoices are paid", async () => {
+      const user = userEvent.setup();
       const allPaid = mockInvoices.map((inv) => ({
         ...inv,
         status: "PAID",
         totalPaid: inv.totalDue,
       }));
       render(<InvoicesClient data={allPaid} />);
-      expect(screen.getByText("Riwayat pembayaran")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /Riwayat pembayaran/ }));
+      expect(screen.getByText("Juli 2024")).toBeInTheDocument();
     });
   });
 
@@ -273,6 +284,7 @@ describe("InvoicesClient (cycle-4)", () => {
       );
       expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=second&view=home", { scroll: false });
       expect(screen.getByText(/Sheet open: inv-3/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Riwayat pembayaran/ })).toHaveAttribute("aria-expanded", "true");
     });
 
     it("fires neutral cancel toast on ?invoice=&paymentStatus=cancel", () => {
@@ -282,6 +294,16 @@ describe("InvoicesClient (cycle-4)", () => {
         expect.stringContaining("Pembayaran belum selesai"),
       );
       expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
+    });
+
+    it("does not call a cancelled invoice a pending payment after a paid return", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
+      const cancelled = mockInvoices.map((inv) => inv.id === "inv-1" ? { ...inv, status: "CANCELLED" } : inv);
+      render(<InvoicesClient data={cancelled} />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("Pembayaran belum selesai"));
+      expect(toastFn).not.toHaveBeenCalledWith(expect.stringContaining("sedang diperiksa"));
+      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
     });
 
     it("prefers paymentStatus over xenditStatus when both are present", () => {
