@@ -303,7 +303,7 @@ export default function FeesPage() {
                 ))}
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
+                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary-text">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
                 <Button onClick={saveStructure} disabled={structureSaving}>
                   <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
                 </Button>

@@ -149,7 +149,7 @@ function DocumentUploadCell({
             href={`/api/parents/${parentId}/${field}?v=${version}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-primary hover:underline inline-block"
+            className="text-xs text-primary-text hover:underline inline-block"
           >
             Buka di tab baru →
           </a>
@@ -445,7 +445,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{g.student.name}</span>
                           <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                          {g.isPrimary && <Badge className="bg-primary/10 text-primary text-xs">Utama</Badge>}
+                          {g.isPrimary && <Badge className="bg-primary/10 text-primary-text text-xs">Utama</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {g.student.gender === "L" ? "Laki-laki" : g.student.gender === "P" ? "Perempuan" : ""}

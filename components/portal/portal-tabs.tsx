@@ -150,7 +150,7 @@ export function PortalTabs({
             : cn(
                 "px-3 py-2 border-b-2",
                 active
-                  ? "border-primary text-primary"
+                  ? "border-primary text-primary-text"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               );
 

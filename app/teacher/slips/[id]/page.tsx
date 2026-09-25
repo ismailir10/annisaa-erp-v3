@@ -205,7 +205,7 @@ export default async function SlipDetailPage({
 
       {/* Pendapatan (Income) section */}
       <Card className="p-card">
-        <h2 className="text-small font-semibold uppercase tracking-wide text-primary mb-3">
+        <h2 className="text-small font-semibold uppercase tracking-wide text-primary-text mb-3">
           Pendapatan
         </h2>
 
@@ -241,7 +241,7 @@ export default async function SlipDetailPage({
       {/* Potongan (Deductions) section — hidden if zero deductions */}
       {deductionLines.length > 0 && (
         <Card className="p-card">
-          <h2 className="text-small font-semibold uppercase tracking-wide text-primary mb-3">
+          <h2 className="text-small font-semibold uppercase tracking-wide text-primary-text mb-3">
             Potongan
           </h2>
 

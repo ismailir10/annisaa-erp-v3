@@ -412,7 +412,7 @@ export default function PayrollDetailPage() {
       <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-2xl font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-2xl font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
-        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary-text">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
@@ -468,7 +468,7 @@ export default function PayrollDetailPage() {
               <div className="mt-6 space-y-4">
                 {/* Variables button */}
                 {isDraft && (
-                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary flex items-center gap-1 hover:underline">
+                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary-text flex items-center gap-1 hover:underline">
                     <Settings2 size={12} /> Edit Variabel Kehadiran
                   </button>
                 )}
@@ -501,7 +501,7 @@ export default function PayrollDetailPage() {
                 <div className="border-t border-border pt-3 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan</span><span className="font-currency font-medium">{formatRupiah(detailItem.grossAmount)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Potongan</span><span className="font-currency font-medium text-destructive">{formatRupiah(detailItem.deductions)}</span></div>
-                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-primary">{formatRupiah(detailItem.netAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-primary-text">{formatRupiah(detailItem.netAmount)}</span></div>
                 </div>
 
                 {/* Bank info */}
@@ -547,7 +547,7 @@ export default function PayrollDetailPage() {
             <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
             <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
             <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
-            <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+            <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
           </div>
           <DialogFooter>
             <DialogClose><Button variant="ghost">Batal</Button></DialogClose>

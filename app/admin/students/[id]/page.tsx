@@ -1915,7 +1915,7 @@ export default function StudentDetailPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="px-0 text-primary"
+                className="px-0 text-primary-text"
                 onClick={() => setGuardianStep("create")}
               >
                 Tidak ketemu? Tambah wali baru →

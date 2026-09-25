@@ -337,7 +337,7 @@ const columns: ColumnDef<Student>[] = [
             )}
           </div>
           <div>
-            <span className="text-sm font-medium group-hover:text-primary transition-colors">
+            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
               {s.name}
             </span>
             {s.nickname && (

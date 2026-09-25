@@ -91,7 +91,7 @@ const columns: ColumnDef<Invoice>[] = [
             <FileText size={14} className="text-primary" />
           </div>
           <div>
-            <span className="text-sm font-medium group-hover:text-primary transition-colors">
+            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
               {inv.student.name}
             </span>
             <p className="font-currency text-xs text-muted-foreground">
