@@ -18,11 +18,13 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 
 ## Preflight
 
+**Bind existing-PR work before the numbered preflight.** If continuing an authorized PR, resolve its number, base branch, head branch, and remote head SHA now; set `$FEAT_BRANCH` to that PR head branch. Confirm this isolated worktree is for that branch. If it is not, use the correct worktree and preserve any uncommitted work before switching; never discard it with a blind reset. Fetch the PR head branch. With a clean checkout, fast-forward only when local HEAD is behind and an ancestor of the remote head. If local HEAD is ahead, retain those commits for the normal Step 2 push; if it is dirty or diverged, stop and reconcile while preserving the work. Record the resolved PR metadata and compare the candidate diff from its base to local HEAD. Step 1 gates and route classification apply to this bound candidate; Step 2 later confirms the pushed remote PR diff.
+
 1. **Session role set?** Read `.claude/session-role`. Extract `role=` and `model=`. If missing, stop.
 2. **Worktree isolation?** Every session MUST work in a worktree. If you are in the main checkout (git-dir == git-common-dir), stop — you should have been in a worktree since `/spec`. Ask the user whether to continue in a fresh worktree (unusual mid-cycle) or abort.
 3. **Hooks installed?** Check `.githooks/.installed`.
 4. **Working tree clean?** If not, abort and tell the user to commit or stash.
-5. **Cycle doc complete?** Find the most recent `docs/cycles/*.md`. Verify:
+5. **Cycle doc complete?** Find the most recent `docs/cycles/*.md` and set `CYCLE_FILE` to that path. Verify:
    - All tasks in `## Tasks` are checked.
    - `## Implementation`, `## Verification`, `## Ship Notes` are filled.
    - `## Implementation` opens with a `Subagent plan:` bullet. `/build` calls this mandatory, yet only 3 of the 15 cycles before 2026-09-17 had one — so check it here, the same way Step 1a checks Playwright status. If it is missing, stop and tell the user which cycle doc to fix. A bullet that invokes the "fan-out costs more than it saves" exception satisfies this, as long as it says so and says why.
@@ -172,7 +174,7 @@ The `gh` commands below show the expected GitHub operations. Use an available co
    FEAT_BRANCH=$(git branch --show-current)
    ```
 
-If continuing an existing authorized PR, resolve its number, base, head branch, and current head SHA first. Skip branch creation, push, and PR creation below when the existing PR already contains the intended branch; classify its actual base-to-head diff and continue at Step 3. Create a new PR only when none exists for this work.
+If continuing an existing authorized PR, reuse the metadata resolved before Preflight. Skip only PR creation; do not skip local commits or fixes. After Step 1, compare local HEAD with the resolved remote head. Push local commits normally to that PR's head branch if local HEAD is a clean descendant, then refresh PR metadata and confirm remote head equals the pushed SHA. If remote state changed unexpectedly, stop and reconcile without force-pushing. Reclassify the actual refreshed PR base-to-head diff before Step 3. Create a new PR only when none exists for this work.
 
 2. Push the feature branch (new PR only):
    ```bash
@@ -288,8 +290,8 @@ Only the default `/ship` flow reaches this step. A `/ship --to-main` invocation 
 
 Use the route from Preflight, which was selected from the actual PR diff:
 
-- **Documentation-only:** confirm the PR diff contains documentation files only and record the changed paths plus compared head SHA. Skip browser and database verification; proceed to Step 5. This skip is invalid if the diff includes any manifest, lockfile, build/CI/config, schema, migration, generated artifact, or runtime source.
-- **Local:** for app behavior, run the app with demo auth and verify the changed flows in a browser using a disposable local Postgres database. Confirm the app's `DATABASE_URL` points to that local database. Scope `DEMO_MODE=true` to the app build/server process only; do not export it across Vitest, whose auth and payment unit assertions expect normal mode. In `next dev`, use the demo login picker. A local production build has an auth-login guard that returns 403 even with demo mode enabled; use the existing E2E fixture identity mechanism instead (for example, `context.addCookies` with the `school-erp-session` cookie and seeded local user IDs used by `e2e/admin-dashboard.spec.ts`). Limit those fixture cookies to `localhost`/`127.0.0.1` and the disposable local database. Never weaken the production auth guard or reuse these cookies on a preview or shared host. Walk the changed flow and capture rendered content, primary interactions, console messages, network responses, and screenshots. Classify findings using 3e. For non-UI code, run relevant local checks against disposable local services where needed. Record source SHA, flow list, findings, and evidence; proceed to Step 5 only when clean.
+- **Documentation-only:** confirm the PR diff contains documentation files only and record the changed paths plus compared head SHA; set `$VERIFIED_SHA` to that compared head. Skip browser and database verification; proceed to Step 4e to publish evidence. This skip is invalid if the diff includes any manifest, lockfile, build/CI/config, schema, migration, generated artifact, or runtime source.
+- **Local:** for app behavior, run the app with demo auth and verify the changed flows in a browser using a disposable local Postgres database. Confirm the app's `DATABASE_URL` points to that local database. Scope `DEMO_MODE=true` to the app build/server process only; do not export it across Vitest, whose auth and payment unit assertions expect normal mode. In `next dev`, use the demo login picker. A local production build has an auth-login guard that returns 403 even with demo mode enabled; use the existing E2E fixture identity mechanism instead (for example, `context.addCookies` with the `school-erp-session` cookie and seeded local user IDs used by `e2e/admin-dashboard.spec.ts`). Limit those fixture cookies to `localhost`/`127.0.0.1` and the disposable local database. Never weaken the production auth guard or reuse these cookies on a preview or shared host. Walk the changed flow and capture rendered content, primary interactions, console messages, network responses, and screenshots. Classify findings using 3e. For non-UI code, run relevant local checks against disposable local services where needed. Record source SHA, flow list, findings, and evidence; proceed to Step 4e to publish evidence when clean.
 - **Signed-in preview:** requires browser access to the user's current signed-in profile and the Vercel PR preview. Check available tools directly; do not infer capability from `model=`. If this environment cannot access that profile, keep the PR open, add `needs-preview-verify`, report the missing capability, and continue other independent PRs or queue items already authorized. Do not mark this route passed or merge it.
 
 When the selected route passes, set `$VERIFIED_SHA` to the exact code head exercised by that route and include it in the cycle doc evidence.
@@ -317,7 +319,7 @@ Inspect the PR base-to-head diff first. Use the cycle's `## Implementation` sect
 
 Cap the flow list at 2-4 per cycle. If `## Implementation` references >4 distinct surfaces, pick the highest-blast-radius ones (mutations > reads, portal > admin only if portal is touched, billing/payroll > everything else).
 
-If the PR diff has documentation files only, use the Documentation-only route in 3.0 and go to Step 5. Do not infer a docs-only change from the absence of `app/**` or other UI paths; package, lock, build/CI/config, schema, migration, generated, and other non-doc files disqualify the skip.
+If the PR diff has documentation files only, use the Documentation-only route in 3.0 and go to Step 4e to publish evidence. Do not infer a docs-only change from the absence of `app/**` or other UI paths; package, lock, build/CI/config, schema, migration, generated, and other non-doc files disqualify the skip.
 
 ### 3c. Seed via UI CRUD
 
@@ -380,7 +382,7 @@ After all flows are walked (or relevant local checks are complete):
    For Local, record `route=demo-auth browser + disposable local Postgres`, the changed flows, blocker/minor counts, command output, and screenshot paths. For Documentation-only, record the exact changed paths and compared source SHA.
 2. **If blockers > 0**, fall through to **Step 4** (fix loop). Do NOT post the minors-comment yet — wait until the fix loop converges.
 3. **If blockers == 0 and minors > 0**, post a single PR comment via `gh pr comment $PR_NUMBER --body "<markdown>"`. Subject the comment with `[preview-verify]` so humans can filter. List minors with screenshots referenced.
-4. **If blockers == 0**, go to **Step 5** (hand off).
+4. **If blockers == 0**, proceed to **Step 4e** to finalize, commit, and publish the evidence before Step 5.
 
 ## Step 4: Fix and re-verify loop
 
@@ -458,18 +460,38 @@ Answer routing:
 - **Pause** → exit `/ship` and tell the user: *"Loop paused. Inspect the verification target at $VERIFICATION_TARGET. When ready, run `/ship` again — it will re-enter the selected route against the current code head."*
 - **Abort** → exit `/ship` and tell the user: *"Aborted. The feat branch is at $FEAT_SHA with $ITER iterations of fixes. Use `git reset --hard origin/staging` to discard, or open the PR manually and continue investigation."* Do not auto-close the PR.
 
-### 4e. Clean exit
+### 4e. Clean exit and publish evidence
 
-When the selected route returns no blockers, post a minors-comment only for signed-in preview findings, then proceed to **Step 5**. Append a final `## Verification` bullet identifying the verified source SHA:
+When the selected route returns no blockers, post a minors-comment only for signed-in preview findings. Ensure the applicable final `## Verification` bullet identifies `$VERIFIED_SHA`; keep already committed evidence and do not add a duplicate bullet:
 
 ```markdown
 - Signed-in preview-verify passed for source SHA $VERIFIED_SHA on iteration N: $ITER iteration(s), $TOTAL_FIX_COMMITS fix commit(s), final preview $PREVIEW_URL.
 - Local verification passed for source SHA $VERIFIED_SHA: route=demo-auth browser + disposable local Postgres (or relevant local checks), flows=[...].
+- Documentation-only verification skipped for source SHA $VERIFIED_SHA: changed paths=[...]; no runtime files were in the PR diff.
 ```
+
+Publish the verification record and any referenced screenshots that are tracked artifacts before Step 5. Stage the cycle doc and those screenshot files; if screenshots are outside the repository or ignored, use durable PR artifact links instead of temporary local paths. Commit and push only when this creates a non-empty change, using the resolved PR head branch, normal hooks, and never `--no-verify`:
+
+```bash
+git add "$CYCLE_FILE"
+# Also stage each tracked screenshot artifact referenced by Verification, if any.
+if ! git diff --cached --quiet; then
+  git commit -m "docs(ship): record verification evidence"
+  git push origin "$FEAT_BRANCH"
+fi
+LOCAL_HEAD_SHA=$(git rev-parse HEAD)
+PR_HEAD_SHA=$(git ls-remote origin "refs/heads/$FEAT_BRANCH" | cut -f1)
+if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" != "$LOCAL_HEAD_SHA" ]; then
+  echo "Remote PR head does not match the published evidence commit; stop before Step 5."
+  exit 1
+fi
+```
+
+An evidence-only commit does not require rerunning the route: retain `$VERIFIED_SHA` as the code SHA exercised. It triggers CI, so Step 5 must wait for and confirm all four required checks against the published `$PR_HEAD_SHA`. If evidence was already committed and pushed, do not create an empty duplicate commit. Do not enter Step 5 with uncommitted or unpublished changes.
 
 ## Step 5: Watch checks, refresh PR state, then merge
 
-Reached only when the selected route in Step 3 is clean (or documentation-only was validly skipped). You now **actively watch CI and merge** once green — no hand-off to the user.
+Reached only when the selected route in Step 3 is clean (or documentation-only was validly skipped) and Step 4e has committed and pushed its evidence. Require a clean working tree and local HEAD equal to the published PR head; otherwise publish the intended work through the normal route and repeat any affected checks. You now **actively watch CI and merge** once green — no hand-off to the user.
 
 1. **Watch the required checks to completion:**
    ```bash
