@@ -45,7 +45,9 @@ describe("GET /api/enrollments/[id]", () => {
   it("allows an admissions read-only custom admin", async () => {
     getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED" });
-    expect((await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx())).status).toBe(200);
+    const res = await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx());
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: "ea-1", canEdit: false });
   });
 
   it("403 for non-admin", async () => {
@@ -64,7 +66,7 @@ describe("GET /api/enrollments/[id]", () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED" });
     const res = await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx());
     expect(res.status).toBe(200);
-    expect((await res.json()).id).toBe("ea-1");
+    expect(await res.json()).toMatchObject({ id: "ea-1", canEdit: true });
   });
 });
 

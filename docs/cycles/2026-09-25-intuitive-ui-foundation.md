@@ -48,6 +48,13 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 **Transfer boundaries:** repository and concept are on the checkpoint branch; local .env files, role verification accounts, browser sessions, generated clients/build caches and tokens are excluded. Cloud uses its configured environment. Do not recreate secrets from public docs or bypass auth. The desktop user confirmed role-preview accounts in the local gitignored file, but the signed-in Chrome profile is local. Required authenticated preview verification must genuinely pass; if cloud cannot perform it, return the ready PR for the local verifier rather than merging without that gate.
 
+### Cloud continuation implementation
+
+- Parent journal requests now use monotonic request identity plus active child/week guards. Stale initial loads, failures, loading completions, mutation results, and post-mutation refreshes can no longer replace or mask the currently selected child's week. Deferred-response regressions cover B-before-A initial responses and switching context while a mutation refresh is pending.
+- Enrollment detail regressions now assert both read-only and super-admin `canEdit` responses, and the detail UI proves read-only admissions users do not receive transition or conversion controls.
+- The legacy admissions list now applies the same `admissions.view`/`admissions.edit` boundary as enrollment routes. Read-only users can inspect permitted records but do not receive create, update, or conversion affordances; mutations remain tenant-scoped, while public token flows are unchanged.
+- The two interrupted 30-second tests were diagnosed rather than relaxed: their production behavior is synchronous, but character-by-character/full-pointer `userEvent` simulation repeatedly rerendered unusually large forms under suite contention. The targeted assertions now use single synchronous DOM events and retain the same state/callback coverage without timeouts or skips.
+
 ## Verification
 
 - Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.
@@ -57,7 +64,11 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 - First production build compiled but failed Next route-export validation; the two exported helpers were then relocated. A subsequent webpack build produced .next/BUILD_ID, but its final process result was lost when the turn was interrupted, so no final build pass is claimed. A temporary local-only webpack cache=false setting was restored after the run; no next.config.ts change is part of this checkpoint. Low local disk caused cache-write warnings.
 - Full Vitest run: 346 files passed, 2 failed, 2 skipped; 3335 tests passed, 2 failed, 42 todo. Failures were 30-second timeouts in app/admin/raport/__tests__/raport-editor.test.tsx (calls onBack immediately when no edits) and app/admin/classes/[id]/__tests__/client.test.tsx (AGE_OUT_OF_RANGE override flow). Build and multiple test processes ran concurrently; contention is a hypothesis, not a proven excuse. Diagnose and rerun, use project flake-hunt where appropriate; do not raise per-test timeouts or skip tests.
 - Playwright: local run deferred to required CI because config refused remote shared staging DATABASE_URL. No override was used; cloud should use local/ephemeral Postgres or the required CI Playwright E2E check.
-- Preview verification, final security review, final lint/typecheck/build/full tests and ship gates remain pending.
+- Preview verification, production build, and ship gates remain pending. Full lint, typecheck, and Vitest now pass in cloud.
+- Cloud continuation focused verification passed: parent journal 12/12; enrollment detail/API, admissions authorization/conversion, and class override focused suites; raport editor 9/9, including the clean-back regression under two CPU hogs; scoped ESLint, TypeScript, and `git diff --check`.
+- Independent security review completed for the enrollment/admissions role and tenant boundary. It found and closed the legacy admissions permission mismatch described above; no public applicant-token route was weakened.
+- Cloud production build reached Next compilation but could not fetch Google Fonts from `fonts.googleapis.com` in this environment. This is an environment/network limitation, not recorded as a passing build; CI Build remains required.
+- Full cloud verification: `npx vitest run` passed 348 files (2 skipped), 3341 tests (42 todo); `npm run lint` passed with 59 existing warnings and no errors; `npm run typecheck`, `bash scripts/audit-docs.sh`, and `git diff --check` passed. Playwright was not run because this checkout has no isolated local test database and the repository guard must not be bypassed.
 
 ## Ship Notes
 

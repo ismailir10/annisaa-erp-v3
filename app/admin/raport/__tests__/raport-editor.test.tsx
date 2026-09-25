@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -50,11 +50,13 @@ describe("RaportEditor unsaved-changes guard", () => {
   it("calls onBack immediately when there are no edits", async () => {
     stubFetchOnce();
     const onBack = vi.fn();
-    const user = userEvent.setup();
     render(<RaportEditor studentId="stu-1" termId="term-1" onBack={onBack} />);
 
     await screen.findByText("Rapor — Aisyah Nuraini");
-    await user.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
+    // This assertion exercises a synchronous navigation handler. Using
+    // userEvent's full pointer sequence here needlessly makes the first test
+    // in this render-heavy suite compete for timers under full-suite load.
+    fireEvent.click(screen.getByRole("button", { name: /Kembali ke daftar/ }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();

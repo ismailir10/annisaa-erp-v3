@@ -447,6 +447,7 @@ export default function AdmissionsPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [stats, setStats] = useState({ total: 0, inquiry: 0, admitted: 0 });
+  const [canEdit, setCanEdit] = useState(false);
 
   // FIND-011: stat-cards were a one-shot useEffect on mount, so creating /
   // converting / cancelling an admission left the KPI cards stale until the
@@ -528,6 +529,7 @@ export default function AdmissionsPage() {
       const res = await fetch(`/api/admissions?${params}`);
       const json = await res.json();
       setData(json.data ?? []);
+      setCanEdit(json.canEdit === true);
       if (json.pagination) setPagination(json.pagination);
     } catch {
       toast.error("Gagal memuat data pendaftaran");
@@ -846,6 +848,9 @@ export default function AdmissionsPage() {
       id: "actions",
       cell: ({ row }) => {
         const a = row.original;
+        if (!canEdit) {
+          return <span className="text-xs text-muted-foreground">Hanya lihat</span>;
+        }
         if (a.studentId) {
           return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
         }
@@ -901,9 +906,9 @@ export default function AdmissionsPage() {
         title="Pendaftaran"
         description={`${pagination.total} calon siswa`}
         actions={
-          <Button size="sm" onClick={openDialog}>
+          canEdit ? <Button size="sm" onClick={openDialog}>
             <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
-          </Button>
+          </Button> : undefined
         }
       />
 

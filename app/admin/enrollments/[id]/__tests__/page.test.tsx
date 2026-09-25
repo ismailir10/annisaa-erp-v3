@@ -17,6 +17,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+vi.mock("@/components/admin/enrollment-application-view", () => ({
+  EnrollmentApplicationView: () => <div>Isi formulir</div>,
+}));
+
 /**
  * `use(params)` suspends on first render for a "cold" Promise — React only
  * reads a `use()`-d thenable synchronously once it carries a `status`/`value`
@@ -71,5 +75,37 @@ describe("EnrollmentDetailPage — not-found state (AC12)", () => {
       name: "Kembali ke Daftar Formulir Pendaftaran",
     });
     expect(backLink).toHaveAttribute("href", "/admin/enrollments");
+  });
+});
+
+describe("EnrollmentDetailPage — read-only admissions access", () => {
+  it("does not render status or conversion mutations when canEdit is false", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: "ea-1",
+            canEdit: false,
+            status: "ACCEPTED",
+            studentId: null,
+            childName: "Aisyah",
+            dcareAddon: false,
+            studentData: {},
+            ayahData: {},
+            ibuData: {},
+            consentData: {},
+            program: { id: "p-1", name: "TK A" },
+          }),
+        } as Response),
+      ),
+    );
+
+    render(<EnrollmentDetailPage params={fulfilledParams({ id: "ea-1" })} />);
+
+    expect(await screen.findByText("Aisyah")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Kembali ke Tinjau" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Konversi ke Siswa" })).not.toBeInTheDocument();
   });
 });

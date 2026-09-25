@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { BookHeart, Plus } from "lucide-react";
@@ -183,6 +183,9 @@ export default function ParentStudentJournalPage() {
   /** studentId → unread catatan, for the tab badge and the child pills. */
   const [unreadByChild, setUnreadByChild] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState(false);
+  const activeWeekRef = useRef({ childId, week: currentWeek });
+  activeWeekRef.current = { childId, week: currentWeek };
+  const weekRequestRef = useRef(0);
 
   // Load current session id (for own-note edit/delete affordance)
   useEffect(() => {
@@ -236,6 +239,12 @@ export default function ParentStudentJournalPage() {
   // Load week data when child or week changes
   const loadWeekData = useCallback(
     async (cid: string, ws: string) => {
+      const requestId = ++weekRequestRef.current;
+      const isCurrentRequest = () =>
+        requestId === weekRequestRef.current &&
+        activeWeekRef.current.childId === cid &&
+        activeWeekRef.current.week === ws;
+
       setLoading(true);
       try {
         const res = await fetch(
@@ -243,15 +252,23 @@ export default function ParentStudentJournalPage() {
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+          if (isCurrentRequest()) {
+            toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+          }
           return;
         }
         const json = await res.json() as { data: WeekData };
-        setLoadedWeek({ childId: cid, week: ws, data: json.data });
+        if (isCurrentRequest()) {
+          setLoadedWeek({ childId: cid, week: ws, data: json.data });
+        }
       } catch {
-        toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+        if (isCurrentRequest()) {
+          toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) {
+          setLoading(false);
+        }
       }
     },
     [],
@@ -414,28 +431,37 @@ export default function ParentStudentJournalPage() {
               editable
               earliestEditableDate={homeEditFloor}
               onToggle={async (indicatorId, date, next) => {
-                const res = await fetch("/api/student-journal/entries/home", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    studentId: childId,
-                    date,
-                    entries: [{ indicatorId, checked: next }],
-                  }),
-                });
-                if (!res.ok) {
-                  const err = await res.json().catch(() => ({}));
-                  toast.error((err as { error?: string }).error ?? "Belum bisa disimpan. Coba lagi sebentar ya.");
-                  return;
-                }
-                // Refresh week data so the cell reflects the server state
-                if (childId) {
-                  const refreshed = await fetch(
-                    `/api/student-journal/children/${childId}/week?weekStart=${currentWeek}`,
-                  );
-                  if (refreshed.ok) {
-                    const json = await refreshed.json() as { data: WeekData };
-                    setLoadedWeek({ childId, week: currentWeek, data: json.data });
+                const mutationChildId = childId;
+                const mutationWeek = currentWeek;
+                const isActiveMutation = () =>
+                  activeWeekRef.current.childId === mutationChildId &&
+                  activeWeekRef.current.week === mutationWeek;
+
+                try {
+                  const res = await fetch("/api/student-journal/entries/home", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                      studentId: mutationChildId,
+                      date,
+                      entries: [{ indicatorId, checked: next }],
+                    }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    if (isActiveMutation()) {
+                      toast.error((err as { error?: string }).error ?? "Belum bisa disimpan. Coba lagi sebentar ya.");
+                    }
+                    return;
+                  }
+                  // A late mutation from a child/week the wali has left must not
+                  // start a refresh that supersedes the newly selected journal.
+                  if (mutationChildId && isActiveMutation()) {
+                    await loadWeekData(mutationChildId, mutationWeek);
+                  }
+                } catch {
+                  if (isActiveMutation()) {
+                    toast.error("Koneksi terputus. Coba lagi sebentar ya.");
                   }
                 }
               }}
