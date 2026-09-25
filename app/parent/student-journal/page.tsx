@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
+import { ContextStrip } from "@/components/portal/context-strip";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
@@ -341,6 +342,14 @@ export default function ParentStudentJournalPage() {
           ariaLabel="Pilih anak"
         />
       )}
+
+      {selectedChild ? (
+        <ContextStrip
+          name={selectedChild.nickname?.trim() || selectedChild.name}
+          detail={selectedChild.className || "Jurnal anak terpilih"}
+          className="rounded-lg border-x border-t"
+        />
+      ) : null}
 
       {/*
         Parent-facing label is "Jurnal" — it has to match the bottom-nav tab,

@@ -8,6 +8,7 @@ import {
 } from "@/lib/parent-helpers";
 import { ReportCardsList } from "@/app/parent/report-cards-list";
 import { PageHeader } from "@/components/portal/page-header";
+import { ContextStrip } from "@/components/portal/context-strip";
 
 export default async function ParentReportsPage({
   searchParams,
@@ -43,6 +44,12 @@ export default async function ParentReportsPage({
         items={childTabsData}
         selectedChildId={selected.studentId}
         sticky
+      />
+
+      <ContextStrip
+        name={selected.studentName}
+        detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Rapor anak terpilih"}
+        className="rounded-lg border-x border-t"
       />
 
       <PageHeader title="Rapor" subtitle="Laporan perkembangan tiap triwulan" />

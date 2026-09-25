@@ -18,7 +18,7 @@ The route inventory at the start of this cycle is 41 admin pages, 13 teacher pag
 ## Tasks
 
 - [x] Task 1: Make teacher home and core daily journeys task-first and truthful, with focused progress/context/recovery regressions.
-- [ ] Task 2: Make parent home and child journeys family-first with persistent identity and authoritative billing states.
+- [x] Task 2: Make parent home and child journeys family-first with persistent identity and authoritative billing states.
 - [ ] Task 3: Add the permission-filtered admin work queue and close the invoice-create authorization gap.
 - [ ] Task 4: Apply and document shared consistency across all 62 portal page routes, recording route-level coverage and preserving capabilities.
 - [ ] Task 5: Complete independent review, responsive/browser verification, full gates, and ship evidence.

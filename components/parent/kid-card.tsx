@@ -1,39 +1,12 @@
 import Link from "next/link";
-import { Check, ChevronRight, Thermometer, BookHeart, MessageCircle, CalendarClock } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { buttonVariants } from "@/components/ui/button";
+import { parentHref } from "@/lib/parent/navigation";
 import { cn } from "@/lib/utils";
 
-/**
- * KidCard — per-child summary card on /parent home.
- *
- * Cycle 4 spec S-A.A4 (Frame 1/2/3 of `.claude/standards/parent-portal-cycle4.html`):
- * head row (name + class + chevron) → 5-day mini-strip (Sen-Jum, today wins
- * over status as filled primary) → foot row (one-line status with leading icon).
- *
- * Server-rendered. Tap navigates to `/parent/attendance?child={id}` — most
- * useful drill-down for the kid's recent state.
- */
-
-export type KidCardDayStatus =
-  | "present"
-  | "absent"
-  | "sick"
-  | "leave"
-  | "future"
-  | "missing";
-
-export type KidCardDay = {
-  /** Indonesian short label: Sen / Sel / Rab / Kam / Jum. */
-  label: string;
-  status: KidCardDayStatus;
-  isToday: boolean;
-};
-
-export type KidCardFootTone = "ok" | "warn" | "info";
-
 export type KidCardFoot = {
-  tone: KidCardFootTone;
-  /** Lucide icon variant. */
-  icon: "check" | "thermometer" | "book-heart" | "message-circle" | "calendar-clock";
+  tone: "ok" | "warn" | "info";
   text: string;
 };
 
@@ -41,104 +14,49 @@ export type KidCardProps = {
   id: string;
   name: string;
   className: string;
-  week: KidCardDay[];
+  todayStatus: "PRESENT" | "ABSENT" | "SICK" | "PERMISSION" | null;
+  teacherNote: string | null;
   foot: KidCardFoot;
 };
 
-const FOOT_ICON: Record<KidCardFoot["icon"], typeof Check> = {
-  check: Check,
-  thermometer: Thermometer,
-  "book-heart": BookHeart,
-  "message-circle": MessageCircle,
-  // "Pekan ini belum tercatat" used to ship a tick, which reads as a
-  // confirmation of the exact thing the sentence says has not happened.
-  "calendar-clock": CalendarClock,
-};
-
-const FOOT_TONE_CLASS: Record<KidCardFootTone, string> = {
-  ok: "text-status-present-text",
-  warn: "text-status-late-text font-semibold",
-  info: "text-muted-foreground",
-};
-
-const DAY_BASE =
-  "flex flex-col items-center justify-center h-11 rounded-md text-xs font-semibold leading-none";
-
-const DAY_TONE: Record<KidCardDayStatus, string> = {
-  present: "bg-status-present-subtle text-status-present-text",
-  absent: "bg-status-absent-subtle text-status-absent-text",
-  sick: "bg-status-late-subtle text-status-late-text",
-  leave: "bg-status-leave-subtle text-status-leave-text",
-  future: "border border-dashed border-border text-muted-foreground/50",
-  missing: "bg-muted text-muted-foreground",
-};
-
-function DayGlyph({ status }: { status: KidCardDayStatus }) {
-  if (status === "present") return <Check size={14} strokeWidth={2.5} />;
-  if (status === "absent") return <span>A</span>;
-  if (status === "sick") return <span>S</span>;
-  if (status === "leave") return <span>I</span>;
-  if (status === "future") return <span>·</span>;
-  return <span>·</span>;
-}
-
-export function KidCard({ id, name, className, week, foot }: KidCardProps) {
-  const FootIcon = FOOT_ICON[foot.icon];
-
+export function KidCard({ id, name, className, todayStatus, teacherNote, foot }: KidCardProps) {
   return (
-    <Link
-      href={`/parent/attendance?child=${id}`}
-      className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
-    >
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm font-semibold text-foreground">
-          {name}
-          <span className="ml-1 text-xs font-normal text-muted-foreground">
-            · {className}
-          </span>
-        </p>
-        <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
-      </div>
+    <Card size="sm" className="gap-3">
+      <CardHeader className="grid-cols-[minmax(0,1fr)_auto] gap-x-3">
+        <div className="min-w-0">
+          <CardTitle className="text-foreground"><h3>{name}</h3></CardTitle>
+          <p className="text-xs text-muted-foreground">{className}</p>
+        </div>
+        <StatusBadge status={todayStatus ?? "UNKNOWN"} label={todayStatus ? undefined : "Belum dicatat"} />
+      </CardHeader>
 
-      <div className="mt-3 grid grid-cols-5 gap-1">
-        {week.map((day, i) => (
-          <div
-            key={i}
-            className={cn(
-              DAY_BASE,
-              day.isToday
-                ? "bg-primary text-primary-foreground"
-                : DAY_TONE[day.status],
-            )}
+      <CardContent className="space-y-3">
+        <p className={cn("text-xs", foot.tone === "warn" ? "text-status-late-text" : "text-muted-foreground")}>{foot.text}</p>
+        <p className="line-clamp-2 text-sm text-foreground">
+          <span className="font-semibold">Catatan guru:</span>{" "}
+          {teacherNote ?? "Belum ada catatan guru terbaru."}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href={parentHref("/parent/student-journal", id, { view: "notes" })}
+            className={cn(buttonVariants({ variant: "default", size: "lg" }), "min-h-11 text-xs")}
           >
-            <span
-              className={cn(
-                "mb-0.5 text-xs font-medium",
-                day.isToday ? "text-primary-foreground/85" : "opacity-70",
-              )}
-            >
-              {day.label}
-            </span>
-            <DayGlyph status={day.status} />
-          </div>
-        ))}
-      </div>
-
-      {/* The key only earns its space when a glyph on this strip needs
-          decoding. A week of plain ticks does not. */}
-      {week.some((d) => d.status === "sick" || d.status === "absent" || d.status === "leave") ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          S Sakit · A Alpa · I Izin
-        </p>
-      ) : null}
-
-      <div className="mt-2 flex items-center gap-1.5 border-t border-border pt-2">
-        <FootIcon size={12} className={cn("shrink-0", FOOT_TONE_CLASS[foot.tone])} />
-        <span className={cn("text-xs truncate", FOOT_TONE_CLASS[foot.tone])}>
-          {foot.text}
-        </span>
-      </div>
-    </Link>
+            Baca catatan
+          </Link>
+          <Link
+            href={parentHref("/parent/attendance", id)}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11 text-xs")}
+          >
+            Lihat kehadiran
+          </Link>
+        </div>
+        <nav className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2" aria-label={`Informasi lain ${name}`}>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/parent/perkembangan/${id}`}>Perkembangan</Link>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/reports", id)}>Rapor</Link>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/invoices", id)}>Tagihan</Link>
+        </nav>
+      </CardContent>
+    </Card>
   );
 }
 

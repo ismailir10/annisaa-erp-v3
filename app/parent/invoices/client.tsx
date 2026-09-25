@@ -18,6 +18,8 @@ import dynamic from "next/dynamic";
 import { PageHeader } from "@/components/portal/page-header";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 import { parentHref } from "@/lib/parent/navigation";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { TaskList, TaskRow } from "@/components/portal/task-list";
 
 const InvoiceDetailSheet = dynamic(
   () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
@@ -88,6 +90,7 @@ export function InvoicesClient({
 
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showAllPaid, setShowAllPaid] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("due-asc");
@@ -119,11 +122,12 @@ export function InvoicesClient({
     handledReturnRef.current = returnKey;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
+    if (found.status === "PAID") setHistoryOpen(true);
     if (found.status === "PAID") {
       toast.success(`Alhamdulillah, tagihan ${formatInvoicePeriod(found.periodLabel)} terbayar.`);
     } else if (isOutstanding(found) && found.totalPaid > 0) {
       toast(`Pembayaran tagihan ${formatInvoicePeriod(found.periodLabel)} tercatat sebagian. Lihat sisa tagihan.`);
-    } else if (paymentStatusParam === "cancel") {
+    } else if (found.status === "CANCELLED" || paymentStatusParam === "cancel") {
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
     } else {
       toast("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.");
@@ -307,7 +311,7 @@ export function InvoicesClient({
       const bKey = b.paidAt ?? b.dueDate;
       return bKey.localeCompare(aKey);
     });
-  const hasAnyOutstanding = due.length > 0;
+  const hasAnyOutstanding = summary.count > 0;
   const noFilterResults = showListControls && filteredData.length === 0;
   const RIWAYAT_INITIAL = 12;
   const paidVisible = showAllPaid ? paid : paid.slice(0, RIWAYAT_INITIAL);
@@ -399,6 +403,28 @@ export function InvoicesClient({
         </section>
       )}
 
+      {due.length > 0 && (
+        <section>
+          {/* Not "Belum dibayar" again — that label already heads the summary
+              card directly above, and printing it twice on one screen made the
+              total and the list read as the same block. */}
+          <SectionLabel>Rincian tagihan</SectionLabel>
+          <div aria-label="Tagihan belum dibayar">
+            <TaskList>
+            {due.map(({ inv, isOverdue }) => (
+              <InvoiceRow
+                key={inv.id}
+                invoice={inv}
+                onClick={() => setSelectedInvoiceId(inv.id)}
+                tone="due"
+                isOverdue={isOverdue}
+              />
+            ))}
+            </TaskList>
+          </div>
+        </section>
+      )}
+
       {showListControls ? (
         <section className="space-y-3 rounded-xl border border-border bg-card p-3" aria-label="Filter tagihan">
           <div className="relative">
@@ -463,55 +489,37 @@ export function InvoicesClient({
         />
       ) : null}
 
-      {hasAnyOutstanding && (
-        <section>
-          {/* Not "Belum dibayar" again — that label already heads the summary
-              card directly above, and printing it twice on one screen made the
-              total and the list read as the same block. */}
-          <SectionLabel>Rincian tagihan</SectionLabel>
-          <ul className="space-y-2" aria-label="Tagihan belum dibayar">
-            {due.map(({ inv, isOverdue }) => (
-              <InvoiceRow
-                key={inv.id}
-                invoice={inv}
-                onClick={() => setSelectedInvoiceId(inv.id)}
-                tone="due"
-                isOverdue={isOverdue}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-
       {paid.length > 0 ? (
         <section>
-          <SectionLabel>Riwayat pembayaran</SectionLabel>
-          <ul className="space-y-2" aria-label="Riwayat pembayaran">
-            {paidVisible.map((inv) => (
-              <InvoiceRow
-                key={inv.id}
-                invoice={inv}
-                onClick={() => setSelectedInvoiceId(inv.id)}
-                tone="paid"
-                isOverdue={false}
-                highlight={recentlyPaidIds.has(inv.id)}
-              />
-            ))}
-          </ul>
-          {paidHasMore ? (
-            <div className="mt-3 flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAllPaid((v) => !v)}
-                aria-expanded={showAllPaid}
-              >
-                {showAllPaid
-                  ? `Tampilkan ${RIWAYAT_INITIAL} terakhir`
-                  : `Lihat semua (${paid.length} riwayat)`}
-              </Button>
-            </div>
-          ) : null}
+          <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+            <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-left text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              Riwayat pembayaran ({paid.length})
+              <ChevronRight aria-hidden="true" className={`size-4 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <div aria-label="Riwayat pembayaran">
+                <TaskList>
+                  {paidVisible.map((inv) => (
+                    <InvoiceRow
+                      key={inv.id}
+                      invoice={inv}
+                      onClick={() => setSelectedInvoiceId(inv.id)}
+                      tone="paid"
+                      isOverdue={false}
+                      highlight={recentlyPaidIds.has(inv.id)}
+                    />
+                  ))}
+                </TaskList>
+              </div>
+              {paidHasMore ? (
+                <div className="mt-3 flex justify-center">
+                  <Button variant="ghost" size="sm" onClick={() => setShowAllPaid((v) => !v)} aria-expanded={showAllPaid}>
+                    {showAllPaid ? `Tampilkan ${RIWAYAT_INITIAL} terakhir` : `Lihat semua (${paid.length} riwayat)`}
+                  </Button>
+                </div>
+              ) : null}
+            </CollapsibleContent>
+          </Collapsible>
         </section>
       ) : !hasAnyOutstanding && !noFilterResults ? (
         <EmptyState
@@ -556,25 +564,14 @@ function InvoiceRow({
       : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
-    <li>
-      <button
-        type="button"
-        onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/30 active:border-primary/40 ${highlight ? "animate-in fade-in duration-700 ring-2 ring-status-present-text/40" : ""}`}
-      >
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground">
-            {formatInvoicePeriod(invoice.periodLabel)}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{secondary}</p>
-        </div>
-        <Amount
-          value={amount}
-          size="row"
-          tone={tone === "paid" ? "paid" : "neutral"}
-          className="shrink-0"
-        />
-      </button>
-    </li>
+    <TaskRow
+      onClick={onClick}
+      title={formatInvoicePeriod(invoice.periodLabel)}
+      description={secondary}
+      icon={<Receipt className="size-5" />}
+      meta={<Amount value={amount} size="row" tone={tone === "paid" ? "paid" : "neutral"} />}
+      tone={tone === "paid" ? "teal" : "warm"}
+      className={highlight ? "ring-2 ring-status-present-text/40" : undefined}
+    />
   );
 }

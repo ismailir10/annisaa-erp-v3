@@ -12,6 +12,7 @@ import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { attendanceBannerState } from "@/lib/parent-attendance-banner";
 import { parentAttendanceWeek } from "@/lib/parent/attendance-week";
 import { parentHref } from "@/lib/parent/navigation";
+import { ContextStrip } from "@/components/portal/context-strip";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 
@@ -101,6 +102,12 @@ export default async function ParentAttendancePage({
   return (
     <div className="space-y-6 pb-4">
       <ChildSelectorTabs items={childTabsData} selectedChildId={selected.studentId} sticky />
+
+      <ContextStrip
+        name={selected.studentName}
+        detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Data anak terpilih"}
+        className="rounded-lg border-x border-t"
+      />
 
       <PageHeader title="Kehadiran" subtitle="Pantau kehadiran harian anak" />
 

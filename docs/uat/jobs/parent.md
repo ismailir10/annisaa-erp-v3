@@ -1,6 +1,7 @@
 # Parent Portal — Jobs to be Done
 
 > Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
 > Default persona: Pak Budi (see `.claude/personas/pak-budi.md`)
@@ -233,12 +234,12 @@ This file is the living catalog of what a parent user can and should be able to 
 ### JTBD-PARENT-HOME-01 — Morning household quick-check
 - **Persona:** Pak Budi
 - **Role:** GUARDIAN
-- **Preconditions:** Logged in as a parent linked to ≥1 child; child has attendance records this week and ≥1 invoice with status `SENT`, `PARTIALLY_PAID`, or `OVERDUE` in seed (the home unpaid-balance query at `app/parent/page.tsx` line 133 explicitly excludes `PENDING` — using `PENDING` for the precondition produces a false-negative "Lunas semua" tile)
+- **Preconditions:** A guardian linked to multiple children, with saved and missing attendance, teacher notes, and authoritative outstanding invoices across more than one child. Include a payment-link-unavailable invoice and a partially paid invoice.
 - **Steps:**
   1. Open the parent portal root `/parent`
-  2. Without scrolling on a 375px viewport, read: unpaid balance (total Rp), today's attendance status per child, latest journal note snippet
+  2. Read household actions first, then each child's full identity, today's recorded attendance, and teacher-note preview as available
   3. Decide whether any action is needed (pay, message teacher, none)
-- **Done when:** Unpaid balance and today's attendance are unconditionally visible above the fold on a 375×667 viewport (iPhone SE baseline). Latest journal-note snippet renders inside the per-child `KidCard` footer **only when** today's attendance is `PRESENT` AND a note exists in the last 14 days — non-PRESENT statuses (sick/absent/permission) take precedence in the footer (see `app/parent/page.tsx` lines 52–84). Navigating out and back preserves scroll position and data freshness.
+- **Done when:** The first viewport makes the household's next action clear. Compact cards remain readable while scrolling through multiple children. "Baca catatan" opens the named child's notes, and attendance/development/report/bill labels predict their destinations. A family total must not masquerade as a single child's payable amount. Missing attendance is unknown, and a guardian reply is never labeled as a teacher note or misattributed to another guardian.
 - **Why this job matters:** This is the morning glance — Pak Budi opens the app between sholat shubuh and leaving for work. If the dashboard buries any of the three signals below the fold, he gives up and asks his wife instead.
 - **Expected perf:** page full load <1.5s (SSR'd, three parallel Prisma queries via `Promise.all` in `app/parent/page.tsx` — threshold matches the global list-page rule in `SKILL.md`).
 - **Error scenarios to verify:**
