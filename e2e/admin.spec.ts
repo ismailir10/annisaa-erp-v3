@@ -500,7 +500,11 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     const classSearch = page.getByPlaceholder("Cari kelas...");
     await expect(classSearch).toBeVisible({ timeout: 5_000 });
     await classSearch.fill(targetClass.name);
-    await page.getByRole("option").filter({ hasText: targetClass.name }).first().click();
+    // Class names can repeat across academic years; cmdk's value includes
+    // the class ID, so select the exact API result after searching by name.
+    const targetClassOption = page.locator(`[role="option"][data-value$=" ${targetClass.id}"]`);
+    await expect(targetClassOption).toBeVisible();
+    await targetClassOption.click();
     // Multi-select deliberately keeps the popover open on select (admins
     // toggle several classes in a row) — close it explicitly.
     await page.keyboard.press("Escape");
