@@ -37,11 +37,20 @@ test.describe("Teacher flows", () => {
     const saved = records.find(record => record.date === today);
     const personal = page.locator('[aria-label="Kehadiran pribadi"]');
     await expect(personal).toBeVisible();
+    // Assert the actual saved times in the browser's locale. Indonesian time
+    // punctuation varies between local and CI ICU builds (07:30 vs 07.30).
+    const displayTimes = await page.evaluate((record) => {
+      const format = (iso: string | null | undefined) => iso
+        ? new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+        : null;
+      return { checkIn: format(record?.checkInTime), checkOut: format(record?.checkOutTime) };
+    }, saved ?? null);
     if (saved?.checkOutTime) {
-      await expect(personal).toContainText(/Masuk \d{2}:\d{2} · pulang \d{2}:\d{2}/);
+      expect(displayTimes.checkIn).not.toBeNull();
+      await expect(personal).toContainText(`Masuk ${displayTimes.checkIn} · pulang ${displayTimes.checkOut}`);
       await expect(personal.getByRole("button")).toHaveCount(0);
     } else if (saved?.checkInTime) {
-      await expect(personal).toContainText(/Masuk \d{2}:\d{2} · sudah tercatat/);
+      await expect(personal).toContainText(`Masuk ${displayTimes.checkIn} · sudah tercatat`);
       await expect(personal.getByRole("button", {name:"Catat pulang",exact:true})).toBeVisible();
     } else {
       await expect(personal).toContainText("Kehadiran pribadi belum dicatat");
