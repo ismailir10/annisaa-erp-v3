@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { classroomAttendanceByStudent } from "@/lib/teacher/classroom-attendance";
+import { requireTeacherForClass } from "@/lib/student-journal/guards";
+import { resolveTeacherDate } from "@/lib/teacher/home-progress";
+import { getSession, isAdminRole } from "@/lib/auth";
 import { parsePagination } from "@/lib/api/pagination";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -21,6 +24,7 @@ export async function GET(req: NextRequest) {
 
   // ── Admin list mode ──────────────────────────────────────────────
   if (mode === "list") {
+    if (!isAdminRole(session.role)) return NextResponse.json({error:"Forbidden"}, {status:403});
     const { page, pageSize, skip, take } = parsePagination(searchParams);
     const search = searchParams.get("search") ?? "";
     const statusFilter = searchParams.get("status") ?? "";
@@ -74,13 +78,22 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Teacher / mark-attendance mode (original behaviour) ─────────
+  if (session.role !== "TEACHER" && !isAdminRole(session.role)) return NextResponse.json({error:"Forbidden"}, {status:403});
   const classSectionId = searchParams.get("classSectionId");
   // Jakarta TZ — match the marking endpoint and avoid the 00:00–06:59 WIB
   // UTC-drift that showed yesterday's data on admin dashboard early morning.
-  const date = searchParams.get("date") ?? getTodayInTimezone("Asia/Jakarta");
+  const date = resolveTeacherDate(searchParams.get("date") ?? getTodayInTimezone("Asia/Jakarta"), "");
+  if (!date) return NextResponse.json({error:"Tanggal tidak valid"}, {status:400});
 
   if (!classSectionId) {
     return NextResponse.json({ error: "classSectionId required" }, { status: 400 });
+  }
+
+  // Match the class-marking contract: historical assignments remain valid.
+  // Substitute teachers use their authorized session/pickup endpoint.
+  if (session.role === "TEACHER") {
+    const access = await requireTeacherForClass(classSectionId);
+    if (access.error) return access.error;
   }
 
   const classSection = await prisma.classSection.findFirst({
@@ -98,9 +111,10 @@ export async function GET(req: NextRequest) {
 
   const records = await prisma.studentAttendance.findMany({
     where: { classSectionId, date, isVoided: false },
+    orderBy: [{createdAt:"desc"},{id:"desc"}],
   });
-
-  const recordMap = new Map(records.map((r) => [r.studentId, r]));
+  const sessions = await prisma.classSession.findMany({where:{classSectionId,date,classSection:{tenantId:session.tenantId}},select:{id:true}});
+  const recordMap = classroomAttendanceByStudent(records, sessions.map(s=>s.id));
 
   const result = enrollments.map((e) => ({
     student: e.student,

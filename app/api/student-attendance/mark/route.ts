@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   let saved = 0;
+  try {
   await prisma.$transaction(async (tx) => {
     // Validate all students are enrolled in this class
     const studentIds = records.map((r: { studentId: string }) => r.studentId);
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       // [studentId, date] preserves the prior upsert behavior. Task 7
       // reworks this path onto ClassSession.
       const existing = await tx.studentAttendance.findFirst({
-        where: { studentId: record.studentId, date, sessionId: null },
+        where: { studentId: record.studentId, classSectionId, date, sessionId: null },
         select: { id: true },
       });
       if (existing) {
@@ -162,5 +163,13 @@ export async function POST(req: NextRequest) {
     }
   });
 
+  } catch (error) {
+    // The legacy partial unique index is student/day. Never overwrite another
+    // class when the same child is enrolled in two classes on a null-session day.
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json({error:"Absensi siswa pada tanggal ini sudah tercatat di kelas lain. Hubungi admin untuk memeriksa catatannya."}, {status:409});
+    }
+    throw error;
+  }
   return NextResponse.json({ saved, total: records.length });
 }

@@ -17,11 +17,12 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { BookHeart, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
+import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type Assignment = {
   id: string;
-  classSection: { id: string; name: string; program: { name: string } };
+  classSection: { id: string; name: string; status?: string; academicYear?: {status: string}; program: { name: string } };
 };
 
 export default function StudentJournalPickerPage() {
@@ -32,33 +33,46 @@ export default function StudentJournalPickerPage() {
   // single class is answering a question with one possible answer three taps
   // before they can tick anything.
   const forcePicker = searchParams.get("pick") === "1";
+  const requestedClass = searchParams.get("classId") ?? "";
+  const requestedDate = searchParams.get("date");
+  const [loadError,setLoadError] = useState(false);
+  const [reload,setReload] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
   const today = getTodayInTimezone("Asia/Jakarta");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(resolveTeacherDate(requestedDate,today));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    // Fetch lifecycle resets recovery before the next asynchronous result.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true); setLoadError(false);
     fetch("/api/teaching-assignments/my")
       .then((r) => {
+        if (cancelled) return;
         if (!r.ok) {
           toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
-          setLoading(false);
+          setLoading(false); setLoadError(true);
           return;
         }
         return r.json();
       })
       .then((data: Assignment[] | undefined) => {
-        if (!data) return;
+        if (cancelled || !data) return;
         setAssignments(data);
-        if (data.length > 0) setSelectedClass(data[0].classSection.id);
+        if (data.length > 0) setSelectedClass(data.some(a => a.classSection.id === requestedClass) ? requestedClass : (data.find((a: Assignment) => a.classSection.status === "ACTIVE" && a.classSection.academicYear?.status === "ACTIVE") ?? data[0]).classSection.id);
+        setDate(resolveTeacherDate(requestedDate,today));
         setLoading(false);
       })
       .catch(() => {
+        if (cancelled) return;
+        setLoadError(true);
         toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
         setLoading(false);
       });
-  }, []);
+    return () => { cancelled = true; };
+  }, [requestedClass, requestedDate, today, reload]);
 
   // A guru who teaches one class is answering a question with one answer, three
   // taps before they can tick anything. Kept in its own effect, deliberately:
@@ -82,7 +96,7 @@ export default function StudentJournalPickerPage() {
       toast.error("Pilih kelas dulu ya.");
       return;
     }
-    if (!date) {
+    if (!resolveTeacherDate(date,"")) {
       toast.error("Pilih tanggal dulu ya.");
       return;
     }
@@ -100,14 +114,16 @@ export default function StudentJournalPickerPage() {
     );
   }
 
-  if (assignments.length === 0) {
+  if (assignments.length === 0 || loadError) {
     return (
       <div>
         <PageHeader title="Buku Penghubung" />
         <EmptyState
           icon={Users}
-          title="Belum ditugaskan ke kelas"
-          description="Hubungi admin untuk ditugaskan mengajar di kelas tertentu."
+          title={loadError ? "Daftar kelas tidak bisa dimuat" : "Belum ditugaskan ke kelas"}
+          description={loadError ? "Periksa koneksi, lalu coba lagi." : "Hubungi admin untuk ditugaskan mengajar di kelas tertentu."}
+          actionLabel={loadError ? "Coba lagi" : undefined}
+          onAction={loadError ? () => setReload(n=>n+1) : undefined}
         />
       </div>
     );

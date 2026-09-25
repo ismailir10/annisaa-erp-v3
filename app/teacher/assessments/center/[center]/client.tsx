@@ -462,7 +462,7 @@ export function CenterSessionClient({
                 ? "Belum ada pekan aktif"
                 : "Tidak bisa memuat sentra"
             }
-            description={payload.error}
+            description={payload.reason === "no_active_week" ? `${payload.error} Pilih tanggal dalam pekan belajar yang sudah disiapkan, atau hubungi admin sekolah untuk menyiapkan pekan belajar.` : payload.error}
           />
           <Button
             type="button"

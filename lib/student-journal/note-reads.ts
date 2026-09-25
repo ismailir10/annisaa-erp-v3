@@ -57,10 +57,12 @@ export async function countUnreadNotesByStudent({
   tenantId,
   studentIds,
   readerUserId,
+  authorRole,
 }: {
   tenantId: string;
   studentIds: string[];
   readerUserId: string;
+  authorRole?: string;
 }): Promise<Record<string, number>> {
   if (studentIds.length === 0) return {};
 
@@ -85,6 +87,7 @@ export async function countUnreadNotesByStudent({
       studentId: { in: watermarks.map((w) => w.studentId) },
       status: JournalStatus.ACTIVE,
       authorUserId: { not: readerUserId },
+      ...(authorRole ? { authorRole } : {}),
       createdAt: { gt: oldest },
     },
     select: { studentId: true, createdAt: true },

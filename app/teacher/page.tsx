@@ -1,99 +1,58 @@
+import { classroomAttendanceByStudent } from "@/lib/teacher/classroom-attendance";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
-import { getHomeroomClassSection } from "@/lib/curriculum/homeroom";
 import { TeacherHomeClient } from "./home-client";
+import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
+import { getJournalProgress, teacherSlotRank, type TeacherClassSummary } from "@/lib/teacher/home-progress";
 
 export default async function TeacherHome() {
   const session = await getSession();
   if (!session || session.role !== "TEACHER") redirect("/");
-
   const today = getTodayInTimezone("Asia/Jakarta");
-
-  const todayRecord = session.employeeId
-    ? await prisma.attendanceRecord.findUnique({
-        where: {
-          employeeId_date: {
-            employeeId: session.employeeId,
-            date: today,
-          },
-        },
-      })
-    : null;
-
-  // Today's ClassSessions for this teacher — same query the GET
-  // /api/teacher/sessions endpoint uses (teacherId === employeeId naturally
-  // includes substitute-day assignments). Server-fetched so the dashboard
-  // card paints with the first render, no client round-trip.
-  let todaySessions: {
-    id: string;
-    slot: string;
-    className: string;
-    rosterCount: number;
-  }[] = [];
-  if (session.tenantId && session.employeeId) {
-    const sessions = await prisma.classSession.findMany({
-      where: {
-        date: today,
-        teacherId: session.employeeId,
-        classSection: { tenantId: session.tenantId },
-      },
-      select: {
-        id: true,
-        slot: true,
-        classSection: {
-          select: {
-            name: true,
-            _count: {
-              select: { enrollments: { where: { status: "ACTIVE" } } },
-            },
-          },
-        },
-      },
-      orderBy: { slot: "asc" },
-    });
-    todaySessions = sessions.map((s) => ({
-      id: s.id,
-      slot: s.slot,
-      className: s.classSection.name,
-      rosterCount: s.classSection._count.enrollments,
-    }));
-  }
-
-  // Walas detection — feeds the Penilaian Pekanan quick card. Skip the
-  // active-AY lookup when no employeeId so demo accounts without staff
-  // links don't trip the homeroom branch.
-  let homeroomClassSectionName: string | null = null;
-  if (session.tenantId && session.employeeId) {
-    const activeYear = await prisma.academicYear.findFirst({
-      where: { tenantId: session.tenantId, status: "ACTIVE" },
-      select: { id: true },
-    });
-    if (activeYear) {
-      const homeroom = await getHomeroomClassSection(
-        session.tenantId,
-        session.employeeId,
-        activeYear.id,
-      );
-      homeroomClassSectionName = homeroom?.name ?? null;
-    }
-  }
-
-  return (
-    <TeacherHomeClient
-      userName={session.name ?? "Guru"}
-      todayRecord={
-        todayRecord
-          ? {
-              status: todayRecord.status,
-              checkInTime: todayRecord.checkInTime?.toISOString() ?? null,
-              checkOutTime: todayRecord.checkOutTime?.toISOString() ?? null,
-            }
-          : null
-      }
-      homeroomClassSectionName={homeroomClassSectionName}
-      todaySessions={todaySessions}
-    />
-  );
+  const now = new Date();
+  const hour = Number(new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Jakarta", hour:"2-digit", hourCycle:"h23"}).format(now));
+  const greeting = hour < 12 ? "pagi" : hour < 15 ? "siang" : hour < 18 ? "sore" : "malam";
+  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult] = await Promise.allSettled([
+    session.employeeId ? prisma.attendanceRecord.findUnique({where:{employeeId_date:{employeeId:session.employeeId,date:today}}}) : Promise.resolve(null),
+    session.employeeId && session.tenantId ? prisma.teachingAssignment.findMany({
+      where:{employeeId:session.employeeId,classSection:{tenantId:session.tenantId,status:"ACTIVE",academicYear:{status:"ACTIVE"}}},
+      include:{classSection:{include:{sessions:{where:{date:today},select:{id:true}},enrollments:{where:{status:"ACTIVE"},select:{studentId:true,student:{select:{name:true,nickname:true}}}}}}},
+      orderBy:{classSection:{name:"asc"}},
+    }) : Promise.resolve([]),
+    session.employeeId && session.tenantId ? prisma.classSession.findMany({
+      where:{date:today,teacherId:session.employeeId,classSection:{tenantId:session.tenantId}},
+      include:{classSection:{select:{name:true,_count:{select:{enrollments:{where:{status:"ACTIVE"}}}}}}},
+    }) : Promise.resolve([]),
+    session.tenantId ? prisma.studentJournalIndicator.findMany({
+      where:{status:"ACTIVE",category:{scope:"SCHOOL",status:"ACTIVE",template:{tenantId:session.tenantId}}},select:{id:true},
+    }) : Promise.resolve([]),
+  ]);
+  const assignments = assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
+  const sessions = sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
+  const indicatorIds = indicatorsResult.status === "fulfilled" ? indicatorsResult.value.map(i=>i.id) : null;
+  const classes: TeacherClassSummary[] = await Promise.all(assignments.map(async assignment=>{
+    const section = assignment.classSection;
+    const studentIds = section.enrollments.map(e=>e.studentId);
+    const [attendance, journal, replies] = await Promise.allSettled([
+      prisma.studentAttendance.findMany({where:{classSectionId:section.id,date:today,isVoided:false,studentId:{in:studentIds}},select:{studentId:true,sessionId:true},orderBy:[{createdAt:"desc"},{id:"desc"}]}),
+      prisma.studentJournalEntry.findMany({where:{tenantId:session.tenantId!,classSectionId:section.id,date:today,scope:"SCHOOL",studentId:{in:studentIds},indicatorId:{in:indicatorIds ?? []}},select:{studentId:true,indicatorId:true,checked:true}}),
+      countUnreadNotesByStudent({tenantId:session.tenantId!,studentIds,readerUserId:session.id,authorRole:"GUARDIAN"}),
+    ]);
+    const slots = sessions.filter(s=>s.classSectionId===section.id).sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
+    return {id:section.id,name:section.name,rosterCount:studentIds.length,slot:slots[0]?.slot ?? null,
+      attendanceRecorded:attendance.status==="fulfilled" ? classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).size : null,
+      journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value}) : null,
+      replies:replies.status==="fulfilled" ? section.enrollments.filter(e=>(replies.value[e.studentId]??0)>0).map(e=>({studentId:e.studentId,studentName:e.student.nickname || e.student.name,count:replies.value[e.studentId]})) : null,
+    };
+  }));
+  classes.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
+  const record = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
+  return <TeacherHomeClient userName={session.name ?? "Guru"} today={today} greeting={greeting}
+    todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null}:null}
+    attendanceUnavailable={attendanceResult.status==="rejected"} classesUnavailable={assignmentsResult.status==="rejected"}
+    sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes}
+    homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
+    todaySessions={sessions.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour)).map(s=>({id:s.id,slot:s.slot,className:s.classSection.name,rosterCount:s.classSection._count.enrollments}))} />;
 }

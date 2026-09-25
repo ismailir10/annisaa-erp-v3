@@ -1,12 +1,12 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-08-03 in cycle `teacher-mobile-nav-review` (checked mobile navigation, recovery states, and salary detail resilience)
+> Last audited: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
 This file is the living catalog of what a teacher user can and should be able to do in this system. `/uat teacher` reads it, picks jobs scoped to the requested area, and role-plays each one via Playwright MCP. When a cycle adds, removes, or materially changes a teacher-facing capability, edit this file as part of that cycle and bump the "Last audited" date.
 
-Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `Kelas`, `Jurnal`, and `Penilaian` — while `Lainnya` opens the personal-route sheet for `Kehadiran Saya`, `Slip Gaji`, and `Profil Saya`.
+Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `Absensi`, `Jurnal`, and `Penilaian` — while `Lainnya` opens the personal-route sheet for `Kehadiran Saya`, `Slip Gaji`, and `Profil Saya`.
 
 ---
 
@@ -21,9 +21,9 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `K
   - Demo cookie set (pattern from `e2e/teacher.spec.ts`)
 - **Steps (user intent, not UI clicks):**
   1. Open the teacher portal
-  2. Navigate to class attendance
-  3. Mark today's attendance — default assumption is "everyone present"; she only marks exceptions (absent/sakit/izin/late)
-  4. Each tap fires `POST /api/student-attendance/mark` immediately (autosave-on-tap); there is no Simpan button. A "✓ Tersimpan" indicator appears alongside the tapped student row to confirm persistence.
+  2. Open the current class's attendance action and confirm the class and school date carried over
+  3. Distinguish saved statuses from "Belum dicatat". Record a missing student's presence directly, then mark any exceptions.
+  4. Each change saves through the existing attendance API. Confirm saving, saved, or recoverable failure feedback; a missing record must never count as saved presence.
 - **Done when:** All students have a status for today. Each tap-to-save is confirmed by the "✓ Tersimpan" indicator; no separate save action is required. Reopening the page shows today's state preserved.
 - **Why this job matters:** Bu Sari's #1 daily task. She has 3 minutes before morning circle. Every extra tap is expensive.
 - **Expected perf:** full page load <1.5s; save click-to-confirm <800ms; any slower is noticeable and graded accordingly.
@@ -275,6 +275,15 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `K
 
 ## Area: home
 
+### JTBD-TEACHER-HOME-02 — Identify the class's next unfinished action
+- **Persona:** Bu Sari
+- **Role:** TEACHER, repeated for homeroom and sentra assignments
+- **Preconditions:** Multiple assigned classes; saved and missing attendance; one fully checked school journal, one partial journal, and an unread guardian reply. Repeat without a generated daily session.
+- **Steps:** Read the class/date context; open the primary action; confirm its selected class/date; save one record; reload; open each child's unread thread; open the session pickup workflow separately.
+- **Done when:** The next action is obvious without interpreting an invented percentage. Attendance counts saved student records. Journal completion requires every active SCHOOL indicator for each active student; zero configured indicators is explained. All assigned-class and session destinations remain available, and each guardian-reply label opens that child's thread.
+- **Recovery checks:** Change class/date during a slow or failed save; the late response must not overwrite the new context. Refresh after saving and confirm the summary agrees with the domain record.
+- **Verification status:** Acceptance contract updated after engineering review; results belong in the cycle's Verification section, separately from representative-user observations.
+
 ### JTBD-TEACHER-HOME-01 — Morning routine: GPS check-in from home tile
 - **Persona:** Bu Sari
 - **Role:** TEACHER
@@ -284,7 +293,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `K
   - No check-in record yet for today
 - **Steps:**
   1. Open the teacher portal root `/teacher`
-  2. Read live clock + today's status card (no check-in yet)
+  2. Find personal check-in alongside the class work; an existing check-in appears as a compact recorded status
   3. Tap "MASUK" — browser geolocation prompt fires (`navigator.geolocation.getCurrentPosition` per `home-client.tsx` line 47)
   4. Allow location → coordinates display, `POST /api/attendance/check-in` fires with lat/lng
   5. Status card flips to "Sudah masuk" with check-in timestamp
@@ -297,7 +306,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `K
   - Browser has no `navigator.geolocation` API at all (`!navigator.geolocation` guard at `home-client.tsx` line 41) → request short-circuits with the no-API path; distinct from permission denial above
   - GPS timeout (no fix in 10s) → `gpsStatus` reflects timeout; same caveat as denial above (request still fires unless code is changed)
   - Already checked in today → "MASUK" button is replaced by "PULANG" (driven by `hasCheckedIn` derived from today's record)
-  - Check-in API 500 → status card does NOT flip; toast surfaces failure
+  - Check-in API failure or rejected network request → recorded state is restored, an actionable error appears, and the control permits retry
 - **Known friction (from last UAT):** <filled by /uat reports>
 
 ---
