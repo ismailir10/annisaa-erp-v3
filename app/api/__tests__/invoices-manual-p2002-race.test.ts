@@ -34,7 +34,7 @@ const txMock = {
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    studentEnrollment: { findFirst: vi.fn() },
+    student: { findFirst: vi.fn() },
     feeComponentDef: { findMany: vi.fn() },
     studentGuardian: { findFirst: vi.fn() },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
@@ -104,8 +104,8 @@ describe("POST /api/invoices — P2002 race regression (T0)", () => {
     );
 
     vi.mocked(getSession).mockResolvedValue(adminSession);
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
@@ -162,8 +162,8 @@ describe("POST /api/invoices — P2002 race regression (T0)", () => {
     const { prisma } = await import("@/lib/db");
 
     vi.mocked(getSession).mockResolvedValue(adminSession);
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
