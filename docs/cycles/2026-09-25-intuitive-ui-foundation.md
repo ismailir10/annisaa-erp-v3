@@ -124,6 +124,7 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 ### Manual invoice follow-up verification
 
+- Verified source SHA: `b12b4f005c8bee7b0124e8c9d2d52d64d7c5103f`, based on staging `d8b418ec`. Exact-source local browser rerun passed **6/6 with retries disabled**. This subsequent documentation-only evidence commit does not change the verified code; all four CI checks must pass on its published head before merge.
 - Verification route: demo-auth browser + disposable local Postgres; no Google login, shared database writes, schema, dependency, auth/session, permission or payment API changes. Actual runtime diff is limited to `manual-invoice-dialog.tsx` and `responsive-form-dialog.tsx`.
 - Production build passed; focused Playwright **6/6** passed with retries disabled. Full Playwright **151 passed, eight existing skips, no failures or retries (4.4 minutes)**. The new tests use a real seeded admin/student and actual components; only the fee catalogue label is replaced with a deterministic long string. Invoice creation remains covered by the existing full-suite flow.
 - Layout/interaction: 1280×600, 1440×900, 768×640, 390×740, 320×568; eight fee rows, real wheel scroll, Total and footer visible, full dropdown label bounds, keyboard traversal to the last amount and submit, popup/modal Escape and focus return, values retained through 390→1280→320 resize. Additional screenshots exercise 1366×640 and 720×450 at DPR 2 (the reflow equivalent of 1440×900 at 200%; native toolbar zoom was not automated).
