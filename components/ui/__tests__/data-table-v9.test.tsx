@@ -71,7 +71,7 @@ describe("DataTable with TanStack Table v9 compatibility types", () => {
     expect(onSortChange).toHaveBeenLastCalledWith("name", "asc");
     expect(rowNames()).toEqual(["Server C", "Server A"]);
 
-    await user.click(screen.getByRole("button", { name: "Halaman berikutnya" }));
+    await user.click(screen.getByRole("button", { name: "Halaman berikutnya, 3" }));
     expect(onPageChange).toHaveBeenCalledWith(3);
     expect(rowNames()).toEqual(["Server C", "Server A"]);
     expect(screen.getByText("Hal. 2/3")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("DataTable with TanStack Table v9 compatibility types", () => {
     );
 
     expect(rowNames()).toHaveLength(10);
-    await user.click(screen.getByRole("button", { name: "Halaman berikutnya" }));
+    await user.click(screen.getByRole("button", { name: "Halaman berikutnya, 2" }));
     expect(rowNames()[0]).toBe("Student 11");
 
     await user.click(screen.getByRole("combobox", { name: "Baris per halaman" }));
@@ -96,7 +96,7 @@ describe("DataTable with TanStack Table v9 compatibility types", () => {
     expect(rowNames()).toHaveLength(20);
     expect(rowNames()[0]).toBe("Student 01");
 
-    await user.click(screen.getByRole("button", { name: "Halaman berikutnya" }));
+    await user.click(screen.getByRole("button", { name: "Halaman berikutnya, 2" }));
     expect(rowNames()[0]).toBe("Student 21");
 
     const shorterData = data.slice(0, 12);

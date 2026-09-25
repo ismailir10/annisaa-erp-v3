@@ -24,6 +24,7 @@ import { parentGreetingName, parentHonorific } from "@/lib/parent-greeting";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
 import { loadStudentPerkembangan } from "@/lib/curriculum/perkembangan-loader";
 import { LEVEL_LABEL_SHORT, LEVEL_CHIP_CLASS_OFF } from "@/lib/curriculum/level-presentation";
+import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
 const JAKARTA_TZ = "Asia/Jakarta";
@@ -118,11 +119,14 @@ function buildKidFoot(
   return { tone: "info", icon: "calendar-clock", text: "Pekan ini belum tercatat" };
 }
 
-export default async function ParentDashboard() {
+export default async function ParentDashboard({ searchParams }: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
 
   const { parent, children } = await getParentWithChildren(session);
+  const childId = resolveParentChildId(children.map((child) => child.studentId), (await searchParams).child);
 
   if (!parent || children.length === 0) {
     return (
@@ -369,7 +373,7 @@ export default async function ParentDashboard() {
           <>
             <SectionLabel>Tagihan</SectionLabel>
             <Link
-              href="/parent/invoices"
+              href={parentHref("/parent/invoices", childId)}
               className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40 md:p-6"
             >
               <div className="flex items-center gap-3">

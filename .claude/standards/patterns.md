@@ -132,7 +132,7 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 
 ## Recipe 4 — Portal Dashboard
 
-**When:** `/teacher` or `/parent` home pages — mobile-first landing with stat cards + quick links + recent activity.
+**When:** `/teacher` or `/parent` home pages — mobile-first landing that makes today's next action obvious.
 
 **Layout skeleton:**
 
@@ -140,21 +140,18 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 <main className="mx-auto max-w-md px-5 pb-20 pt-6">
   <PortalHeader {...} />
   <PageHeader title="Beranda" subtitle={greeting} />
-  <section className="mt-6 grid grid-cols-3 gap-3">
-    <QuickLinkCard ... />
-    <QuickLinkCard ... />
-    <QuickLinkCard ... />
-  </section>
-  <section className="mt-6 space-y-3">
-    {/* Primary content: household overview (parent) OR clock-in card (teacher) */}
+  <section className="mt-section space-y-3">
+    {/* Teacher: current class and the tasks still needing work.
+        Parent: children and the information or action each needs. */}
+    <TaskList><TaskRow ... /></TaskList>
   </section>
   <PortalBottomNav ... />
 </main>
 ```
 
-**Required pieces:** `PortalHeader` · `PortalBottomNav` · `PageHeader` · `QuickLinkCard` grid (always 3-up, `h-[132px]` fixed) · `max-w-md` · `pb-20` to clear bottom nav · `safe-area-bottom` on bottom nav.
+**Required pieces:** `PortalHeader` · `PortalBottomNav` · clear page heading · current context and a task-first next-action area · `max-w-md` · bottom padding to clear navigation · `safe-area-bottom` on bottom nav. Quick links are optional secondary navigation; do not reserve a fixed-height three-card grid above the work.
 
-**Parent-specific:** home body MUST use the Household Overview pattern (see `portal.md`) — card-per-child with signal chips, not pill-tabs, once the family has ≥3 kids. Two-kid families may keep pill-tabs.
+**Parent-specific:** show the household's children together with each child's actionable information (see `portal.md`). Do not turn absent attendance data into a claim that the child was absent, present, or late.
 
 ## Recipe 5 — Workflow Queue
 
@@ -172,10 +169,10 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 **When:** single-purpose grids where the user types/taps the same field across many rows (class attendance, assessment score entry, home-note week grid).
 
 **Rules:**
-- **Cycle-tap, not radio.** Default value = the common case (PRESENT for attendance). One tap rotates through states (`PRESENT → ABSENT → SICK → PERMISSION`). Long-press or "..." menu for less-common states.
+- **Make each state clear.** Existing cycle controls may keep their current behavior. New attendance entry may use explicit state choices when that makes the result easier to understand and verify.
 - **Sticky first column** identifies the entity (student name / date / category). Sticky so it doesn't scroll off horizontally on mobile.
 - **Summary trio above the grid** shows live totals (e.g. "Hadir 25 · Sakit 2 · Alpa 1").
-- **Save on every tap**, not on a submit button. Optimistic UI + toast rollback on failure.
+- **Preserve the route's real save contract.** Show saving, saved, and error feedback beside the work. Do not claim success before persistence or replace a working submit flow merely to match a mockup.
 
 **Layout skeleton:**
 
@@ -194,7 +191,7 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 </main>
 ```
 
-**Required pieces:** class + date picker row · live summary trio · sticky-first-column grid · per-cell optimistic save · row-level skeleton on first load.
+**Required pieces:** class + date picker row · live summary · clear per-student state · save feedback that matches the actual persistence flow · row-level skeleton on first load.
 
 ## Cross-recipe invariants
 

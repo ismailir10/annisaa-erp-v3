@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, LogOut, Settings } from "lucide-react";
 
 import {
@@ -29,6 +29,7 @@ import {
   adminNav,
   getActiveGroup,
   getActiveItem,
+  getVisibleAdminNav,
   isItemActive,
   type NavItem,
   type NavGroup,
@@ -107,16 +108,9 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
   );
   const [settingsOpen, setSettingsOpen] = useState(true);
 
-  const visibleGroups = adminNav.groups
-    .filter((g) => !g.permission || permissions.includes(g.permission))
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((item) => !item.permission || permissions.includes(item.permission)),
-    }))
-    .filter((g) => g.items.length > 0);
-  const visibleSettings = adminNav.settings.filter(
-    (item) => !item.permission || permissions.includes(item.permission),
-  );
+  const visibleNav = useMemo(() => getVisibleAdminNav(permissions), [permissions]);
+  const visibleGroups = visibleNav.groups;
+  const visibleSettings = visibleNav.settings;
 
   // Auto-expand whichever group contains the active route so users who
   // collapsed a group and then navigated into it via breadcrumb/back don't
@@ -127,16 +121,16 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
      functional setState bails out when the value already matches, so no
      cascading renders occur. */
   useEffect(() => {
-    const activeGroupId = getActiveGroup(pathname, adminNav.groups);
+    const activeGroupId = getActiveGroup(pathname, visibleGroups);
     if (activeGroupId) {
       setOpenGroups((prev) =>
         prev[activeGroupId] ? prev : { ...prev, [activeGroupId]: true }
       );
     }
-    if (adminNav.settings.some((item) => isItemActive(pathname, item))) {
+    if (visibleSettings.some((item) => isItemActive(pathname, item))) {
       setSettingsOpen(true);
     }
-  }, [pathname]);
+  }, [pathname, visibleGroups, visibleSettings]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleLogout() {
@@ -170,7 +164,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
         {/* Dashboard — standalone */}
         <SidebarGroup>
           <SidebarMenu>
-            {adminNav.standalone.map((item) => {
+            {visibleNav.standalone.map((item) => {
               const Icon = item.icon;
               const active = isItemActive(pathname, item);
               return (

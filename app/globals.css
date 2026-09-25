@@ -137,7 +137,8 @@
 
   /* Brand / Primary — An Nisaa teal */
   --primary: #5DB4B8;
-  --primary-foreground: #FFFFFF;
+  /* Brand teal needs dark ink for normal-size text (white is only ~2.4:1). */
+  --primary-foreground: #173536;
   /* Darkened brand teal for TEXT and glyphs on light/tinted surfaces.
    * --primary is a fill colour: on white it measures 2.36:1 and on the
    * bg-primary/10 tint 2.24:1, so `text-primary` on a tinted row fails AA

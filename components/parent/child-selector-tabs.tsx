@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PortalTabs, type PortalTab } from "@/components/portal/portal-tabs";
+import { parentHref } from "@/lib/parent/navigation";
 
 type ChildInfo = {
   studentId: string;
@@ -41,9 +42,9 @@ export function ChildSelectorTabs({
   });
 
   const handleSelect = (id: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("child", id);
-    router.push(`${pathname}?${params.toString()}`);
+    if (!items.some((child) => child.studentId === id)) return;
+    const local = Object.fromEntries(new URLSearchParams(searchParams.toString()));
+    router.push(parentHref(pathname, id, local));
   };
 
   return (

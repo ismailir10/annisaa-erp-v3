@@ -5,10 +5,11 @@ import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { createAdmissionSchema } from "@/lib/validations/admission";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 
@@ -58,7 +59,10 @@ export async function GET(req: NextRequest) {
     prisma.admission.count({ where }),
   ]);
 
-  return NextResponse.json(paginatedResponse(admissions, total, page, pageSize));
+  return NextResponse.json({
+    ...paginatedResponse(admissions, total, page, pageSize),
+    canEdit: hasPermission(session, "admissions.edit"),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

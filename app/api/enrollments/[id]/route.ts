@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { programBelongsToTenant } from "@/lib/enrollment/resolve-token";
 import { programIdSchema } from "@/lib/validations/program-id";
 import { redactConsentSignatures } from "@/lib/enrollment/sanitize-consent";
@@ -29,7 +30,7 @@ const patchSchema = z
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
@@ -57,12 +58,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { tenantId, ...rest } = app;
-  return NextResponse.json({ ...rest, consentData: redactConsentSignatures(rest.consentData) });
+  return NextResponse.json({
+    ...rest,
+    canEdit: hasPermission(session, "admissions.edit"),
+    consentData: redactConsentSignatures(rest.consentData),
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

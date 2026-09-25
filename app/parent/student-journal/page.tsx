@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { BookHeart, Plus } from "lucide-react";
@@ -28,6 +28,7 @@ import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
 import { formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -108,6 +109,11 @@ export default function ParentStudentJournalPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [children, setChildren] = useState<Child[] | null>(null);
+  const childId = resolveParentChildId(
+    children?.map((child) => child.id) ?? [],
+    searchParams.get("child"),
+  );
 
   // Active tab persisted in URL (UAT 2026-05-01 cycle T5) — without this the
   // tab resets to "Sekolah" on every Catatan create/delete because the
@@ -118,20 +124,22 @@ export default function ParentStudentJournalPage() {
   const setActiveView = useCallback(
     (next: string) => {
       if (!isValidView(next)) return;
-      const params = new URLSearchParams(searchParams.toString());
+      const params = Object.fromEntries(new URLSearchParams(searchParams.toString()));
       if (next === "school") {
-        params.delete("view");
+        delete params.view;
       } else {
-        params.set("view", next);
+        params.view = next;
       }
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.replace(parentHref(pathname, childId, params), { scroll: false });
     },
-    [pathname, router, searchParams],
+    [childId, pathname, router, searchParams],
   );
 
-  const [children, setChildren] = useState<Child[] | null>(null);
-  const [childId, setChildId] = useState<string | null>(null);
+  const selectChild = useCallback((id: string) => {
+    if (!children?.some((child) => child.id === id)) return;
+    const local = Object.fromEntries(new URLSearchParams(searchParams.toString()));
+    router.push(parentHref(pathname, id, local));
+  }, [children, pathname, router, searchParams]);
 
   // The viewed week lives in the URL, like the tab above it. Held in component
   // state it did not survive a reload, a back-button press, or a link pasted to
@@ -144,18 +152,24 @@ export default function ParentStudentJournalPage() {
 
   const setCurrentWeek = useCallback(
     (next: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = Object.fromEntries(new URLSearchParams(searchParams.toString()));
       if (next === thisWeek) {
-        params.delete("week");
+        delete params.week;
       } else {
-        params.set("week", next);
+        params.week = next;
       }
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.replace(parentHref(pathname, childId, params), { scroll: false });
     },
-    [pathname, router, searchParams, thisWeek],
+    [childId, pathname, router, searchParams, thisWeek],
   );
-  const [data, setData] = useState<WeekData | null>(null);
+  const [loadedWeek, setLoadedWeek] = useState<{
+    childId: string;
+    week: string;
+    data: WeekData;
+  } | null>(null);
+  const data = loadedWeek?.childId === childId && loadedWeek.week === currentWeek
+    ? loadedWeek.data
+    : null;
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [noteDialog, setNoteDialog] = useState<
@@ -169,6 +183,9 @@ export default function ParentStudentJournalPage() {
   /** studentId → unread catatan, for the tab badge and the child pills. */
   const [unreadByChild, setUnreadByChild] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState(false);
+  const activeWeekRef = useRef({ childId, week: currentWeek });
+  activeWeekRef.current = { childId, week: currentWeek };
+  const weekRequestRef = useRef(0);
 
   // Load current session id (for own-note edit/delete affordance)
   useEffect(() => {
@@ -185,11 +202,13 @@ export default function ParentStudentJournalPage() {
   // Load children on mount
   useEffect(() => {
     fetch("/api/parent/children")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("children fetch failed");
+        return r.json();
+      })
       .then((json: { data?: Child[]; error?: string }) => {
         if (json.data && json.data.length > 0) {
           setChildren(json.data);
-          setChildId(json.data[0].id);
         } else {
           setChildren([]);
         }
@@ -220,6 +239,12 @@ export default function ParentStudentJournalPage() {
   // Load week data when child or week changes
   const loadWeekData = useCallback(
     async (cid: string, ws: string) => {
+      const requestId = ++weekRequestRef.current;
+      const isCurrentRequest = () =>
+        requestId === weekRequestRef.current &&
+        activeWeekRef.current.childId === cid &&
+        activeWeekRef.current.week === ws;
+
       setLoading(true);
       try {
         const res = await fetch(
@@ -227,15 +252,23 @@ export default function ParentStudentJournalPage() {
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+          if (isCurrentRequest()) {
+            toast.error((err as { error?: string }).error ?? "Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+          }
           return;
         }
         const json = await res.json() as { data: WeekData };
-        setData(json.data);
+        if (isCurrentRequest()) {
+          setLoadedWeek({ childId: cid, week: ws, data: json.data });
+        }
       } catch {
-        toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+        if (isCurrentRequest()) {
+          toast.error("Jurnal belum bisa dimuat. Coba lagi sebentar ya.");
+        }
       } finally {
-        setLoading(false);
+        if (isCurrentRequest()) {
+          setLoading(false);
+        }
       }
     },
     [],
@@ -303,7 +336,7 @@ export default function ParentStudentJournalPage() {
             count: unreadByChild[c.id] || undefined,
           }))}
           activeId={childId ?? ""}
-          onSelect={setChildId}
+          onSelect={selectChild}
           variant="pills"
           ariaLabel="Pilih anak"
         />
@@ -398,28 +431,37 @@ export default function ParentStudentJournalPage() {
               editable
               earliestEditableDate={homeEditFloor}
               onToggle={async (indicatorId, date, next) => {
-                const res = await fetch("/api/student-journal/entries/home", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    studentId: childId,
-                    date,
-                    entries: [{ indicatorId, checked: next }],
-                  }),
-                });
-                if (!res.ok) {
-                  const err = await res.json().catch(() => ({}));
-                  toast.error((err as { error?: string }).error ?? "Belum bisa disimpan. Coba lagi sebentar ya.");
-                  return;
-                }
-                // Refresh week data so the cell reflects the server state
-                if (childId) {
-                  const refreshed = await fetch(
-                    `/api/student-journal/children/${childId}/week?weekStart=${currentWeek}`,
-                  );
-                  if (refreshed.ok) {
-                    const json = await refreshed.json() as { data: WeekData };
-                    setData(json.data);
+                const mutationChildId = childId;
+                const mutationWeek = currentWeek;
+                const isActiveMutation = () =>
+                  activeWeekRef.current.childId === mutationChildId &&
+                  activeWeekRef.current.week === mutationWeek;
+
+                try {
+                  const res = await fetch("/api/student-journal/entries/home", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                      studentId: mutationChildId,
+                      date,
+                      entries: [{ indicatorId, checked: next }],
+                    }),
+                  });
+                  if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    if (isActiveMutation()) {
+                      toast.error((err as { error?: string }).error ?? "Belum bisa disimpan. Coba lagi sebentar ya.");
+                    }
+                    return;
+                  }
+                  // A late mutation from a child/week the wali has left must not
+                  // start a refresh that supersedes the newly selected journal.
+                  if (mutationChildId && isActiveMutation()) {
+                    await loadWeekData(mutationChildId, mutationWeek);
+                  }
+                } catch {
+                  if (isActiveMutation()) {
+                    toast.error("Koneksi terputus. Coba lagi sebentar ya.");
                   }
                 }
               }}

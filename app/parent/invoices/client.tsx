@@ -10,13 +10,14 @@ import Link from "next/link";
 import { formatDate, formatInvoicePeriod } from "@/lib/format";
 import { Amount, AmountStatus } from "@/components/portal/amount";
 import { SectionLabel } from "@/components/portal/section-label";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { getTodayInTimezone, getYmdInTimezone } from "@/lib/attendance/timezone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { PageHeader } from "@/components/portal/page-header";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
+import { parentHref } from "@/lib/parent/navigation";
 
 const InvoiceDetailSheet = dynamic(
   () => import("./invoice-detail-sheet").then((mod) => ({ default: mod.InvoiceDetailSheet })),
@@ -63,11 +64,13 @@ type SelectedChildSummary = {
 
 export function InvoicesClient({
   data,
+  selectedChildId,
   selectedStudentName = "",
   selectedChildSummary,
   otherChildrenWithOutstanding = [],
 }: {
   data: InvoiceItem[] | null;
+  selectedChildId?: string;
   selectedStudentName?: string;
   selectedChildSummary?: SelectedChildSummary;
   otherChildrenWithOutstanding?: OtherChildOutstanding[];
@@ -89,6 +92,7 @@ export function InvoicesClient({
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("due-asc");
   const [recentlyPaidIds, setRecentlyPaidIds] = useState<Set<string>>(new Set());
+  const handledReturnRef = useRef<string | null>(null);
   const prevDataRef = useRef<InvoiceItem[] | null>(null);
   const loading = data === null;
 
@@ -102,23 +106,35 @@ export function InvoicesClient({
   // cancelReturnUrl to land here with `?invoice=<id>&paymentStatus=paid|cancel`
   // (or the legacy `?xenditStatus=` form for sessions created before cycle
   // 2026-07-27-doku-payment-gateway). Open the detail sheet for the invoice,
-  // fire a one-shot toast, then strip the query params so a refresh does not
-  // re-fire the toast. Only acts when the invoice id resolves against the
+  // show the server's state, then strip only callback params so a refresh does
+  // not re-fire the toast. Only acts when the invoice id resolves against the
   // parent's own data — a stale or foreign id leaves the params intact for
   // now (a future render with refreshed data may resolve them).
   useEffect(() => {
     if (!data || !invoiceParam || !paymentStatusParam) return;
     const found = data.find((i) => i.id === invoiceParam);
     if (!found) return;
+    const returnKey = `${invoiceParam}:${paymentStatusParam}`;
+    if (handledReturnRef.current === returnKey) return;
+    handledReturnRef.current = returnKey;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedInvoiceId(invoiceParam);
-    if (paymentStatusParam === "paid") {
+    if (found.status === "PAID") {
       toast.success(`Alhamdulillah, tagihan ${formatInvoicePeriod(found.periodLabel)} terbayar.`);
+    } else if (isOutstanding(found) && found.totalPaid > 0) {
+      toast(`Pembayaran tagihan ${formatInvoicePeriod(found.periodLabel)} tercatat sebagian. Lihat sisa tagihan.`);
     } else if (paymentStatusParam === "cancel") {
       toast("Pembayaran belum selesai. Silakan coba lagi, Pak/Bu.");
+    } else {
+      toast("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.");
     }
-    router.replace("/parent/invoices", { scroll: false });
-  }, [data, invoiceParam, paymentStatusParam, router]);
+    const retained = Object.fromEntries(new URLSearchParams(searchParams.toString()));
+    delete retained.invoice;
+    delete retained.paymentStatus;
+    delete retained.xenditStatus;
+    router.replace(parentHref("/parent/invoices", selectedChildId, retained), { scroll: false });
+    if (found.status !== "PAID") router.refresh();
+  }, [data, invoiceParam, paymentStatusParam, router, searchParams, selectedChildId]);
 
   // Webhook → list freshness. While at least one outstanding invoice has an
   // active Xendit payment session (xenditPaymentUrl != null), poll the server
@@ -351,7 +367,7 @@ export function InvoicesClient({
                 {otherChildrenWithOutstanding.map((c) => (
                   <Link
                     key={c.studentId}
-                    href={`/parent/invoices?child=${c.studentId}`}
+                    href={parentHref("/parent/invoices", c.studentId)}
                     className="flex min-h-[44px] items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm transition-colors hover:border-primary/30 active:border-primary/40"
                   >
                     <span className="font-medium text-foreground">{c.studentName}</span>
@@ -536,8 +552,8 @@ function InvoiceRow({
   // arrear from next week's bill.
   const secondary =
     tone === "due"
-      ? `Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}${isOverdue ? " · lewat tempo" : ""}`
-      : `Dibayar${invoice.paidAt ? ` ${formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
+      ? `${invoice.totalPaid > 0 ? "Dibayar sebagian · " : ""}Jatuh tempo ${formatDate(invoice.dueDate, { day: "numeric", month: "short", year: "numeric" })}${isOverdue ? " · lewat tempo" : ""}`
+      : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
     <li>

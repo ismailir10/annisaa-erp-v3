@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canConvertAdmissionToStudent } from "../page";
+import { canConvertAdmissionToStudent } from "../conversion";
 
 describe("AdmissionsPage row actions", () => {
   it("only offers conversion after an admission is accepted", () => {

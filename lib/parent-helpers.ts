@@ -566,11 +566,10 @@ export type InvoiceListItem = {
 
 /**
  * Fetch all non-DRAFT invoices for a specific student.
- * Cached for 2 minutes with parent-scoped key to prevent cross-parent data leak.
- * Key includes parentId + studentId + tenantId for triple isolation.
+ * Read fresh on each request so a gateway return reflects the latest webhook.
+ * The student and tenant are scoped to the guardian on the query itself.
  */
-export const getParentInvoiceList = unstable_cache(
-  async (parentId: string, studentId: string, tenantId: string): Promise<InvoiceListItem[]> => {
+export async function getParentInvoiceList(parentId: string, studentId: string, tenantId: string): Promise<InvoiceListItem[]> {
     // Allow-list: parents see only invoices they can act on (SENT, PARTIALLY_PAID,
     // OVERDUE) plus historical PAID for the "Riwayat" group. PENDING_PAYMENT_LINK
     // (Xendit creation failed; admin must retry) and CANCELLED (voided by admin)
@@ -580,6 +579,7 @@ export const getParentInvoiceList = unstable_cache(
       where: {
         studentId,
         tenantId,
+        student: { guardians: { some: { parentId } } },
         status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
       },
       select: {
@@ -611,7 +611,4 @@ export const getParentInvoiceList = unstable_cache(
       paidAt: inv.paidAt?.toISOString() ?? null,
       createdAt: inv.createdAt.toISOString(),
     }));
-  },
-  ["parent-invoice-list"],
-  { revalidate: 120, tags: ["parent-invoice-list"] }
-);
+}
