@@ -55,6 +55,14 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 - The legacy admissions list now applies the same `admissions.view`/`admissions.edit` boundary as enrollment routes. Read-only users can inspect permitted records but do not receive create, update, or conversion affordances; mutations remain tenant-scoped, while public token flows are unchanged.
 - The two interrupted 30-second tests were diagnosed rather than relaxed: their production behavior is synchronous, but character-by-character/full-pointer `userEvent` simulation repeatedly rerendered unusually large forms under suite contention. The targeted assertions now use single synchronous DOM events and retain the same state/callback coverage without timeouts or skips.
 
+### Local continuation verification fixes
+
+- The two deferred parent journal regressions now await React `act` around late-response settlement and then positively assert the selected child's content remains visible. Previously their `waitFor` could succeed before the stale response replaced the view with skeletons. The mutation regression selects the current week's Monday, which exists in the five-day grid and stays editable on weekends.
+
+- Integrated-suite verification exposed another test ordering race: the foreign-child fallback test observed the child heading before the effect issued its journal request. It now awaits the expected linked-child request and explicitly rejects a foreign-child request; production behavior is unchanged.
+
+- Local E2E exposed two stale expectations: the parent overflow destination now retains its child query, and a legacy payment callback must not claim settlement for an unpaid invoice. The navigation test now asserts both the Rapor path and retained child. The payment regression owns its exact unpaid fixture, checks pending feedback despite `xenditStatus=paid`, records a real local API payment, verifies the authoritative PAID response, and then checks success after callback reload.
+
 ## Verification
 
 - Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.
@@ -69,6 +77,14 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 - Independent security review completed for the enrollment/admissions role and tenant boundary. It found and closed the legacy admissions permission mismatch described above; no public applicant-token route was weakened.
 - Cloud production build reached Next compilation but could not fetch Google Fonts from `fonts.googleapis.com` in this environment. This is an environment/network limitation, not recorded as a passing build; CI Build remains required.
 - Full cloud verification: `npx vitest run` passed 348 files (2 skipped), 3341 tests (42 todo); `npm run lint` passed with 59 existing warnings and no errors; `npm run typecheck`, `bash scripts/audit-docs.sh`, and `git diff --check` passed. Playwright was not run because this checkout has no isolated local test database and the repository guard must not be bypassed.
+
+- Local regression verification: `npx vitest run app/parent/student-journal/__tests__/page.test.tsx --maxWorkers=1 --reporter=dot` passed 12/12 before and after mutation validation. Temporarily removing only the stale-success guard produced exactly two failures (the initial-load and post-mutation late-response regressions; 10 other tests passed), both because the selected child's content disappeared. The production file was restored byte-for-byte; no timeout increase or skip was added.
+
+- Local verification of the recovered cloud HEAD before the test-only remediation: full Vitest passed 348 files and 3341 tests; lint passed with 0 errors and 59 existing warnings; typecheck passed; docs audit passed 13 checks with one existing warning. The remediation itself was then verified by the focused 12-test journal suite and scoped ESLint. Local production build and Playwright remain blocked by roughly 150 MB of available disk space; no local build, E2E, authenticated preview, or merge pass is claimed.
+
+- First integrated full Vitest run after merging current staging: 347 files passed, 1 failed, 2 skipped; 3343 tests passed, 1 failed, 42 todo. The sole failure was the foreign-child fallback test asserting the journal request before its effect ran. After the test-only ordering fix, the complete 12-test parent journal suite passed three consecutive runs with `--maxWorkers=1` (2.51 s, 1.71 s, 1.73 s). No timeout changes or skips were introduced; a fresh full integrated run remains required.
+
+- First local full Playwright run completed with 143 passed, 8 existing skips, and 2 failures: stale childless Rapor URL matching and a stale success-toast expectation on an unpaid callback. After the test-only corrections, `npx playwright test e2e/payment.spec.ts e2e/parent.spec.ts --workers=1 --reporter=line` passed all 15 tests in 13.1 s against the production server and disposable local Postgres. Initial sandbox port binding failed before tests; the authorized local-server rerun succeeded. A fresh full Playwright run remains required.
 
 ## Ship Notes
 

@@ -260,7 +260,15 @@ test.describe("Parent flows", () => {
       await expect(sheet.getByRole("link", { name: new RegExp(label) })).toBeVisible();
     }
 
-    await sheet.getByRole("link", { name: /Rapor/ }).click();
-    await page.waitForURL("**/parent/reports", { timeout: 15_000 });
+    const reportLink = sheet.getByRole("link", { name: /Rapor/ });
+    const href = await reportLink.getAttribute("href");
+    expect(href).toBeTruthy();
+    const childId = new URL(href!, page.url()).searchParams.get("child");
+    expect(childId).toBeTruthy();
+    await reportLink.click();
+    await page.waitForURL((url) =>
+      url.pathname === "/parent/reports" && url.searchParams.get("child") === childId,
+    );
+    await expect(page.getByRole("heading", { level: 1, name: "Rapor" })).toBeVisible();
   });
 });

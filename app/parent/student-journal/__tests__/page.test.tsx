@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { weekDates, weekStart } from "@/lib/student-journal/week";
@@ -123,8 +123,12 @@ describe("ParentStudentJournalPage", () => {
     mockFetchWith({ ...baseWeekData, homeCategories });
     render(<ParentStudentJournalPage />);
     await screen.findByText("Aisyah · TKA");
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+    // The child heading renders before the effect starts its week request.
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
       expect.stringContaining("/children/child_1/week"),
+    ));
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      expect.stringContaining("/children/foreign/week"),
     );
   });
 
@@ -257,12 +261,15 @@ describe("ParentStudentJournalPage", () => {
       json: async () => ({ data: { ...baseWeekData, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "yusuf", label: "Jurnal Yusuf", order: 1 }] }] } }),
     });
     expect(await screen.findByText("Jurnal Yusuf")).toBeInTheDocument();
-    a.resolve({
-      ok: true,
-      json: async () => ({ data: { ...baseWeekData, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "aisyah", label: "Jurnal Aisyah", order: 1 }] }] } }),
+    await act(async () => {
+      a.resolve({
+        ok: true,
+        json: async () => ({ data: { ...baseWeekData, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "aisyah", label: "Jurnal Aisyah", order: 1 }] }] } }),
+      });
+      await a.promise;
     });
 
-    await waitFor(() => expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument());
+    expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument();
     expect(screen.queryByText("Jurnal Aisyah")).not.toBeInTheDocument();
   });
 
@@ -301,15 +308,19 @@ describe("ParentStudentJournalPage", () => {
     }));
 
     const { rerender } = render(<ParentStudentJournalPage />);
-    fireEvent.click(await screen.findByRole("button", { name: new RegExp(`Shalat Subuh ${today}`) }));
+    // Monday is present and editable even when the test runs on a weekend.
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(`Shalat Subuh ${currentDates[0]}`) }));
     await waitFor(() => expect(childACalls).toBe(2));
 
     nav.params = new URLSearchParams("child=child_2&view=home");
     rerender(<ParentStudentJournalPage />);
     expect(await screen.findByText("Jurnal Yusuf")).toBeInTheDocument();
-    refreshedA.resolve({ ok: true, json: async () => ({ data: initialA }) });
+    await act(async () => {
+      refreshedA.resolve({ ok: true, json: async () => ({ data: initialA }) });
+      await refreshedA.promise;
+    });
 
-    await waitFor(() => expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument());
+    expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument();
     expect(screen.queryByText("Shalat Subuh")).not.toBeInTheDocument();
   });
 });
