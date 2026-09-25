@@ -1,6 +1,7 @@
 # Parent Portal — Jobs to be Done
 
 > Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
 > Default persona: Pak Budi (see `.claude/personas/pak-budi.md`)
 
@@ -9,6 +10,20 @@ This file is the living catalog of what a parent user can and should be able to 
 ---
 
 ## Area: invoices
+
+### JTBD-PARENT-INV-00 — Trust the payment return and keep the right child
+- **Persona:** Pak Budi
+- **Role:** GUARDIAN
+- **Preconditions:** Logged in with two linked children; one child has a pending invoice, another has a partially paid invoice and a paid invoice.
+- **Steps:**
+  1. Choose the second child in Jurnal, then move through Tagihan, Kehadiran, Rapor, Profil, and back using tabs and links; reload and use browser back.
+  2. Return from a payment provider with `paymentStatus=paid` while the invoice is still `SENT`, then after the server records a partial payment, then after it records `PAID`.
+  3. Repeat with an invoice ID outside this guardian's linked children and with a conflicting `child` query.
+  4. Check the attendance week at 00:30 WIB on Monday, while the server clock is still Sunday UTC.
+- **Done when:** Every child-specific page stays on the linked selected child; the callback invoice selects its linked child; an unlinked ID never opens another family's invoice. The portal says payment is being checked for an unpaid invoice, acknowledges a partial payment and remaining balance, and says paid only after the server reports `PAID`. The displayed attendance day and week follow WIB.
+- **Why this job matters:** A wrong child or premature paid message makes the portal's most sensitive information hard to trust.
+- **Verification status:** Code and automated regression review on 2026-09-25. A real mobile UAT run remains to be performed.
+
 
 ### JTBD-PARENT-INV-01 — Pay the oldest outstanding invoice
 - **Persona:** Pak Budi

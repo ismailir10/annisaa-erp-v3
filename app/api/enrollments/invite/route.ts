@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { generateAccessToken, tokenExpiryFrom } from "@/lib/enrollment/token";
 import { sendEnrollmentInviteEmail } from "@/lib/email/enrollment-invite";
@@ -36,7 +37,7 @@ const RATE_WINDOW_MS = 60_000;
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

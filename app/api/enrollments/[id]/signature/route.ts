@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { streamFile } from "@/lib/storage";
 
 /**
@@ -11,7 +12,7 @@ import { streamFile } from "@/lib/storage";
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const which = req.nextUrl.searchParams.get("which");

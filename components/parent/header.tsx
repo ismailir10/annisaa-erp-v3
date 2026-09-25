@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PortalHeader } from "@/components/portal/portal-header";
+import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -13,11 +14,17 @@ function initialsOf(name: string): string {
 export function ParentHeader({
   userName,
   childCount,
+  childIds = [],
 }: {
   userName: string;
   childCount?: number;
+  childIds?: string[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const detailChildId = pathname.match(/^\/parent\/perkembangan\/([^/]+)$/)?.[1];
+  const childId = resolveParentChildId(childIds, detailChildId ?? searchParams.get("child"));
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -31,7 +38,7 @@ export function ParentHeader({
         childCount && childCount > 0 ? `${childCount} anak` : undefined
       }
       avatarFallback={initialsOf(userName)}
-      profileHref="/parent/profile"
+      profileHref={parentHref("/parent/profile", childId)}
       onLogout={handleLogout}
     />
   );

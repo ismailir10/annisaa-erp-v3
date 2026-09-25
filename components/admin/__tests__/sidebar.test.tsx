@@ -34,13 +34,12 @@ describe("AppSidebar — collapsible group chevron", () => {
   it("scopes the chevron rotation to a named group declared on the trigger, keyed off data-panel-open", () => {
     render(
       <SidebarProvider>
-        <AppSidebar permissions={[]} />
+        <AppSidebar permissions={["students.view"]} />
       </SidebarProvider>,
     );
 
-    // "Kesiswaan" (students group) carries no `permission` gate, so it is
-    // always visible and — per AppSidebar's initial `openGroups` state —
-    // starts open.
+    // The students group is visible through its student destination and
+    // starts open per AppSidebar's initial `openGroups` state.
     const trigger = screen.getByRole("button", { name: "Kesiswaan" });
 
     // The trigger itself must declare the named group the chevron scopes
@@ -72,7 +71,7 @@ describe("AppSidebar — collapsible group chevron", () => {
     const user = userEvent.setup();
     render(
       <SidebarProvider>
-        <AppSidebar permissions={[]} />
+        <AppSidebar permissions={["students.view"]} />
       </SidebarProvider>,
     );
 

@@ -11,6 +11,8 @@ import {
 import { Ban, Eye, MoreHorizontal, Pencil, Power, PowerOff, XCircle } from "lucide-react";
 
 interface DataTableRowActionsProps {
+  /** Human-readable row identity, e.g. "Alya Putri", for distinct screen-reader labels. */
+  rowLabel?: string;
   onView?: () => void;
   onEdit?: () => void;
   /** Category A: binary soft-delete entities (Program, Student, Employee, ...). */
@@ -26,6 +28,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({
+  rowLabel,
   onView,
   onEdit,
   onDeactivate,
@@ -41,7 +44,7 @@ export function DataTableRowActions({
   return (
     <div className="flex items-center gap-1">
       {onView && (
-        <Button size="sm" variant="ghost" onClick={onView} className="h-8 px-2">
+        <Button size="sm" variant="ghost" onClick={onView} className="h-8 px-2" aria-label={rowLabel ? `Lihat ${rowLabel}` : "Lihat"}>
           <Eye size={14} className="mr-1" />
           <span className="text-xs">Lihat</span>
         </Button>
@@ -49,9 +52,8 @@ export function DataTableRowActions({
 
       {hasDropdownItems && (
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11" aria-label={rowLabel ? `Aksi untuk ${rowLabel}` : "Buka menu aksi"} />}>
             <MoreHorizontal size={14} />
-            <span className="sr-only">Buka menu</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {onEdit && (

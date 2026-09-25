@@ -10,11 +10,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
+  push: vi.fn(),
   params: new URLSearchParams(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: nav.replace, push: vi.fn() }),
+  useRouter: () => ({ replace: nav.replace, push: nav.push }),
   usePathname: () => "/parent/student-journal",
   useSearchParams: () => nav.params,
 }));
@@ -55,7 +56,7 @@ const homeCategories = [
   },
 ];
 
-function mockFetchWith(weekData: Record<string, unknown>) {
+function mockFetchWith(weekData: Record<string, unknown>, family = children) {
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) => {
@@ -63,7 +64,7 @@ function mockFetchWith(weekData: Record<string, unknown>) {
         return Promise.resolve({ ok: true, json: async () => ({ id: "user_1" }) });
       }
       if (url === "/api/parent/children") {
-        return Promise.resolve({ ok: true, json: async () => ({ data: children }) });
+        return Promise.resolve({ ok: true, json: async () => ({ data: family }) });
       }
       if (url.startsWith("/api/student-journal/notes/unread")) {
         return Promise.resolve({
@@ -83,7 +84,36 @@ describe("ParentStudentJournalPage", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     nav.replace.mockClear();
+    nav.push.mockClear();
     nav.params = new URLSearchParams();
+  });
+
+  it("restores the linked child from URL on reload and keeps it through selection", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Yusuf Rahman", nickname: "Yusuf", className: "TKB" },
+    ];
+    nav.params = new URLSearchParams("child=child_2&view=notes&week=2026-08-10");
+    mockFetchWith({ ...baseWeekData, homeCategories }, family);
+    render(<ParentStudentJournalPage />);
+    await screen.findByText("Yusuf · TKB");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/children/child_2/week"),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /Aisyah/ }));
+    expect(nav.push).toHaveBeenCalledWith(
+      "/parent/student-journal?child=child_1&view=notes&week=2026-08-10",
+    );
+  });
+
+  it("falls back to a linked child when the URL names another family's child", async () => {
+    nav.params = new URLSearchParams("child=foreign");
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+    await screen.findByText("Aisyah · TKA");
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/children/child_1/week"),
+    );
   });
 
   it("shows the EmptyState only when both schoolCategories and homeCategories are empty", async () => {

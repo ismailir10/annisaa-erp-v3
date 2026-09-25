@@ -19,6 +19,7 @@ import { paymentLinkState } from "@/lib/parent-invoice-link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
+import { getYmdInTimezone } from "@/lib/attendance/timezone";
 
 type InvoiceLine = {
   id: string;
@@ -185,7 +186,7 @@ export function InvoiceDetailSheet({
                   {invoice.paidAt ? (
                     <span>
                       Dibayar{" "}
-                      {formatDate(invoice.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
+                      {formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "long", year: "numeric" })}
                     </span>
                   ) : null}
                 </>

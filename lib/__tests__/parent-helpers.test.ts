@@ -190,6 +190,7 @@ describe("getParentInvoiceList", () => {
         where: {
           studentId: "student-1",
           tenantId: "tenant-a",
+          student: { guardians: { some: { parentId: "parent-1" } } },
           status: { in: ["SENT", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
         },
       })
@@ -230,7 +231,7 @@ describe("getParentInvoiceList", () => {
     expect(result[0].paidAt).toBe("2024-04-15T00:00:00.000Z");
   });
 
-  it("includes parentId, studentId, tenantId in cache key — Prisma where uses studentId+tenantId", async () => {
+  it("scopes invoice reads by guardian link, student, and tenant", async () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
 
     await getParentInvoiceList("parent-A", "student-A-123", "tenant-a");
@@ -239,13 +240,13 @@ describe("getParentInvoiceList", () => {
     expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        where: expect.objectContaining({ studentId: "student-A-123", tenantId: "tenant-a" }),
+        where: expect.objectContaining({ studentId: "student-A-123", tenantId: "tenant-a", student: { guardians: { some: { parentId: "parent-A" } } } }),
       })
     );
     expect(prisma.invoice.findMany).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        where: expect.objectContaining({ studentId: "student-B-456", tenantId: "tenant-b" }),
+        where: expect.objectContaining({ studentId: "student-B-456", tenantId: "tenant-b", student: { guardians: { some: { parentId: "parent-B" } } } }),
       })
     );
   });

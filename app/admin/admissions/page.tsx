@@ -43,6 +43,7 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight, Send } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { canConvertAdmissionToStudent } from "./conversion";
 import { formatAgeFromDob } from "@/lib/admission/age";
 
 // ------------------------------------------------------------------
@@ -146,10 +147,6 @@ const NEXT_STATUS: Record<string, { status: string; label: string } | undefined>
 
 // Terminal states — hide "Batalkan" when already at one of these.
 const TERMINAL_STATUSES = new Set(["CANCELLED"]);
-
-export function canConvertAdmissionToStudent(status: string) {
-  return status === "ADMITTED";
-}
 
 // ------------------------------------------------------------------
 // Form body (shared between Dialog on desktop and Sheet on mobile)

@@ -13,6 +13,7 @@ import { EnrollmentApplicationView } from "@/components/admin/enrollment-applica
 
 type Detail = {
   id: string;
+  canEdit: boolean;
   status: string;
   studentId: string | null;
   childName: string;
@@ -124,7 +125,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     ACCEPTED: [{ label: "Kembali ke Tinjau", to: "UNDER_REVIEW", variant: "outline" }],
     REJECTED: [{ label: "Tinjau Ulang", to: "UNDER_REVIEW", variant: "outline" }],
   };
-  const actions = d.studentId ? [] : (transitions[d.status] ?? []);
+  const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
 
   return (
     <div className="space-y-4">
@@ -157,7 +158,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         }}
       />
 
-      {d.status === "ACCEPTED" && !d.studentId && (
+      {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (
         <>
           <Separator />
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">

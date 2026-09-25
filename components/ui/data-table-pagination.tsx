@@ -21,16 +21,16 @@ export function DataTablePagination({
   onPageChange,
   onPageSizeChange,
 }: DataTablePaginationProps) {
-  const start = (page - 1) * pageSize + 1;
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex items-center justify-between text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
       <div>
         Menampilkan {start}–{end} dari {total}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Select
           value={String(pageSize)}
           onValueChange={(v) => v && onPageSizeChange?.(parseInt(v))}
@@ -48,15 +48,15 @@ export function DataTablePagination({
           </SelectContent>
         </Select>
 
-        <span className="text-xs">
+        <span className="text-xs" aria-live="polite">
           Hal. {page}/{totalPages}
         </span>
 
-        <div className="flex gap-1">
+        <div className="flex gap-1" role="group" aria-label="Navigasi halaman">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
             onClick={() => onPageChange?.(1)}
             disabled={page <= 1}
             aria-label="Halaman pertama"
@@ -66,27 +66,27 @@ export function DataTablePagination({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
             onClick={() => onPageChange?.(page - 1)}
             disabled={page <= 1}
-            aria-label="Halaman sebelumnya"
+            aria-label={`Halaman sebelumnya, ${Math.max(1, page - 1)}`}
           >
             <ChevronLeft size={14} />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
             onClick={() => onPageChange?.(page + 1)}
             disabled={page >= totalPages}
-            aria-label="Halaman berikutnya"
+            aria-label={`Halaman berikutnya, ${Math.min(totalPages, page + 1)}`}
           >
             <ChevronRight size={14} />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 [@media(pointer:coarse)]:min-w-11"
             onClick={() => onPageChange?.(totalPages)}
             disabled={page >= totalPages}
             aria-label="Halaman terakhir"

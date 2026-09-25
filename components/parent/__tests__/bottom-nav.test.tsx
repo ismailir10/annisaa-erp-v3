@@ -105,7 +105,7 @@ describe("ParentBottomNav", () => {
   it("forwards ?child= to every tab and into the sheet, and drops other params", async () => {
     nav.pathname = "/parent/invoices";
     nav.search = "child=abc123&month=2026-08";
-    render(<ParentBottomNav />);
+    render(<ParentBottomNav childIds={["abc123", "sibling"]} />);
 
     for (const link of within(bar()).getAllByRole("link")) {
       expect(link.getAttribute("href")).toContain("child=abc123");
@@ -118,5 +118,17 @@ describe("ParentBottomNav", () => {
       "href",
       "/parent/perkembangan?child=abc123",
     );
+  });
+
+  it("rejects an unlinked child and keeps the linked child through overflow navigation", async () => {
+    nav.search = "child=foreign&view=home";
+    render(<ParentBottomNav childIds={["owned", "sibling"]} />);
+    for (const link of within(bar()).getAllByRole("link")) {
+      expect(link).toHaveAttribute("href", expect.stringContaining("child=owned"));
+      expect(link.getAttribute("href")).not.toContain("view");
+    }
+    await userEvent.click(within(bar()).getByRole("button", { name: "Lainnya" }));
+    expect(within(screen.getByRole("navigation", { name: "Menu lainnya" })).getByRole("link", { name: /Rapor/ }))
+      .toHaveAttribute("href", "/parent/reports?child=owned");
   });
 });

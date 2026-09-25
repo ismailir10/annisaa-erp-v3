@@ -10,33 +10,10 @@ import { getParentWithChildren, resolveSelectedChild } from "@/lib/parent-helper
 import { prisma } from "@/lib/db";
 import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { attendanceBannerState } from "@/lib/parent-attendance-banner";
+import { parentAttendanceWeek } from "@/lib/parent/attendance-week";
+import { parentHref } from "@/lib/parent/navigation";
 
 const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum"] as const;
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function mondayOf(d: Date): Date {
-  const day = d.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  const m = new Date(d);
-  m.setDate(d.getDate() + offset);
-  m.setHours(0, 0, 0, 0);
-  return m;
-}
-
-function weekDates(monday: Date): string[] {
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return ymd(d);
-  });
-}
 
 function shortMonthDay(ymdStr: string): string {
   const [, m, d] = ymdStr.split("-");
@@ -59,20 +36,11 @@ export default async function ParentAttendancePage({
   if (!selected) redirect("/parent");
 
   // Determine the focal week (defaults to this week).
-  const now = new Date();
-  const today = ymd(now);
-  const weekParam = params.week;
-  const monday = weekParam ? mondayOf(new Date(weekParam + "T00:00:00")) : mondayOf(now);
-  const days = weekDates(monday);
+  const { today, days, prevWeek, nextWeek } = parentAttendanceWeek(new Date(), params.week);
   const weekStart = days[0]!;
   const weekEnd = days[days.length - 1]!;
 
   // Prev / next week links
-  const prevMon = new Date(monday);
-  prevMon.setDate(monday.getDate() - 7);
-  const nextMon = new Date(monday);
-  nextMon.setDate(monday.getDate() + 7);
-  const childQuery = children.length > 1 ? `&child=${selected.studentId}` : "";
 
   // Fetch attendance + notes for this kid + this week
   const [attendanceRows, notesRows] = await Promise.all([
@@ -189,8 +157,8 @@ export default async function ParentAttendancePage({
 
       <WeekNavigator
         label={weekRangeLabel}
-        prevHref={`/parent/attendance?week=${ymd(prevMon)}${childQuery}`}
-        nextHref={`/parent/attendance?week=${ymd(nextMon)}${childQuery}`}
+        prevHref={parentHref("/parent/attendance", selected.studentId, { week: prevWeek })}
+        nextHref={parentHref("/parent/attendance", selected.studentId, { week: nextWeek })}
       />
 
       {/* Week grid */}

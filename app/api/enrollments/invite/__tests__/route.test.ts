@@ -57,6 +57,12 @@ beforeEach(() => {
 });
 
 describe("POST /api/enrollments/invite", () => {
+  it("denies an admissions read-only custom admin before loading the admission", async () => {
+    getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
+    expect((await POST(req({ admissionId: "adm-1" }))).status).toBe(403);
+    expect(admissionFindUnique).not.toHaveBeenCalled();
+  });
+
   it("403 when not an admin", async () => {
     isAdminRole.mockReturnValue(false);
     const res = await POST(req({ admissionId: "adm-1" }));

@@ -5,12 +5,16 @@ import { ChevronRight, LineChart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
 import { getParentWithChildren } from "@/lib/parent-helpers";
+import { resolveParentChildId } from "@/lib/parent/navigation";
 
-export default async function ParentPerkembanganListPage() {
+export default async function ParentPerkembanganListPage({ searchParams }: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
   const { children } = await getParentWithChildren(session);
+  const requestedChildId = (await searchParams).child;
 
   if (children.length === 0) {
     return (
@@ -31,8 +35,8 @@ export default async function ParentPerkembanganListPage() {
 
   // Single-kid → auto-redirect for the canonical "I just want to see my
   // kid's progress" flow per design §5.3.
-  if (children.length === 1) {
-    redirect(`/parent/perkembangan/${children[0].studentId}`);
+  if (children.length === 1 || (requestedChildId && children.some((child) => child.studentId === requestedChildId))) {
+    redirect(`/parent/perkembangan/${resolveParentChildId(children.map((child) => child.studentId), requestedChildId)}`);
   }
 
   return (

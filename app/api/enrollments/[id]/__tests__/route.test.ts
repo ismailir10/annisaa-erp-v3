@@ -33,6 +33,21 @@ beforeEach(() => {
 });
 
 describe("GET /api/enrollments/[id]", () => {
+  it("denies custom finance and HR admins before reading an application", async () => {
+    for (const permissions of [["invoices.view"], ["hr.view", "payroll.view"]]) {
+      getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions });
+      const res = await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx());
+      expect(res.status).toBe(403);
+    }
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("allows an admissions read-only custom admin", async () => {
+    getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
+    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "SUBMITTED" });
+    expect((await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx())).status).toBe(200);
+  });
+
   it("403 for non-admin", async () => {
     isAdminRole.mockReturnValue(false);
     const res = await GET(new NextRequest("http://localhost/api/enrollments/ea-1"), ctx());
@@ -54,6 +69,21 @@ describe("GET /api/enrollments/[id]", () => {
 });
 
 describe("PATCH /api/enrollments/[id]", () => {
+  it("requires admissions.edit even when the custom admin can read", async () => {
+    getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
+    const res = await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx());
+    expect(res.status).toBe(403);
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("allows admissions.edit for a custom admin without widening tenant scope", async () => {
+    getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.edit"] });
+    findUnique.mockResolvedValue({ id: "ea-1", tenantId: "other", status: "SUBMITTED", studentId: null });
+    expect((await PATCH(patchReq({ status: "UNDER_REVIEW" }), ctx())).status).toBe(404);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("409 when already converted", async () => {
     findUnique.mockResolvedValue({ id: "ea-1", tenantId: "t-1", status: "ACCEPTED", studentId: "s-1" });
     const res = await PATCH(patchReq({ status: "REJECTED" }), ctx());
