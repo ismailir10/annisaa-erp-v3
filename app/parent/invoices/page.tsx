@@ -8,11 +8,13 @@ import {
 } from "@/lib/parent-helpers";
 import { ChildSelectorTabs } from "@/components/parent/child-selector-tabs";
 import { InvoicesClient } from "./client";
+import { prisma } from "@/lib/db";
+import { ContextStrip } from "@/components/portal/context-strip";
 
 export default async function ParentInvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ child?: string }>;
+  searchParams: Promise<{ child?: string; invoice?: string; paymentStatus?: string; xenditStatus?: string }>;
 }) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
@@ -21,7 +23,20 @@ export default async function ParentInvoicesPage({
   if (!parent || children.length === 0) redirect("/parent");
 
   const params = await searchParams;
-  const selected = resolveSelectedChild(children, params.child);
+  let selected = resolveSelectedChild(children, params.child);
+  // Gateway callbacks carry an invoice id but legacy sessions omit `child`.
+  // Resolve only among this guardian's linked children before showing it.
+  if (params.invoice) {
+    const returnedInvoice = await prisma.invoice.findFirst({
+      where: {
+        id: params.invoice,
+        tenantId: session.tenantId,
+        studentId: { in: children.map((child) => child.studentId) },
+      },
+      select: { studentId: true },
+    });
+    if (returnedInvoice) selected = resolveSelectedChild(children, returnedInvoice.studentId);
+  }
   if (!selected) redirect("/parent");
 
   const kidIds = children.map((c) => c.studentId);
@@ -73,8 +88,14 @@ export default async function ParentInvoicesPage({
         selectedChildId={selected.studentId}
         sticky
       />
+      <ContextStrip
+        name={selected.studentName}
+        detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Tagihan anak terpilih"}
+        className="mb-6 rounded-lg border-x border-t"
+      />
       <InvoicesClient
         data={data}
+        selectedChildId={selected.studentId}
         selectedStudentName={selected.studentName}
         selectedChildSummary={selectedChildSummary}
         otherChildrenWithOutstanding={otherChildrenWithOutstanding}

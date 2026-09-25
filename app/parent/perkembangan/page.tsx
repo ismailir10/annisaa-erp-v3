@@ -1,16 +1,20 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ChevronRight, LineChart } from "lucide-react";
+import { LineChart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
+import { TaskList, TaskRow } from "@/components/portal/task-list";
 import { getParentWithChildren } from "@/lib/parent-helpers";
+import { resolveParentChildId } from "@/lib/parent/navigation";
 
-export default async function ParentPerkembanganListPage() {
+export default async function ParentPerkembanganListPage({ searchParams }: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await getSession();
   if (!session || session.role !== "GUARDIAN") redirect("/");
 
   const { children } = await getParentWithChildren(session);
+  const requestedChildId = (await searchParams).child;
 
   if (children.length === 0) {
     return (
@@ -31,8 +35,9 @@ export default async function ParentPerkembanganListPage() {
 
   // Single-kid → auto-redirect for the canonical "I just want to see my
   // kid's progress" flow per design §5.3.
-  if (children.length === 1) {
-    redirect(`/parent/perkembangan/${children[0].studentId}`);
+  if (children.length === 1 || (requestedChildId && children.some((child) => child.studentId === requestedChildId))) {
+    const childId = resolveParentChildId(children.map((child) => child.studentId), requestedChildId);
+    redirect(`/parent/perkembangan/${childId}`);
   }
 
   return (
@@ -41,34 +46,19 @@ export default async function ParentPerkembanganListPage() {
         title="Perkembangan"
         subtitle="Pilih anak untuk melihat catatan"
       />
-      <ul className="space-y-2" data-testid="perkembangan-children-list">
-        {children.map((child) => (
-          <li key={child.studentId}>
-            <Link
+      <div data-testid="perkembangan-children-list">
+        <TaskList>
+          {children.map((child) => (
+            <TaskRow
+              key={child.studentId}
               href={`/parent/perkembangan/${child.studentId}`}
-              data-testid={`perkembangan-child-${child.studentId}`}
-              className="block"
-            >
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40">
-                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <LineChart size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {child.studentName}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {[child.className, child.programName]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </p>
-                </div>
-                <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
+              title={child.studentName}
+              description={[child.className, child.programName].filter(Boolean).join(" · ") || "Kelas belum tersedia"}
+              icon={<LineChart className="size-5" />}
+            />
+          ))}
+        </TaskList>
+      </div>
     </div>
   );
 }

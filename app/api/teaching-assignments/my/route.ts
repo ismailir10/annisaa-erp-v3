@@ -5,7 +5,8 @@ import { getSession } from "@/lib/auth";
 // Teacher: get my assigned classes
 export async function GET() {
   const session = await getSession();
-  if (!session?.employeeId || !session?.tenantId) return NextResponse.json([], { status: 401 });
+  if (!session?.tenantId) return NextResponse.json({error:"Unauthorized"}, { status: 401 });
+  if (session.role !== "TEACHER" || !session.employeeId) return NextResponse.json({error:"Forbidden"}, {status:403});
 
   const assignments = await prisma.teachingAssignment.findMany({
     where: {
@@ -18,6 +19,8 @@ export async function GET() {
           id: true,
           name: true,
           capacity: true,
+          status: true,
+          academicYear: {select:{status:true}},
           program: { select: { name: true, code: true } },
           campus: { select: { name: true } },
           _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },

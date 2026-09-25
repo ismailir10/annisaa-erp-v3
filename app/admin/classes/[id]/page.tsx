@@ -4,7 +4,9 @@ import { ClassDetailClient } from "./client";
 
 // Admin Kelas detail — the consolidated per-class hub that mirrors the old
 // /admin/class-sections/[id] surface and folds in roster + teaching
-// assignments + ringkasan health metrics in one flat scroll. ClassTrack stays
+// assignments + ringkasan health metrics into a Recipe 2b "dossier" (see
+// .claude/standards/patterns.md — classes/[id] was the retrofit backlog
+// entry named alongside guardians/[id] and employees/[id]). ClassTrack stays
 // in the schema as plumbing; the UI vocabulary is "Kelas".
 //
 // Server-side `academic.view` gate; write actions (`academic.edit`) are
@@ -13,7 +15,9 @@ import { ClassDetailClient } from "./client";
 // section is interactive (dialogs, calendar, swap drawer).
 //
 // Cross-checked against .claude/standards/design-system.html §Page header +
-// §StatCard + §DataTable + §Dialog + §Calendar grid + §Sheet (frontend gate).
+// §DataTable + §Dialog + §Calendar grid + §Sheet (frontend gate); dossier
+// chrome (DetailPageHeader/DossierNav/DossierSection/DetailRail) matches
+// app/admin/students/[id]/page.tsx.
 export default async function ClassDetailPage({
   params,
 }: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { parsePagination, parseSort } from "@/lib/api/pagination";
 import { paginatedResponse } from "@/lib/api/response";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -12,8 +13,8 @@ import { createManualInvoiceSchema } from "@/lib/validations/invoice";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
-    return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.view")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -86,6 +87,12 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId || !isAdminRole(session.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!hasPermission(session, "invoices.create")) {
+    return NextResponse.json(
+      { error: "forbidden", missing: "invoices.create" },
+      { status: 403 },
+    );
   }
 
   const body = await req.json().catch(() => null);

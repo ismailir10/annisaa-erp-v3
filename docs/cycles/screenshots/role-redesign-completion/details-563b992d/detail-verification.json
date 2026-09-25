@@ -1,0 +1,329 @@
+{
+  "candidateRef": "563b992d9fe311f44b475c7d5c0dc02dd3578f16",
+  "baseURL": "http://127.0.0.1:3015",
+  "fixtureId": "u_super_admin",
+  "checks": [
+    {
+      "route": "/admin/guardians/[id]",
+      "width": 320,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "e2e-primary-a-1790338974597@example.test",
+          "parentLeft": 76,
+          "parentRight": 272,
+          "lines": [
+            {
+              "left": 76,
+              "right": 264.296875
+            },
+            {
+              "left": 76,
+              "right": 202.3125
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Aktif",
+          "right": 69.125
+        },
+        {
+          "text": "Ibu",
+          "right": 84.15625,
+          "cardRight": 296
+        },
+        {
+          "text": "Utama",
+          "right": 148.046875,
+          "cardRight": 296
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 125.90625,
+          "cardRight": 296
+        }
+      ],
+      "screenshot": "guardian-detail-320.png"
+    },
+    {
+      "route": "/admin/guardians/[id]",
+      "width": 390,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "e2e-primary-a-1790338974597@example.test",
+          "parentLeft": 76,
+          "parentRight": 342,
+          "lines": [
+            {
+              "left": 76,
+              "right": 338.265625
+            },
+            {
+              "left": 76,
+              "right": 128.34375
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Aktif",
+          "right": 69.125
+        },
+        {
+          "text": "Ibu",
+          "right": 311.15625,
+          "cardRight": 366
+        },
+        {
+          "text": "Utama",
+          "right": 103.890625,
+          "cardRight": 366
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 125.90625,
+          "cardRight": 366
+        }
+      ],
+      "screenshot": "guardian-detail-390.png"
+    },
+    {
+      "route": "/admin/guardians/[id]",
+      "width": 1440,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "e2e-primary-a-1790338974597@example.test",
+          "parentLeft": 884,
+          "parentRight": 1198.59375,
+          "lines": [
+            {
+              "left": 884,
+              "right": 1198.59375
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Aktif",
+          "right": 663.125
+        },
+        {
+          "text": "Ibu",
+          "right": 567.15625,
+          "cardRight": 1416
+        },
+        {
+          "text": "Utama",
+          "right": 631.046875,
+          "cardRight": 1416
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 1392,
+          "cardRight": 1416
+        }
+      ],
+      "screenshot": "guardian-detail-1440.png"
+    },
+    {
+      "route": "/admin/students/[id]",
+      "width": 320,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 48,
+          "parentRight": 272,
+          "lines": [
+            {
+              "left": 48,
+              "right": 177.921875
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NISN1790339053272",
+          "parentLeft": 48,
+          "parentRight": 272,
+          "lines": [
+            {
+              "left": 48,
+              "right": 186.046875
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 88.6875,
+          "parentRight": 280,
+          "lines": [
+            {
+              "left": 168.640625,
+              "right": 280
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Tidak Aktif",
+          "right": 101.90625
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 280,
+          "cardRight": 296
+        }
+      ],
+      "screenshot": "student-detail-320.png"
+    },
+    {
+      "route": "/admin/students/[id]",
+      "width": 390,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 48,
+          "parentRight": 342,
+          "lines": [
+            {
+              "left": 48,
+              "right": 177.921875
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NISN1790339053272",
+          "parentLeft": 48,
+          "parentRight": 342,
+          "lines": [
+            {
+              "left": 48,
+              "right": 186.046875
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 88.6875,
+          "parentRight": 350,
+          "lines": [
+            {
+              "left": 238.640625,
+              "right": 350
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Tidak Aktif",
+          "right": 101.90625
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 350,
+          "cardRight": 366
+        }
+      ],
+      "screenshot": "student-detail-390.png"
+    },
+    {
+      "route": "/admin/students/[id]",
+      "width": 1440,
+      "result": "passed",
+      "overflow": 0,
+      "textBounds": [
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 304,
+          "parentRight": 549.328125,
+          "lines": [
+            {
+              "left": 304,
+              "right": 433.921875
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NISN1790339053272",
+          "parentLeft": 565.328125,
+          "parentRight": 810.65625,
+          "lines": [
+            {
+              "left": 565.328125,
+              "right": 703.375
+            }
+          ],
+          "scrollOverflow": 0
+        },
+        {
+          "text": "NIS1790339053272",
+          "parentLeft": 1180.6875,
+          "parentRight": 1400,
+          "lines": [
+            {
+              "left": 1288.640625,
+              "right": 1400
+            }
+          ],
+          "scrollOverflow": 0
+        }
+      ],
+      "badges": [
+        {
+          "text": "Tidak Aktif",
+          "right": 631.03125
+        },
+        {
+          "text": "Tidak Aktif",
+          "right": 1400,
+          "cardRight": 1416
+        }
+      ],
+      "screenshot": "student-detail-1440.png"
+    }
+  ],
+  "blocked": [],
+  "buildId": "xTOXuhXswtbMxUmw5eEZ0",
+  "baselineFindingEvidence": "../delta-59254ff4/delta-verification.json",
+  "resolvedFindings": [
+    "Guardian long email and child status badges remain inside cards at320/390/1440.",
+    "Student NIS/NISN text does not overlap adjacent fields at320/390/1440."
+  ],
+  "manualVisualReview": {
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "result": "passed",
+    "remainingBlockers": []
+  },
+  "limitations": [
+    "Read-only synthetic local fixture verification; not a replacement for staging role/OAuth preview verification.",
+    "Resolves two scoped findings; prior source-specific route and delta evidence remains unchanged."
+  ]
+}

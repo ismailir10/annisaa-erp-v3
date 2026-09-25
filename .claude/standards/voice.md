@@ -87,7 +87,7 @@ The glossary below fixes **which word** to use, not how to capitalise it. A row 
 | Tagihan | Invoice, Bill (use Tagihan for parent; Invoice ok in admin) |
 | Kehadiran (the attendance *record* — history, recap, a parent's view) | Attendance |
 | Absensi (the *act* of taking roll — a teacher's task surface) | — (this is a real distinction, not drift: "Absensi Kelas" is the screen where a teacher marks; "Kehadiran" is what the marking produced. Do not collapse them into one word.) |
-| Rapor | Raport, Report card (Raport is a Dutch-derived misspelling; KBBI and this glossary both say Rapor. Routes and code identifiers may keep `raport` — this rule governs UI strings only) |
+| Rapor | Raport, Report card (Raport is a Dutch-derived misspelling; KBBI and this glossary both say Rapor. This rule governs UI strings only — routes, API paths, params, and other code identifiers are English (`report-cards`, not `raport`/`rapor`); see CLAUDE.md's English-identifiers rule. Existing internal module names such as `lib/raport/*` are legacy and stay until touched) |
 | Bank Narasi (the reusable raport narrative library) | Kisi-kisi (means an *exam blueprint* in Indonesian school practice — an actively misleading name for a sentence library), Templat Narasi |
 | Lewat Tempo (invoice status: past its due date) | Jatuh Tempo, Terlambat, Menunggak ("Jatuh tempo" is the due *date* itself — reusing it as a status makes the badge and the date caption on the same row indistinguishable) |
 | Link Dibuat (invoice status: a payment link exists) | Terkirim (nothing is sent — DOKU dispatches no notification and the admin shares the link manually; "Terkirim" overclaims delivery) |

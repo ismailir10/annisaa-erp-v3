@@ -1,5 +1,6 @@
-export { StatGrid } from "./stat-grid";
 export { AttendanceTrendChart, type WeeklyTrend } from "./attendance-trend-chart";
-export { PendingActions } from "./pending-actions";
+export { AdminWorkQueue, DashboardRetry } from "./admin-work-queue";
 export { ActivityFeed } from "./activity-feed";
-export { QuickActions } from "./quick-actions";
+export { QueueSummaryTiles } from "./queue-summary-tiles";
+export { UrgentList } from "./urgent-list";
+export { AttendanceTodayStrip } from "./attendance-today-strip";

@@ -132,6 +132,21 @@ describe("POST /api/invoices — auth", () => {
     expect(prisma.student.findFirst).not.toHaveBeenCalled();
   });
 
+  it("returns 403 for an admin without invoices.create", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue({
+      ...adminSession(),
+      role: "SCHOOL_ADMIN",
+      permissions: ["invoices.view"],
+    });
+
+    const res = await POST(makeReq(validBody) as never);
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ error: "forbidden", missing: "invoices.create" });
+    expect(prisma.student.findFirst).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("POST /api/invoices — validation", () => {

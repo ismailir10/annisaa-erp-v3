@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -11,9 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -98,7 +96,9 @@ export default function SalaryComponentsPage() {
     setSaving(false);
   }
 
-  async function toggleEnabled(c: Component) {
+  // Returns whether the toggle succeeded so callers (e.g. the deactivate
+  // ConfirmDialog) can decide whether to keep their dialog open for retry.
+  async function toggleEnabled(c: Component): Promise<boolean> {
     const res = await fetch(`/api/salary-components/${c.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -107,10 +107,11 @@ export default function SalaryComponentsPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       toast.error(data.error || "Gagal memperbarui komponen gaji. Coba lagi.");
-      return;
+      return false;
     }
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchComponents();
+    return true;
   }
 
   const filteredComponents = components.filter((c) => {
@@ -304,28 +305,19 @@ export default function SalaryComponentsPage() {
       </ResponsiveFormDialog>
 
       {/* Deactivate guard — activation stays single-click (non-destructive) */}
-      <AlertDialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>
-        <AlertDialogContent className="p-card sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Nonaktifkan komponen ini?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget?.label} tidak akan masuk perhitungan penggajian berikutnya. Bisa diaktifkan kembali kapan saja.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (confirmTarget) toggleEnabled(confirmTarget);
-                setConfirmTarget(null);
-              }}
-            >
-              Ya, Nonaktifkan
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onOpenChange={(o) => !o && setConfirmTarget(null)}
+        title="Nonaktifkan komponen ini?"
+        description={`${confirmTarget?.label ?? ""} tidak akan masuk perhitungan penggajian berikutnya. Bisa diaktifkan kembali kapan saja.`}
+        confirmLabel="Ya, Nonaktifkan"
+        destructive
+        onConfirm={async () => {
+          if (!confirmTarget) return;
+          const ok = await toggleEnabled(confirmTarget);
+          if (!ok) throw new Error("Gagal menonaktifkan komponen gaji");
+        }}
+      />
     </>
   );
 }

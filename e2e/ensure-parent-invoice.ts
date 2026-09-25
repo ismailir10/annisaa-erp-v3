@@ -22,7 +22,7 @@ const ADMIN_USER_ID = "u_super_admin";
 export async function ensureParentHasInvoice(
   request: APIRequestContext,
   parentUserId: string,
-): Promise<void> {
+): Promise<{ id: string; periodLabel: string }> {
   // Read the guardian's own children as the guardian — the same view the
   // parent portal builds from.
   const childrenRes = await request.get("/api/parent/children", {
@@ -58,11 +58,12 @@ export async function ensureParentHasInvoice(
     throw new Error("ensureParentHasInvoice: no enabled fee component in this database");
   }
 
+  const periodLabel = `E2E Fixture ${Date.now()}`;
   const created = await request.post("/api/invoices", {
     ...asAdmin,
     data: {
       studentId: child.id,
-      periodLabel: `E2E Fixture ${Date.now()}`,
+      periodLabel,
       dueDate: "2026-12-31",
       lines: [{ feeComponentId: component.id, amount: 100_000 }],
     },
@@ -73,4 +74,6 @@ export async function ensureParentHasInvoice(
       `ensureParentHasInvoice: POST /api/invoices failed (${created.status()}): ${detail}`,
     );
   }
+  const invoice = await created.json() as { id: string };
+  return { id: invoice.id, periodLabel };
 }

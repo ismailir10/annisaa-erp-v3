@@ -34,7 +34,7 @@ function ymd(date: Date): string {
 /**
  * Which bank-narasi / IKTP cohort this student belongs to, read off the active
  * enrolment's class section. Same rule as
- * `app/api/admin/raport/[studentId]/[termId]`; null when the student holds no
+ * `app/api/admin/report-cards/[studentId]/[termId]`; null when the student holds no
  * active enrolment, which makes penilaian coverage unanswerable rather than 0.
  */
 export async function resolveStudentAgeGroup(

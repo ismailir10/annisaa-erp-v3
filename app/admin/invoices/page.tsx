@@ -1,3 +1,5 @@
+import { assertPermission } from "@/lib/auth-guards";
+import { invoiceCapabilities } from "@/lib/finance/invoice-capabilities";
 import { getGateway } from "@/lib/payments/registry";
 import { InvoicesClient } from "./invoices-client";
 
@@ -9,6 +11,7 @@ import { InvoicesClient } from "./invoices-client";
  * T6). `PendingLinkBreakdownPopover` uses it to name the correct credential
  * env var in its auth-heavy hint.
  */
-export default function InvoicesPage() {
-  return <InvoicesClient gatewayId={getGateway().id} />;
+export default async function InvoicesPage() {
+  const session = await assertPermission("invoices.view");
+  return <InvoicesClient gatewayId={getGateway().id} capabilities={invoiceCapabilities(session)} />;
 }

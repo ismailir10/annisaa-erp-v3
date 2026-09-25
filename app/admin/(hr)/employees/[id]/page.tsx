@@ -1,26 +1,25 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
+import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
+import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDateShort, formatMonthLabel, formatTime, formatRupiah } from "@/lib/format";
-import Link from "next/link";
 
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
@@ -36,6 +35,17 @@ type SalaryValue = {
 type Campus = { id: string; name: string };
 
 const INDONESIAN_BANKS = ["Bank BSI", "BRI", "BCA", "Bank Mandiri", "BNI", "CIMB Niaga", "BJB", "Bank Muamalat", "Bank Mega", "Bank Permata", "Lainnya"];
+
+/**
+ * Section ids double as DOM anchor targets for `DossierNav` (Recipe 2b,
+ * patterns.md). English identifiers per the T6c migration — copy stays
+ * Indonesian via each `DossierSection`'s `label`.
+ */
+const SECTION_PROFILE = "profile";
+const SECTION_EMPLOYMENT = "employment";
+const SECTION_LEAVE = "leave";
+const SECTION_SALARY = "salary";
+const SECTION_ATTENDANCE = "attendance";
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -53,16 +63,68 @@ export default function EmployeeDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "", bankName: "", bankAccountNo: "", bpjsEnrolled: false, leaveBalanceAnnual: "", leaveBalanceSick: "" });
 
+  // --- Section open/collapse state ---
+  // Kehadiran starts closed: it is the one section that costs a second
+  // request, and opening it is what triggers the fetch (same rule as the
+  // student dossier's Kehadiran section).
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
+    [SECTION_PROFILE]: true,
+    [SECTION_EMPLOYMENT]: true,
+    [SECTION_LEAVE]: true,
+    [SECTION_SALARY]: true,
+    [SECTION_ATTENDANCE]: false,
+  }));
+
+  const setSectionOpen = useCallback((sectionId: string, open: boolean) => {
+    setOpenSections((prev) => ({ ...prev, [sectionId]: open }));
+  }, []);
+
+  /** Nav click: expand first (a collapsed target is nothing to scroll to), then scroll. */
+  const jumpToSection = useCallback(
+    (sectionId: string) => {
+      setSectionOpen(sectionId, true);
+      requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [setSectionOpen],
+  );
+
+  /**
+   * `#attendance`, `#salary` … — every section id is already a DOM anchor,
+   * but the browser's own hash scroll fires before the section exists and
+   * lands on nothing when the section is collapsed (Kehadiran starts
+   * closed). Honouring the hash ourselves (same trick as the student and
+   * guardian dossiers) is what makes a link straight into a specific
+   * section actually work.
+   */
+  const hashHandled = useRef(false);
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/employees/${id}`).then(r => r.json()),
-      fetch(`/api/employees/${id}/salary`).then(r => r.ok ? r.json() : null),
-      fetch("/api/config/campuses").then(r => r.json()),
-      fetch("/api/employees/positions").then(r => r.json()),
-    ]).then(([emp, sal, camps, pos]) => {
-      setEmployee(emp); setSalaryValues(sal); setCampuses(camps); setPositions(pos); setLoading(false);
-    }).catch(() => { toast.error("Gagal memuat data karyawan"); setLoading(false); });
+    if (loading || hashHandled.current) return;
+    const target = window.location.hash.replace(/^#/, "");
+    if (!target) { hashHandled.current = true; return; }
+    if (!document.getElementById(target)) return;
+    hashHandled.current = true;
+    jumpToSection(target);
+  }, [loading, jumpToSection]);
+
+  const fetchEmployee = useCallback(async () => {
+    try {
+      const [emp, sal, camps, pos] = await Promise.all([
+        fetch(`/api/employees/${id}`).then(r => r.json()),
+        fetch(`/api/employees/${id}/salary`).then(r => r.ok ? r.json() : null),
+        fetch("/api/config/campuses").then(r => r.json()),
+        fetch("/api/employees/positions").then(r => r.json()),
+      ]);
+      setEmployee(emp); setSalaryValues(sal); setCampuses(camps); setPositions(pos);
+    } catch {
+      toast.error("Gagal memuat data karyawan");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => { fetchEmployee(); }, [fetchEmployee]);
 
   function startEditing() {
     if (!employee) return;
@@ -155,6 +217,24 @@ export default function EmployeeDetailPage() {
   if (!employee) return <EmptyState title="Karyawan tidak ditemukan" description="Silakan kembali ke daftar karyawan." />;
 
   const e = employee;
+  const hasPayrollFields = "bankAccountNo" in e;
+
+  const navSections: DossierSectionDef[] = [
+    { id: SECTION_PROFILE, label: "Profil" },
+    { id: SECTION_EMPLOYMENT, label: "Kepegawaian" },
+    { id: SECTION_LEAVE, label: "Saldo Cuti" },
+    // Listed only when the viewer holds payroll access — a nav entry that
+    // scrolls to a section the server never sent is worse than no entry.
+    ...(salaryValues !== null ? [{ id: SECTION_SALARY, label: "Gaji" }] : []),
+    { id: SECTION_ATTENDANCE, label: "Kehadiran" },
+  ];
+
+  const editActions = isEditing ? (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}><X size={14} className="mr-1" /> Batal</Button>
+      <Button size="sm" onClick={handleSave} disabled={saving}><Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Profil"}</Button>
+    </>
+  ) : undefined;
 
   return (
     <>
@@ -177,18 +257,18 @@ export default function EmployeeDetailPage() {
         )}
       />
 
-      <AdminTabs defaultValue="profile">
-        <AdminTabsList><AdminTabsTrigger value="profile">Profil</AdminTabsTrigger>{salaryValues !== null && <AdminTabsTrigger value="salary">Gaji</AdminTabsTrigger>}<AdminTabsTrigger value="attendance">Kehadiran</AdminTabsTrigger></AdminTabsList>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <DossierNav sections={navSections} onJump={jumpToSection} />
 
-        <AdminTabsContent value="profile">
-          <Card className="p-card max-w-3xl mt-4">
-            {isEditing && (
-              <div className="flex justify-end gap-2 mb-4">
-                <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}><X size={14} className="mr-1" /> Batal</Button>
-                <Button size="sm" onClick={handleSave} disabled={saving}><Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Profil"}</Button>
-              </div>
-            )}
-
+          {/* ---------- Profil (Identitas + Kontak) ---------- */}
+          <DossierSection
+            id={SECTION_PROFILE}
+            label="Profil"
+            open={openSections[SECTION_PROFILE] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_PROFILE, o)}
+            actions={editActions}
+          >
             {isEditing ? (
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="space-y-5">
@@ -208,60 +288,6 @@ export default function EmployeeDetailPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <Field><FieldLabel htmlFor="employee-detail-email" required>Email</FieldLabel><Input id="employee-detail-email" required value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
                     <Field><FieldLabel htmlFor="employee-detail-phone">No. HP</FieldLabel><Input id="employee-detail-phone" value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
-                  </div>
-                </div>
-
-                <div>
-                  <SectionHeading label="Kepegawaian" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-position" required>Jabatan</FieldLabel>
-                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
-                        <SelectTrigger id="employee-detail-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
-                        <SelectContent>
-                          {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                          {!positions.includes(editForm.jabatan) && editForm.jabatan && (
-                            <SelectItem value={editForm.jabatan}>{editForm.jabatan}</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-campus" required>Kampus</FieldLabel>
-                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
-                        <SelectTrigger id="employee-detail-campus" aria-required="true"><SelectValue /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                  <div className="mt-3">
-                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><Input id="employee-detail-hire-date" type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
-                  </div>
-                </div>
-
-                {"bankAccountNo" in employee && <div>
-                  <SectionHeading label="Rekening & BPJS" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-bank">Bank</FieldLabel>
-                      <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
-                        <SelectTrigger id="employee-detail-bank"><SelectValue placeholder="Pilih bank" /></SelectTrigger>
-                        <SelectContent>
-                          {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field><FieldLabel htmlFor="employee-detail-bank-account">No. Rekening</FieldLabel><Input id="employee-detail-bank-account" value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
-                  </div>
-                  <div className="mt-3">
-                    <label htmlFor="employee-detail-bpjs" className="flex items-center gap-2 text-sm"><Checkbox id="employee-detail-bpjs" checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
-                  </div>
-                </div>}
-                <div>
-                  <SectionHeading label="Saldo Cuti" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field><FieldLabel htmlFor="employee-detail-annual-leave">Cuti Tahunan</FieldLabel><Input id="employee-detail-annual-leave" type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
-                    <Field><FieldLabel htmlFor="employee-detail-sick-leave">Cuti Sakit</FieldLabel><Input id="employee-detail-sick-leave" type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
                   </div>
                 </div>
               </div>
@@ -289,21 +315,81 @@ export default function EmployeeDetailPage() {
                 {/* Kontak */}
                 <div>
                   <SectionHeading label="Kontak" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm">{e.email}</p></div>
+                      <div className="min-w-0"><p className="text-xs text-muted-foreground">Email</p><p className="text-sm break-words">{e.email}</p></div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Phone size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm">{e.noHp || "—"}</p></div>
+                      <div className="min-w-0"><p className="text-xs text-muted-foreground">No. HP</p><p className="text-sm break-words">{e.noHp || "—"}</p></div>
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+          </DossierSection>
 
-                {/* Kepegawaian */}
+          {/* ---------- Kepegawaian (Kepegawaian + Rekening & BPJS) ---------- */}
+          <DossierSection
+            id={SECTION_EMPLOYMENT}
+            label="Kepegawaian"
+            open={openSections[SECTION_EMPLOYMENT] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_EMPLOYMENT, o)}
+          >
+            {isEditing ? (
+              /* ── EDIT MODE ─────────────────────────────────── */
+              <div className="space-y-5">
                 <div>
-                  <SectionHeading label="Kepegawaian" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="employee-detail-position" required>Jabatan</FieldLabel>
+                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
+                        <SelectTrigger id="employee-detail-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+                        <SelectContent>
+                          {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          {!positions.includes(editForm.jabatan) && editForm.jabatan && (
+                            <SelectItem value={editForm.jabatan}>{editForm.jabatan}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="employee-detail-campus" required>Kampus</FieldLabel>
+                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
+                        <SelectTrigger id="employee-detail-campus" aria-required="true"><SelectValue /></SelectTrigger>
+                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="mt-3">
+                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><Input id="employee-detail-hire-date" type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+                  </div>
+                </div>
+
+                {hasPayrollFields && <div>
+                  <SectionHeading label="Rekening & BPJS" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="employee-detail-bank">Bank</FieldLabel>
+                      <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
+                        <SelectTrigger id="employee-detail-bank"><SelectValue placeholder="Pilih bank" /></SelectTrigger>
+                        <SelectContent>
+                          {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field><FieldLabel htmlFor="employee-detail-bank-account">No. Rekening</FieldLabel><Input id="employee-detail-bank-account" value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
+                  </div>
+                  <div className="mt-3">
+                    <label htmlFor="employee-detail-bpjs" className="flex items-center gap-2 text-sm"><Checkbox id="employee-detail-bpjs" checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
+                  </div>
+                </div>}
+              </div>
+            ) : (
+              /* ── VIEW MODE ─────────────────────────────────── */
+              <div className="space-y-section">
+                <div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
                       <Briefcase size={16} className="text-muted-foreground shrink-0" />
@@ -321,7 +407,7 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 {/* Rekening & BPJS — hidden when server stripped fields (SCHOOL_ADMIN) */}
-                {"bankAccountNo" in e && <div>
+                {hasPayrollFields && <div>
                   <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-3">
@@ -338,56 +424,124 @@ export default function EmployeeDetailPage() {
                     <div><p className="text-xs text-muted-foreground">BPJS</p><p className="text-sm">{e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar"}</p></div>
                   </div>
                 </div>}
+              </div>
+            )}
+          </DossierSection>
 
-                <div>
-                  <SectionHeading label="Saldo Cuti" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3">
-                      <Calendar size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{e.leaveBalanceAnnual ?? "—"} hari</p></div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Calendar size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Cuti Sakit</p><p className="text-sm">{e.leaveBalanceSick ?? "—"} hari</p></div>
-                    </div>
-                  </div>
+          {/* ---------- Saldo Cuti ---------- */}
+          <DossierSection
+            id={SECTION_LEAVE}
+            label="Saldo Cuti"
+            open={openSections[SECTION_LEAVE] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_LEAVE, o)}
+          >
+            {isEditing ? (
+              /* ── EDIT MODE ─────────────────────────────────── */
+              <div className="grid grid-cols-2 gap-4">
+                <Field><FieldLabel htmlFor="employee-detail-annual-leave">Cuti Tahunan</FieldLabel><Input id="employee-detail-annual-leave" type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
+                <Field><FieldLabel htmlFor="employee-detail-sick-leave">Cuti Sakit</FieldLabel><Input id="employee-detail-sick-leave" type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
+              </div>
+            ) : (
+              /* ── VIEW MODE ─────────────────────────────────── */
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-muted-foreground shrink-0" />
+                  <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{e.leaveBalanceAnnual ?? "—"} hari</p></div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Calendar size={16} className="text-muted-foreground shrink-0" />
+                  <div><p className="text-xs text-muted-foreground">Cuti Sakit</p><p className="text-sm">{e.leaveBalanceSick ?? "—"} hari</p></div>
                 </div>
               </div>
             )}
-          </Card>
-        </AdminTabsContent>
+          </DossierSection>
 
-        <AdminTabsContent value="salary">
-          <Card className="p-card max-w-3xl mt-4">
-            {(salaryValues ?? []).length === 0 ? <EmptyState title="Belum ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
-              <div className="space-y-3">
-                {(salaryValues ?? []).map(sv => (
-                  <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{sv.componentDef.label}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="secondary" className={`text-xs ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
-                          {sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
+          {/* ---------- Gaji — permission-gated: server omits salaryValues
+              entirely for a viewer without payroll access, so a null (not an
+              empty array) means "hidden", not "no components yet". ---------- */}
+          {salaryValues !== null && (
+            <DossierSection
+              id={SECTION_SALARY}
+              label="Gaji"
+              open={openSections[SECTION_SALARY] ?? true}
+              onOpenChange={(o) => setSectionOpen(SECTION_SALARY, o)}
+            >
+              {salaryValues.length === 0 ? <EmptyState title="Belum ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
+                <div className="space-y-3">
+                  {salaryValues.map(sv => (
+                    <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{sv.componentDef.label}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge variant="secondary" className={`text-xs ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
+                            {sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
+                        </div>
+                      </div>
+                      <div className="w-40">
+                        <Input aria-label={`Nilai ${sv.componentDef.label}`} type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
+                        {sv.value > 0 && (
+                          <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
+                        )}
                       </div>
                     </div>
-                    <div className="w-40">
-                      <Input aria-label={`Nilai ${sv.componentDef.label}`} type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
-                      {sv.value > 0 && (
-                        <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>
-              </div>
-            )}
-          </Card>
-        </AdminTabsContent>
+                  ))}
+                  <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>
+                </div>
+              )}
+            </DossierSection>
+          )}
 
-        <AdminTabsContent value="attendance"><EmployeeAttendanceTab employeeId={id} /></AdminTabsContent>
-      </AdminTabs>
+          {/* ---------- Kehadiran ---------- */}
+          <DossierSection
+            id={SECTION_ATTENDANCE}
+            label="Kehadiran"
+            open={openSections[SECTION_ATTENDANCE] ?? false}
+            onOpenChange={(o) => setSectionOpen(SECTION_ATTENDANCE, o)}
+          >
+            <EmployeeAttendanceContent employeeId={id} />
+          </DossierSection>
+        </div>
+
+        <DetailRail>
+          <RailStatTiles
+            tiles={[
+              { label: "Cuti Tahunan", value: e.leaveBalanceAnnual ?? "—", hint: "hari" },
+              { label: "Cuti Sakit", value: e.leaveBalanceSick ?? "—", hint: "hari" },
+            ]}
+          />
+          <RailCard title="Kepegawaian">
+            <RailKV
+              items={[
+                { label: "Kode", value: e.kode },
+                { label: "Jabatan", value: e.jabatan },
+                { label: "Kampus", value: e.campus.name },
+                { label: "Tanggal Masuk", value: formatDateShort(e.hireDate) },
+              ]}
+            />
+          </RailCard>
+          <RailCard title="Kontak">
+            <RailKV
+              items={[
+                { label: "Email", value: e.email },
+                { label: "No. HP", value: e.noHp || "—" },
+              ]}
+            />
+          </RailCard>
+          {hasPayrollFields && (
+            <RailCard title="Rekening & BPJS">
+              <RailKV
+                items={[
+                  { label: "Bank", value: e.bankName || "—" },
+                  { label: "No. Rekening", value: e.bankAccountNo || "—" },
+                  { label: "BPJS", value: e.bpjsEnrolled ? "Terdaftar" : "Tidak Terdaftar" },
+                ]}
+              />
+            </RailCard>
+          )}
+        </DetailRail>
+      </div>
 
       <ConfirmDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} title="Nonaktifkan Karyawan" description={`Nonaktifkan ${employee.nama}? Karyawan tidak bisa login dan tidak masuk penggajian berikutnya.`} onConfirm={handleDeactivate} confirmLabel="Nonaktifkan" destructive />
 
@@ -404,7 +558,7 @@ export default function EmployeeDetailPage() {
   );
 }
 
-function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
+function EmployeeAttendanceContent({ employeeId }: { employeeId: string }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -427,7 +581,7 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
   const STATUS_COLORS: Record<string, string> = { PRESENT: "bg-status-present", LATE: "bg-status-late", ABSENT: "bg-status-absent", LEAVE: "bg-status-leave", HOLIDAY: "bg-status-holiday", PRESENT_NO_CHECKOUT: "bg-status-no-checkout" };
 
   return (
-    <Card className="p-card max-w-3xl mt-4">
+    <>
       <div className="flex items-center justify-between mb-4">
         <Button type="button" size="icon-sm" variant="ghost" onClick={() => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); }} aria-label="Bulan sebelumnya" className="text-muted-foreground">
           <ChevronLeft size={16} />
@@ -464,6 +618,6 @@ function EmployeeAttendanceTab({ employeeId }: { employeeId: string }) {
           </div>
         </>
       ) : null}
-    </Card>
+    </>
   );
 }

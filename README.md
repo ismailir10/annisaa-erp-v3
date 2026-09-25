@@ -18,7 +18,7 @@ Source is public; school data and secrets are not. Deployed single-tenant — a 
 | Database | Supabase Postgres (Singapore `ap-southeast-1`); Prisma datasource is Postgres-only, so local dev points at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth — Google OAuth only, invitation-only. `/auth/callback` gates on an ACTIVE `User`/`Employee`/`Parent` row |
-| UI | Shadcn UI + Tailwind + TanStack Table; Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn Base UI + Tailwind + TanStack Table; shared task rows, context and save feedback; Plus Jakarta Sans + JetBrains Mono |
 | Payments | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout or Xendit, selected by `PAYMENT_GATEWAY` |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
@@ -57,6 +57,8 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 | Parent | `/parent` | `GUARDIAN` | Mobile-first | Own children only |
 
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
+
+Role homes apply "Don't Make Me Think": teachers see their class and unfinished work, guardians see family actions for clearly identified children, and admins get a one-screen Dasbor (queue counts, top-5 urgent items, today's staff attendance) with the full queue at `/admin/work-queue`. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
 
 ---
 

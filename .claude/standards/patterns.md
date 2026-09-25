@@ -6,6 +6,18 @@
 
 Six recipes cover every screen in the ERP today. Pick the narrowest match; do not invent a 7th without raising it in CLAUDE.md.
 
+## Settings Hub
+
+**When:** a new admin page is setup, not daily work — something configured once per term or year, or rarely (campuses, academic years, semesters, holidays, work hours, fee/salary component catalogs, narrative/journal templates, users, roles). Daily work is anything touched routinely — students, invoices, attendance, admissions, journal entries.
+
+**Where it goes:** add it to `settingsHub` in `config/admin-nav.ts`, under the matching section (Sekolah / Akademik / Keuangan & Gaji / Akses / Pengembang) — never as a new sidebar group. The sidebar holds daily work only. `/admin/settings` renders the hub; `hasVisibleSettings()` hides the Pengaturan link entirely when a session's permissions leave the hub empty.
+
+## Admin Dasbor
+
+**One screen, always.** `/admin` fits a single 1440×900 viewport with no scroll for the full-permission admin: `PageHeader` + queue count tiles + a top-5 urgent list + a one-line staff attendance strip, plus an activity rail shown at `xl` only. Every Dasbor source query is bounded (`count` + `take: 5`) — never an unbounded `findMany`.
+
+**Counts link out; nothing launches from the Dasbor.** A count tile links to `/admin/work-queue?kind=<kind>` for the full list. The Dasbor itself never hosts the full DataTable, a chart, or a QuickActions-style launcher grid — those belong on their own page (the attendance trend chart lives at the top of `/admin/employee-attendance`, fed by `GET /api/attendance/trend`).
+
 ## Recipe 1 — Admin List
 
 **When:** any admin route rendering >10 rows of a single entity (students, employees, invoices, admissions, ...).
@@ -37,11 +49,13 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 **Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `p-page-x` / `py-page-y` from the spacing scale).
 
+**Sibling list pages sharing one nav entry** (e.g. Pendaftaran → `/admin/admissions` and `/admin/enrollments`) use `AdminLinkTabs` (`components/admin/admin-tabs.tsx`), a link-based tab strip: plain `<Link>`s styled like `AdminTabsTrigger`, active state derived from `usePathname()` and marked `aria-current="page"`. Reach for it when the tabs are separate routes, not panels within one page — `AdminTabs` covers the latter.
+
 ## Recipe 2 — Admin Detail
 
 **When:** `/admin/<entity>/[id]` pages. Two variants — pick by trigger rule, do not default to either without checking:
 
-**Trigger rule — use 2b (dossier) only when *both* hold:** (1) the page is a read/overview surface, not a stateful editor or workflow tool, and (2) the entity has 3+ independent concerns worth their own section (finance, academics, documents, ... — something an admin would search for by name). Otherwise use 2a. See `docs/cycles/2026-09-03-detail-page-pattern-decision.md` for the full reasoning and the current retrofit backlog (which existing pages are 2a today but qualify for 2b).
+**Trigger rule — use 2b (dossier) only when *both* hold:** (1) the page is a read/overview surface, not a stateful editor or workflow tool, and (2) the entity has 3+ independent concerns worth their own section (finance, academics, documents, ... — something an admin would search for by name). Otherwise use 2a. See `docs/cycles/2026-09-03-detail-page-pattern-decision.md` for the full reasoning. The retrofit backlog is closed as of the 2026-09-25 `admin-dmmt-overhaul` cycle — `students/[id]`, `guardians/[id]`, `classes/[id]`, and `(hr)/employees/[id]` are all on 2b now; a new candidate goes straight into this file when it qualifies.
 
 ### Recipe 2a — Simple Detail
 
@@ -70,7 +84,7 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 ### Recipe 2b — Dossier
 
-**When:** multi-concern entity overviews. Canonical example: `/admin/students/[id]`. Backlog candidates: `guardians/[id]` (high priority — the components below were built naming this page), `classes/[id]`, `employees/[id]`.
+**When:** multi-concern entity overviews. Adopted: `/admin/students/[id]`, `/admin/guardians/[id]`, `/admin/classes/[id]`, `app/admin/(hr)/employees/[id]`.
 
 **Layout skeleton:**
 
@@ -101,38 +115,50 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 
 **When:** create or edit an entity from a list page. Never a separate route.
 
-**Rule:** Dialog on desktop, Sheet on mobile (`useIsMobile()`). Destructive confirm always `<AlertDialog>`, never `<Dialog>`. One overlay at a time — toasts excepted.
+**Rule:** Use `ResponsiveFormDialog` for create/edit forms: it renders Dialog on desktop and Sheet on mobile, freezing that choice while open. Destructive confirmation remains `<AlertDialog>`. One overlay at a time — toasts excepted.
 
-**Layout skeleton (desktop):**
+The wrapper owns the viewport-height limit, shadcn `ScrollArea` body, internal focus-ring padding, and docked header/footer. Put fields in `children` and action buttons in `footer`; do not add another scrolling wrapper or viewport-height constraint. Choose width through `size`.
+
+**Layout skeleton:**
 
 ```tsx
-<Dialog open={open} onOpenChange={setOpen}>
-  <DialogContent className="sm:max-w-lg">
-    <DialogHeader>
-      <DialogTitle>Tambah Siswa</DialogTitle>
-      <DialogDescription>Isi data siswa baru.</DialogDescription>
-    </DialogHeader>
-    <form className="space-y-field" onSubmit={onSubmit}>
-      <Field>
-        <FieldLabel>Nama Lengkap</FieldLabel>
-        <Input {...register("name")} />
-        <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
-      </Field>
-      {/* ...more fields */}
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-        <Button type="submit" disabled={isPending}>Simpan</Button>
-      </DialogFooter>
-    </form>
-  </DialogContent>
-</Dialog>
+const formId = useId();
+
+<ResponsiveFormDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="Tambah Siswa"
+  description="Isi data siswa baru."
+  size="lg"
+  footer={
+    <>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+        Batal
+      </Button>
+      <Button type="submit" form={formId} disabled={isPending}>
+        {isPending ? "Menyimpan..." : "Tambah Siswa"}
+      </Button>
+    </>
+  }
+>
+  <form id={formId} className="space-y-field" onSubmit={onSubmit}>
+    <Field>
+      <FieldLabel required htmlFor={`${formId}-name`}>Nama Lengkap</FieldLabel>
+      <Input id={`${formId}-name`} required {...register("name")} />
+      <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
+    </Field>
+    {/* ...more fields */}
+  </form>
+</ResponsiveFormDialog>
 ```
+
+The footer sits outside the form's DOM subtree; its submit button must use the matching `form` attribute. For existing click-driven submissions, keep the submit handler on the footer button.
 
 **Required pieces:** `<Field>` + `<FieldLabel>` + `<FieldDescription>` (never raw `<Label>` + `<Input>`) · Zod schema + React Hook Form · submit button shows loading state · ghost-Cancel on the left, solid-Submit on the right.
 
 ## Recipe 4 — Portal Dashboard
 
-**When:** `/teacher` or `/parent` home pages — mobile-first landing with stat cards + quick links + recent activity.
+**When:** `/teacher` or `/parent` home pages — mobile-first landing that makes today's next action obvious.
 
 **Layout skeleton:**
 
@@ -140,21 +166,18 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 <main className="mx-auto max-w-md px-5 pb-20 pt-6">
   <PortalHeader {...} />
   <PageHeader title="Beranda" subtitle={greeting} />
-  <section className="mt-6 grid grid-cols-3 gap-3">
-    <QuickLinkCard ... />
-    <QuickLinkCard ... />
-    <QuickLinkCard ... />
-  </section>
-  <section className="mt-6 space-y-3">
-    {/* Primary content: household overview (parent) OR clock-in card (teacher) */}
+  <section className="mt-section space-y-3">
+    {/* Teacher: current class and the tasks still needing work.
+        Parent: children and the information or action each needs. */}
+    <TaskList><TaskRow ... /></TaskList>
   </section>
   <PortalBottomNav ... />
 </main>
 ```
 
-**Required pieces:** `PortalHeader` · `PortalBottomNav` · `PageHeader` · `QuickLinkCard` grid (always 3-up, `h-[132px]` fixed) · `max-w-md` · `pb-20` to clear bottom nav · `safe-area-bottom` on bottom nav.
+**Required pieces:** `PortalHeader` · `PortalBottomNav` · clear page heading · current context and a task-first next-action area · `max-w-md` · bottom padding to clear navigation · `safe-area-bottom` on bottom nav. Quick links are optional secondary navigation; do not reserve a fixed-height three-card grid above the work.
 
-**Parent-specific:** home body MUST use the Household Overview pattern (see `portal.md`) — card-per-child with signal chips, not pill-tabs, once the family has ≥3 kids. Two-kid families may keep pill-tabs.
+**Parent-specific:** show the household's children together with each child's actionable information (see `portal.md`). Do not turn absent attendance data into a claim that the child was absent, present, or late.
 
 ## Recipe 5 — Workflow Queue
 
@@ -172,10 +195,10 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 **When:** single-purpose grids where the user types/taps the same field across many rows (class attendance, assessment score entry, home-note week grid).
 
 **Rules:**
-- **Cycle-tap, not radio.** Default value = the common case (PRESENT for attendance). One tap rotates through states (`PRESENT → ABSENT → SICK → PERMISSION`). Long-press or "..." menu for less-common states.
+- **Make each state clear.** Existing cycle controls may keep their current behavior. New attendance entry may use explicit state choices when that makes the result easier to understand and verify.
 - **Sticky first column** identifies the entity (student name / date / category). Sticky so it doesn't scroll off horizontally on mobile.
 - **Summary trio above the grid** shows live totals (e.g. "Hadir 25 · Sakit 2 · Alpa 1").
-- **Save on every tap**, not on a submit button. Optimistic UI + toast rollback on failure.
+- **Preserve the route's real save contract.** Show saving, saved, and error feedback beside the work. Do not claim success before persistence or replace a working submit flow merely to match a mockup.
 
 **Layout skeleton:**
 
@@ -194,10 +217,11 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 </main>
 ```
 
-**Required pieces:** class + date picker row · live summary trio · sticky-first-column grid · per-cell optimistic save · row-level skeleton on first load.
+**Required pieces:** class + date picker row · live summary · clear per-student state · save feedback that matches the actual persistence flow · row-level skeleton on first load.
 
 ## Cross-recipe invariants
 
+- **Page-wrapper standard.** Every admin page root is a fragment starting with `PageHeader`. Multiple body blocks go in a single `<div className="space-y-section">` wrapper below it — never raw `space-y-4` / `space-y-6` at the page root.
 - **Never render nothing on empty.** Every conditional list MUST have an `<EmptyState>` branch (see `portal.md` — Empty State Contract).
 - **Loading is always `<Skeleton>`.** No `animate-pulse` divs.
 - **Errors via `toast.error()`.** Never `alert()`, never silent catch.

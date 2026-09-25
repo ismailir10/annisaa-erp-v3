@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -23,7 +24,7 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.view")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const tenantId = session.tenantId;
@@ -115,10 +116,13 @@ export async function POST(req: NextRequest) {
   if (classSectionIds.length > 0) {
     const validClassSections = await prisma.classSection.findMany({
       where: { id: { in: classSectionIds }, tenantId },
-      select: { id: true },
+      select: { id: true, academicYearId: true },
     });
     if (validClassSections.length !== new Set(classSectionIds).size) {
       return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
+    }
+    if (validClassSections.some(section => section.academicYearId !== academicYearId)) {
+      return NextResponse.json({ error: "Kelas tidak sesuai tahun ajaran yang dipilih. Pilih ulang kelas atau ubah tahun ajaran." }, { status: 400 });
     }
   }
 

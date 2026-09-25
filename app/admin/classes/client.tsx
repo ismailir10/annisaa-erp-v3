@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { pickDefaultYear } from "./pick-default-year";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -383,13 +383,13 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   };
 
   return (
-    <div className="space-y-section">
+    <>
       <PageHeader
         title="Kelas"
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
         actions={
           canWrite && !archivedMode ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setPromoteOpen(true)} className="gap-2">
                 <ArrowUpRight className="size-4" /> Naik Kelas Massal
               </Button>
@@ -401,6 +401,12 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         }
       />
 
+      {/* min-w-0 preserved on both wrappers — the class table's columns
+          (Wali Kelas, Kondisi badge, etc.) overflow a flex/grid ancestor
+          without it, which clips the DataTable horizontally on narrow
+          viewports. */}
+      <div className="min-w-0 space-y-section">
+      <div className="min-w-0 [&>div]:flex-wrap">
       <DataTableToolbar
         value={query}
         onValueChange={setQuery}
@@ -451,6 +457,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           },
         ]}
       />
+      </div>
 
       {archivedMode && (
         <div className="rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">
@@ -466,6 +473,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         emptyTitle="Belum ada kelas"
         emptyDescription="Kelas yang dibuat akan tampil di sini."
       />
+      </div>
 
       <BulkPromoteDialog
         open={promoteOpen}
@@ -498,7 +506,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
               Batal
             </Button>
             <Button onClick={save} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kelas"}
             </Button>
           </>
         }
@@ -671,6 +679,6 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           }
         }}
       />
-    </div>
+    </>
   );
 }

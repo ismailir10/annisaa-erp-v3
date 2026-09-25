@@ -41,6 +41,18 @@ describe("applySecurityHeaders", () => {
     expect(res.headers.get("Permissions-Policy")).toContain("geolocation=()");
   });
 
+  it("allows only the canonical static design reference in a same-origin frame", () => {
+    const reference = applySecurityHeaders(new NextResponse(null), "/admin/design-system-reference.html");
+    expect(reference.headers.get("X-Frame-Options")).toBe("SAMEORIGIN");
+    expect(reference.headers.get("Content-Security-Policy-Report-Only")).toContain("frame-ancestors 'self'");
+
+    for (const path of ["/admin/design-system", "/admin/design-system-reference.html/extra", "/parent"]) {
+      const response = applySecurityHeaders(new NextResponse(null), path);
+      expect(response.headers.get("X-Frame-Options")).toBe("DENY");
+      expect(response.headers.get("Content-Security-Policy-Report-Only")).toContain("frame-ancestors 'none'");
+    }
+  });
+
   it("returns the same response (mutates in place)", () => {
     const res = new NextResponse(null);
     expect(applySecurityHeaders(res)).toBe(res);

@@ -12,8 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1331,29 +1330,29 @@ export default function StudentDetailPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="flex items-center gap-3">
                     <User size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
+                    <div className="min-w-0"><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium break-words">{student.name}</p></div>
                   </div>
                   {student.nickname && <div><p className="text-xs text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
                   {student.dateOfBirth && <div><p className="text-xs text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}{age ? ` · ${age}` : ""}</p></div>}
                   {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : student.gender === "P" ? "Perempuan" : "—"}</p></div>}
                   {student.address && (
-                    <div className="col-span-2 flex items-start gap-3 sm:col-span-3">
+                    <div className="flex items-start gap-3 sm:col-span-3">
                       <MapPin size={16} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
                     </div>
                   )}
-                  {student.notes && <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
+                  {student.notes && <div className="sm:col-span-3"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
                 </div>
 
                 {(student.nis || student.nisn || student.nik || student.birthPlace || student.kkNumber || student.livingWith) && (
                   <>
                     <div className="mt-6"><SectionHeading label="Identitas Resmi" /></div>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                      {student.nis && <div><p className="text-xs text-muted-foreground">NIS</p><p className="font-currency text-sm font-medium">{student.nis}</p></div>}
-                      {student.nisn && <div><p className="text-xs text-muted-foreground">NISN</p><p className="font-currency text-sm font-medium">{student.nisn}</p></div>}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      {student.nis && <div className="min-w-0"><p className="text-xs text-muted-foreground">NIS</p><p className="font-currency text-sm font-medium break-all">{student.nis}</p></div>}
+                      {student.nisn && <div className="min-w-0"><p className="text-xs text-muted-foreground">NISN</p><p className="font-currency text-sm font-medium break-all">{student.nisn}</p></div>}
                       {student.birthPlace && <div><p className="text-xs text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
                       {/* NIK and No. KK are specific personal data under UU PDP
                           27/2022 — masked by default now that they share a
@@ -1615,7 +1614,7 @@ export default function StudentDetailPage() {
           {/* ---------- Akademik (increment 3, lazy) ----------
               Raport state per triwulan + that term's penilaian coverage, over
               GET /api/students/[id]/academics. Read-only: every row deep-links
-              to /admin/raport, which owns the authoring and the publish. */}
+              to /admin/report-cards, which owns the authoring and the publish. */}
           <DossierSection
             id={SECTION_AKADEMIK}
             label="Akademik"
@@ -1915,7 +1914,7 @@ export default function StudentDetailPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="px-0 text-primary"
+                className="px-0 text-primary-text"
                 onClick={() => setGuardianStep("create")}
               >
                 Tidak ketemu? Tambah wali baru →
@@ -2009,27 +2008,16 @@ export default function StudentDetailPage() {
               ? "Periksa Data Wali"
               : "Tambah Wali Baru";
 
-        // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
-        // benefits from full-height surface; bottom sheet would only show ~30% before scroll.
-        return isMobile ? (
-          <Sheet open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-              <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4">{guardianBody}</div>
-              <SheetFooter>{guardianFooter}</SheetFooter>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
-              {/* flex-1 min-h-0 overflow-y-auto: T7+T8 grew the form
-                  (childrenTotal + address + Data Anak section); body now
-                  needs inner scroll to keep DialogFooter docked. */}
-              <div className="flex-1 min-h-0 overflow-y-auto">{guardianBody}</div>
-              <DialogFooter>{guardianFooter}</DialogFooter>
-            </DialogContent>
-          </Dialog>
+        return (
+          <ResponsiveFormDialog
+            open={guardianDialog}
+            onOpenChange={setGuardianDialog}
+            title={guardianTitle}
+            size="lg"
+            footer={guardianFooter}
+          >
+            {guardianBody}
+          </ResponsiveFormDialog>
         );
       })()}
 
@@ -2041,50 +2029,34 @@ export default function StudentDetailPage() {
         isMobile={isMobile}
       />
 
-      {/* ---------- Promote (2 fields) — side="bottom" on mobile ---------- */}
-      {(() => {
-        const promoteBody = (
-          <div className="space-y-field">
-            <Field>
-              <FieldLabel required htmlFor="promote-class-section">Kelas Tujuan</FieldLabel>
-              <ClassSectionCombobox
-                id="promote-class-section"
-                sections={sections}
-                value={promoteTarget}
-                onChange={setPromoteTarget}
-                placeholder="Pilih kelas tujuan..."
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="promote-notes">Catatan (opsional)</FieldLabel>
-              <Textarea id="promote-notes" value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
-            </Field>
-          </div>
-        );
-        return isMobile ? (
-          <Sheet open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-              <SheetHeader><SheetTitle>Naik Kelas</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4">{promoteBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
-                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-              <div>{promoteBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+      {/* ---------- Promote (2 fields) ---------- */}
+      <ResponsiveFormDialog
+        open={promoteDialog}
+        onOpenChange={setPromoteDialog}
+        title="Naik Kelas"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
+            <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel required htmlFor="promote-class-section">Kelas Tujuan</FieldLabel>
+          <ClassSectionCombobox
+            id="promote-class-section"
+            sections={sections}
+            value={promoteTarget}
+            onChange={setPromoteTarget}
+            placeholder="Pilih kelas tujuan..."
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="promote-notes">Catatan (opsional)</FieldLabel>
+          <Textarea id="promote-notes" value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
+        </Field>
+      </ResponsiveFormDialog>
 
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />

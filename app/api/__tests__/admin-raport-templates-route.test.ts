@@ -28,8 +28,8 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/audit", () => ({ recordAudit }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
-import { GET, PUT } from "@/app/api/admin/raport/templates/route";
-import { POST as clonePOST } from "@/app/api/admin/raport/templates/clone/route";
+import { GET, PUT } from "@/app/api/admin/report-cards/templates/route";
+import { POST as clonePOST } from "@/app/api/admin/report-cards/templates/clone/route";
 
 const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
 const DENY = {
@@ -68,30 +68,30 @@ beforeEach(() => {
   db.reportClosingTemplate.findUnique.mockResolvedValue(null);
 });
 
-describe("GET /api/admin/raport/templates", () => {
+describe("GET /api/admin/report-cards/templates", () => {
   it("denies without reportCard.template", async () => {
     requirePermission.mockResolvedValue(DENY);
-    const res = await GET(req("http://l/api/admin/raport/templates?termId=term1&ageGroup=A"));
+    const res = await GET(req("http://l/api/admin/report-cards/templates?termId=term1&ageGroup=A"));
     expect(res.status).toBe(403);
     expect(requirePermission).toHaveBeenCalledWith("reportCard.template");
   });
 
   it("400s without termId", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    const res = await GET(req("http://l/api/admin/raport/templates?ageGroup=A"));
+    const res = await GET(req("http://l/api/admin/report-cards/templates?ageGroup=A"));
     expect(res.status).toBe(400);
   });
 
   it("400s on an ageGroup outside A|B", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    const res = await GET(req("http://l/api/admin/raport/templates?termId=term1&ageGroup=C"));
+    const res = await GET(req("http://l/api/admin/report-cards/templates?termId=term1&ageGroup=C"));
     expect(res.status).toBe(400);
   });
 
   it("404s when the term belongs to another tenant", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.term.findFirst.mockResolvedValue(null);
-    const res = await GET(req("http://l/api/admin/raport/templates?termId=term1&ageGroup=A"));
+    const res = await GET(req("http://l/api/admin/report-cards/templates?termId=term1&ageGroup=A"));
     expect(res.status).toBe(404);
     // Tenant gate lives on the term lookup.
     expect(db.term.findFirst).toHaveBeenCalledWith(
@@ -103,7 +103,7 @@ describe("GET /api/admin/raport/templates", () => {
 
   it("returns the grid with the full slot count even when empty", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    const res = await GET(req("http://l/api/admin/raport/templates?termId=term1&ageGroup=A"));
+    const res = await GET(req("http://l/api/admin/report-cards/templates?termId=term1&ageGroup=A"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       data: { bucketed: object; closing: object; filledCount: number; totalSlots: number };
@@ -114,7 +114,7 @@ describe("GET /api/admin/raport/templates", () => {
 
   it("scopes the template reads to tenant + term + ageGroup", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    await GET(req("http://l/api/admin/raport/templates?termId=term1&ageGroup=B"));
+    await GET(req("http://l/api/admin/report-cards/templates?termId=term1&ageGroup=B"));
     expect(db.reportNarrativeTemplate.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tenantId: "t1", termId: "term1", ageGroup: "B", deletedAt: null },
@@ -123,11 +123,11 @@ describe("GET /api/admin/raport/templates", () => {
   });
 });
 
-describe("PUT /api/admin/raport/templates", () => {
+describe("PUT /api/admin/report-cards/templates", () => {
   it("denies without reportCard.template", async () => {
     requirePermission.mockResolvedValue(DENY);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [{ section: "STEAM", level: "CONSISTENT", content: "x" }],
@@ -140,7 +140,7 @@ describe("PUT /api/admin/raport/templates", () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.term.findFirst.mockResolvedValue(null);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [{ section: "STEAM", level: "CONSISTENT", content: "x" }],
@@ -153,7 +153,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("upserts a filled narrative slot keyed on the tenant-scoped unique", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [
@@ -183,7 +183,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("un-deletes on rewrite so a cleared slot can be re-authored", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         closings: [{ section: "CLOSING", content: "Penutup" }],
@@ -199,7 +199,7 @@ describe("PUT /api/admin/raport/templates", () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.reportNarrativeTemplate.findUnique.mockResolvedValue({ id: "n1", deletedAt: null });
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [{ section: "STEAM", level: "CONSISTENT", content: "   " }],
@@ -221,7 +221,7 @@ describe("PUT /api/admin/raport/templates", () => {
       deletedAt: new Date(),
     });
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [{ section: "STEAM", level: "CONSISTENT", content: "" }],
@@ -235,7 +235,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("400s on a duplicate slot in one payload", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [
@@ -250,7 +250,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("400s on a closing section sent as a narrative slot", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         narratives: [{ section: "CLOSING", level: "CONSISTENT", content: "a" }],
@@ -262,7 +262,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("400s on content over the 4000-char cap", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         closings: [{ section: "CLOSING", content: "x".repeat(4001) }],
@@ -274,7 +274,7 @@ describe("PUT /api/admin/raport/templates", () => {
   it("audits the write", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     await PUT(
-      jsonReq("http://l/api/admin/raport/templates", {
+      jsonReq("http://l/api/admin/report-cards/templates", {
         termId: "term1",
         ageGroup: "A",
         closings: [{ section: "CLOSING", content: "Penutup" }],
@@ -287,7 +287,7 @@ describe("PUT /api/admin/raport/templates", () => {
   });
 });
 
-describe("POST /api/admin/raport/templates/clone", () => {
+describe("POST /api/admin/report-cards/templates/clone", () => {
   const CLONE_BODY = {
     sourceTermId: "term1",
     sourceAgeGroup: "A",
@@ -298,7 +298,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
   it("denies without reportCard.template", async () => {
     requirePermission.mockResolvedValue(DENY);
     const res = await clonePOST(
-      jsonReq("http://l/api/admin/raport/templates/clone", CLONE_BODY, "POST"),
+      jsonReq("http://l/api/admin/report-cards/templates/clone", CLONE_BODY, "POST"),
     );
     expect(res.status).toBe(403);
   });
@@ -307,7 +307,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await clonePOST(
       jsonReq(
-        "http://l/api/admin/raport/templates/clone",
+        "http://l/api/admin/report-cards/templates/clone",
         { ...CLONE_BODY, targetTermId: "term1" },
         "POST",
       ),
@@ -319,7 +319,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.term.findFirst.mockResolvedValue(null);
     const res = await clonePOST(
-      jsonReq("http://l/api/admin/raport/templates/clone", CLONE_BODY, "POST"),
+      jsonReq("http://l/api/admin/report-cards/templates/clone", CLONE_BODY, "POST"),
     );
     expect(res.status).toBe(404);
     expect(db.reportNarrativeTemplate.upsert).not.toHaveBeenCalled();
@@ -328,7 +328,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
   it("422s when the source cohort has nothing to copy", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     const res = await clonePOST(
-      jsonReq("http://l/api/admin/raport/templates/clone", CLONE_BODY, "POST"),
+      jsonReq("http://l/api/admin/report-cards/templates/clone", CLONE_BODY, "POST"),
     );
     expect(res.status).toBe(422);
   });
@@ -344,7 +344,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
     db.reportClosingTemplate.findMany.mockResolvedValue([]);
 
     const res = await clonePOST(
-      jsonReq("http://l/api/admin/raport/templates/clone", CLONE_BODY, "POST"),
+      jsonReq("http://l/api/admin/report-cards/templates/clone", CLONE_BODY, "POST"),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { copied: number; skipped: number } };
@@ -366,7 +366,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
     db.reportClosingTemplate.findMany.mockResolvedValue([]);
 
     const res = await clonePOST(
-      jsonReq("http://l/api/admin/raport/templates/clone", CLONE_BODY, "POST"),
+      jsonReq("http://l/api/admin/report-cards/templates/clone", CLONE_BODY, "POST"),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { copied: number; skipped: number } };
@@ -387,7 +387,7 @@ describe("POST /api/admin/raport/templates/clone", () => {
 
     const res = await clonePOST(
       jsonReq(
-        "http://l/api/admin/raport/templates/clone",
+        "http://l/api/admin/report-cards/templates/clone",
         { ...CLONE_BODY, targetTermId: "term1", targetAgeGroup: "B" },
         "POST",
       ),

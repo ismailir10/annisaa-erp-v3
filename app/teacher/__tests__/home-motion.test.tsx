@@ -1,91 +1,29 @@
-import { render, screen } from "@testing-library/react";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ComponentProps } from "react";
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
-}));
-
-vi.mock("framer-motion", async () => {
-  const React = await import("react");
-  type MockMotionProps = ComponentProps<"div"> & {
-    initial?: unknown;
-    animate?: unknown;
-    exit?: unknown;
-    transition?: unknown;
-    whileHover?: unknown;
-    whileTap?: unknown;
-  };
-  const motion = new Proxy(
-    {},
-    {
-      get: (_, tag: string) => {
-        return ({ initial, animate: _animate, exit: _exit, transition: _transition, whileHover: _whileHover, whileTap: _whileTap, ...props }: MockMotionProps) =>
-          React.createElement(tag, {
-            ...props,
-            "data-motion-initial": initial === undefined ? undefined : String(initial),
-          });
-      },
-    },
-  );
-  return {
-    motion,
-    AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
-    useReducedMotion: () => true,
-  };
-});
-
 import { TeacherHomeClient } from "../home-client";
-
-describe("TeacherHomeClient motion", () => {
-  function renderHome() {
-    return render(
-      <TeacherHomeClient
-        userName="Sari"
-        todayRecord={null}
-        homeroomClassSectionName="TK-B Anggur"
-        todaySessions={[
-          {
-            id: "session-1",
-            slot: "MORNING",
-            className: "TK-B Anggur",
-            rosterCount: 12,
-          },
-        ]}
-      />,
-    );
-  }
-
-  it("skips all entrance states when the system requests reduced motion", async () => {
-    renderHome();
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Selamat/ })).toBeInTheDocument();
-    });
-
-    expect(document.querySelectorAll('[data-motion-initial="[object Object]"]')).toHaveLength(0);
-    expect(document.querySelectorAll('[data-motion-initial="false"]')).not.toHaveLength(0);
+const refresh = vi.hoisted(()=>vi.fn());
+vi.mock("next/navigation",()=>({useRouter:()=>({refresh})}));
+const cls={id:"class-1",name:"TK A",rosterCount:2,attendanceRecorded:1,slot:null,journal:{configured:true,totalStudents:2,completeStudents:1,completed:false},replies:[{studentId:"child-2",studentName:"Bilal",count:2}]};
+const base={today:"2026-09-25",userName:"Sari",todayRecord:null};
+describe("Teacher home next actions",()=>{
+  it("shows an assigned class without an instantiated session and preserves class/day",()=>{
+    render(<TeacherHomeClient {...base} classes={[cls]} />);
+    expect(screen.getByTestId("current-class")).toHaveTextContent("TK A");
+    expect(screen.getByRole("link",{name:/Lanjutkan absensi/})).toHaveAttribute("href","/teacher/class-attendance?classId=class-1&date=2026-09-25");
+    expect(screen.getByRole("link",{name:/Balasan wali Bilal/})).toHaveAttribute("href","/teacher/student-journal/students/child-2?view=notes#catatan");
   });
-
-  it("puts today status before secondary links and gives dashboard links a visible focus ring", async () => {
-    renderHome();
-
-    await waitFor(() => {
-      expect(screen.getByText("Status hari ini")).toBeInTheDocument();
-    });
-
-    const status = screen.getByText("Status hari ini");
-    const quickLinks = screen.getByText("Akses cepat");
-    expect(status.compareDocumentPosition(quickLinks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    for (const link of [
-      screen.getByRole("link", { name: /Buku Penghubung/ }),
-      screen.getByRole("link", { name: /Penilaian pekanan/ }),
-      screen.getByRole("link", { name: /Pagi.*12 siswa/ }),
-    ]) {
-      expect(link.className).toContain("focus-visible:ring-2");
-      expect(link.className).toContain("focus-visible:ring-ring");
-    }
+  it("promotes journal after saved attendance and retains every pickup session",()=>{
+    render(<TeacherHomeClient {...base} classes={[{...cls,attendanceRecorded:2}]} todaySessions={[{id:"s1",slot:"MORNING",className:"TK A",rosterCount:2},{id:"s2",slot:"AFTERNOON",className:"TK A",rosterCount:2}]} />);
+    expect(screen.getByRole("link",{name:"Lanjutkan jurnal harian"})).toHaveAttribute("href","/teacher/student-journal/entry?classId=class-1&date=2026-09-25");
+    expect(document.querySelector('a[href="/teacher/sessions/s1"]')).not.toBeNull();
+    expect(document.querySelector('a[href="/teacher/sessions/s2"]')).not.toBeNull();
+  });
+  it("keeps check-in retryable after a network failure",async()=>{
+    vi.stubGlobal("fetch",vi.fn().mockRejectedValue(new Error("Koneksi terputus")));
+    render(<TeacherHomeClient {...base} classes={[cls]} />);
+    fireEvent.click(screen.getByRole("button",{name:"Catat masuk"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Koneksi terputus");
+    expect(screen.getByRole("button",{name:"Coba lagi"})).toBeEnabled();
+    vi.unstubAllGlobals();
   });
 });

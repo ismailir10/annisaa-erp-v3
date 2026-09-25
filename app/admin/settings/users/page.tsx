@@ -1,24 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { StatCard } from "@/components/admin/stat-card";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import {
@@ -29,7 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Users, ShieldCheck, GraduationCap, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 import { toast } from "sonner";
 import { getRoleLabel } from "./role-labels";
@@ -163,13 +154,6 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [stats, setStats] = useState({
-    total: 0,
-    admin: 0,
-    teacher: 0,
-    guardian: 0,
-    inactive: 0,
-  });
 
   // Roles for the edit dialog
   const [roles, setRoles] = useState<RoleOption[]>([]);
@@ -184,40 +168,6 @@ export default function UsersPage() {
       .then((r) => r.json())
       .then((json) => setRoles(json.data ?? []))
       .catch((err) => console.error("[users] roles fetch failed", err));
-  }, []);
-
-  // Stats fetch
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/users?pageSize=1&status=ACTIVE&role=SUPER_ADMIN").then((r) =>
-        r.json()
-      ),
-      fetch("/api/users?pageSize=1&status=ACTIVE&role=SCHOOL_ADMIN").then((r) =>
-        r.json()
-      ),
-      fetch("/api/users?pageSize=1&status=ACTIVE&role=TEACHER").then((r) =>
-        r.json()
-      ),
-      fetch("/api/users?pageSize=1&status=ACTIVE&role=GUARDIAN").then((r) =>
-        r.json()
-      ),
-      fetch("/api/users?pageSize=1&status=INACTIVE").then((r) => r.json()),
-    ])
-      .then(([superAdmin, schoolAdmin, teacher, guardian, inactive]) => {
-        const sa = superAdmin.pagination?.total ?? 0;
-        const a = schoolAdmin.pagination?.total ?? 0;
-        const t = teacher.pagination?.total ?? 0;
-        const g = guardian.pagination?.total ?? 0;
-        const i = inactive.pagination?.total ?? 0;
-        setStats({
-          total: sa + a + t + g,
-          admin: sa + a,
-          teacher: t,
-          guardian: g,
-          inactive: i,
-        });
-      })
-      .catch((err) => console.error("[users] stats fetch failed", err));
   }, []);
 
   const fetchUsers = useCallback(async () => {
@@ -375,46 +325,8 @@ export default function UsersPage() {
     <>
       <PageHeader
         title="Pengguna"
-        description={`${stats.total} aktif · ${stats.inactive} tidak aktif`}
+        description="Kelola akun admin, guru, dan wali murid serta peran aksesnya"
       />
-
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-        <StatCard
-          label="Total Aktif"
-          value={stats.total}
-          icon={Users}
-          color="primary"
-          index={0}
-        />
-        <StatCard
-          label="Admin"
-          value={stats.admin}
-          icon={ShieldCheck}
-          color="primary"
-          index={1}
-        />
-        <StatCard
-          label="Guru"
-          value={stats.teacher}
-          icon={Users}
-          color="success"
-          index={2}
-        />
-        <StatCard
-          label="Wali Murid"
-          value={stats.guardian}
-          icon={GraduationCap}
-          color="warning"
-          index={3}
-        />
-        <StatCard
-          label="Tidak Aktif"
-          value={stats.inactive}
-          icon={UserX}
-          color="error"
-          index={4}
-        />
-      </div>
 
       <DataTableToolbar
         searchPlaceholder="Cari nama atau email..."
@@ -457,16 +369,17 @@ export default function UsersPage() {
       />
 
       {/* Edit Dialog */}
-      <Dialog
+      <ResponsiveFormDialog
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
+        title="Edit Pengguna"
+        footer={<>
+          <Button variant="ghost" onClick={() => setEditTarget(null)}>Batal</Button>
+          <Button onClick={handleSaveEdit} disabled={saving}>
+            {saving ? "Menyimpan..." : "Simpan Perubahan"}
+          </Button>
+        </>}
       >
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Pengguna</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
             <div>
               <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
               <p className="text-xs text-muted-foreground">
@@ -503,18 +416,7 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </Field>
-          </div>
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>
-              Batal
-            </DialogClose>
-            <Button onClick={handleSaveEdit} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan Perubahan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog
         open={!!deactivateTarget}

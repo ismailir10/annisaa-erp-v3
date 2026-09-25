@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -21,9 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
 
@@ -76,7 +74,7 @@ const columns: ColumnDef<Employee>[] = [
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium group-hover:text-primary transition-colors">
+              <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
                 {e.nama}
               </span>
               <span className="font-currency text-xs text-muted-foreground">
@@ -159,7 +157,6 @@ const EMPTY_CREATE_FORM = {
 export default function EmployeesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<Employee[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
@@ -386,7 +383,7 @@ export default function EmployeesPage() {
     <>
       <PageHeader
         title="Karyawan"
-        description={`${pagination.total} karyawan terdaftar`}
+        description="Data karyawan dan akun staf sekolah"
         actions={
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Tambah
@@ -458,57 +455,31 @@ export default function EmployeesPage() {
         onConfirm={handleRestore}
       />
 
-      {/* Create Employee — Dialog on desktop, Sheet on mobile */}
-      {isMobile ? (
-        <Sheet open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setCreateForm(EMPTY_CREATE_FORM); setCustomPosition(false); } }}>
-          <SheetContent side="bottom" className="h-[92vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Tambah Karyawan</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-field py-4">
-              <CreateEmployeeFormBody
-                form={createForm}
-                setForm={setCreateForm}
-                positions={positions}
-                campuses={campuses}
-                customPosition={customPosition}
-                setCustomPosition={setCustomPosition}
-              />
-            </div>
-            <SheetFooter>
-              <SheetClose render={<Button variant="ghost">Batal</Button>} />
-              <Button onClick={handleCreate} disabled={saving}>
-                {saving ? "Menyimpan..." : "Tambah Karyawan"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setCreateForm(EMPTY_CREATE_FORM); setCustomPosition(false); } }}>
-          <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Tambah Karyawan</DialogTitle>
-              <DialogDescription>Kode karyawan akan digenerate otomatis.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-field py-2">
-              <CreateEmployeeFormBody
-                form={createForm}
-                setForm={setCreateForm}
-                positions={positions}
-                campuses={campuses}
-                customPosition={customPosition}
-                setCustomPosition={setCustomPosition}
-              />
-            </div>
-            <DialogFooter>
-              <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
-              <Button onClick={handleCreate} disabled={saving}>
-                {saving ? "Menyimpan..." : "Tambah Karyawan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Create Employee */}
+      <ResponsiveFormDialog
+        open={createOpen}
+        onOpenChange={(o) => { setCreateOpen(o); if (!o) { setCreateForm(EMPTY_CREATE_FORM); setCustomPosition(false); } }}
+        title="Tambah Karyawan"
+        description="Kode karyawan akan digenerate otomatis."
+        size="2xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={saving}>Batal</Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? "Menyimpan..." : "Tambah Karyawan"}
+            </Button>
+          </>
+        }
+      >
+        <CreateEmployeeFormBody
+          form={createForm}
+          setForm={setCreateForm}
+          positions={positions}
+          campuses={campuses}
+          customPosition={customPosition}
+          setCustomPosition={setCustomPosition}
+        />
+      </ResponsiveFormDialog>
     </>
   );
 }

@@ -5,16 +5,19 @@ import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { ArrowLeft, Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Users, FileText, Baby, Pencil, X, Save } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
+import { DetailRail, RailCard, RailStatTiles, RailChecklist } from "@/components/admin/detail-rail";
+import { Mail, Phone, MapPin, Briefcase, User, Building, GraduationCap, Wallet, Baby, Pencil, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { REL_LABELS } from "@/lib/constants/parent-options";
 import { formatRupiah } from "@/lib/format";
+import { telHref, whatsappHref } from "@/lib/contact";
+import { summarizeStudentInvoices, EMPTY_INVOICE_SUMMARY } from "@/lib/finance/student-invoice-summary";
 import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
 
 // ------------------------------------------------------------------
@@ -149,7 +152,7 @@ function DocumentUploadCell({
             href={`/api/parents/${parentId}/${field}?v=${version}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-primary hover:underline inline-block"
+            className="text-xs text-primary-text hover:underline inline-block"
           >
             Buka di tab baru →
           </a>
@@ -181,11 +184,20 @@ function DocumentUploadCell({
 }
 
 // ------------------------------------------------------------------
-// Page
+// Page — Recipe 2b Dossier: single scroll, hash-addressable sections,
+// mirrors app/admin/students/[id]/page.tsx's layout (DetailPageHeader +
+// DossierNav + DossierSection[] + DetailRail). No fetch this page didn't
+// already make — the rail derives entirely from the /api/parents/[id] payload.
 // ------------------------------------------------------------------
+
+const SECTION_PROFILE = "profile";
+const SECTION_DOCUMENTS = "documents";
+const SECTION_CHILDREN = "children";
+const SECTION_INVOICES = "invoices";
 
 export default function GuardianDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const isMobile = useIsMobile();
   const [parent, setParent] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -193,6 +205,64 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
   const [saving, setSaving] = useState(false);
+
+  // --- Section open/collapse state ---
+  // Nothing on this page costs a second request to open, unlike the student
+  // dossier's Kehadiran/Keringanan/etc — so every section starts open on
+  // desktop and there is no lazy-fetch-on-open wiring to replicate.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
+    [SECTION_PROFILE]: true,
+    [SECTION_DOCUMENTS]: true,
+    [SECTION_CHILDREN]: true,
+    [SECTION_INVOICES]: true,
+  }));
+  // Once the admin has collapsed or expanded anything, stop rearranging the
+  // page underneath them on a resize.
+  const sectionsTouched = useRef(false);
+
+  const setSectionOpen = useCallback((sectionId: string, open: boolean) => {
+    sectionsTouched.current = true;
+    setOpenSections((prev) => ({ ...prev, [sectionId]: open }));
+  }, []);
+
+  /** Nav click: expand first (a collapsed target is nothing to scroll to), then scroll. */
+  const jumpToSection = useCallback(
+    (sectionId: string) => {
+      setSectionOpen(sectionId, true);
+      requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [setSectionOpen],
+  );
+
+  // Mobile default: one open section, not four. Runs only while the admin has
+  // not touched a disclosure themselves.
+  useEffect(() => {
+    if (!isMobile || sectionsTouched.current) return;
+    setOpenSections((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const key of Object.keys(prev)) next[key] = key === SECTION_PROFILE;
+      return next;
+    });
+  }, [isMobile]);
+
+  /**
+   * `#documents`, `#invoices` … — every section id is already a DOM anchor,
+   * but the browser's own hash scroll fires before the section exists and
+   * lands on nothing when the section is collapsed on mobile. Honouring the
+   * hash ourselves (same trick as the student dossier) is what makes a link
+   * straight into "Tagihan" actually work.
+   */
+  const hashHandled = useRef(false);
+  useEffect(() => {
+    if (loading || hashHandled.current) return;
+    const target = window.location.hash.replace(/^#/, "");
+    if (!target) { hashHandled.current = true; return; }
+    if (!document.getElementById(target)) return;
+    hashHandled.current = true;
+    jumpToSection(target);
+  }, [loading, jumpToSection]);
 
   const fetchParent = useCallback(async () => {
     try {
@@ -268,6 +338,69 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   if (!parent) return <EmptyState title="Wali tidak ditemukan" description="Data wali tidak tersedia atau telah dihapus." />;
 
   const studentCount = parent.guardians.length;
+  const invoiceSummary = parent.invoices.length > 0 ? summarizeStudentInvoices(parent.invoices) : EMPTY_INVOICE_SUMMARY;
+
+  const navSections: DossierSectionDef[] = [
+    { id: SECTION_PROFILE, label: "Data Wali" },
+    { id: SECTION_DOCUMENTS, label: "Dokumen" },
+    { id: SECTION_CHILDREN, label: "Anak Terdaftar" },
+    { id: SECTION_INVOICES, label: "Tagihan" },
+  ];
+
+  const docItems = [
+    { label: "KTP", present: parent.hasKtp },
+    { label: "KK", present: parent.hasKk },
+  ];
+
+  const statTiles = [
+    { label: "Anak Terdaftar", value: studentCount },
+    {
+      label: "Tagihan",
+      value: parent.invoices.length,
+      hint: invoiceSummary.unpaidCount > 0 ? `${invoiceSummary.unpaidCount} belum lunas` : undefined,
+    },
+    {
+      label: "Piutang",
+      value: formatRupiah(invoiceSummary.outstanding),
+      tone: invoiceSummary.outstanding > 0 ? ("warning" as const) : ("default" as const),
+      wide: true,
+    },
+  ];
+
+  const waHref = whatsappHref(parent.whatsapp ?? parent.phone);
+  const telephoneHref = telHref(parent.phone);
+  const contactCard = (waHref || telephoneHref) && (
+    <RailCard title="Kontak Cepat">
+      <p className="text-small font-semibold">{parent.name}</p>
+      {parent.phone && <p className="mt-0.5 text-xs text-muted-foreground">{parent.phone}</p>}
+      <div className="mt-3 flex gap-2">
+        {waHref && (
+          <Button
+            size="sm"
+            className="flex-1"
+            render={<a href={waHref} target="_blank" rel="noopener noreferrer" />}
+          >
+            WhatsApp
+          </Button>
+        )}
+        {telephoneHref && (
+          <Button size="sm" variant="outline" className="flex-1" render={<a href={telephoneHref} />}>
+            Telepon
+          </Button>
+        )}
+      </div>
+    </RailCard>
+  );
+
+  const railContent = (
+    <>
+      <RailStatTiles tiles={statTiles} />
+      {contactCard}
+      <RailCard title="Kelengkapan Berkas">
+        <RailChecklist items={docItems} />
+      </RailCard>
+    </>
+  );
 
   return (
     <>
@@ -286,166 +419,181 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
         }
       />
 
-      {/* Profile Card — View/Edit toggle */}
-      <Card className="p-card mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Wali</h3>
-          {isEditing && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
-                <X size={14} className="mr-1" /> Batal
-              </Button>
-              <Button size="sm" onClick={saveParent} disabled={saving}>
-                <Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Perubahan"}
-              </Button>
-            </div>
-          )}
-        </div>
+      {/* Mobile: the rail's numbers move above the sections so the first
+          viewport still answers "who is this wali". */}
+      {isMobile && <div className="mb-4"><RailStatTiles tiles={statTiles} /></div>}
 
-        {isEditing ? (
-          <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <User size={16} className="text-muted-foreground shrink-0" />
-                <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{parent.name}</p></div>
-              </div>
-              {parent.email && (
-                <div className="flex items-center gap-3">
-                  <Mail size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm font-medium">{parent.email}</p></div>
-                </div>
-              )}
-              {parent.phone && (
-                <div className="flex items-center gap-3">
-                  <Phone size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Telepon</p><p className="text-sm font-medium">{parent.phone}</p></div>
-                </div>
-              )}
-              {parent.whatsapp && (
-                <div className="flex items-center gap-3">
-                  <Phone size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">WhatsApp</p><p className="text-sm font-medium">{parent.whatsapp}</p></div>
-                </div>
-              )}
-              {parent.address && (
-                <div className="col-span-2 flex items-start gap-3">
-                  <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                  <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{parent.address}</p></div>
-                </div>
-              )}
-              {parent.nik && (
-                <div className="flex items-center gap-3">
-                  <User size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-medium font-currency">{parent.nik}</p></div>
-                </div>
-              )}
-              {parent.childrenTotal != null && (
-                <div className="flex items-center gap-3">
-                  <Baby size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Jumlah Anak</p><p className="text-sm font-medium">{parent.childrenTotal}</p></div>
-                </div>
-              )}
-            </div>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <DossierNav sections={navSections} onJump={jumpToSection} />
 
-            {(parent.education || parent.occupation || parent.employer || parent.incomeRange) && (
+          {/* ---------- Data Wali — View/Edit toggle ---------- */}
+          <DossierSection
+            id={SECTION_PROFILE}
+            label="Data Wali"
+            open={openSections[SECTION_PROFILE] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_PROFILE, o)}
+            actions={
+              isEditing ? (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
+                    <X size={14} className="mr-1" /> Batal
+                  </Button>
+                  <Button size="sm" onClick={saveParent} disabled={saving}>
+                    <Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                  </Button>
+                </div>
+              ) : undefined
+            }
+          >
+            {isEditing ? (
+              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
+            ) : (
               <>
-                <div className="mt-6"><SectionHeading label="Data Pekerjaan" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  {parent.education && (
-                    <div className="flex items-center gap-3">
-                      <GraduationCap size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Pendidikan</p><p className="text-sm font-medium">{parent.education}</p></div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <User size={16} className="text-muted-foreground shrink-0" />
+                    <div className="min-w-0"><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium break-words">{parent.name}</p></div>
+                  </div>
+                  {parent.email && (
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Mail size={16} className="text-muted-foreground shrink-0" />
+                      <div className="min-w-0"><p className="text-xs text-muted-foreground">Email</p><p className="text-sm font-medium break-all">{parent.email}</p></div>
                     </div>
                   )}
-                  {parent.occupation && (
+                  {parent.phone && (
                     <div className="flex items-center gap-3">
-                      <Briefcase size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Pekerjaan</p><p className="text-sm font-medium">{parent.occupation}</p></div>
+                      <Phone size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">Telepon</p><p className="text-sm font-medium">{parent.phone}</p></div>
                     </div>
                   )}
-                  {parent.incomeRange && (
+                  {parent.whatsapp && (
                     <div className="flex items-center gap-3">
-                      <Wallet size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Penghasilan</p><p className="text-sm font-medium">{parent.incomeRange}</p></div>
+                      <Phone size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">WhatsApp</p><p className="text-sm font-medium">{parent.whatsapp}</p></div>
                     </div>
                   )}
-                  {parent.employer && (
-                    <div className="flex items-center gap-3">
-                      <Building size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Tempat Kerja</p><p className="text-sm font-medium">{parent.employer}</p></div>
+                  {parent.address && (
+                    <div className="flex items-start gap-3 sm:col-span-2">
+                      <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+                      <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{parent.address}</p></div>
                     </div>
                   )}
-                  {parent.employerAddress && (
+                  {parent.nik && (
                     <div className="flex items-center gap-3">
-                      <MapPin size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Alamat Kantor</p><p className="text-sm font-medium">{parent.employerAddress}</p></div>
+                      <User size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">NIK</p><p className="text-sm font-medium font-currency">{parent.nik}</p></div>
                     </div>
                   )}
-                  {parent.employerCity && (
+                  {parent.childrenTotal != null && (
                     <div className="flex items-center gap-3">
-                      <Building size={16} className="text-muted-foreground shrink-0" />
-                      <div><p className="text-xs text-muted-foreground">Kota/Kab</p><p className="text-sm font-medium">{parent.employerCity}</p></div>
+                      <Baby size={16} className="text-muted-foreground shrink-0" />
+                      <div><p className="text-xs text-muted-foreground">Jumlah Anak</p><p className="text-sm font-medium">{parent.childrenTotal}</p></div>
                     </div>
                   )}
                 </div>
+
+                {(parent.education || parent.occupation || parent.employer || parent.incomeRange) && (
+                  <>
+                    <div className="mt-6"><SectionHeading label="Data Pekerjaan" /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {parent.education && (
+                        <div className="flex items-center gap-3">
+                          <GraduationCap size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Pendidikan</p><p className="text-sm font-medium">{parent.education}</p></div>
+                        </div>
+                      )}
+                      {parent.occupation && (
+                        <div className="flex items-center gap-3">
+                          <Briefcase size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Pekerjaan</p><p className="text-sm font-medium">{parent.occupation}</p></div>
+                        </div>
+                      )}
+                      {parent.incomeRange && (
+                        <div className="flex items-center gap-3">
+                          <Wallet size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Penghasilan</p><p className="text-sm font-medium">{parent.incomeRange}</p></div>
+                        </div>
+                      )}
+                      {parent.employer && (
+                        <div className="flex items-center gap-3">
+                          <Building size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Tempat Kerja</p><p className="text-sm font-medium">{parent.employer}</p></div>
+                        </div>
+                      )}
+                      {parent.employerAddress && (
+                        <div className="flex items-center gap-3">
+                          <MapPin size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Alamat Kantor</p><p className="text-sm font-medium">{parent.employerAddress}</p></div>
+                        </div>
+                      )}
+                      {parent.employerCity && (
+                        <div className="flex items-center gap-3">
+                          <Building size={16} className="text-muted-foreground shrink-0" />
+                          <div><p className="text-xs text-muted-foreground">Kota/Kab</p><p className="text-sm font-medium">{parent.employerCity}</p></div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </>
             )}
-          </>
-        )}
-      </Card>
+          </DossierSection>
 
-      {/* T6 + T14: Dokumen (KTP / KK) — admin-only auth-proxied uploads.
-          Sensitive PII under UU PDP 27/2022 — files written under .data/
-          (never public/), reads stream through requireAdmin-gated GET. */}
-      <Card className="p-card mb-4">
-        <div className="mb-4">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dokumen</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <DocumentUploadCell
-            parentId={parent.id}
-            field="ktp"
-            label="KTP"
-            hasFile={parent.hasKtp}
-            onMutated={fetchParent}
-          />
-          <DocumentUploadCell
-            parentId={parent.id}
-            field="kk"
-            label="KK"
-            hasFile={parent.hasKk}
-            onMutated={fetchParent}
-          />
-        </div>
-      </Card>
+          {/* ---------- Dokumen (T14 + T6) — admin-only auth-proxied uploads.
+              Sensitive PII under UU PDP 27/2022 — files written under .data/
+              (never public/), reads stream through requireAdmin-gated GET. ---------- */}
+          <DossierSection
+            id={SECTION_DOCUMENTS}
+            label="Dokumen"
+            open={openSections[SECTION_DOCUMENTS] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_DOCUMENTS, o)}
+          >
+            <p className="mb-4 text-xs text-muted-foreground">
+              KTP per orang tua + KK per keluarga · maks 5 MB · JPG / PNG / PDF
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <DocumentUploadCell
+                parentId={parent.id}
+                field="ktp"
+                label="KTP"
+                hasFile={parent.hasKtp}
+                onMutated={fetchParent}
+              />
+              <DocumentUploadCell
+                parentId={parent.id}
+                field="kk"
+                label="KK"
+                hasFile={parent.hasKk}
+                onMutated={fetchParent}
+              />
+            </div>
+          </DossierSection>
 
-      {/* Tabs for related data */}
-      <AdminTabs defaultValue="students">
-        <AdminTabsList>
-          <AdminTabsTrigger value="students"><Users size={13} className="mr-1" />Anak Terdaftar</AdminTabsTrigger>
-          <AdminTabsTrigger value="invoices"><FileText size={13} className="mr-1" />Tagihan</AdminTabsTrigger>
-        </AdminTabsList>
-
-        <AdminTabsContent value="students">
-          <Card className="p-card mt-2">
-            <SectionHeading label="Anak Terdaftar" />
+          {/* ---------- Anak Terdaftar ---------- */}
+          <DossierSection
+            id={SECTION_CHILDREN}
+            label="Anak Terdaftar"
+            badge={
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {studentCount} anak
+              </span>
+            }
+            open={openSections[SECTION_CHILDREN] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_CHILDREN, o)}
+          >
             {parent.guardians.length === 0 ? (
               <EmptyState title="Belum ada anak terdaftar" description="Belum ada siswa yang ditautkan ke wali ini." />
             ) : (
               <div className="space-y-2">
                 {parent.guardians.map(g => (
                   <Link key={g.id} href={`/admin/students/${g.student.id}`} className="block">
-                    <div className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{g.student.name}</span>
+                    <div className="flex flex-col gap-2 py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="min-w-0 break-words text-sm font-medium">{g.student.name}</span>
                           <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
-                          {g.isPrimary && <Badge className="bg-primary/10 text-primary text-xs">Utama</Badge>}
+                          {g.isPrimary && <Badge className="bg-primary/10 text-primary-text text-xs">Utama</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {g.student.gender === "L" ? "Laki-laki" : g.student.gender === "P" ? "Perempuan" : ""}
@@ -457,12 +605,20 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             )}
-          </Card>
-        </AdminTabsContent>
+          </DossierSection>
 
-        <AdminTabsContent value="invoices">
-          <Card className="p-card mt-2">
-            <SectionHeading label="Tagihan" />
+          {/* ---------- Tagihan ---------- */}
+          <DossierSection
+            id={SECTION_INVOICES}
+            label="Tagihan"
+            badge={
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {parent.invoices.length} tagihan
+              </span>
+            }
+            open={openSections[SECTION_INVOICES] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_INVOICES, o)}
+          >
             {parent.invoices.length === 0 ? (
               <EmptyState title="Belum ada tagihan" description="Belum ada tagihan untuk wali ini." />
             ) : (
@@ -482,9 +638,20 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 ))}
               </div>
             )}
-          </Card>
-        </AdminTabsContent>
-      </AdminTabs>
+          </DossierSection>
+        </div>
+
+        {/* Desktop rail. On mobile the stat tiles already rendered above and the
+            remaining cards fall to the end of the document, after the sections. */}
+        {isMobile ? (
+          <div className="mt-2 flex flex-col gap-4">
+            {contactCard}
+            <RailCard title="Kelengkapan Berkas"><RailChecklist items={docItems} /></RailCard>
+          </div>
+        ) : (
+          <DetailRail>{railContent}</DetailRail>
+        )}
+      </div>
     </>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -16,9 +16,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 
 // ------------------------------------------------------------------
@@ -42,6 +40,8 @@ type Pagination = {
   totalPages: number;
 };
 
+type PayrollStats = { total: number; draft: number; approved: number; slipsSent: number };
+
 // ------------------------------------------------------------------
 // Columns
 // ------------------------------------------------------------------
@@ -60,7 +60,7 @@ const columns: ColumnDef<PayrollRun>[] = [
           href={`/admin/payroll/${run.id}`}
           className="group"
         >
-          <span className="text-sm font-medium group-hover:text-primary transition-colors">
+          <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
             {run.periodStart} — {run.periodEnd}
           </span>
         </Link>
@@ -109,7 +109,6 @@ function defaultPayrollPeriod() {
 export default function PayrollListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<PayrollRun[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState(() => defaultPayrollPeriod().start);
@@ -170,26 +169,30 @@ export default function PayrollListPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("periodStart");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({ total: 0, draft: 0, approved: 0, slipsSent: 0 });
+  const [stats, setStats] = useState<PayrollStats | null>(null);
+  const [statsStatus, setStatsStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  // Stats fetch once — single groupBy endpoint, not three pageSize=1 list calls
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/payroll/stats");
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          total: number;
-          draft: number;
-          approved: number;
-          slipsSent: number;
-        };
-        setStats(data);
-      } catch {
-        // Stats stay at default zeros — non-critical, don't block the page
-      }
-    })();
+  const loadStats = useCallback(async () => {
+    setStatsStatus("loading");
+    try {
+      const res = await fetch("/api/payroll/stats");
+      if (!res.ok) throw new Error("Payroll stats unavailable");
+      const data = (await res.json()) as PayrollStats;
+      if (![data.total, data.draft, data.approved, data.slipsSent].every(
+        (value) => typeof value === "number" && Number.isFinite(value) && value >= 0,
+      )) throw new Error("Invalid payroll stats");
+      setStats(data);
+      setStatsStatus("ready");
+    } catch {
+      setStats(null);
+      setStatsStatus("error");
+    }
   }, []);
+
+  // Stats use one groupBy endpoint; retry is available without reloading the table.
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
 
   const fetchRuns = useCallback(async () => {
     setLoading(true);
@@ -251,7 +254,7 @@ export default function PayrollListPage() {
     <>
       <PageHeader
         title="Penggajian"
-        description={`${pagination.total} riwayat penggajian`}
+        description="Kelola periode penggajian dan slip gaji karyawan"
         actions={
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Buat Penggajian
@@ -259,11 +262,17 @@ export default function PayrollListPage() {
         }
       />
 
+      {statsStatus === "error" && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <span>Ringkasan penggajian tidak bisa dimuat.</span>
+          <Button variant="outline" size="sm" onClick={() => void loadStats()}>Coba lagi</Button>
+        </div>
+      )}
       <StatsCardsRow>
-        <StatCard label="Total Penggajian" value={stats.total} icon={Banknote} color="primary" index={0} />
-        <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
-        <StatCard label="Disetujui" value={stats.approved} icon={FileCheck} color="success" index={2} />
-        <StatCard label="Slip Terkirim" value={stats.slipsSent} icon={Send} color="primary" index={3} />
+        <StatCard label="Total Penggajian" value={statsStatus === "ready" ? stats!.total : statsStatus === "loading" ? "…" : "—"} icon={Banknote} color="primary" index={0} />
+        <StatCard label="Draft" value={statsStatus === "ready" ? stats!.draft : statsStatus === "loading" ? "…" : "—"} icon={Clock} color="warning" index={1} />
+        <StatCard label="Disetujui" value={statsStatus === "ready" ? stats!.approved : statsStatus === "loading" ? "…" : "—"} icon={FileCheck} color="success" index={2} />
+        <StatCard label="Slip Terkirim" value={statsStatus === "ready" ? stats!.slipsSent : statsStatus === "loading" ? "…" : "—"} icon={Send} color="primary" index={3} />
       </StatsCardsRow>
 
       <DataTableToolbar
@@ -300,42 +309,23 @@ export default function PayrollListPage() {
         emptyDescription="Mulai dengan membuat penggajian baru."
       />
 
-      {/* Create Payroll — Dialog on desktop, Sheet on mobile */}
-      {isMobile ? (
-        <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-          <SheetContent side="bottom" className="h-auto">
-            <SheetHeader>
-              <SheetTitle>Buat Penggajian Baru</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-field py-4">
-              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
-            </div>
-            <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Memproses..." : "Buat Draft Penggajian"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Buat Penggajian Baru</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-field py-2">
-              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
-            </div>
-            <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Memproses..." : "Buat Draft Penggajian"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Create Payroll */}
+      <ResponsiveFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Buat Penggajian Baru"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={generating}>Batal</Button>
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? "Memproses..." : "Buat Draft Penggajian"}
+            </Button>
+          </>
+        }
+      >
+        <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
+      </ResponsiveFormDialog>
     </>
   );
 }

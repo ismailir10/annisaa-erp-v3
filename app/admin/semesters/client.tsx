@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -274,7 +275,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
   };
 
   return (
-    <div className="space-y-section">
+    <>
       <PageHeader
         title="Kurikulum — Semester"
         description="Tahap awal pengaturan kurikulum: petakan semester ke tahun ajaran sebelum menambah tema, subtema, dan pekan."
@@ -287,11 +288,12 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-card">
+      <div className="space-y-section">
+      <StatsCardsRow cols={3}>
         <StatCard label="Semester aktif" value={stats.active} icon={CalendarRange} color="success" index={0} />
         <StatCard label="Total tercatat" value={stats.all} icon={BookMarked} index={1} />
         <StatCard label="Tema terdaftar" value={stats.themes} icon={Layers} color="primary" sublabel="pada semester aktif" index={2} />
-      </div>
+      </StatsCardsRow>
 
       <DataTableToolbar
         value={query}
@@ -331,6 +333,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         emptyTitle="Belum ada semester"
         emptyDescription="Semester yang ditambahkan akan tampil di sini."
       />
+      </div>
 
       <ResponsiveFormDialog
         open={createOpen}
@@ -346,7 +349,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
               Batal
             </Button>
             <Button onClick={save} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Semester"}
             </Button>
           </>
         }
@@ -456,6 +459,6 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           }
         }}
       />
-    </div>
+    </>
   );
 }

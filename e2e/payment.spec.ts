@@ -15,6 +15,7 @@ import { ensureParentHasInvoice } from "./ensure-parent-invoice";
 // actually lands on the parent portal.
 
 let parentUserId: string;
+let fixtureInvoice: Awaited<ReturnType<typeof ensureParentHasInvoice>>;
 
 test.describe("Payment return shims", () => {
   test.beforeAll(async ({ request }) => {
@@ -24,10 +25,9 @@ test.describe("Payment return shims", () => {
     if (!parent) throw new Error("No GUARDIAN user found in demo DB");
     parentUserId = parent.id;
 
-    // The AC-24 test below clicks the first invoice row in the parent's list,
-    // so an invoice has to exist. It used to be supplied incidentally by
-    // admin.spec's bulk-generate smoke — see e2e/ensure-parent-invoice.ts.
-    await ensureParentHasInvoice(request, parentUserId);
+    // Own the exact unpaid invoice so unrelated seed/test rows cannot change
+    // the status exercised by the legacy callback regression.
+    fixtureInvoice = await ensureParentHasInvoice(request, parentUserId);
   });
 
   test.beforeEach(async ({ page }) => {
@@ -59,40 +59,55 @@ test.describe("Payment return shims", () => {
     expect(page.url()).toMatch(/\/parent\/invoices(\?|$)/);
   });
 
-  test("legacy xenditStatus param still opens the invoice detail sheet (AC-24)", async ({ page }) => {
+  test("legacy xenditStatus opens the sheet and reflects server payment state (AC-24)", async ({ page }) => {
     // Sessions created before this cycle baked `?xenditStatus=paid|cancel`
     // into their return URL at session-creation time (Xendit links live up
     // to 7 days), so the parent client must keep honouring that param even
-    // though the shims above now only ever emit `paymentStatus`. Discover a
-    // real invoice id belonging to this parent by opening the detail sheet
-    // once through the normal UI path (click a row → sheet fetches
-    // `/api/guardian/invoices/<id>`), then reload with the legacy param and
-    // confirm the sheet re-opens and the query string gets stripped —
-    // proof the effect in client.tsx actually consumed it.
+    // though the shims above now only ever emit `paymentStatus`. Open our
+    // unpaid fixture through the normal UI, then return with a callback that
+    // claims paid. Only a real server-side settlement may produce success.
     await page.goto("/parent/invoices");
     await page.waitForURL("**/parent/invoices");
 
     const rowButton = page
-      .locator(
-        'ul[aria-label="Tagihan belum dibayar"] button, ul[aria-label="Riwayat pembayaran"] button',
-      )
-      .first();
+      .locator('ul[aria-label="Tagihan belum dibayar"] button')
+      .filter({ hasText: fixtureInvoice.periodLabel });
     await expect(rowButton).toBeVisible({ timeout: 15_000 });
 
     const [detailResponse] = await Promise.all([
       page.waitForResponse(
-        (res) => res.url().includes("/api/guardian/invoices/") && res.request().method() === "GET",
+        (res) => res.url().endsWith(`/api/guardian/invoices/${fixtureInvoice.id}`) && res.request().method() === "GET",
       ),
       rowButton.click(),
     ]);
-    const invoiceId = new URL(detailResponse.url()).pathname.split("/").pop();
-    if (!invoiceId) throw new Error("Could not resolve an invoice id from the demo parent's data");
+    expect(detailResponse.ok()).toBeTruthy();
+    const invoice = await detailResponse.json() as { id: string; status: string; totalDue: number; totalPaid: number };
+    expect(invoice.id).toBe(fixtureInvoice.id);
+    expect(["SENT", "OVERDUE"]).toContain(invoice.status);
+    expect(invoice.totalPaid).toBe(0);
 
-    await page.goto(`/parent/invoices?invoice=${invoiceId}&xenditStatus=paid`);
-    await expect(page.getByText(/Alhamdulillah/i)).toBeVisible({ timeout: 8_000 });
+    await page.goto(`/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`);
+    await expect(page.getByText("Pembayaran sedang diperiksa. Status tagihan akan diperbarui setelah dikonfirmasi.")).toBeVisible();
+    await expect(page.getByText(/Alhamdulillah/i)).toHaveCount(0);
     await expect(page.getByRole("dialog")).toBeVisible();
     // The effect strips invoice/xenditStatus via router.replace once it
     // fires — confirms the legacy param was consumed, not just ignored.
     await page.waitForURL((url) => !url.search.includes("xenditStatus"), { timeout: 8_000 });
+
+    // Settle through the real local API, then verify the fresh authoritative
+    // state before replaying the same legacy callback.
+    const payment = await page.request.post(`/api/invoices/${invoice.id}/payments`, {
+      headers: { cookie: "school-erp-session=u_super_admin" },
+      data: { amount: invoice.totalDue, method: "CASH" },
+    });
+    expect(payment.status()).toBe(201);
+    const paid = await page.request.get(`/api/guardian/invoices/${invoice.id}`);
+    expect(paid.ok()).toBeTruthy();
+    expect(await paid.json()).toMatchObject({ status: "PAID", totalPaid: invoice.totalDue });
+
+    await page.goto(`/parent/invoices?invoice=${invoice.id}&xenditStatus=paid`);
+    await expect(page.getByText(/Alhamdulillah, tagihan .* terbayar\./)).toBeVisible();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.waitForURL((url) => !url.search.includes("xenditStatus"));
   });
 });

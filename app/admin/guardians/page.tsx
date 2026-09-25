@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -13,9 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -106,7 +104,6 @@ const columns: ColumnDef<Guardian>[] = [
 
 export default function GuardiansPage() {
   const router = useRouter();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<Guardian[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -284,7 +281,7 @@ export default function GuardiansPage() {
 
   return (
     <>
-      <PageHeader title="Wali Murid" description={`${pagination.total} wali terdaftar`} />
+      <PageHeader title="Wali Murid" description="Kelola data wali murid dan hubungannya dengan siswa." />
 
       <StatsCardsRow cols={3}>
         <StatCard label="Total Wali" value={stats.total} icon={Users} color="primary" index={0} />
@@ -319,36 +316,21 @@ export default function GuardiansPage() {
         emptyDescription="Wali murid akan otomatis muncul saat mendaftarkan siswa."
       />
 
-      {/* Edit — side="bottom" on mobile (narrow single-column form) */}
-      {isMobile ? (
-        <Sheet open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-            <SheetHeader><SheetTitle>Edit Wali</SheetTitle></SheetHeader>
-            <div className="px-4 pb-4">
-              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
-            </div>
-            <SheetFooter>
-              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader><DialogTitle>Edit Wali</DialogTitle></DialogHeader>
-            {/* flex-1 min-h-0 overflow-y-auto: T7 grew the unified form
-                (address + childrenTotal added); body needs inner scroll. */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
-            </div>
-            <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Edit */}
+      <ResponsiveFormDialog
+        open={!!editTarget}
+        onOpenChange={(o) => !o && setEditTarget(null)}
+        title="Edit Wali"
+        size="xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
+            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+          </>
+        }
+      >
+        <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
+      </ResponsiveFormDialog>
 
       {/* Confirm Dialog */}
       <ConfirmDialog

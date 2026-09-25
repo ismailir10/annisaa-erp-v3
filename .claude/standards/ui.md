@@ -40,10 +40,13 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Sidebar trigger | `<SidebarTrigger>` | Custom hamburger button |
 | Sidebar layout | `<SidebarProvider>` + `<SidebarInset>` | Manual `lg:pl-60` offsets |
 | Data list | `<DataTable>` | Custom card loops |
+| Wide matrix / grid (not a sortable/paginated entity list) | ui/table primitives (`<Table>`, `<TableHeader>`, `<TableBody>`, ...) | raw `<table>` |
+| Admin tabs (panels within one page) | `<AdminTabs>` | raw `<Tabs>` import in `app/admin/**` |
+| Sibling routes sharing one nav entry | `<AdminLinkTabs>` (see `patterns.md` Recipe 1) | a second `<AdminTabs>` strip pointing at separate pages |
 | Status | `<StatusBadge>` | Inline `<Badge>` with hardcoded colors |
+| Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
 | Empty list | `<EmptyState>` | Plain `<p>` |
-| Confirm | `<ConfirmDialog>` | `window.confirm()` |
-| Destructive confirm | `<AlertDialog>` | `window.confirm()` for delete |
+| Confirm, destructive or not | `<ConfirmDialog>` (`destructive` prop for delete/void/cancel) | raw `<AlertDialog>` import, `window.confirm()` |
 | Form field | `<Field>` + `<FieldLabel>` + `<FieldDescription>` | Raw `<Label>` + `<Input>` or custom `<FormField>` |
 | Loading | `<Skeleton>` | `animate-pulse` divs |
 | Progress | `<Progress>` | Custom progress bars |
@@ -51,17 +54,17 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Scroll area | `<ScrollArea>` | Custom overflow divs |
 | Currency | `formatRupiah()` | Inline formatting |
 | Date | `formatDate()` / `formatDateShort()` | Inline `.toLocaleDateString()` |
-| Desktop form / create-edit | `<Dialog>` | Route-level form pages |
-| Mobile form / create-edit | `<Sheet>` | Dialog stuffed into narrow viewport |
-| Destructive confirm | `<AlertDialog>` | `<Dialog>` or `window.confirm()` |
+| Desktop form / create-edit | `<ResponsiveFormDialog>` (Dialog) | Route-level form pages |
+| Mobile form / create-edit | `<ResponsiveFormDialog>` (Sheet) | Dialog stuffed into narrow viewport |
+| Action dialog (approve, void, override, record payment, ...) | `<ResponsiveFormDialog>` | hand-rolled `useIsMobile` + `<Dialog>`/`<Sheet>` |
 | Transient feedback | `toast.*()` (sonner) | `alert()`, inline banner for success |
 
 ## Overlays Rule
 
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
 
-- **Dialog on desktop, Sheet on mobile.** Use `useIsMobile()` to switch. The create-or-edit form is the same form — only the container changes.
-- **Destructive = AlertDialog, always.** Delete, void, cancel, hard-deactivate — all through `<AlertDialog>`. Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
+- **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
+- **Confirms go through `<ConfirmDialog>`, always.** Delete, void, cancel, hard-deactivate, restore, approve — all through `<ConfirmDialog>` (it wraps `<AlertDialog>`; pass `destructive` for the irreversible ones). Never import `<AlertDialog>` directly outside `confirm-dialog.tsx`. Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
 - **Toasts stack, overlays don't.** Multiple toasts allowed; they auto-dismiss. Sonner's default 3–5s timing is correct for success; errors should stay longer (or be persistent via `toast.error(..., { duration: Infinity })` for critical failures).
 - **Body copy states the consequence.** "Data akan hilang selamanya" for hard delete; "Bisa diaktifkan kembali kapan saja" for soft delete. See `voice.md` for audience-matched copy.
 
@@ -90,7 +93,7 @@ The submit and cancel slots of every admin form Dialog / Sheet use the labels in
 
 For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
 
-The `<ResponsiveFormDialog>` component (`components/ui/responsive-form-dialog.tsx`) wraps Dialog (desktop) + Sheet (mobile) and freezes the breakpoint while open. Use it for new admin forms; legacy inline `useIsMobile()` branches are also fine.
+`<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the reusable default for create/edit forms. It owns the bounded shadcn `ScrollArea`, dynamic viewport-height limit, internal focus-ring padding, and docked header/footer in both modes. Supply fields as children, actions through `footer`, and width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. Migrate legacy inline forms when changing their layout. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute.
 
 ## Required-field indicator
 

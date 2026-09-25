@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { weekDates, weekStart } from "@/lib/student-journal/week";
 
 // T1 — the render gate in ../page.tsx must key off `schoolCategories` /
 // `homeCategories` (whether the tenant template has ACTIVE categories),
@@ -10,11 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
   replace: vi.fn(),
+  push: vi.fn(),
   params: new URLSearchParams(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: nav.replace, push: vi.fn() }),
+  useRouter: () => ({ replace: nav.replace, push: nav.push }),
   usePathname: () => "/parent/student-journal",
   useSearchParams: () => nav.params,
 }));
@@ -55,7 +58,7 @@ const homeCategories = [
   },
 ];
 
-function mockFetchWith(weekData: Record<string, unknown>) {
+function mockFetchWith(weekData: Record<string, unknown>, family = children) {
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) => {
@@ -63,7 +66,7 @@ function mockFetchWith(weekData: Record<string, unknown>) {
         return Promise.resolve({ ok: true, json: async () => ({ id: "user_1" }) });
       }
       if (url === "/api/parent/children") {
-        return Promise.resolve({ ok: true, json: async () => ({ data: children }) });
+        return Promise.resolve({ ok: true, json: async () => ({ data: family }) });
       }
       if (url.startsWith("/api/student-journal/notes/unread")) {
         return Promise.resolve({
@@ -79,11 +82,81 @@ function mockFetchWith(weekData: Record<string, unknown>) {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("ParentStudentJournalPage", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     nav.replace.mockClear();
+    nav.push.mockClear();
     nav.params = new URLSearchParams();
+  });
+
+  it("restores the linked child from URL on reload and keeps it through selection", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Yusuf Rahman", nickname: "Yusuf", className: "TKB" },
+    ];
+    nav.params = new URLSearchParams("child=child_2&view=notes&week=2026-08-10");
+    mockFetchWith({ ...baseWeekData, homeCategories }, family);
+    const { rerender } = render(<ParentStudentJournalPage />);
+    await screen.findByText("Yusuf Rahman · TKB");
+    // Identity renders from the children response; the week request starts in
+    // a subsequent effect. Wait for that observable request, not its heading.
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/student-journal/children/child_2/week?weekStart=2026-08-10",
+    ));
+    expect(await screen.findByTestId("note-thread-panel")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Aisyah/ }));
+    const destination = "/parent/student-journal?child=child_1&view=notes&week=2026-08-10";
+    expect(nav.push).toHaveBeenCalledWith(destination);
+
+    // Complete the router transition so the selected sibling's request and
+    // preserved note/week context are checked, not just a mocked push call.
+    nav.params = new URL(destination, "http://localhost").searchParams;
+    rerender(<ParentStudentJournalPage />);
+    await screen.findByText("Aisyah Nuraini · TKA");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "/api/student-journal/children/child_1/week?weekStart=2026-08-10",
+    ));
+    expect(await screen.findByTestId("note-thread-panel")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Catatan/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps full child identity visible when siblings share a nickname", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Aisyah Zahra", nickname: "Aisyah", className: "TKB" },
+    ];
+    nav.params = new URLSearchParams("child=child_2&view=notes");
+    mockFetchWith({ ...baseWeekData, homeCategories }, family);
+    const { container } = render(<ParentStudentJournalPage />);
+    expect(await screen.findByText("Aisyah Zahra · TKB")).toBeVisible();
+    expect(container.querySelector('[data-slot="context-strip"]')).toHaveTextContent("Aisyah Zahra");
+    expect(container.querySelector('[data-slot="context-strip"]')).not.toHaveTextContent("Aisyah Nuraini");
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining("/children/child_2/week")));
+  });
+
+  it("falls back to a linked child when the URL names another family's child", async () => {
+    nav.params = new URLSearchParams("child=foreign");
+    mockFetchWith({ ...baseWeekData, homeCategories });
+    render(<ParentStudentJournalPage />);
+    await screen.findByText("Aisyah Nuraini · TKA");
+    // The child heading renders before the effect starts its week request.
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/children/child_1/week"),
+    ));
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      expect.stringContaining("/children/foreign/week"),
+    );
   });
 
   it("shows the EmptyState only when both schoolCategories and homeCategories are empty", async () => {
@@ -120,7 +193,7 @@ describe("ParentStudentJournalPage", () => {
 
     // Was the static "Pantau kegiatan harian di sekolah dan rumah" — which
     // named no child at all, and a single-child wali saw no name anywhere.
-    expect(await screen.findByText("Aisyah · TKA")).toBeInTheDocument();
+    expect(await screen.findByText("Aisyah Nuraini · TKA")).toBeInTheDocument();
   });
 
   it("badges the Catatan tab with the wali's unread count", async () => {
@@ -184,5 +257,97 @@ describe("ParentStudentJournalPage", () => {
       }),
     ).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Kembali ke pekan ini" })).toBeNull();
+  });
+
+  it("ignores a stale week response after the wali switches children", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Yusuf Rahman", nickname: "Yusuf", className: "TKB" },
+    ];
+    const a = deferred<{ ok: boolean; json: () => Promise<{ data: typeof baseWeekData }> }>();
+    const b = deferred<{ ok: boolean; json: () => Promise<{ data: typeof baseWeekData }> }>();
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/auth/me") return Promise.resolve({ ok: true, json: async () => ({ id: "user_1" }) });
+      if (url === "/api/parent/children") return Promise.resolve({ ok: true, json: async () => ({ data: family }) });
+      if (url.startsWith("/api/student-journal/notes/unread")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { unreadNoteCounts: {} } }) });
+      }
+      if (url.includes("/children/child_1/")) return a.promise;
+      if (url.includes("/children/child_2/")) return b.promise;
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`));
+    }));
+
+    const { rerender } = render(<ParentStudentJournalPage />);
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining("/children/child_1/week")));
+    nav.params = new URLSearchParams("child=child_2&view=home");
+    rerender(<ParentStudentJournalPage />);
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(expect.stringContaining("/children/child_2/week")));
+
+    b.resolve({
+      ok: true,
+      json: async () => ({ data: { ...baseWeekData, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "yusuf", label: "Jurnal Yusuf", order: 1 }] }] } }),
+    });
+    expect(await screen.findByText("Jurnal Yusuf")).toBeInTheDocument();
+    await act(async () => {
+      a.resolve({
+        ok: true,
+        json: async () => ({ data: { ...baseWeekData, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "aisyah", label: "Jurnal Aisyah", order: 1 }] }] } }),
+      });
+      await a.promise;
+    });
+
+    expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument();
+    expect(screen.queryByText("Jurnal Aisyah")).not.toBeInTheDocument();
+  });
+
+  it("does not let a stale post-mutation refresh replace the newly selected child", async () => {
+    const family = [
+      ...children,
+      { id: "child_2", name: "Yusuf Rahman", nickname: "Yusuf", className: "TKB" },
+    ];
+    nav.params = new URLSearchParams("view=home");
+    const today = getTodayInTimezone("Asia/Jakarta");
+    const currentDates = weekDates(weekStart(today));
+    const initialA = { ...baseWeekData, dates: currentDates, homeCategories };
+    const refreshedA = deferred<{ ok: boolean; json: () => Promise<{ data: typeof initialA }> }>();
+    let childACalls = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/auth/me") return Promise.resolve({ ok: true, json: async () => ({ id: "user_1" }) });
+      if (url === "/api/parent/children") return Promise.resolve({ ok: true, json: async () => ({ data: family }) });
+      if (url.startsWith("/api/student-journal/notes/unread")) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: { unreadNoteCounts: {} } }) });
+      }
+      if (url === "/api/student-journal/entries/home") {
+        return Promise.resolve({ ok: true, json: async () => ({ data: {} }) });
+      }
+      if (url.includes("/children/child_1/")) {
+        childACalls += 1;
+        if (childACalls === 1) return Promise.resolve({ ok: true, json: async () => ({ data: initialA }) });
+        return refreshedA.promise;
+      }
+      if (url.includes("/children/child_2/")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { ...initialA, homeCategories: [{ ...homeCategories[0], indicators: [{ id: "yusuf", label: "Jurnal Yusuf", order: 1 }] }] } }),
+        });
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`));
+    }));
+
+    const { rerender } = render(<ParentStudentJournalPage />);
+    // Monday is present and editable even when the test runs on a weekend.
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(`Shalat Subuh ${currentDates[0]}`) }));
+    await waitFor(() => expect(childACalls).toBe(2));
+
+    nav.params = new URLSearchParams("child=child_2&view=home");
+    rerender(<ParentStudentJournalPage />);
+    expect(await screen.findByText("Jurnal Yusuf")).toBeInTheDocument();
+    await act(async () => {
+      refreshedA.resolve({ ok: true, json: async () => ({ data: initialA }) });
+      await refreshedA.promise;
+    });
+
+    expect(screen.getByText("Jurnal Yusuf")).toBeInTheDocument();
+    expect(screen.queryByText("Shalat Subuh")).not.toBeInTheDocument();
   });
 });

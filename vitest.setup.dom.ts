@@ -19,6 +19,13 @@ configure({ asyncUtilTimeout: 5_000 });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (Element.prototype as any).scrollIntoView = vi.fn();
 
+// jsdom has no Web Animations. Base UI ScrollArea queries subtree animations
+// before measuring its thumb; an empty list represents this environment.
+// Preserve a native implementation if the environment gains one.
+if (!Element.prototype.getAnimations) {
+  Element.prototype.getAnimations = () => [];
+}
+
 // jsdom does not implement matchMedia. framer-motion's `useReducedMotion`
 // (PortalBottomNav) subscribes to `(prefers-reduced-motion: reduce)` on mount.
 // Default to "no preference" so animated code paths are the ones under test;

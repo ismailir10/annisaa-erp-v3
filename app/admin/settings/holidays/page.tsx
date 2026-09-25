@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -43,6 +42,7 @@ export default function HolidaysPage() {
   const [form, setForm] = useState({ date: "", name: "", type: "NATIONAL", isHalfDay: false });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Holiday | null>(null);
+  const [query, setQuery] = useState("");
 
   async function fetchHolidays() {
     const res = await fetch("/api/config/holidays");
@@ -92,6 +92,14 @@ export default function HolidaysPage() {
     if (res.ok) { toast.success("Hari libur dihapus"); setDeleteTarget(null); fetchHolidays(); }
     else toast.error("Gagal menghapus");
   }
+
+  const filteredHolidays = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return holidays;
+    return holidays.filter((h) =>
+      [h.name, formatDateShort(h.date)].some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [holidays, query]);
 
   const columns: ColumnDef<Holiday>[] = [
     {
@@ -152,7 +160,7 @@ export default function HolidaysPage() {
     <>
       <PageHeader
         title="Hari Libur"
-        description={`${holidays.length} hari libur terdaftar`}
+        description="Kelola tanggal libur untuk perhitungan hari kerja"
         actions={
           <Button onClick={openNew} size="sm">
             <Plus size={16} className="mr-1.5" /> Tambah Hari Libur
@@ -160,9 +168,15 @@ export default function HolidaysPage() {
         }
       />
 
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama atau tanggal..."
+      />
+
       <DataTable
         columns={columns}
-        data={holidays}
+        data={filteredHolidays}
         loading={loading}
         defaultSort={{ field: "date", order: "asc" }}
         emptyTitle="Belum ada hari libur"
@@ -179,13 +193,18 @@ export default function HolidaysPage() {
       />
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
-            <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editing ? "Edit Hari Libur" : "Tambah Hari Libur"}
+        description="Hari libur mempengaruhi perhitungan hari kerja"
+        footer={<>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
+          </Button>
+        </>}
+      >
             <Field>
               <FieldLabel required htmlFor="holiday-date">Tanggal</FieldLabel>
               <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required aria-required="true" />
@@ -209,15 +228,7 @@ export default function HolidaysPage() {
               <Checkbox checked={form.isHalfDay} onCheckedChange={(c) => setForm({ ...form, isHalfDay: !!c })} />
               Setengah hari
             </label>
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
     </>
   );
 }

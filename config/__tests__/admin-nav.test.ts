@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import { ClipboardList, ClipboardCheck } from "lucide-react";
 import {
   adminNav,
+  getActiveGroup,
+  getActiveHref,
   getActiveItem,
   getBreadcrumbs,
+  getVisibleAdminNav,
+  hasVisibleSettings,
+  SETTINGS_HUB_HREF,
   type NavItem,
 } from "../admin-nav";
 
@@ -37,101 +42,234 @@ describe("getActiveItem — longest-prefix wins", () => {
 describe("adminNav IA — ordering + grouping", () => {
   const groupIds = adminNav.groups.map((g) => g.id);
 
-  it("orders groups: students → academic → assessment → classroom → finance → hr", () => {
-    expect(groupIds).toEqual([
-      "students",
-      "academic",
-      "assessment",
-      "classroom",
-      "finance",
-      "hr",
-    ]);
+  it("orders groups: students → daily → assessment → finance → hr", () => {
+    expect(groupIds).toEqual(["students", "daily", "assessment", "finance", "hr"]);
   });
 
-  it("academic group lists Tahun Ajaran + Kelas + Semester; Semester gated by curriculum.read", () => {
-    const group = adminNav.groups.find((g) => g.id === "academic")!;
-    expect(group.label).toBe("Akademik");
-    expect(group.permission).toBe("academic.view");
-    expect(group.items.map((i) => i.label)).toEqual([
-      "Tahun Ajaran",
-      "Kelas",
-      "Semester",
-    ]);
-    expect(group.items.map((i) => i.href)).toEqual([
-      "/admin/academic-years",
-      "/admin/classes",
-      "/admin/semesters",
-    ]);
+  it("students group covers the admission → guardian funnel + Kelas, in that order", () => {
+    const group = adminNav.groups.find((g) => g.id === "students")!;
+    expect(group.label).toBe("Kesiswaan");
+    expect(group.items.map((i) => i.label)).toEqual(["Pendaftaran", "Siswa", "Wali Murid", "Kelas"]);
+    const pendaftaran = group.items.find((i) => i.label === "Pendaftaran")!;
+    expect(pendaftaran.href).toBe("/admin/admissions");
+    expect(pendaftaran.permission).toBe("admissions.view");
+    expect(pendaftaran.alsoMatch).toEqual(["/admin/enrollments"]);
     const kelas = group.items.find((i) => i.label === "Kelas")!;
+    expect(kelas.href).toBe("/admin/classes");
     expect(kelas.permission).toBe("academic.view");
-    const semester = group.items.find((i) => i.label === "Semester")!;
-    expect(semester.permission).toBe("curriculum.read");
   });
 
-  it("no standalone Kurikulum group — Semester absorbed into Akademik", () => {
-    expect(adminNav.groups.find((g) => g.id === "curriculum")).toBeUndefined();
+  it("no standalone Akademik group — Kelas absorbed into Kesiswaan, Tahun Ajaran/Semester moved to the settings hub", () => {
+    expect(adminNav.groups.find((g) => g.id === "academic")).toBeUndefined();
   });
 
-  it("students group covers the admission → guardian funnel; enrollment lives on /admin/classes", () => {
-    const labels = adminNav.groups.find((g) => g.id === "students")!.items.map((i) => i.label);
-    expect(labels).toEqual([
-      "Pendaftaran",
-      "Formulir Pendaftaran",
-      "Siswa",
-      "Wali Murid",
-    ]);
+  it("daily group (Harian) holds attendance + the journal monitor, not the journal template", () => {
+    const group = adminNav.groups.find((g) => g.id === "daily")!;
+    expect(group.label).toBe("Harian");
+    expect(group.items.map((i) => i.label)).toEqual(["Kehadiran Siswa", "Buku Penghubung"]);
+    const jurnal = group.items.find((i) => i.label === "Buku Penghubung")!;
+    expect(jurnal.href).toBe("/admin/student-journal/monitoring");
+    expect(jurnal.permission).toBe("students.view");
   });
 
-  it("assessment group holds the penilaian monitor, rapor, and bank narasi", () => {
+  it("assessment group holds only the penilaian monitor and rapor — Bank Narasi moved to the hub", () => {
     const group = adminNav.groups.find((g) => g.id === "assessment")!;
-    expect(group.items.map((i) => i.label)).toEqual([
-      "Pemantauan",
-      "Rapor",
-      "Bank Narasi",
-    ]);
-    expect(group.items[0].href).toBe("/admin/penilaian");
+    expect(group.items.map((i) => i.label)).toEqual(["Pemantauan", "Rapor"]);
+    expect(group.items[0].href).toBe("/admin/assessments");
     expect(group.items[0].permission).toBe("assessments.read");
-    expect(group.items[1].href).toBe("/admin/raport");
+    expect(group.items[1].href).toBe("/admin/report-cards");
     expect(group.items[1].permission).toBe("reportCard.read");
-    // Own permission so cycle 4 can grant walas authoring without also
-    // granting per-student raport writes.
-    expect(group.items[2].href).toBe("/admin/raport/templates");
-    expect(group.items[2].permission).toBe("reportCard.template");
   });
 
-  it("classroom group holds the daily teacher ops items", () => {
-    const labels = adminNav.groups.find((g) => g.id === "classroom")!.items.map((i) => i.label);
-    expect(labels).toEqual(["Kehadiran Siswa", "Buku Penghubung — Templat"]);
+  it("finance group holds Tagihan + Penerimaan — Biaya moved to the hub", () => {
+    const group = adminNav.groups.find((g) => g.id === "finance")!;
+    expect(group.items.map((i) => i.label)).toEqual(["Tagihan", "Penerimaan"]);
   });
 
-  it("hr group keeps hr.view gate and holds salary-components inline", () => {
+  it("hr group keeps hr.view gate, no longer inlines Komponen Gaji", () => {
     const group = adminNav.groups.find((g) => g.id === "hr")!;
     expect(group.permission).toBe("hr.view");
-    expect(group.items.map((i) => i.label)).toEqual([
-      "Karyawan",
-      "Kehadiran",
-      "Pengajuan Cuti",
-      "Komponen Gaji",
-      "Penggajian",
-    ]);
-    const salary = group.items.find((i) => i.label === "Komponen Gaji")!;
-    expect(salary.href).toBe("/admin/salary-components");
-    expect(salary.permission).toBe("hr.view");
+    expect(group.items.map((i) => i.label)).toEqual(["Karyawan", "Kehadiran", "Pengajuan Cuti", "Penggajian"]);
   });
 
-  it("settings stays flat: campuses, work-hours, holidays, users, roles (+ design-system in dev)", () => {
-    const labels = adminNav.settings.map((i) => i.label);
-    expect(labels.slice(0, 5)).toEqual([
+  it("sidebar entry count is 16 (incl. Pengaturan) with every permission granted", () => {
+    const fullPermissions = [
+      "admissions.view",
+      "students.view",
+      "academic.view",
+      "assessments.read",
+      "reportCard.read",
+      "invoices.view",
+      "hr.view",
+      "attendance.view",
+      "leave.view",
+      "payroll.view",
+    ];
+    const nav = getVisibleAdminNav(fullPermissions);
+    const sidebarCount =
+      nav.standalone.length +
+      nav.groups.reduce((sum, g) => sum + g.items.length, 0) +
+      (hasVisibleSettings(nav) ? 1 : 0);
+    expect(sidebarCount).toBe(16);
+  });
+});
+
+describe("settingsHub — sections + moved items", () => {
+  it("school section covers Kampus, Tahun Ajaran, Semester, Hari Libur, Jam Kerja with original permission codes", () => {
+    const section = adminNav.settingsHub.find((s) => s.id === "school")!;
+    expect(section.label).toBe("Sekolah");
+    expect(section.items.map((i) => i.label)).toEqual([
       "Kampus",
-      "Jam Kerja",
+      "Tahun Ajaran",
+      "Semester",
       "Hari Libur",
-      "Pengguna",
-      "Peran & Izin",
+      "Jam Kerja",
     ]);
-    expect(adminNav.settings.find((i) => i.label === "Jam Kerja")?.href).toBe(
-      "/admin/settings/work-hours",
-    );
-    expect(adminNav.settings.find((i) => i.label === "Komponen Gaji")).toBeUndefined();
+    expect(section.items.find((i) => i.label === "Tahun Ajaran")).toMatchObject({
+      href: "/admin/academic-years",
+      permission: "academic.view",
+    });
+    expect(section.items.find((i) => i.label === "Semester")).toMatchObject({
+      href: "/admin/semesters",
+      permission: "curriculum.read",
+    });
+    expect(section.items.every((i) => typeof i.description === "string" && i.description.length > 0)).toBe(true);
+  });
+
+  it("academic section covers Bank Narasi + Templat Buku Penghubung", () => {
+    const section = adminNav.settingsHub.find((s) => s.id === "academic")!;
+    expect(section.label).toBe("Akademik");
+    expect(section.items.map((i) => i.label)).toEqual(["Bank Narasi", "Templat Buku Penghubung"]);
+    expect(section.items[0]).toMatchObject({ href: "/admin/report-cards/templates", permission: "reportCard.template" });
+    expect(section.items[1]).toMatchObject({ href: "/admin/student-journal", permission: "students.view" });
+  });
+
+  it("finance section covers Biaya + Komponen Gaji", () => {
+    const section = adminNav.settingsHub.find((s) => s.id === "finance")!;
+    expect(section.label).toBe("Keuangan & Gaji");
+    expect(section.items.map((i) => i.label)).toEqual(["Biaya", "Komponen Gaji"]);
+    expect(section.items[0]).toMatchObject({ href: "/admin/fees", permission: "fees.view" });
+    expect(section.items[1]).toMatchObject({ href: "/admin/salary-components", permission: "payroll.view" });
+  });
+
+  it("access section covers Pengguna + Peran & Izin", () => {
+    const section = adminNav.settingsHub.find((s) => s.id === "access")!;
+    expect(section.label).toBe("Akses");
+    expect(section.items.map((i) => i.label)).toEqual(["Pengguna", "Peran & Izin"]);
+    expect(section.items.every((i) => i.permission === "users.view")).toBe(true);
+  });
+});
+
+describe("getVisibleAdminNav", () => {
+  const sidebarHrefs = (permissions: string[]) => {
+    const nav = getVisibleAdminNav(permissions);
+    return nav.groups.flatMap((group) => group.items).map((item) => item.href);
+  };
+  const hubHrefs = (permissions: string[]) => {
+    const nav = getVisibleAdminNav(permissions);
+    return nav.settingsHub.flatMap((section) => section.items).map((item) => item.href);
+  };
+
+  it("hides admissions and enrollment destinations from finance and HR roles", () => {
+    expect(sidebarHrefs(["invoices.view"])).toEqual(["/admin/invoices", "/admin/payments"]);
+    expect(sidebarHrefs(["hr.view", "leave.view", "attendance.view"])).toEqual([
+      "/admin/employees",
+      "/admin/employee-attendance",
+      "/admin/leave-requests",
+    ]);
+  });
+
+  it("shows Pendaftaran without student or payroll links for admissions-only permission", () => {
+    expect(sidebarHrefs(["admissions.view"])).toEqual(["/admin/admissions"]);
+  });
+
+  it("does not let broad group gates hide separately granted destinations", () => {
+    expect(sidebarHrefs(["reportCard.read"])).toEqual(["/admin/report-cards"]);
+  });
+
+  it("requires both HR module access and payroll read access for payroll links", () => {
+    expect(sidebarHrefs(["payroll.view"])).not.toContain("/admin/payroll");
+    expect(sidebarHrefs(["hr.view", "payroll.view"])).toContain("/admin/payroll");
+    expect(sidebarHrefs(["hr.view"])).not.toContain("/admin/payroll");
+  });
+
+  it("drops empty hub sections and keeps only granted hub items", () => {
+    expect(hubHrefs(["users.view"])).toEqual(["/admin/settings/users", "/admin/settings/roles"]);
+    expect(hubHrefs(["academic.view"])).toEqual(["/admin/academic-years"]);
+  });
+
+  it("hasVisibleSettings is false with zero settings-relevant permissions", () => {
+    expect(hasVisibleSettings(getVisibleAdminNav(["invoices.view"]))).toBe(false);
+  });
+
+  it("hasVisibleSettings is true once any hub permission is granted", () => {
+    expect(hasVisibleSettings(getVisibleAdminNav(["users.view"]))).toBe(true);
+  });
+});
+
+describe("getActiveHref — longest-prefix match across sidebar + hub", () => {
+  const nav = getVisibleAdminNav([
+    "admissions.view",
+    "students.view",
+    "academic.view",
+    "curriculum.read",
+    "assessments.read",
+    "reportCard.read",
+    "reportCard.template",
+    "invoices.view",
+    "fees.view",
+    "hr.view",
+    "attendance.view",
+    "leave.view",
+    "payroll.view",
+    "users.view",
+    "settings.view",
+  ]);
+
+  it("/admin exact → Dasbor only", () => {
+    expect(getActiveHref("/admin", nav)).toBe("/admin");
+  });
+
+  it("/admin/student-journal/monitoring → Buku Penghubung (sidebar, longer than the hub template root)", () => {
+    expect(getActiveHref("/admin/student-journal/monitoring", nav)).toBe("/admin/student-journal/monitoring");
+  });
+
+  it("/admin/student-journal → Pengaturan (hub-owned Templat Buku Penghubung)", () => {
+    expect(getActiveHref("/admin/student-journal", nav)).toBe(SETTINGS_HUB_HREF);
+  });
+
+  it("/admin/student-journal/classes/abc → Pengaturan (longest prefix is the hub template root)", () => {
+    // Edge case, called out in the cycle doc: this sub-path belongs to a
+    // journal-classes feature that isn't itself a nav destination, so the
+    // hub's /admin/student-journal prefix is the longest match available.
+    expect(getActiveHref("/admin/student-journal/classes/abc", nav)).toBe(SETTINGS_HUB_HREF);
+  });
+
+  it("/admin/report-cards/templates → Pengaturan (Bank Narasi outranks Rapor)", () => {
+    expect(getActiveHref("/admin/report-cards/templates", nav)).toBe(SETTINGS_HUB_HREF);
+  });
+
+  it("/admin/report-cards and /admin/report-cards/xyz → Rapor", () => {
+    expect(getActiveHref("/admin/report-cards", nav)).toBe("/admin/report-cards");
+    expect(getActiveHref("/admin/report-cards/xyz", nav)).toBe("/admin/report-cards");
+  });
+
+  it("/admin/enrollments/123 → Pendaftaran via alsoMatch", () => {
+    expect(getActiveHref("/admin/enrollments/123", nav)).toBe("/admin/admissions");
+  });
+
+  it("/admin/academic-years → Pengaturan", () => {
+    expect(getActiveHref("/admin/academic-years", nav)).toBe(SETTINGS_HUB_HREF);
+  });
+
+  it("/admin/settings (bare hub root) → Pengaturan", () => {
+    expect(getActiveHref("/admin/settings", nav)).toBe(SETTINGS_HUB_HREF);
+  });
+
+  it("getActiveGroup resolves via the same matcher — only ever one active entry", () => {
+    expect(getActiveGroup("/admin/enrollments/123", nav)).toBe("students");
+    expect(getActiveGroup("/admin/report-cards/templates", nav)).toBeNull();
+    expect(getActiveGroup("/admin/report-cards/xyz", nav)).toBe("assessment");
   });
 });
 
@@ -141,10 +279,7 @@ describe("getBreadcrumbs", () => {
   });
 
   it("returns 2-level trail for an exact nav item", () => {
-    expect(getBreadcrumbs("/admin/employees")).toEqual([
-      { label: "SDM" },
-      { label: "Karyawan" },
-    ]);
+    expect(getBreadcrumbs("/admin/employees")).toEqual([{ label: "SDM" }, { label: "Karyawan" }]);
   });
 
   it("renders [id] as Detail on depth-3 path", () => {
@@ -181,25 +316,53 @@ describe("getBreadcrumbs", () => {
   });
 
   it("returns 2-level trail for the consolidated penilaian monitor", () => {
-    expect(getBreadcrumbs("/admin/penilaian")).toEqual([
+    expect(getBreadcrumbs("/admin/assessments")).toEqual([{ label: "Penilaian" }, { label: "Pemantauan" }]);
+  });
+
+  it("returns no trail for the retired assessment-templates path (server-redirected)", () => {
+    expect(getBreadcrumbs("/admin/assessment-templates")).toEqual([]);
+  });
+
+  it("returns a sub-page trail for a nested path under the assessments monitor", () => {
+    expect(getBreadcrumbs("/admin/assessments/abc123")).toEqual([
       { label: "Penilaian" },
-      { label: "Pemantauan" },
+      { label: "Pemantauan", href: "/admin/assessments" },
+      { label: "Detail" },
     ]);
   });
 
-  it("returns no trail for retired legacy assessment paths (server-redirected)", () => {
-    // Penilaian consolidation: these paths no longer exist in the nav; the
-    // server redirects them to /admin/penilaian before a page ever renders.
-    expect(getBreadcrumbs("/admin/assessment-templates")).toEqual([]);
-    expect(getBreadcrumbs("/admin/assessments/abc123")).toEqual([]);
+  it("hub item at its own root → Pengaturan + item label", () => {
+    expect(getBreadcrumbs("/admin/academic-years")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Tahun Ajaran" },
+    ]);
   });
 
-  it("renders settings sub-page trail", () => {
+  it("renders settings hub sub-page trail", () => {
     expect(getBreadcrumbs("/admin/settings/campuses/c1/edit")).toEqual([
-      { label: "Pengaturan" },
+      { label: "Pengaturan", href: "/admin/settings" },
       { label: "Kampus", href: "/admin/settings/campuses" },
       { label: "Detail" },
       { label: "Ubah" },
+    ]);
+  });
+
+  it("/admin/settings (bare) → single Pengaturan crumb", () => {
+    expect(getBreadcrumbs("/admin/settings")).toEqual([{ label: "Pengaturan" }]);
+  });
+
+  it("/admin/enrollments → Kesiswaan / Pendaftaran / Formulir", () => {
+    expect(getBreadcrumbs("/admin/enrollments")).toEqual([
+      { label: "Kesiswaan" },
+      { label: "Pendaftaran", href: "/admin/admissions" },
+      { label: "Formulir" },
+    ]);
+  });
+
+  it("/admin/work-queue → Dasbor / Antrean pekerjaan", () => {
+    expect(getBreadcrumbs("/admin/work-queue")).toEqual([
+      { label: "Dasbor", href: "/admin" },
+      { label: "Antrean pekerjaan" },
     ]);
   });
 

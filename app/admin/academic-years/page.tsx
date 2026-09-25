@@ -6,12 +6,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { StatCard } from "@/components/admin/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, BookOpen, Calendar, ArrowRightCircle } from "lucide-react";
+import { Plus, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -287,7 +286,7 @@ export default function AcademicPage() {
       cell: ({ row }) => (
         <Link
           href={`/admin/classes?yearId=${row.original.id}`}
-          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+          className="text-xs text-primary-text hover:underline inline-flex items-center gap-1"
         >
           Kelola kelas tahun ini
           <ArrowRightCircle size={12} />
@@ -341,12 +340,6 @@ export default function AcademicPage() {
   return (
     <>
       <PageHeader title="Tahun Ajaran" description="Program dan tahun ajaran" />
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Program" value={programs.length} icon={BookOpen} color="primary" index={0} />
-        <StatCard label="Tahun Ajaran" value={years.length} icon={Calendar} color="primary" index={1} />
-      </div>
 
       {/* Programs Section */}
       <div className="mb-8">

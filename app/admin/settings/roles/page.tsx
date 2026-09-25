@@ -1,23 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +70,7 @@ const SYSTEM_ROLES = [
 
 function SystemRoleCards() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
       {SYSTEM_ROLES.map((sr) => {
         const perms = getSystemRolePermissions(sr.role);
         return (
@@ -88,8 +82,8 @@ function SystemRoleCards() {
               <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                 <sr.icon size={20} className={sr.color} />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold">{sr.name}</h3>
                   <Badge variant="secondary" className="text-xs">
                     <Lock size={10} className="mr-1" />
@@ -265,6 +259,7 @@ function safeParsePermissions(json: string): string[] {
 export default function RolesPage() {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -305,6 +300,12 @@ export default function RolesPage() {
     () => roles.filter((r) => !r.isSystem),
     [roles]
   );
+
+  const filteredCustomRoles = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return customRoles;
+    return customRoles.filter((r) => r.name.toLowerCase().includes(needle));
+  }, [customRoles, query]);
 
   // Open create dialog
   const openCreate = useCallback(() => {
@@ -398,10 +399,10 @@ export default function RolesPage() {
     () => ({
       page: 1,
       pageSize: 50,
-      total: customRoles.length,
+      total: filteredCustomRoles.length,
       totalPages: 1,
     }),
-    [customRoles.length]
+    [filteredCustomRoles.length]
   );
 
   return (
@@ -426,9 +427,14 @@ export default function RolesPage() {
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         Peran Kustom
       </h2>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama peran..."
+      />
       <DataTable
         columns={columns}
-        data={customRoles}
+        data={filteredCustomRoles}
         pagination={pagination}
         onPageChange={() => {}}
         onPageSizeChange={() => {}}
@@ -440,15 +446,17 @@ export default function RolesPage() {
       />
 
       {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editTarget ? "Edit Peran" : "Tambah Peran"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-field py-2">
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editTarget ? "Edit Peran" : "Tambah Peran"}
+        footer={<>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Menyimpan..." : editTarget ? "Simpan Perubahan" : "Tambah Peran"}
+          </Button>
+        </>}
+      >
             <Field>
               <FieldLabel htmlFor="role-name" required>Nama Peran</FieldLabel>
               <Input
@@ -495,18 +503,7 @@ export default function RolesPage() {
                 onChange={setFormPermissions}
               />
             </div>
-          </div>
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>
-              Batal
-            </DialogClose>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : editTarget ? "Simpan Perubahan" : "Tambah Peran"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
 
       {/* Delete confirm */}
       <DeactivateConfirmDialog

@@ -258,11 +258,11 @@ Canonical spacing for parent + teacher portals. Pull from this table before inve
 | Surface | Mobile | Desktop |
 |---|---|---|
 | Page-level (layout) | `px-5 py-6` | `md:px-8 md:py-8` |
-| Page-header block | `mb-6` | `mb-6` |
+| Page-header block | `mb-section` | `mb-section` |
 | Section gap inside page | `space-y-4` | `space-y-6` |
 | Card padding | `p-4` | `md:p-6` |
 | Sheet padding | `p-5` | `p-6 md:p-8` |
-| QuickLinkCard fixed height | `h-[132px]` | `h-[132px]` |
+| Task row | `min-h-17` | `min-h-17` |
 
 ## Error Handling Standard
 
@@ -281,18 +281,18 @@ Never silently ignore errors: `.catch(() => {})` is forbidden.
 
 ## Household Overview (Parent Home)
 
-**Rule:** parent home body MUST use the Household Overview pattern when the family has **≥3 kids**. Pill-tabs (horizontal child switcher) are only allowed for exactly 2 kids.
+**Rule:** parent home shows all children together, each with a clear next action or recent signal. This applies equally to two-child and larger households; a child switcher can remain inside detail pages.
 
 **Why:** pill-tabs scale badly past 2 kids (wrap / overflow on 375 px), hide the non-selected child's state ("did I pay Yusuf's too?"), and force the parent to tab through each kid to find the one that needs attention. Household Overview makes "which child needs me right now?" the default question.
 
 **Pattern:**
-- Top urgency banner — e.g. "2 dari 2 anak perlu perhatian · 1 tagihan jatuh tempo · 1 sakit hari ini". Red when urgent, amber when advisory, hidden when clean.
-- One row per child — avatar + name + class + today's attendance status inline.
-- 3-up signal cells per row — Tagihan, Kehadiran, and a context-third (Rapor, Catatan). Cells tint red/amber automatically when attention is needed.
+- Show a summary of verified urgent items when present. Derive urgency from actual records, never from missing attendance or an empty API response.
+- One card per child — avatar + name + class + a verified recent signal or task.
+- Give each child a small set of useful actions (for example, invoice and teacher note). Keep labels explicit and avoid a fixed three-cell grid when it hides the action text.
 - Chevron on each row → child detail.
 - Inner tabs (Tagihan / Kehadiran / Rapor) inside a child detail use a pinned top-level switcher (Option C from the brainstorm in `design-system.html` §14).
 
-**Forbidden for ≥3 kids:**
+**Forbidden for larger households:**
 - `<PortalTabs>` as the child switcher on parent home.
 - "Select a child" dropdown in the header — hides state, defeats the purpose.
 
@@ -313,14 +313,14 @@ See `design-system.html` §15 for the mockup and the teacher-entry / parent-view
 
 ## Cycle-Tap Attendance
 
-Class attendance entry (`/teacher/class-attendance`) uses **cycle-tap**, not radio buttons.
+Class attendance entry (`/teacher/class-attendance`) must show each student's recorded state clearly and preserve its working save behavior. The approved task-first concept uses explicit status choices; a cycle control is also acceptable where already implemented and understood.
 
 **Rules:**
-- **Default = PRESENT.** Opening a class + date pre-fills every roster row as PRESENT. Zero-interaction is the common case.
-- **One tap rotates state:** `PRESENT → ABSENT → SICK → PERMISSION → PRESENT`. No radio row, no dropdown per row.
-- **Long-press or ⋯ menu** for less-common states (early dismissal, excused trip). Not on the default tap.
+- **Unknown stays unknown.** A missing record is not PRESENT or ABSENT. Only show a status when the API has recorded it or a teacher explicitly selects it.
+- **State choice is explicit.** On new entry surfaces, present the available statuses with a visible selected state. Existing cycle controls may remain until a route-level workflow change is warranted.
+- **Less-common states** can live in a menu when the underlying domain supports them.
 - **Live summary trio** above the grid: "Hadir N · Sakit M · Alpa K". Updates on every tap.
-- **Save on every tap.** Optimistic UI + `toast.error` rollback on failure. No submit button at the bottom.
+- **Save feedback matches persistence.** Keep the route's existing save/submit behavior. Announce saving, saved, and failed states; roll back or preserve edits appropriately on failure.
 - **Sticky-first-column** with student name + photo initials. Row tints match the current state via `--status-*-subtle`.
 
 See `design-system.html` §16 — Flow B for the mockup. Flow A (teacher self clock-in) is a separate, 4-step flow documented alongside.

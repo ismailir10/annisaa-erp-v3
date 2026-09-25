@@ -15,7 +15,7 @@ describe("disambiguateClassLabels", () => {
   });
 
   it("appends the campus to colliding names only", () => {
-    // The live defect: /admin/raport showed "TKIT-A" four times over.
+    // The live defect: /admin/report-cards showed "TKIT-A" four times over.
     expect(
       disambiguateClassLabels([
         { id: "a", name: "TKIT-A", campusName: "Taman Aster" },

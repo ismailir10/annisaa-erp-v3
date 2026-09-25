@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
@@ -29,17 +29,6 @@ import {
   runBulkRetry,
   type BulkRetrySnapshot,
 } from "@/lib/finance/run-bulk-retry";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
 // ------------------------------------------------------------------
 // Types
 // ------------------------------------------------------------------
@@ -91,7 +80,7 @@ const columns: ColumnDef<Invoice>[] = [
             <FileText size={14} className="text-primary" />
           </div>
           <div>
-            <span className="text-sm font-medium group-hover:text-primary transition-colors">
+            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
               {inv.student.name}
             </span>
             <p className="font-currency text-xs text-muted-foreground">
@@ -163,7 +152,7 @@ const columns: ColumnDef<Invoice>[] = [
 // Page
 // ------------------------------------------------------------------
 
-export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) {
+export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit" | "doku"; capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities }) {
   const router = useRouter();
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -267,6 +256,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
   // BatchProgressCard "Batalkan" button. Reset to null when the run finishes
   // or is cancelled so the next click starts fresh.
   const retryAbortRef = useRef<AbortController | null>(null);
+  const [statsState, setStatsState] = useState<"loading" | "ready" | "error">("loading");
   const [stats, setStats] = useState({
     total: 0,
     draft: 0,
@@ -280,9 +270,10 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
 
   const fetchStats = useCallback(() => {
     fetch("/api/invoices/stats")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error("stats unavailable"); return r.json(); })
       .then((s) => {
-        if (s?.error) return;
+        if (s?.error) throw new Error("stats unavailable");
+        setStatsState("ready");
         setStats({
           total: s.total ?? 0,
           draft: s.draft ?? 0,
@@ -294,7 +285,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
         });
       })
-      .catch((err) => console.error("[invoices] stats fetch failed", err));
+      .catch(() => setStatsState("error"));
   }, []);
 
   useEffect(() => {
@@ -505,11 +496,8 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         header: "",
         cell: ({ row }) => {
           const inv = row.original;
-          const canVoid =
-            inv.status === "DRAFT" ||
-            inv.status === "SENT" ||
-            inv.status === "PENDING_PAYMENT_LINK";
-          const isRetryRow = inv.status === "PENDING_PAYMENT_LINK";
+          const canVoid = capabilities.void && ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"].includes(inv.status);
+          const isRetryRow = capabilities.create && inv.status === "PENDING_PAYMENT_LINK";
           const isRetryingThisRow = retryingRowId === inv.id;
           return (
             <DataTableRowActions
@@ -536,7 +524,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
     // handleRowRetry is stable across renders for the purposes of this effect
     // (closes over fetchInvoices/fetchStats which are useCallback-stable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, retryingRowId],
+    [router, retryingRowId, capabilities],
   );
 
   // Billing Run wizard (Cycle B1, Task T9) — fired once step 3's commit loop
@@ -555,8 +543,8 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
       <PageHeader
         title="Tagihan"
         description={`${pagination.total} tagihan`}
-        actions={
-          <div className="flex gap-2">
+        actions={capabilities.create &&
+          <div className="flex flex-wrap gap-2">
             {stats.pendingPaymentLink > 0 && (
               <PendingLinkBreakdownPopover
                 count={stats.pendingPaymentLink}
@@ -579,14 +567,14 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
           persists across refreshes; this is how an admin picks it back up
           instead of it silently sitting invisible until they happen to
           re-open the wizard fresh and hit the 409. */}
-      {draftRun && (
-        <Alert>
+      {capabilities.create && draftRun && (
+        <Alert className="has-data-[slot=alert-action]:pr-2.5">
           <AlertTriangle className="size-4" />
           <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
           <AlertDescription>
             Periode {draftRun.periodLabel} punya draf yang belum dikomit.
           </AlertDescription>
-          <AlertAction className="flex gap-2">
+          <AlertAction className="static col-span-full flex flex-wrap justify-end gap-2 pt-2">
             <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
               Buang draf
             </Button>
@@ -625,7 +613,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
       {/* Overflow confirm — surfaces when more than 1000 invoices are stuck.
           Single confirm button per spec; closing the dialog without confirming
           aborts the orchestrator cleanly. */}
-      <AlertDialog
+      <ConfirmDialog
         open={!!overflowConfirm}
         onOpenChange={(o) => {
           if (!o && overflowConfirm) {
@@ -634,26 +622,18 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
             resolve(false);
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Antrian retry penuh</AlertDialogTitle>
-            <AlertDialogDescription>
-              {overflowConfirm
-                ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleOverflowConfirm}>
-              Mulai Proses
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Antrian retry penuh"
+        description={
+          overflowConfirm
+            ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
+            : ""
+        }
+        onConfirm={handleOverflowConfirm}
+        confirmLabel="Mulai Proses"
+      />
 
-      <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
+      {statsState === "error" && <Alert><AlertTitle>Ringkasan tagihan belum dapat dimuat</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
+      {statsState === "ready" && <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>
         <StatCard label="Total Tagihan" value={stats.total} icon={Receipt} color="primary" index={0} />
         <StatCard label="Draft" value={stats.draft} icon={Clock} color="warning" index={1} />
         <StatCard label="Lunas" value={stats.paid} icon={CheckCircle} color="success" index={2} />
@@ -662,7 +642,7 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
         {stats.pendingPaymentLink > 0 && (
           <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
         )}
-      </StatsCardsRow>
+      </StatsCardsRow>}
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."

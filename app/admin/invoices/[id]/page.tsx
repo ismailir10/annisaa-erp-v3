@@ -10,10 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,6 +27,7 @@ import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-met
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
 type InvoiceDetail = {
+  capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities;
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
   totalDue: number; totalPaid: number; status: string; xenditPaymentUrl: string | null;
   paymentLinkError: string | null;
@@ -84,9 +83,9 @@ function PaymentFormBody({
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const isMobile = useIsMobile();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
   const [paying, setPaying] = useState(false);
@@ -101,9 +100,15 @@ export default function InvoiceDetailPage() {
   const [activityKey, setActivityKey] = useState(0);
 
   const fetchInvoice = useCallback(async () => {
-    const res = await fetch(`/api/invoices/${id}`);
-    if (res.ok) setInvoice(await res.json());
-    setLoading(false);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch(`/api/invoices/${id}`);
+      if (res.status === 404 || res.status === 403) { setInvoice(null); return; }
+      if (!res.ok) throw new Error("invoice unavailable");
+      setInvoice(await res.json());
+    } catch { setLoadError(true); }
+    finally { setLoading(false); }
   }, [id]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -233,19 +238,20 @@ export default function InvoiceDetailPage() {
   }
 
   if (loading) return <DetailPageSkeleton />;
-  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia." />;
+  if (loadError) return <EmptyState title="Tagihan belum dapat dimuat" description="Periksa koneksi dan coba lagi. Pembayaran tidak diubah." actionLabel="Coba lagi" onAction={fetchInvoice} />;
+  if (!invoice) return <EmptyState title="Tagihan tidak ditemukan" description="Data tagihan tidak tersedia dengan akses Anda." actionLabel="Kembali ke daftar tagihan" actionHref="/admin/invoices" />;
 
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
-  const canVoid =
+  const canVoid = invoice.capabilities?.void && (
     invoice.status === "DRAFT" ||
     invoice.status === "SENT" ||
-    invoice.status === "PENDING_PAYMENT_LINK";
+    invoice.status === "PENDING_PAYMENT_LINK");
   // Only meaningful once a checkout exists at the gateway. A CANCELLED
   // invoice is terminal — the processor refuses to credit it either way, so
   // offering the action would only produce a confusing no-op.
-  const canRefreshPayment =
+  const canRefreshPayment = invoice.capabilities?.recordPayment &&
     !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED";
 
   return (
@@ -275,14 +281,14 @@ export default function InvoiceDetailPage() {
             )}
             {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
               <>
-                {!invoice.xenditPaymentUrl && (
+                {invoice.capabilities?.create && !invoice.xenditPaymentUrl && (
                   <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
                     {creatingXendit ? "Membuat..." : "Buat Link Pembayaran"}
                   </Button>
                 )}
-                <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
+                {invoice.capabilities?.recordPayment && <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
                   <CreditCard size={14} className="mr-1" /> Catat Pembayaran
-                </Button>
+                </Button>}
               </>
             )}
             {canVoid && (
@@ -338,9 +344,9 @@ export default function InvoiceDetailPage() {
                 );
               })()}
             </div>
-            <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
+            {invoice.capabilities?.create && <Button size="sm" onClick={handleRetryLink} disabled={retrying}>
               {retrying ? "..." : "Coba Lagi"}
-            </Button>
+            </Button>}
           </div>
         </Card>
       )}
@@ -386,7 +392,7 @@ export default function InvoiceDetailPage() {
           {invoice.xenditPaymentUrl && (
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
-              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline break-all">{invoice.xenditPaymentUrl}</a>
+              <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-text hover:underline break-all">{invoice.xenditPaymentUrl}</a>
               <Button size="sm" variant="outline" className="mt-2 w-full" onClick={() => { navigator.clipboard.writeText(invoice.xenditPaymentUrl!); toast.success("Link disalin"); }}>
                 Salin Link
               </Button>
@@ -422,34 +428,21 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Payment Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
-      {isMobile ? (
-        <Sheet open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <SheetContent side="bottom" className="overflow-y-auto">
-            <SheetHeader><SheetTitle>Catat Pembayaran</SheetTitle></SheetHeader>
-            <div className="space-y-field px-4 pb-4">
-              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
-            </div>
-            <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
-              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-            <div className="space-y-field">
-              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
-            </div>
-            <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Payment Dialog — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
+      <ResponsiveFormDialog
+        open={paymentDialog}
+        onOpenChange={setPaymentDialog}
+        title="Catat Pembayaran"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPaymentDialog(false)} disabled={paying}>Batal</Button>
+            <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
+          </>
+        }
+      >
+        <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
+      </ResponsiveFormDialog>
     </>
   );
 }

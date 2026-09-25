@@ -30,6 +30,7 @@ vi.mock("@/lib/db", () => ({
     },
     attendanceRecord: {
       findMany: vi.fn().mockResolvedValue([]),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
     leaveRequest: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -153,6 +154,63 @@ describe("HR permission gate — attendance admin", () => {
     const { GET } = await import("../attendance/today/route");
     const res = await GET(new Request("http://localhost/api/attendance/today") as never);
     expect(res.status).toBe(200);
+  });
+});
+
+describe("HR permission gate — attendance trend", () => {
+  it("401 with no session", async () => {
+    await mockSession(null);
+    const { GET } = await import("../attendance/trend/route");
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("403 with attendance.view but no hr.view", async () => {
+    await mockSession(session("SCHOOL_ADMIN", { permissions: ["attendance.view"] }));
+    const { GET } = await import("../attendance/trend/route");
+    const res = await GET();
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.missing).toBe("hr.view");
+  });
+
+  it("403 with hr.view but no attendance.view", async () => {
+    await mockSession(session("SCHOOL_ADMIN", { permissions: ["hr.view"] }));
+    const { GET } = await import("../attendance/trend/route");
+    const res = await GET();
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.missing).toBe("attendance.view");
+  });
+
+  it("200 and a 7-element trend array for a role holding both permissions", async () => {
+    const s = session("SCHOOL_ADMIN", { permissions: ["attendance.view", "hr.view"] });
+    await mockSession(s);
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.attendanceRecord.groupBy).mockResolvedValue([] as never);
+    const { GET } = await import("../attendance/trend/route");
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+    expect(body).toHaveLength(7);
+    for (const entry of body) {
+      expect(entry).toEqual(
+        expect.objectContaining({
+          date: expect.any(String),
+          present: expect.any(Number),
+          late: expect.any(Number),
+          absent: expect.any(Number),
+        }),
+      );
+    }
+    expect(prisma.attendanceRecord.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          employee: { tenantId: s.tenantId, status: "ACTIVE" },
+        }),
+      }),
+    );
   });
 });
 

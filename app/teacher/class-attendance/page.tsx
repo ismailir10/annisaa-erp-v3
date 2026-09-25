@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,10 +10,14 @@ import { Users, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/portal/page-header";
+import { SaveStatus } from "@/components/portal/save-status";
+import { Button } from "@/components/ui/button";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 
 type Assignment = {
   id: string;
-  classSection: { id: string; name: string; program: { name: string }; campus: { name: string }; _count: { enrollments: number } };
+  classSection: { id: string; name: string; status?: string; academicYear?: {status: string}; program: { name: string }; campus: { name: string }; _count: { enrollments: number } };
 };
 
 type StudentRecord = {
@@ -40,9 +45,13 @@ const AVATAR_BG: Record<Status, string> = {
 };
 
 export default function ClassAttendancePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const requestedClass = searchParams?.get("classId") ?? "";
+  const requestedDate = searchParams?.get("date") ?? "";
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta")));
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [loading, setLoading] = useState(true);
@@ -51,22 +60,40 @@ export default function ClassAttendancePage() {
   const [assignmentsError, setAssignmentsError] = useState(false);
   const [rosterError, setRosterError] = useState(false);
   const rosterRequestId = useRef(0);
+  const assignmentRequestId = useRef(0);
+  const context = `${selectedClass}:${date}`;
+  const contextToken = useMemo(() => ({context}), [context]);
+  const activeContext = useRef<typeof contextToken | null>(contextToken);
+  useEffect(() => { activeContext.current = contextToken; return () => { activeContext.current = null; }; }, [contextToken]);
+  const confirmed = useRef<Record<string, Status>>({});
+  const [confirmedStatuses, setConfirmedStatuses] = useState<Record<string, Status>>({});
+  const [saveErrors,setSaveErrors] = useState<Record<string,string>>({});
+  const [failedIntents, setFailedIntents] = useState<Record<string, Status>>({});
   const saveOperationIds = useRef<Record<string, number>>({});
   const saveQueues = useRef<Record<string, Promise<void> | undefined>>({});
 
   const loadAssignments = useCallback(async () => {
+    const requestId = ++assignmentRequestId.current;
     setLoading(true); setAssignmentsError(false);
     try {
       const res = await fetch("/api/teaching-assignments/my");
       if (!res.ok) throw new Error("assignments");
       const data = await res.json();
+      if (requestId !== assignmentRequestId.current) return;
       setAssignments(data);
-      if (data.length > 0) setSelectedClass(data[0].classSection.id);
+      if (data.length > 0) {
+        const validRequestedClass = data.some((a: Assignment) => a.classSection.id === requestedClass);
+        const nextClass = validRequestedClass ? requestedClass : (data.find((a: Assignment) => a.classSection.status === "ACTIVE" && a.classSection.academicYear?.status === "ACTIVE") ?? data[0]).classSection.id;
+        const nextDate = resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta"));
+        setSelectedClass(nextClass); setDate(nextDate);
+        if (nextClass !== requestedClass || nextDate !== requestedDate) router.replace(`/teacher/class-attendance?classId=${encodeURIComponent(nextClass)}&date=${nextDate}`, {scroll:false});
+      }
     } catch {
+      if (requestId !== assignmentRequestId.current) return;
       setAssignmentsError(true);
       toast.error("Daftar kelas tidak bisa dimuat. Coba lagi sebentar ya.");
-    } finally { setLoading(false); }
-  }, []);
+    } finally { if (requestId === assignmentRequestId.current) setLoading(false); }
+  }, [requestedClass, requestedDate, router]);
 
   useEffect(() => { loadAssignments(); }, [loadAssignments]);
 
@@ -75,6 +102,7 @@ export default function ClassAttendancePage() {
     if (!selectedClass) return;
     const requestId = ++rosterRequestId.current;
     setLoadingRoster(true);
+    setSaveState({}); setFailedIntents({}); setSaveErrors({}); setConfirmedStatuses({});
     setRosterError(false);
     try {
     const res = await fetch(`/api/student-attendance?classSectionId=${selectedClass}&date=${date}`);
@@ -84,7 +112,9 @@ export default function ClassAttendancePage() {
     setStudents(data);
     setLastLoadedCount(data.length || 10);
     const initial: Record<string, Status> = {};
-    for (const s of data) initial[s.student.id] = (s.attendance?.status as Status) ?? "PRESENT";
+    for (const s of data) if (s.attendance && ROTATION.includes(s.attendance.status as Status)) initial[s.student.id] = s.attendance.status as Status;
+    for (const [id, status] of Object.entries(initial)) confirmed.current[`${selectedClass}:${date}:${id}`] = status;
+    setConfirmedStatuses(initial);
     setStatuses(initial);
     } catch {
       if (requestId !== rosterRequestId.current) return;
@@ -101,57 +131,60 @@ export default function ClassAttendancePage() {
   // behind unrelated toasts (e.g. a stale Cuti notification stuck on screen).
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
 
-  async function cycleStatus(studentId: string) {
-    const current = statuses[studentId] ?? "PRESENT";
-    const next = ROTATION[(ROTATION.indexOf(current) + 1) % ROTATION.length];
-    const previous = current;
-    const operationId = (saveOperationIds.current[studentId] ?? 0) + 1;
-    saveOperationIds.current[studentId] = operationId;
+  // URL context survives reload/back. Only validated assigned classes are canonicalized.
+  useEffect(() => {
+    setDate(resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta")));
+  }, [requestedDate]);
+  function changeContext(nextClass: string, nextDate: string) {
+    setSelectedClass(nextClass); setDate(nextDate);
+    router.replace(`/teacher/class-attendance?classId=${encodeURIComponent(nextClass)}&date=${nextDate}`, {scroll:false});
+  }
 
-    // Optimistic update + per-row pending marker
-    setStatuses((prev) => ({ ...prev, [studentId]: next }));
-    setSaveState((prev) => ({ ...prev, [studentId]: "saving" }));
+  function cycleStatus(studentId: string) {
+    const current = statuses[studentId];
+    persistStatus(studentId, current ? ROTATION[(ROTATION.indexOf(current) + 1) % ROTATION.length] : "PRESENT");
+  }
 
-    const save = async () => { try {
-      const res = await fetch("/api/student-attendance/mark", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classSectionId: selectedClass,
-          date,
-          records: [{ studentId, status: next }],
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        if (saveOperationIds.current[studentId] === operationId) { setStatuses((prev) => ({ ...prev, [studentId]: previous })); setSaveState((prev) => ({ ...prev, [studentId]: "error" })); }
-        if (saveOperationIds.current[studentId] === operationId) toast.error(d?.error || "Absensi tidak tersimpan. Coba ketuk ulang ya.");
-        return;
+  function persistStatus(studentId: string, next: Status) {
+    const key = `${context}:${studentId}`;
+    const operationId = (saveOperationIds.current[key] ?? 0) + 1;
+    saveOperationIds.current[key] = operationId;
+    const isCurrent = () => activeContext.current === contextToken && saveOperationIds.current[key] === operationId;
+    setStatuses(prev => ({ ...prev, [studentId]: next }));
+    setFailedIntents(prev => { const copy = { ...prev }; delete copy[studentId]; return copy; });
+    setSaveState(prev => ({ ...prev, [studentId]: "saving" }));
+    const save = async () => {
+      try {
+        const response = await fetch("/api/student-attendance/mark", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classSectionId: selectedClass, date, records: [{ studentId, status: next }] }),
+        });
+        if (!response.ok) { const body = await response.json().catch(()=>({})); throw Error(body.error || "Absensi belum tersimpan. Coba lagi ya."); }
+        const body = await response.json();
+        if (body.saved !== 1) throw Error("Absensi belum tersimpan. Coba lagi ya.");
+        confirmed.current[key] = next;
+        if (activeContext.current === contextToken) setConfirmedStatuses(prev => ({ ...prev, [studentId]: next }));
+        if (isCurrent()) setSaveState(prev => ({ ...prev, [studentId]: "saved" }));
+      } catch (error) {
+        if (!isCurrent()) return;
+        const message = error instanceof Error ? error.message : "Absensi belum tersimpan. Coba lagi ya.";
+        setSaveErrors(prev=>({...prev,[studentId]:message}));
+        setStatuses(prev => { const copy = { ...prev }; if (confirmed.current[key]) copy[studentId] = confirmed.current[key]; else delete copy[studentId]; return copy; });
+        setFailedIntents(prev => ({ ...prev, [studentId]: next }));
+        setSaveState(prev => ({ ...prev, [studentId]: "error" }));
+        toast.error(message);
       }
-      const body = await res.json().catch(() => ({ saved: 0 }));
-      // Guard against a successful HTTP status but zero rows persisted —
-      // mark route returns { saved, total }; treat saved < total as failure.
-      if (typeof body.saved === "number" && body.saved < 1) {
-        if (saveOperationIds.current[studentId] === operationId) { setStatuses((prev) => ({ ...prev, [studentId]: previous })); setSaveState((prev) => ({ ...prev, [studentId]: "error" })); }
-        if (saveOperationIds.current[studentId] === operationId) toast.error("Absensi tidak tersimpan. Coba ketuk ulang ya.");
-        return;
-      }
-      if (saveOperationIds.current[studentId] === operationId) setSaveState((prev) => ({ ...prev, [studentId]: "saved" }));
-    } catch {
-      if (saveOperationIds.current[studentId] === operationId) { setStatuses((prev) => ({ ...prev, [studentId]: previous })); setSaveState((prev) => ({ ...prev, [studentId]: "error" })); }
-      if (saveOperationIds.current[studentId] === operationId) toast.error("Koneksi terputus. Coba lagi sebentar ya.");
-    } };
-    const queued = saveQueues.current[studentId] ?? Promise.resolve();
-    const nextQueue = queued.then(save, save);
-    saveQueues.current[studentId] = nextQueue;
-    void nextQueue.finally(() => { if (saveQueues.current[studentId] === nextQueue) delete saveQueues.current[studentId]; });
+    };
+    const queued = (saveQueues.current[key] ?? Promise.resolve()).then(save, save);
+    saveQueues.current[key] = queued;
+    void queued.finally(() => { if (saveQueues.current[key] === queued) delete saveQueues.current[key]; });
   }
 
   const counts = {
-    PRESENT: Object.values(statuses).filter((s) => s === "PRESENT").length,
-    ABSENT: Object.values(statuses).filter((s) => s === "ABSENT").length,
-    SICK: Object.values(statuses).filter((s) => s === "SICK").length,
-    PERMISSION: Object.values(statuses).filter((s) => s === "PERMISSION").length,
+    PRESENT: Object.values(confirmedStatuses).filter((s) => s === "PRESENT").length,
+    ABSENT: Object.values(confirmedStatuses).filter((s) => s === "ABSENT").length,
+    SICK: Object.values(confirmedStatuses).filter((s) => s === "SICK").length,
+    PERMISSION: Object.values(confirmedStatuses).filter((s) => s === "PERMISSION").length,
   };
 
   // The header is rendered in every branch, including loading — it used to
@@ -168,7 +201,7 @@ export default function ClassAttendancePage() {
     </div>
   );
 
-  if (assignments.length === 0) {
+  if (assignments.length === 0 || assignmentsError) {
     return (
       <div data-empty-state={assignmentsError ? "assignments-error" : "no-class-assigned"}>
         <PageHeader title="Absensi kelas" />
@@ -188,12 +221,12 @@ export default function ClassAttendancePage() {
       <PageHeader title="Absensi kelas" />
 
       {/* Class + Date toolbar */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+      <div className="mb-4 grid grid-cols-1 gap-2">
         <label htmlFor="class-attendance-class" className="sr-only">
           Pilih kelas
         </label>
-        <Select value={selectedClass} onValueChange={v => v && setSelectedClass(v)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-        <SelectTrigger id="class-attendance-class" className="tap-target w-full sm:flex-1">
+        <Select value={selectedClass} onValueChange={v => v && changeContext(v, date)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
+        <SelectTrigger id="class-attendance-class" className="tap-target w-full min-w-0">
             <SelectValue placeholder="Pilih kelas">
               {(() => {
                 const a = assignments.find(a => a.classSection.id === selectedClass);
@@ -212,7 +245,7 @@ export default function ClassAttendancePage() {
         <label htmlFor="class-attendance-date" className="sr-only">
           Tanggal kehadiran
         </label>
-        <Input id="class-attendance-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="tap-target w-full sm:w-36" />
+        <Input id="class-attendance-date" type="date" value={date} onChange={e => { const valid = resolveTeacherDate(e.target.value, ""); if (valid) changeContext(selectedClass, valid); }} className="tap-target w-full" />
       </div>
 
       {/*
@@ -221,7 +254,7 @@ export default function ClassAttendancePage() {
         signal on nothing at all, which is the same lesson #500 recorded for
         the parent Tagihan total.
       */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-sm">
+      {!loadingRoster && !rosterError ? <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-sm">
         {(
           [
             ["Hadir", counts.PRESENT, "text-status-present-text"],
@@ -234,7 +267,7 @@ export default function ClassAttendancePage() {
             {label} {count}
           </span>
         ))}
-      </div>
+      </div> : null}
 
       {/* Student list — skeleton during roster reload, tap to cycle status on rendered rows */}
       {loadingRoster ? (
@@ -267,18 +300,18 @@ export default function ClassAttendancePage() {
       ) : (
         <div className="space-y-1.5">
           {students.map((s) => {
-            const status = statuses[s.student.id] ?? "PRESENT";
+            const status = statuses[s.student.id];
             return (
               <div key={s.student.id}>
                 <button
                   data-testid="roster-row"
                   onClick={() => cycleStatus(s.student.id)}
-                  className={`w-full min-h-11 flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/20 transition-colors text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${ROW_TINT[status]}`}
-                  aria-label={`${s.student.name} — ${status === "PRESENT" ? "Hadir" : status === "ABSENT" ? "Alpa" : status === "SICK" ? "Sakit" : "Izin"}. Ketuk untuk mengubah status.`}
+                  className={`w-full min-h-11 flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary/20 transition-colors text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${status ? ROW_TINT[status] : "bg-card"}`}
+                  aria-label={`${s.student.name} — ${!status ? "Belum dicatat" : status === "PRESENT" ? "Hadir" : status === "ABSENT" ? "Alpa" : status === "SICK" ? "Sakit" : "Izin"}. ${status ? "Ketuk untuk mengubah status." : "Ketuk untuk mencatat Hadir."}`}
                   aria-busy={saveState[s.student.id] === "saving" || undefined}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${AVATAR_BG[status]}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${status ? AVATAR_BG[status] : "bg-muted text-muted-foreground"}`}>
                       {status === "PRESENT" ? <Check size={14} /> : s.student.name[0]}
                     </div>
                     <div>
@@ -286,10 +319,9 @@ export default function ClassAttendancePage() {
                       {s.student.nickname && <p className="text-xs text-muted-foreground">{s.student.nickname}</p>}
                     </div>
                   </div>
-                  <StatusBadge status={status} />
-                  {saveState[s.student.id] ? <span className={`text-xs ${saveState[s.student.id] === "error" ? "text-status-absent-text" : "text-muted-foreground"}`} aria-hidden="true">{saveState[s.student.id] === "saving" ? "Menyimpan…" : saveState[s.student.id] === "saved" ? "Tersimpan" : "Belum tersimpan"}</span> : null}
-                  {saveState[s.student.id] ? <span className="sr-only" role="status">{saveState[s.student.id] === "saving" ? "Menyimpan absensi" : saveState[s.student.id] === "saved" ? "Absensi tersimpan" : "Absensi belum tersimpan"}</span> : null}
+                  {status ? <StatusBadge status={status} /> : <span className="text-small text-muted-foreground">Belum dicatat</span>}
                 </button>
+                {saveState[s.student.id] ? <div className="flex items-center justify-between gap-2 px-3 py-2"><SaveStatus state={saveState[s.student.id]} message={saveState[s.student.id] === "saving" ? "Menyimpan absensi…" : saveState[s.student.id] === "saved" ? "Absensi tersimpan" : `Absensi belum tersimpan. ${saveErrors[s.student.id] ?? "Gunakan Coba lagi."}`} />{failedIntents[s.student.id] ? <Button variant="outline" className="min-h-11" onClick={() => persistStatus(s.student.id, failedIntents[s.student.id])}>Coba lagi</Button> : null}</div> : null}
               </div>
             );
           })}
@@ -302,7 +334,7 @@ export default function ClassAttendancePage() {
         the teacher had no way to know.
       */}
       <p className="text-xs text-muted-foreground text-center mt-4">
-        Ketuk siswa untuk mengubah status (Hadir → Alpa → Sakit → Izin). Tersimpan otomatis.
+        Ketuk siswa yang belum dicatat untuk menyimpan Hadir. Ketuk lagi untuk mengganti status (Hadir → Alpa → Sakit → Izin). Angka di atas menghitung absensi yang sudah tersimpan.
       </p>
     </div>
   );

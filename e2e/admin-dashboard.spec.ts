@@ -48,49 +48,96 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
-  test("renders stat grid with all four metric cards", async ({ page }) => {
-    const statGrid = page.getByTestId("dashboard-stat-grid");
-    await expect(statGrid.getByText("Total Karyawan", { exact: false })).toBeVisible();
-    await expect(statGrid.getByText("Hadir Hari Ini", { exact: false })).toBeVisible();
-    await expect(statGrid.getByText("Terlambat", { exact: false })).toBeVisible();
-    await expect(statGrid.getByText("Tidak Hadir", { exact: false })).toBeVisible();
+  test("fits one 1440x900 screen with no vertical scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // Let queue tiles / urgent list / attendance strip finish rendering
+    // before measuring — the page is server-rendered so this is mostly a
+    // safety margin for fonts/webfont reflow.
+    await expect(page.getByTestId("dashboard-queue-tiles")).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1);
+    expect(overflow).toBe(true);
   });
 
-  test("renders attendance trend chart container or its empty state", async ({ page }) => {
+  test("renders queue summary tiles linking into the work queue by kind", async ({ page }) => {
+    const tiles = page.getByTestId("dashboard-queue-tiles");
+    await expect(tiles).toBeVisible();
+    const invoiceTile = tiles.locator('a[href="/admin/work-queue?kind=invoice"]');
+    if (await invoiceTile.count()) {
+      await invoiceTile.first().click();
+      await expect(page).toHaveURL(/\/admin\/work-queue\?kind=invoice/);
+      await expect(page.getByTestId("admin-work-queue")).toBeVisible();
+    }
+  });
+
+  test("renders the urgent list (top items) or nothing when the queue is empty", async ({ page }) => {
+    const urgentList = page.getByTestId("dashboard-urgent-list");
+    // The urgent list unmounts entirely when the queue total is 0 — either
+    // state is valid, so only assert the invariant: if present, it links to
+    // the full queue with a real count.
+    if (await urgentList.count()) {
+      await expect(urgentList).toBeVisible();
+      await expect(urgentList.getByRole("link", { name: /Lihat semua \(\d+\)/ })).toHaveAttribute("href", "/admin/work-queue");
+    }
+  });
+
+  test("renders the attendance strip linking to employee-attendance", async ({ page }) => {
+    const strip = page.getByTestId("dashboard-attendance-strip");
+    await expect(strip).toBeVisible();
+    await expect(strip.getByRole("link", { name: /Lihat kehadiran/ })).toHaveAttribute("href", "/admin/employee-attendance");
+  });
+
+  test("renders actionable leave and admission records in the work queue table", async ({ page }) => {
+    await page.goto("/admin/work-queue");
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    const [leaveResponse, enrollmentResponse] = await Promise.all([
+      page.request.get("/api/leave/requests?status=PENDING&pageSize=100"),
+      page.request.get("/api/enrollments?pageSize=100"),
+    ]);
+    expect(leaveResponse.ok()).toBeTruthy();
+    expect(enrollmentResponse.ok()).toBeTruthy();
+    const leaveBody = await leaveResponse.json() as { data: Array<{ id: string; employee: { nama: string } }>; capabilities: { approve: boolean } };
+    const enrollmentBody = await enrollmentResponse.json() as { data: Array<{ id: string; childName: string; studentId: string | null; status: string }> };
+    expect(leaveBody.capabilities.approve).toBe(true);
+
+    const pendingLeave = leaveBody.data[0];
+    if (pendingLeave) {
+      await queue.getByRole("textbox", { name: "Cari pekerjaan, nama, atau nomor…" }).fill(pendingLeave.employee.nama);
+      await expect(queue.locator(`a[href="/admin/leave-requests?requestId=${pendingLeave.id}"]`)).toBeVisible();
+      await queue.getByRole("textbox", { name: "Cari pekerjaan, nama, atau nomor…" }).fill("");
+    }
+    const pendingForm = enrollmentBody.data.find(row => !row.studentId && ["SUBMITTED", "UNDER_REVIEW"].includes(row.status));
+    if (pendingForm) {
+      await queue.getByRole("textbox", { name: "Cari pekerjaan, nama, atau nomor…" }).fill(pendingForm.childName);
+      await expect(queue.locator(`a[href="/admin/enrollments/${pendingForm.id}"]`)).toBeVisible();
+    }
+  });
+
+  test("work queue supports filtering by kind via ?kind= and keeps leave/payroll distinct", async ({ page }) => {
+    await page.goto("/admin/work-queue?kind=payroll");
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    await expect(queue.locator('a[href^="/admin/leave-requests?requestId="]')).toHaveCount(0);
+  });
+
+  test("renders the 7-day attendance trend chart on the employee-attendance page (not the dashboard)", async ({ page }) => {
+    await page.goto("/admin/employee-attendance");
     await expect(page.getByText("Tren Kehadiran")).toBeVisible();
     await expect(page.getByText("7 hari kerja terakhir")).toBeVisible();
-    // Either the chart container is rendered (data path), or the empty state copy
-    // is visible (zero-data path). Accept either — both are valid.
     const chartEl = page.locator('[data-slot="chart"]');
     const emptyEl = page.getByText("Data kehadiran belum tersedia");
     const chartOrEmpty = chartEl.or(emptyEl).first();
     await expect(chartOrEmpty).toBeVisible();
+    // The dashboard-only "Lihat detail" link is dropped on its own page.
+    await expect(page.getByRole("link", { name: "Lihat detail" })).toHaveCount(0);
   });
 
-  test("renders pending actions with leave + admissions rows", async ({ page }) => {
-    // Scope to the PendingActions card to avoid sidebar nav matches
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard.getByText("Pengajuan Cuti")).toBeVisible(); // SUPER_ADMIN has leave.view
-    await expect(pendingCard.getByText("Pendaftaran Baru")).toBeVisible(); // SUPER_ADMIN has admissions.view
-  });
-
-  test("renders activity feed (rows or empty state copy)", async ({ page }) => {
-    await expect(page.getByText("Aktivitas Terbaru")).toBeVisible();
-    // Either activity rows (avatar) or empty-state copy — both valid
+  test("dashboard right rail shows recent activity at xl width only", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     const avatarEl = page.locator('[data-slot="avatar"]');
     const emptyEl = page.getByText("Belum ada aktivitas hari ini");
     const feedOrEmpty = avatarEl.or(emptyEl).first();
     await expect(feedOrEmpty).toBeVisible();
-  });
-
-  test("renders quick actions with all four links for full perms", async ({ page }) => {
-    // Scope to quick-actions section (h2 with "Aksi Cepat" + sibling grid)
-    const quickActionsSection = page.getByTestId("quick-actions");
-    await expect(quickActionsSection.getByText("Aksi Cepat")).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Jalankan Penggajian/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Lihat Kehadiran/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Pengajuan Cuti/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Tambah Karyawan/ })).toBeVisible();
   });
 });
 
@@ -101,25 +148,29 @@ test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
     await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
-  test("hides payroll row in pending actions", async ({ page }) => {
-    // Scope to the PendingActions card
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard).toBeVisible();
-    await expect(pendingCard.getByText("Penggajian Terakhir")).toHaveCount(0);
+  test("keeps payroll records out of the authorized work queue", async ({ page }) => {
+    const tiles = page.getByTestId("dashboard-queue-tiles");
+    await expect(tiles).toBeVisible();
+    await expect(tiles.locator('a[href="/admin/work-queue?kind=payroll"]')).toHaveCount(0);
+    expect((await page.request.get("/api/payroll")).status()).toBe(403);
+
+    await page.goto("/admin/work-queue");
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    expect((await page.request.get("/api/enrollments?pageSize=1")).status()).toBe(200);
+    await expect(queue.locator('a[href^="/admin/payroll/"]')).toHaveCount(0);
   });
 
-  test("hides leave row (SCHOOL_ADMIN lacks leave.view)", async ({ page }) => {
-    // Scope to the PendingActions card — sidebar nav may still have "Pengajuan Cuti"
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard).toBeVisible();
-    await expect(pendingCard.getByText("Pengajuan Cuti")).toHaveCount(0);
-  });
+  test("keeps leave decisions out of the authorized work queue", async ({ page }) => {
+    const tiles = page.getByTestId("dashboard-queue-tiles");
+    await expect(tiles).toBeVisible();
+    await expect(tiles.locator('a[href="/admin/work-queue?kind=leave"]')).toHaveCount(0);
+    expect((await page.request.get("/api/leave/requests")).status()).toBe(403);
 
-  test("hides the Aksi Cepat section entirely", async ({ page }) => {
-    // SCHOOL_ADMIN lacks `hr.view`, so all four HR-anchored quick actions
-    // (Jalankan Penggajian + Lihat Kehadiran + Pengajuan Cuti + Tambah
-    // Karyawan) gate out and the whole `<QuickActions>` returns null.
-    await expect(page.getByTestId("quick-actions")).toHaveCount(0);
-    await expect(page.getByText("Aksi Cepat")).toHaveCount(0);
+    await page.goto("/admin/work-queue");
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    expect((await page.request.get("/api/invoices?pageSize=1")).status()).toBe(200);
+    await expect(queue.locator('a[href^="/admin/leave-requests?requestId="]')).toHaveCount(0);
   });
 });

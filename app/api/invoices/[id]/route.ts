@@ -1,12 +1,14 @@
+import { invoiceCapabilities } from "@/lib/finance/invoice-capabilities";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { updateInvoiceSchema } from "@/lib/validations/invoice";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) return NextResponse.json(null, { status: 403 });
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.view")) return NextResponse.json(null, { status: 403 });
 
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({
@@ -19,12 +21,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
 
   if (!invoice || invoice.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(invoice);
+  return NextResponse.json({ ...invoice, capabilities: invoiceCapabilities(session) });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
   const existing = await prisma.invoice.findUnique({ where: { id } });
@@ -63,5 +65,5 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     revalidateTag("student-invoices", { expire: 0 });
   }
 
-  return NextResponse.json(invoice);
+  return NextResponse.json({ ...invoice, capabilities: invoiceCapabilities(session) });
 }

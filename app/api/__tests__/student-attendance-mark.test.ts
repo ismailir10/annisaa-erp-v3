@@ -177,3 +177,13 @@ describe("POST /api/student-attendance/mark — role + Zod + tenant-scoped assig
     expect(legacyFindFirst).not.toHaveBeenCalled();
   });
 });
+
+it("scopes legacy updates to the selected class and reports a cross-class legacy collision",async()=>{
+ const {getSession}=await import("@/lib/auth");const {prisma}=await import("@/lib/db");
+ vi.mocked(getSession).mockResolvedValue(makeSession("TEACHER","emp-1"));vi.mocked(prisma.teachingAssignment.findFirst).mockResolvedValue({id:"ta"} as never);
+ const findFirst=vi.fn().mockResolvedValue(null), create=vi.fn().mockRejectedValue({code:"P2002"}), update=vi.fn();
+ vi.mocked(prisma.$transaction).mockImplementation((async (cb:(tx:unknown)=>unknown)=>cb({studentEnrollment:{findMany:vi.fn().mockResolvedValue([{studentId:"s-1"}])},classSession:{findMany:vi.fn().mockResolvedValue([])},studentAttendance:{findFirst,create,update}})) as never);
+ const {POST}=await import("../student-attendance/mark/route");const result=await POST(makeReq(validBody) as never);
+ expect(findFirst).toHaveBeenCalledWith({where:{studentId:"s-1",classSectionId:"cs-1",date:validBody.date,sessionId:null},select:{id:true}});
+ expect(result.status).toBe(409);expect((await result.json()).error).toContain("kelas lain");expect(update).not.toHaveBeenCalled();
+});

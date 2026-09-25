@@ -11,6 +11,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
+import { parentHref } from "@/lib/parent/navigation";
 
 export type ParentMoreItem = {
   label: string;
@@ -53,12 +54,11 @@ export const PARENT_MORE_ITEMS: ParentMoreItem[] = [
 export function ParentMoreSheet({
   open,
   onOpenChange,
-  /** Query string (without `?`) forwarded from the nav, e.g. `child=abc`. */
-  queryString = "",
+  childId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  queryString?: string;
+  childId?: string | null;
 }) {
   const pathname = usePathname();
 
@@ -82,7 +82,7 @@ export function ParentMoreSheet({
             {PARENT_MORE_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
-              const href = queryString ? `${item.href}?${queryString}` : item.href;
+              const href = parentHref(item.href, childId);
 
               return (
                 <li key={item.href}>

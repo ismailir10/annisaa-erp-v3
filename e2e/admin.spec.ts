@@ -20,19 +20,27 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin", { timeout: 15_000 });
   });
 
-  test("dashboard loads with stats", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Dasbor" })).toBeVisible();
-    await expect(page.locator("text=TOTAL KARYAWAN")).toBeVisible();
-    await expect(page.locator("text=HADIR HARI INI")).toBeVisible();
+  test("dashboard loads with the queue tiles and attendance strip", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: "Perlu ditangani" })).toBeVisible();
+    await expect(page.getByTestId("dashboard-queue-tiles")).toBeVisible();
+    await expect(page.getByTestId("dashboard-attendance-strip")).toBeVisible();
+  });
+
+  test("work queue table loads at /admin/work-queue", async ({ page }) => {
+    await page.goto("/admin/work-queue");
+    await page.waitForURL("**/admin/work-queue");
+    await expect(page.getByTestId("admin-work-queue")).toBeVisible();
   });
 
   test("employee list loads", async ({ page }) => {
     await page.goto("/admin/employees");
     await page.waitForURL("**/admin/employees");
-    await expect(page.locator("text=karyawan terdaftar")).toBeVisible();
+    // PageHeader description is a static purpose line (counts live in StatsCardsRow).
+    await expect(page.getByRole("heading", { name: "Karyawan", level: 1 })).toBeVisible();
+    await expect(page.getByRole("table")).toBeVisible();
   });
 
-  test("employee detail loads with salary tab", async ({ page }) => {
+  test("employee detail loads with salary section", async ({ page }) => {
     // Navigate via API to avoid depending on employee name in the table
     const res = await page.request.get("/api/employees?pageSize=1");
     const json = await res.json();
@@ -40,9 +48,9 @@ test.describe("Admin flows", () => {
     if (!empId) return;
     await page.goto(`/admin/employees/${empId}`);
     await page.waitForURL(`**/admin/employees/${empId}`);
-    await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
-    await page.getByRole("tab", { name: "Gaji" }).click();
-    await expect(page.locator("text=Gaji Pokok")).toBeVisible();
+    // Dossier layout (2026-09-26): single scroll, sections open by default.
+    await expect(page.locator("#profile")).toBeVisible();
+    await expect(page.locator("#salary").getByText("Gaji Pokok")).toBeVisible();
   });
 
   test("attendance page loads", async ({ page }) => {
@@ -86,11 +94,16 @@ test.describe("Admin flows", () => {
 
   test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
     // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
-    // admin surfaces retired → all redirect to /admin/penilaian. The page
+    // admin surfaces retired → all redirect to /admin/assessments. The page
     // files were deleted in the 2026-07-31 retirement cycle, so this rule is
     // now the only thing standing between an old bookmark and a 404.
-    await page.goto("/admin/assessments/templates");
-    await expect(page).toHaveURL("/admin/penilaian");
+    //
+    // 2026-09-25: the monitor itself was renamed /admin/penilaian →
+    // /admin/assessments, so the old /admin/assessments/:path* legacy alias
+    // (which used to redirect elsewhere) was retired — that slug is now the
+    // live route. The remaining legacy alias is /admin/assessment-templates.
+    await page.goto("/admin/assessment-templates");
+    await expect(page).toHaveURL("/admin/assessments");
     await expect(page.getByRole("heading", { name: "Pemantauan" })).toBeVisible();
   });
 
@@ -468,6 +481,8 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
       id: string;
       name: string;
       _count: { enrollments: number };
+      academicYearId: string;
+      academicYear: { name: string };
     }>;
     const targetClass = classSections
       .filter((c) => c._count?.enrollments > 0)
@@ -490,6 +505,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     // another test's or a prior leaked run's period.
     const period = `E2E Wizard ${Date.now()}`;
     await dialog.getByPlaceholder("April 2026").fill(period);
+    // Several active/planning years may coexist. Scope the billing year to
+    // the discovered class instead of assuming the default year owns it.
+    await dialog.getByRole("combobox", { name: "Tahun Ajaran" }).click();
+    await page.getByRole("option", { name: targetClass.academicYear.name, exact: true }).click();
 
     // Class multi-select (ClassSectionMultiPicker). Its Popover/Command list
     // portals to document.body — same as the manual-create combobox further
@@ -500,7 +519,11 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     const classSearch = page.getByPlaceholder("Cari kelas...");
     await expect(classSearch).toBeVisible({ timeout: 5_000 });
     await classSearch.fill(targetClass.name);
-    await page.getByRole("option").filter({ hasText: targetClass.name }).first().click();
+    // Class names can repeat across academic years; cmdk's value includes
+    // the class ID, so select the exact API result after searching by name.
+    const targetClassOption = page.locator(`[role="option"][data-value$=" ${targetClass.id}"]`);
+    await expect(targetClassOption).toBeVisible();
+    await targetClassOption.click();
     // Multi-select deliberately keeps the popover open on select (admins
     // toggle several classes in a row) — close it explicitly.
     await page.keyboard.press("Escape");

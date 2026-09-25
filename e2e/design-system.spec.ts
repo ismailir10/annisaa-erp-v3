@@ -36,9 +36,8 @@ test.describe("Design System reference page", () => {
       page.getByRole("link", { name: /Sumber di GitHub/i }),
     ).toBeVisible();
 
-    // Iframe element is present with the correct src. Content assertions
-    // happen in the second test which GETs the static HTML directly —
-    // avoids flaky cross-origin-sandbox frame timing in the iframe path.
+    // Check the embedded document itself: a successful direct GET does not
+    // prove the browser was allowed to display it in a frame.
     const iframe = page.locator(
       'iframe[title="Talib Design System reference"]',
     );
@@ -47,6 +46,9 @@ test.describe("Design System reference page", () => {
       "src",
       "/admin/design-system-reference.html",
     );
+    const reference = page.frameLocator('iframe[title="Talib Design System reference"]');
+    await expect(reference.locator("#brand")).toBeVisible();
+    await expect(reference.locator("#brand h2")).toContainText("Brand");
   });
 
   test("static reference HTML is served at expected path", async ({
@@ -55,6 +57,8 @@ test.describe("Design System reference page", () => {
     const response = await page.goto("/admin/design-system-reference.html");
     expect(response?.status()).toBe(200);
     expect(response?.headers()["content-type"] ?? "").toContain("text/html");
+    expect(response?.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+    expect(response?.headers()["content-security-policy-report-only"] ?? "").toContain("frame-ancestors 'self'");
 
     // Sanity — every canonical section the design system promises should be
     // anchor-linkable in the HTML.

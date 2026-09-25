@@ -24,7 +24,7 @@ export default function DesignSystemPage() {
         title="Design System"
         description="Canonical visual reference — tokens, recipes, overlays, portal shells, voice & tone. Read this before touching frontend code."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"

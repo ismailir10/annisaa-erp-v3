@@ -95,7 +95,7 @@ export async function GET(
           classSection: {
             select: {
               // `id` is what lets the dossier's Akademik rows deep-link into
-              // /admin/raport with the roster already selected.
+              // /admin/report-cards with the roster already selected.
               id: true,
               name: true,
               // `type` + `academicYear.status` drive the detail header's

@@ -1,0 +1,42 @@
+{
+  "sourceSha": "064cb83c8d463f459dae76e59f046d8afaa52d87",
+  "environment": "Local production build; demo-cookie accounts; disposable loopback database",
+  "method": "Native Chrome keyboard zoom, toolbar explicitly reported 200%; reset to 100% afterward",
+  "viewportCss": {
+    "width": 720,
+    "height": 341
+  },
+  "devicePixelRatioAt200Percent": 4,
+  "checks": [
+    {
+      "route": "/teacher",
+      "scrollWidth": 720,
+      "action": "Primary class action clickable and carries class/date to attendance"
+    },
+    {
+      "route": "/teacher/class-attendance",
+      "scrollWidth": 720,
+      "action": "Class and date controls legible; selected date retained"
+    },
+    {
+      "route": "/parent",
+      "scrollWidth": 720,
+      "action": "Other-child billing disclosure opens; sibling action navigates with child context"
+    },
+    {
+      "route": "/parent/invoices",
+      "scrollWidth": 720,
+      "action": "Full selected child identity visible and wraps"
+    },
+    {
+      "route": "/admin",
+      "scrollWidth": 720,
+      "action": "Queue/search reflow; navigation Sheet opens, Escape closes, native accessibility focus returns to trigger"
+    }
+  ],
+  "cleanup": "Native zoom reset to100%; injected localhost demo session cookie deleted",
+  "limitations": [
+    "Physical mobile operating-system keyboard not exercised",
+    "Representative-user usability not measured"
+  ]
+}

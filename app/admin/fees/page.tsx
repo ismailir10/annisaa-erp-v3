@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -212,7 +212,7 @@ export default function FeesPage() {
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
       <AdminTabs defaultValue={initialTab}>
-        <AdminTabsList>
+        <AdminTabsList className="h-auto w-full flex-wrap justify-start gap-1">
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
           <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
           <AdminTabsTrigger value="keringanan">Keringanan</AdminTabsTrigger>
@@ -266,13 +266,13 @@ export default function FeesPage() {
 
         {/* Fee Structure per Program */}
         <AdminTabsContent value="structure">
-          <div className="flex gap-3 mt-4 mb-4">
+          <div className="flex flex-wrap gap-3 mt-4 mb-4">
             <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)} items={programs.map(p => ({ label: p.name, value: p.id }))}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)} items={years.map(y => ({ label: y.name, value: y.id }))}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -303,7 +303,7 @@ export default function FeesPage() {
                 ))}
               </div>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
+                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary-text">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
                 <Button onClick={saveStructure} disabled={structureSaving}>
                   <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
                 </Button>

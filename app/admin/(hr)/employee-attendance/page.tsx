@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { AttendanceTrendChart, type WeeklyTrend } from "@/components/admin/dashboard";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
@@ -48,6 +49,11 @@ export default function AttendancePage() {
   // from the "tidak hadir" stat. Empty fetch failure is non-fatal — the stat
   // simply falls back to weekend-only exclusion.
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  // 7-weekday trend, fetched independently of the date/campus filters above —
+  // moved here from the admin dashboard (DMMT overhaul) via a small
+  // dedicated endpoint so this client page doesn't duplicate the dashboard's
+  // groupBy query. Fetch failure degrades to the chart's own empty state.
+  const [trend, setTrend] = useState<WeeklyTrend[]>([]);
 
   // Override modal
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -92,6 +98,15 @@ export default function AttendancePage() {
       .catch(() => {
         // Non-fatal: stat falls back to weekend-only exclusion.
       });
+  }, []);
+
+  // Trend chart fetched once on mount; non-fatal — falls back to the
+  // chart's own empty state (never a false zero, never blocks the table).
+  useEffect(() => {
+    fetch("/api/attendance/trend")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: WeeklyTrend[]) => setTrend(Array.isArray(rows) ? rows : []))
+      .catch(() => {});
   }, []);
 
   const present = data.filter((d) => ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance?.status ?? "")).length;
@@ -207,11 +222,14 @@ export default function AttendancePage() {
         }
       />
 
+      {/* Moved here from the admin dashboard — DMMT overhaul */}
+      <AttendanceTrendChart data={trend} hideDetailLink className="mb-4" />
+
       {/* Filters */}
-      <div className="flex gap-3 mb-4">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+      <div className="flex flex-wrap gap-3 mb-4">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full sm:w-44" />
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kampus</SelectItem>
             {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}

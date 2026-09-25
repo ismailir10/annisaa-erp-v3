@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
-import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -14,23 +13,18 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Download, Check, Pencil, Settings2, X } from "lucide-react";
+import { Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
-import Link from "next/link";
 
 type PayrollLine = {
   id: string; labelSnapshot: string; categorySnapshot: string;
@@ -179,10 +173,19 @@ export default function PayrollDetailPage() {
 
   async function handleApprove() {
     setApproving(true);
-    const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
-    if (res.ok) { toast.success("Penggajian disetujui"); setApproveModal(false); fetchData(); }
-    else toast.error("Gagal menyetujui");
-    setApproving(false);
+    try {
+      const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
+      if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
+      else {
+        toast.error("Gagal menyetujui");
+        // Re-thrown so ConfirmDialog keeps the modal open for retry instead
+        // of closing after a failed approve (it only closes when onConfirm
+        // resolves without throwing).
+        throw new Error("approve failed");
+      }
+    } finally {
+      setApproving(false);
+    }
   }
 
   async function handleExport() {
@@ -224,7 +227,7 @@ export default function PayrollDetailPage() {
   }
 
   if (loading) return <DetailPageSkeleton />;
-  if (!data) return <div className="text-center py-20 text-muted-foreground"><p>Data penggajian tidak ditemukan.</p></div>;
+  if (!data) return <EmptyState title="Data penggajian tidak ditemukan" description="Data penggajian tidak tersedia atau telah dihapus." actionLabel="Kembali ke daftar penggajian" actionHref="/admin/payroll" />;
 
   const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
   const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
@@ -410,15 +413,15 @@ export default function PayrollDetailPage() {
       </Card>
 
       {/* Summary */}
-      <StatsCardsRow cols={4}>
+      <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-2xl font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-2xl font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
-        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
+        <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary-text">{formatRupiah(totalNet)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Status</p>
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>
-      </StatsCardsRow>
+      </div>
 
       {prevPeriod && (
         <p className="text-xs text-muted-foreground mb-4">
@@ -469,7 +472,7 @@ export default function PayrollDetailPage() {
               <div className="mt-6 space-y-4">
                 {/* Variables button */}
                 {isDraft && (
-                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary flex items-center gap-1 hover:underline">
+                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary-text flex items-center gap-1 hover:underline">
                     <Settings2 size={12} /> Edit Variabel Kehadiran
                   </button>
                 )}
@@ -502,7 +505,7 @@ export default function PayrollDetailPage() {
                 <div className="border-t border-border pt-3 space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Pendapatan</span><span className="font-currency font-medium">{formatRupiah(detailItem.grossAmount)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Potongan</span><span className="font-currency font-medium text-destructive">{formatRupiah(detailItem.deductions)}</span></div>
-                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-primary">{formatRupiah(detailItem.netAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-base"><span>Bersih</span><span className="font-currency text-primary-text">{formatRupiah(detailItem.netAmount)}</span></div>
                 </div>
 
                 {/* Bank info */}
@@ -518,64 +521,62 @@ export default function PayrollDetailPage() {
       </Sheet>
 
       {/* Variables Modal */}
-      <Dialog open={!!varsModal} onOpenChange={(o) => !o && setVarsModal(null)}>
-        <DialogContent className="p-card sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Variabel Kehadiran</DialogTitle>
-            <DialogDescription>{varsModal?.employee.nama}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
-            <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={!!varsModal}
+        onOpenChange={(o) => !o && setVarsModal(null)}
+        title="Variabel Kehadiran"
+        description={varsModal?.employee.nama}
+        size="2xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setVarsModal(null)} disabled={varsSaving}>Batal</Button>
             <Button onClick={saveVars} disabled={varsSaving}>{varsSaving ? "Menyimpan..." : "Simpan & Hitung Ulang"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
+        <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
+        <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
+        <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
+      </ResponsiveFormDialog>
 
       {/* Line Adjustment Modal */}
-      <Dialog open={!!lineModal} onOpenChange={(o) => !o && setLineModal(null)}>
-        <DialogContent className="p-card sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Penyesuaian</DialogTitle>
-            <DialogDescription>{lineModal?.line.labelSnapshot} — {lineModal?.item.employee.nama}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-            <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-            <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
-            <p className="text-sm">Final: <span className="font-currency font-bold text-primary">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
-          </div>
-          <DialogFooter>
-            <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
+      <ResponsiveFormDialog
+        open={!!lineModal}
+        onOpenChange={(o) => !o && setLineModal(null)}
+        title="Penyesuaian"
+        description={lineModal ? `${lineModal.line.labelSnapshot} — ${lineModal.item.employee.nama}` : undefined}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setLineModal(null)} disabled={adjSaving}>Batal</Button>
             <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
+        <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
+        <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
+        <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+      </ResponsiveFormDialog>
 
-      {/* Approve — AlertDialog: irreversible (locks attendance) */}
-      <AlertDialog open={approveModal} onOpenChange={setApproveModal}>
-        <AlertDialogContent className="p-card sm:max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Setujui Penggajian</AlertDialogTitle>
-            <AlertDialogDescription>Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-2 space-y-2 text-sm">
-            <p>Periode: {data.periodStart} — {data.periodEnd}</p>
-            <p>Karyawan: {data.items.length}</p>
-            <p>Total Bersih: <span className="font-currency font-bold">{formatRupiah(totalNet)}</span></p>
-            {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApprove} disabled={approving}>{approving ? "Menyetujui..." : "Setujui"}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Approve — irreversible (locks attendance) */}
+      <ConfirmDialog
+        open={approveModal}
+        onOpenChange={setApproveModal}
+        title="Setujui Penggajian"
+        description="Setelah disetujui, kehadiran akan dikunci dan tidak bisa diubah."
+        confirmLabel="Setujui"
+        onConfirm={handleApprove}
+        loading={approving}
+      >
+        <div className="py-2 space-y-2 text-sm">
+          <p>Periode: {data.periodStart} — {data.periodEnd}</p>
+          <p>Karyawan: {data.items.length}</p>
+          <p>Total Bersih: <span className="font-currency font-bold">{formatRupiah(totalNet)}</span></p>
+          {noBank.length > 0 && <p className="text-destructive">{noBank.length} karyawan tanpa rekening bank</p>}
+        </div>
+      </ConfirmDialog>
     </>
   );
 }

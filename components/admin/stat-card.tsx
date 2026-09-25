@@ -30,8 +30,8 @@ export function StatCard({
   return (
     <Card className="transition-shadow hover:shadow-md" data-index={index}>
       <CardContent>
-        <div className="flex min-w-0 items-start justify-between gap-field">
-          <div className="min-w-0">
+        <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-field">
+          <div className="min-w-0 wrap-break-word">
             <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
               {label}
             </p>
@@ -42,8 +42,8 @@ export function StatCard({
               <p className="mt-1 text-small text-muted-foreground">{sublabel}</p>
             )}
           </div>
-          <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${c.bg}`}>
-            <Icon size={20} className={c.icon} />
+          <div className={`flex size-6 shrink-0 items-center justify-center rounded-xl sm:size-10 ${c.bg}`}>
+            <Icon className={`size-4 sm:size-5 ${c.icon}`} />
           </div>
         </div>
       </CardContent>

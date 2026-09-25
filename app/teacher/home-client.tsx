@@ -1,482 +1,122 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import {
-  MapPin,
-  BookHeart,
-  CalendarDays,
-  Check,
-  ClipboardList,
-  ChevronRight,
-} from "lucide-react";
 import Link from "next/link";
+import { BookHeart, CalendarDays, CheckCircle2, ClipboardList, MessageCircle, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
-import { SectionLabel } from "@/components/portal/section-label";
-import { getStatusConfig } from "@/components/ui/status-badge";
+import { TaskList, TaskRow } from "@/components/portal/task-list";
+import { SaveStatus } from "@/components/portal/save-status";
 import { formatDate, formatTime } from "@/lib/format";
+import type { TeacherClassSummary, TeacherSessionSummary } from "@/lib/teacher/home-progress";
 
-type TodayRecord = {
-  status: string;
-  checkInTime: string | null;
-  checkOutTime: string | null;
-};
+type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null };
+const SLOT_LABEL: Record<string,string> = {FULL_DAY:"Sehari penuh",MORNING:"Pagi",AFTERNOON:"Siang"};
 
-type TodaySession = {
-  id: string;
-  slot: string;
-  className: string;
-  rosterCount: number;
-};
-
-const SLOT_LABEL: Record<string, string> = {
-  FULL_DAY: "Sehari penuh",
-  MORNING: "Pagi",
-  AFTERNOON: "Siang",
-};
-
-/** Colour for the Status cell. Anything unlisted falls back to plain foreground. */
-const STATUS_TONE: Record<string, string> = {
-  PRESENT: "text-status-present-text",
-  LATE: "text-status-late-text",
-  PRESENT_NO_CHECKOUT: "text-status-late-text",
-  ABSENT: "text-status-absent-text",
-  SICK: "text-status-late-text",
-  PERMISSION: "text-status-leave-text",
-  ON_LEAVE: "text-status-leave-text",
-};
-
-/** Pure helper: derive optimistic next state for the status card.
- *  Exported for unit testing — no React, no fetch, no side effects.
- */
-export function nextStateAfterAction(
-  record: TodayRecord | null,
-  action: "check-in" | "check-out",
-  now: string = new Date().toISOString()
-): TodayRecord {
-  if (action === "check-in") {
-    return {
-      status: "PRESENT",
-      checkInTime: record?.checkInTime ?? now,
-      checkOutTime: record?.checkOutTime ?? null,
-    };
-  }
-  return {
-    status: record?.status ?? "PRESENT",
-    checkInTime: record?.checkInTime ?? now,
-    checkOutTime: record?.checkOutTime ?? now,
-  };
+export function nextStateAfterAction(record: TodayRecord | null, action: "check-in" | "check-out", now=new Date().toISOString()): TodayRecord {
+  return action === "check-in" ? {status:"PRESENT",checkInTime:record?.checkInTime??now,checkOutTime:record?.checkOutTime??null}
+    : {status:record?.status??"PRESENT",checkInTime:record?.checkInTime??now,checkOutTime:record?.checkOutTime??now};
 }
 
-export function TeacherHomeClient({
-  userName,
-  todayRecord: initialRecord,
-  homeroomClassSectionName,
-  todaySessions = [],
-}: {
-  userName: string;
-  todayRecord: TodayRecord | null;
-  homeroomClassSectionName?: string | null;
-  todaySessions?: TodaySession[];
+export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",classes=[],todaySessions=[],homeroomClassSectionName,attendanceUnavailable=false,classesUnavailable=false,sessionsUnavailable=false}: {
+  userName:string; todayRecord:TodayRecord|null; today:string; greeting?:string; classes?:TeacherClassSummary[];
+  todaySessions?:TeacherSessionSummary[]; homeroomClassSectionName?:string|null;
+  attendanceUnavailable?:boolean; classesUnavailable?:boolean; sessionsUnavailable?:boolean;
 }) {
-  const router = useRouter();
-  const reduceMotion = useReducedMotion();
-  const [record, setRecord] = useState(initialRecord);
-  const [time, setTime] = useState(new Date());
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [gpsStatus, setGpsStatus] = useState<string>("Lokasi dicatat saat Anda ketuk");
-  // FIND-015: defer time-dependent rendering until after client mount.
-  // Pre-fix, `time = new Date()` initialised differently server-vs-client
-  // (UTC vs WIB), producing the date string mismatch on the greeting line
-  // and tripping React error #418 (text content mismatch) when no
-  // AttendanceRecord existed to mask the divergence with a checked-in card.
-  const [mounted, setMounted] = useState(false);
+  const router=useRouter();
+  const [record,setRecord]=useState(todayRecord);
+  // Refresh also reconciles a response lost after a successful server write.
+  useEffect(() => { setRecord(todayRecord); }, [todayRecord]);
+  const [saving,setSaving]=useState(false);
+  const inFlight=useRef(false);
+  const [saveError,setSaveError]=useState<string|null>(null);
+  const [saved,setSaved]=useState(false);
+  const [locationMessage,setLocationMessage]=useState<string|null>(null);
+  const primary=classes.find(c => c.rosterCount > 0 && (c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount || !c.journal?.completed)) ?? classes[0];
+  const dateLabel=formatDate(today,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const classHref=(id:string,journey:"attendance"|"journal")=>`/teacher/${journey==="attendance"?"class-attendance":"student-journal/entry"}?classId=${encodeURIComponent(id)}&date=${today}`;
+  const needsAttendance=primary && (primary.attendanceRecorded===null || primary.attendanceRecorded<primary.rosterCount);
+  const needsJournal=primary && (!primary.journal || !primary.journal.completed);
+  const primaryHref=primary ? classHref(primary.id,needsAttendance?"attendance":"journal") : "";
+  const primaryLabel=primary ? needsAttendance ? primary.attendanceRecorded===null ? "Buka absensi kelas" : `Lanjutkan absensi · ${primary.attendanceRecorded}/${primary.rosterCount}`
+    : needsJournal ? "Lanjutkan jurnal harian" : "Periksa jurnal harian" : "";
+  const replyRows=[...new Map(classes.flatMap(c=>(c.replies??[]).map(reply=>[reply.studentId,{...reply,className:c.name}] as const))).values()];
 
-  // Live clock + mounted flag — both need the client to be active first.
-  useEffect(() => {
-    // Intentional: flips `mounted` exactly once after first render so the
-    // time-derived rendering below produces stable HTML matching the SSR
-    // output (which had `mounted=false`). Without this flag, the FIND-015
-    // hydration mismatch fires on the empty-state path. This is the
-    // canonical React "wait for hydration" pattern.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Auto-clear inline error after 5 s
-  useEffect(() => {
-    if (!actionError) return;
-    const t = setTimeout(() => setActionError(null), 5000);
-    return () => clearTimeout(t);
-  }, [actionError]);
-
-  const getGPS = useCallback((): Promise<{ lat: number; lng: number } | null> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        setGpsStatus("Lokasi tidak tersedia di perangkat ini");
-        resolve(null);
-        return;
-      }
-      setGpsStatus("Mengambil lokasi…");
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          // Coordinates mean nothing to a teacher — she wants confirmation.
-          // The precise value still goes to the server with the clock-in.
-          setGpsStatus("Lokasi tercatat");
-          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
-        () => {
-          // "GPS ditolak" reads as an accusation and leaves the teacher with
-          // nothing to do. Say what still happens.
-          setGpsStatus("Lokasi tidak diizinkan — kehadiran tetap tercatat");
-          resolve(null);
-        },
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    });
-  }, []);
-
-  const hasCheckedIn = !!record?.checkInTime;
-  const hasCheckedOut = !!record?.checkOutTime;
-
-  async function handleAction() {
-    if (loading) return;
-    setLoading(true);
-    setActionError(null);
-
-    // Determine action before any await so the optimistic state is correct
-    const action: "check-in" | "check-out" = hasCheckedIn ? "check-out" : "check-in";
-    const endpoint = action === "check-out" ? "/api/attendance/check-out" : "/api/attendance/check-in";
-
-    // --- OPTIMISTIC FLIP --- flip the card BEFORE GPS capture + network
-    const previousRecord = record;
-    setRecord(nextStateAfterAction(record, action));
-
-    // GPS capture (may be denied → undefined coords; POST still fires — unchanged)
-    const gps = await getGPS();
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat: gps?.lat, lng: gps?.lng }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      // Confirm with server-authoritative values
-      setRecord({
-        status: data.status,
-        checkInTime: data.checkInTime,
-        checkOutTime: data.checkOutTime,
+  async function handleAction(){
+    if(inFlight.current || record?.checkOutTime)return;
+    inFlight.current=true;setSaving(true);setSaveError(null);setSaved(false);
+    const action=record?.checkInTime?"check-out":"check-in";
+    try {
+      const gps=await new Promise<{lat:number;lng:number}|null>(resolve=>{
+        if(!navigator.geolocation){setLocationMessage("Lokasi tidak tersedia; kehadiran tetap dapat dicatat.");resolve(null);return;}
+        navigator.geolocation.getCurrentPosition(p=>{setLocationMessage("Lokasi tercatat.");resolve({lat:p.coords.latitude,lng:p.coords.longitude});},()=>{setLocationMessage("Lokasi tidak tersedia; kehadiran tetap dapat dicatat.");resolve(null);},{timeout:10000,enableHighAccuracy:true});
       });
-      setSuccess(action === "check-out" ? "Pulang tercatat" : "Masuk tercatat");
-      setTimeout(() => setSuccess(null), 2000);
-      router.refresh();
-    } else {
-      // Revert optimistic state on failure
-      setRecord(previousRecord);
-      setActionError("Gagal mencatat kehadiran. Coba ketuk ulang ya.");
-    }
-    setLoading(false);
+      const response=await fetch(`/api/attendance/${action}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(gps??{})});
+      const body=await response.json();
+      const data=response.ok?body:body.record;
+      if(!data)throw Error(body.error || "Kehadiran belum tersimpan. Coba lagi ya.");
+      if(!data.checkInTime || (action==="check-out"&&!data.checkOutTime))throw Error("Konfirmasi kehadiran belum tersedia. Coba lagi ya.");
+      setRecord({status:data.status,checkInTime:data.checkInTime,checkOutTime:data.checkOutTime});setSaved(true);router.refresh();
+    }catch(error){setSaveError(error instanceof Error?error.message:"Koneksi terputus. Coba lagi ya.");}
+    finally{inFlight.current=false;setSaving(false);}
   }
-
-  // Until mounted, render placeholders for time-derived strings so server
-  // SSR and client first-render produce identical HTML. Once `mounted` flips
-  // true via the useEffect above, the real clock takes over.
-  const timeStr = mounted ? formatTime(time.toISOString()) : "";
-  const dateStr = mounted
-    ? formatDate(time.toISOString().split("T")[0], {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : "";
-
-  // Sentence case: "Selamat pagi, Bu Sari" — voice.md capitalises the first
-  // word and proper nouns only, and "pagi" is neither.
-  const greeting = mounted
-    ? time.getHours() < 12 ? "pagi" : time.getHours() < 15 ? "siang" : time.getHours() < 18 ? "sore" : "malam"
-    : "datang";
-
-  // FIND-015 (full fix): render an empty shell on the server pass and on the
-  // client's first hydration pass. Only after `mounted` flips true (inside
-  // the live-clock useEffect) does the real UI render. This is heavier-handed
-  // than the prior partial mounted-guard but is the only way to guarantee
-  // SSR↔hydration produce identical HTML when (a) the body depends on a
-  // server-vs-client divergent `new Date()` and (b) framer-motion's initial
-  // values (`opacity: 0`, `y: 10`) emit slightly different DOM during the
-  // initial render than after one animation tick.
-  if (!mounted) {
-    return (
-      <div
-        className="space-y-6"
-        aria-busy="true"
-        aria-label="Memuat beranda"
-        suppressHydrationWarning
-      >
-        <div className="space-y-2">
-          <Skeleton className="h-7 w-64 rounded-md" />
-          <Skeleton className="h-4 w-40 rounded-md" />
+  const personalAttendance=(
+    <div className="space-y-2" aria-label="Kehadiran pribadi">
+      {attendanceUnavailable ? <EmptyState title="Kehadiran pribadi belum bisa dimuat" description="Muat ulang sebelum mencatat masuk atau pulang." actionLabel="Coba lagi" onAction={()=>router.refresh()} /> : (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-small">
+          <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
+            {record?.checkInTime ? <CheckCircle2 className="size-4 shrink-0 text-status-present-text" aria-hidden="true"/> : null}
+            {record?.checkOutTime ? `Masuk ${formatTime(record.checkInTime)} · pulang ${formatTime(record.checkOutTime)}` : record?.checkInTime ? `Masuk ${formatTime(record.checkInTime)} · sudah tercatat` : "Kehadiran pribadi belum dicatat"}
+          </p>
+          {!record?.checkOutTime && <Button variant="outline" disabled={saving} onClick={handleAction} className="min-h-11">{saving?"Menyimpan…":saveError?"Coba lagi":record?.checkInTime?"Catat pulang":"Catat masuk"}</Button>}
         </div>
-        <div className="flex flex-col items-center gap-4 pt-2">
-          <Skeleton className="h-8 w-28 rounded-md" />
-          <Skeleton className="h-36 w-36 rounded-full" />
-          <Skeleton className="h-4 w-48 rounded-md" />
-        </div>
-        <Skeleton className="h-28 w-full rounded-xl" />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Greeting */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduceMotion ? 0 : 0.4 }}
-      >
-        <PageHeader
-          title={`Selamat ${greeting}, ${userName}`}
-          subtitle={dateStr}
-          className="mb-0"
-        />
-      </motion.div>
-
-      {/* Clock + Check-in button */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.15, duration: 0.4 }}
-        className="mt-8 flex flex-col items-center"
-      >
-        <p className="font-currency text-display font-bold tracking-tight mb-6">
-          {timeStr}
-        </p>
-
-        <div className="relative">
-          <AnimatePresence mode="wait" initial={!reduceMotion}>
-            {success ? (
-              <motion.div
-                key="success"
-                initial={reduceMotion ? false : { scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={reduceMotion ? undefined : { scale: 0.8, opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.4 }}
-                className="w-36 h-36 rounded-full bg-status-present flex items-center justify-center"
-                role="status"
-                aria-label={success ?? undefined}
-              >
-                <motion.span
-                  initial={reduceMotion ? false : { scale: 0 }}
-                  animate={{ scale: [0, 1.3, 1] }}
-                  transition={{ duration: reduceMotion ? 0 : 0.4 }}
-                  className="text-white"
-                >
-                  {/* Icon, not a "✓" text glyph — the glyph rendered in
-                      whatever fallback face the device had for U+2713. */}
-                  <Check size={48} strokeWidth={3} aria-hidden="true" />
-                </motion.span>
-              </motion.div>
-            ) : (
-              <motion.button
-                key="button"
-                whileHover={!reduceMotion && !hasCheckedOut && !loading ? { scale: 1.03 } : {}}
-                whileTap={!reduceMotion && !hasCheckedOut && !loading ? { scale: 0.95 } : {}}
-                onClick={handleAction}
-                disabled={hasCheckedOut || loading}
-                className={`w-36 h-36 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg transition-colors ${
-                  hasCheckedOut
-                    ? "bg-status-present cursor-default"
-                    : hasCheckedIn
-                    ? "bg-status-late hover:opacity-90"
-                    : "bg-primary hover:opacity-90"
-                } ${loading ? "opacity-70" : ""}`}
-              >
-                {loading
-                  ? "Menyimpan…"
-                  : hasCheckedOut
-                  ? "Selesai"
-                  : hasCheckedIn
-                  ? "Pulang"
-                  : "Masuk"}
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <p className="text-muted-foreground text-xs mt-4">
-          {hasCheckedOut
-            ? "Anda sudah pulang hari ini"
-            : hasCheckedIn
-            ? "Ketuk untuk mencatat kepulangan"
-            : "Ketuk untuk mencatat kehadiran"}
-        </p>
-
-        {/* Inline error (voice.md: supportive, non-blame) */}
-        <AnimatePresence initial={!reduceMotion}>
-          {actionError && (
-            <motion.p
-              key="action-error"
-              initial={reduceMotion ? false : { opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              className="mt-3 text-xs text-status-late-text text-center px-4"
-              role="alert"
-            >
-              {actionError}
-            </motion.p>
-          )}
-        </AnimatePresence>
-
-        {/* GPS info */}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-          <MapPin size={10} />
-          <span>{gpsStatus}</span>
-        </div>
-      </motion.div>
-
-      {/* Today status follows the primary clock flow, before secondary links. */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.2, duration: 0.4 }}
-        className="mt-6"
-      >
-        <Card className="p-card">
-          <SectionLabel>Status hari ini</SectionLabel>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Masuk</p>
-              {/*
-                `formatTime(null)` returns "--:--", which reads as a broken
-                clock rather than "not yet". An em dash says "nothing here".
-              */}
-              <p className="font-currency text-sm font-semibold mt-0.5">
-                {record?.checkInTime ? formatTime(record.checkInTime) : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Pulang</p>
-              <p className="font-currency text-sm font-semibold mt-0.5">
-                {record?.checkOutTime ? formatTime(record.checkOutTime) : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Status</p>
-              <p className="text-sm font-semibold mt-0.5">
-                {/*
-                  Was a chain of three `&&` branches, so an AttendanceRecord in
-                  any other state (SICK, PERMISSION, ON_LEAVE …) rendered an
-                  empty cell. STATUS_MAP is the single source of truth for these
-                  labels — the same one StatusBadge reads.
-                */}
-                {record ? (
-                  <span className={STATUS_TONE[record.status] ?? "text-foreground"}>
-                    {record.status === "PRESENT_NO_CHECKOUT"
-                      ? "Hadir"
-                      : getStatusConfig(record.status).label}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Quick links */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.25, duration: 0.4 }}
-        className="mt-6"
-      >
-        <SectionLabel>Akses cepat</SectionLabel>
-        <div className="space-y-2">
-          <Link
-            href="/teacher/student-journal"
-            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <BookHeart size={20} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Buku Penghubung</p>
-              <p className="text-xs text-muted-foreground">Isi catatan harian siswa</p>
-            </div>
-          </Link>
-          {homeroomClassSectionName && (
-            <Link
-              href="/teacher/assessments/weekly"
-              className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              data-testid="home-weekly-card"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <CalendarDays size={20} className="text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Penilaian pekanan</p>
-                <p className="text-xs text-muted-foreground">
-                  Walas {homeroomClassSectionName}
-                </p>
-              </div>
-            </Link>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Today's class sessions — additive card (academic-hierarchy-refactor
-          Task 7). Each row links to the session roster page. */}
-      <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.28, duration: 0.4 }}
-        className="mt-6"
-      >
-        <SectionLabel>Sesi hari ini</SectionLabel>
-        {todaySessions.length > 0 ? (
-          <div className="space-y-2">
-            {todaySessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/teacher/sessions/${s.id}`}
-                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <ClipboardList size={20} className="text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{s.className}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {SLOT_LABEL[s.slot] ?? s.slot} · {s.rosterCount} siswa
-                  </p>
-                </div>
-                <ChevronRight
-                  size={16}
-                  className="text-muted-foreground shrink-0"
-                />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-card">
-            <p className="text-sm text-muted-foreground text-center">
-              Belum ada sesi kelas terjadwal hari ini.
-            </p>
-          </Card>
-        )}
-      </motion.div>
+      )}
+      {saving||saveError||saved ? <SaveStatus state={saving?"saving":saveError?"error":"saved"} message={saveError??(saving?"Menyimpan kehadiran…":"Kehadiran tersimpan")} />:null}
+      {locationMessage?<p className="text-small text-muted-foreground">{locationMessage}</p>:null}
     </div>
   );
+  return <div className="space-y-6">
+    <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
+    {record?.checkInTime?personalAttendance:null}
+    {classesUnavailable ? <EmptyState icon={Users} title="Kelas belum bisa dimuat" description="Periksa koneksi dan coba lagi." actionLabel="Coba lagi" onAction={()=>router.refresh()}/> : primary ? (
+      <Card className="gap-4 border-primary/20 bg-secondary p-card" data-testid="current-class">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-small font-semibold text-muted-foreground">Kelas hari ini</p>{primary.slot?<span className="text-small font-semibold text-primary-text">{SLOT_LABEL[primary.slot]??primary.slot}</span>:null}</div>
+        <div><h2 className="text-h1 font-bold tracking-tight">{primary.name}</h2><p className="mt-1 text-body text-muted-foreground">{primary.rosterCount} siswa · {formatDate(today,{day:"numeric",month:"long"})}</p></div>
+        {primary.rosterCount>0?<Button nativeButton={false} role="link" render={<Link href={primaryHref}/>} className="h-auto min-h-11 w-full whitespace-normal py-3"><ClipboardList aria-hidden="true"/>{primaryLabel}</Button>:<p className="text-body text-muted-foreground">Belum ada siswa. Minta admin menambahkan siswa ke kelas ini.</p>}
+      </Card>
+    ):<EmptyState icon={Users} title="Belum ada kelas yang ditugaskan" description="Hubungi admin sekolah untuk penugasan kelas. Sesi pengganti tetap tersedia di bawah."/>}
+    {classes.length > 0 ? <section aria-labelledby="class-tasks">
+      <h2 id="class-tasks" className="mb-3 text-h2 font-semibold">Yang perlu diselesaikan</h2>
+      <TaskList>
+        {classes.filter(c => c.attendanceRecorded === null || c.attendanceRecorded < c.rosterCount).map(c =>
+          <TaskRow key={`attendance-${c.id}`} title={`Absensi ${c.name}`} description={c.attendanceRecorded === null ? "Data belum tersedia · buka untuk mencoba lagi" : `${c.attendanceRecorded} dari ${c.rosterCount} siswa tercatat`} meta="Buka" href={classHref(c.id,"attendance")} icon={<CalendarDays className="size-5"/>}/>
+        )}
+        {classes.filter(c => !c.journal?.completed).map(c =>
+          <TaskRow key={`journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={!c.journal ? "Data belum tersedia · buka untuk mencoba lagi" : !c.journal.configured ? "Indikator sekolah belum disiapkan. Hubungi admin." : `${c.journal.completeStudents} dari ${c.journal.totalStudents} siswa lengkap`} meta="Buka" href={classHref(c.id,"journal")} icon={<BookHeart className="size-5"/>} tone="warm"/>
+        )}
+        <TaskRow title="Buka penilaian" description={homeroomClassSectionName ? `Penilaian pekanan · ${homeroomClassSectionName}` : "Pilih penilaian kelas atau sentra"} href={homeroomClassSectionName ? "/teacher/assessments/weekly" : "/teacher/assessments"} icon={<ClipboardList className="size-5"/>} tone="purple"/>
+      </TaskList>
+      {classes.some(c => c.rosterCount > 0 && (c.attendanceRecorded === c.rosterCount || c.journal?.completed)) ? <Collapsible className="mt-3">
+        <CollapsibleTrigger render={<Button variant="ghost" className="min-h-11"/>}>Pekerjaan yang sudah tersimpan</CollapsibleTrigger>
+        <CollapsibleContent>
+        <TaskList>
+          {classes.filter(c => c.rosterCount > 0 && c.attendanceRecorded === c.rosterCount).map(c => <TaskRow key={`saved-attendance-${c.id}`} title={`Absensi ${c.name}`} description={`${c.rosterCount} siswa sudah tercatat`} meta="Periksa" href={classHref(c.id,"attendance")} icon={<CheckCircle2 className="size-5"/>}/>) }
+          {classes.filter(c => c.journal?.completed).map(c => <TaskRow key={`saved-journal-${c.id}`} title={`Jurnal harian ${c.name}`} description={`${c.rosterCount} siswa lengkap`} meta="Periksa" href={classHref(c.id,"journal")} icon={<CheckCircle2 className="size-5"/>}/>) }
+        </TaskList>
+        </CollapsibleContent>
+      </Collapsible> : null}
+    </section> : null}
+    {replyRows.length>0 || classes.some(c=>c.replies===null)?<section aria-labelledby="guardian-replies"><h2 id="guardian-replies" className="mb-3 text-h2 font-semibold">Balasan dari wali</h2><TaskList>
+      {replyRows.map(r=><TaskRow key={r.studentId} title={`Balasan wali ${r.studentName}`} description={r.className} meta={`${r.count} baru`} href={`/teacher/student-journal/students/${encodeURIComponent(r.studentId)}?view=notes#catatan`} icon={<MessageCircle className="size-5"/>}/>)}
+      {classes.some(c=>c.replies===null)?<TaskRow title="Balasan belum bisa dimuat" description="Coba muat ulang untuk melihat balasan terbaru." onClick={()=>router.refresh()} meta="Coba lagi"/>:null}
+    </TaskList></section>:null}
+    {!record?.checkInTime?personalAttendance:null}
+    <section aria-labelledby="pickup-sessions"><h2 id="pickup-sessions" className="mb-1 text-h2 font-semibold">Sesi & penjemputan</h2><p className="mb-3 text-small text-muted-foreground">Catatan datang dan pulang setiap sesi disimpan terpisah dari absensi kelas.</p>
+      {sessionsUnavailable?<EmptyState title="Sesi belum bisa dimuat" actionLabel="Coba lagi" onAction={()=>router.refresh()}/>:todaySessions.length>0?<TaskList>{todaySessions.map(s=><TaskRow key={s.id} title={s.className} description={`${SLOT_LABEL[s.slot]??s.slot} · ${s.rosterCount} siswa`} meta="Buka sesi" href={`/teacher/sessions/${s.id}`} icon={<ClipboardList className="size-5"/>}/>)}</TaskList>:<EmptyState title="Belum ada sesi terjadwal hari ini" description="Absensi dan jurnal kelas tetap bisa diisi melalui tugas kelas di atas."/>}
+    </section>
+  </div>;
 }

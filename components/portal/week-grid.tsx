@@ -199,12 +199,12 @@ export function WeekGrid({
                     // yet, so tinting it green misleads admins scanning for incomplete
                     // entries into reading an empty column as done (finding F5a).
                     isToday
-                      ? "bg-primary/5 text-primary font-semibold border-t-2 border-primary"
+                      ? "bg-primary/5 text-primary-text font-semibold border-t-2 border-primary"
                       : "font-medium text-muted-foreground"
                   }`}
                 >
                   <div>{DAY_LABELS[i] ?? formatColDate(d)}</div>
-                  <div className={`text-xs ${isToday ? "text-primary/80" : "text-muted-foreground/70 font-normal"}`}>
+                  <div className={`text-xs ${isToday ? "text-primary-text" : "text-muted-foreground/70 font-normal"}`}>
                     {formatColDate(d)}
                   </div>
                 </th>

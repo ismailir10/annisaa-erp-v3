@@ -19,6 +19,7 @@ import { JOURNAL_FORBIDDEN_MSG } from "@/lib/student-journal/messages";
 import Link from "next/link";
 import { formatDate, formatWeekRangeLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { resolveTeacherDate } from "@/lib/teacher/home-progress";
 import { computeDefaultNoteDate } from "./note-date";
 
 type Indicator = { id: string; label: string; order: number };
@@ -85,7 +86,7 @@ export default function TeacherStudentWeekPage() {
   const today = getTodayInTimezone("Asia/Jakarta");
   // Honor `?week=YYYY-MM-DD` from the entry-grid chevron so the week view
   // opens scoped to the picker's selected date (UAT 2026-05-01 cycle T2).
-  const initialAnchor = searchParams.get("week") ?? today;
+  const initialAnchor = resolveTeacherDate(searchParams.get("week"), today);
   const [ws, setWs] = useState<string>(() => weekStart(initialAnchor));
   const [data, setData] = useState<WeekData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,6 +159,32 @@ export default function TeacherStudentWeekPage() {
       ? formatDate(fillDate, { day: "numeric", month: "short" })
       : "";
 
+  const showNotesFirst = searchParams.get("view") === "notes";
+  const notesSection = (
+          <section id="catatan" className="my-6" aria-label="Catatan siswa">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-h2 font-semibold">Catatan</h2>
+              <Button
+                size="sm"
+                variant="outline"
+                className="tap-target"
+                onClick={() => {
+                  setNoteDate(computeDefaultNoteDate(ws, today));
+                  setDialogOpen(true);
+                }}
+              >
+                <Plus size={14} className="mr-1" aria-hidden="true" />
+                Tambah catatan
+              </Button>
+            </div>
+            <NoteThreadPanel
+              studentId={studentId}
+              audience="teacher"
+              reloadToken={noteReloadToken}
+            />
+          </section>
+  );
+
   return (
     <div>
       <BackLink href="/teacher/student-journal" className="mb-4" />
@@ -175,7 +202,7 @@ export default function TeacherStudentWeekPage() {
           <Skeleton className="h-7 w-48 rounded-md" />
           <Skeleton className="h-4 w-32 rounded-md" />
         </div>
-      ) : null}
+      ) : <PageHeader title="Buku Penghubung siswa" />}
 
       {/*
         Was a hand-rolled navigator with "Minggu sebelumnya"/"Minggu berikutnya"
@@ -183,6 +210,7 @@ export default function TeacherStudentWeekPage() {
         paging back three weeks still read "this week". Shared control now, and
         the caption is derived instead of asserted.
       */}
+      {!loading && !loadError && showNotesFirst ? notesSection : null}
       <WeekNavigator
         className="mb-4"
         label={
@@ -251,28 +279,7 @@ export default function TeacherStudentWeekPage() {
             is a message, and it used to vanish the Monday after it was written
             because this section read `weekData.notes`.
           */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-h2 font-semibold">Catatan</h2>
-              <Button
-                size="sm"
-                variant="outline"
-                className="tap-target"
-                onClick={() => {
-                  setNoteDate(computeDefaultNoteDate(ws, today));
-                  setDialogOpen(true);
-                }}
-              >
-                <Plus size={14} className="mr-1" aria-hidden="true" />
-                Tambah catatan
-              </Button>
-            </div>
-            <NoteThreadPanel
-              studentId={studentId}
-              audience="teacher"
-              reloadToken={noteReloadToken}
-            />
-          </div>
+          {!showNotesFirst ? notesSection : null}
         </>
       )}
 
