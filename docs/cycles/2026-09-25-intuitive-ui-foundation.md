@@ -19,6 +19,9 @@ The CTO user approved the [realistic HTML concept](assets/talib-ux-concept.html)
 - [x] Foundation slice: shared visual patterns plus independent parent trust and permission fixes. Acceptance: focused regressions pass, shared components compose over existing shadcn, build and full Vitest pass, independent review clears.
 - [x] Verify and ship foundation: document design-system decisions and UAT changes; run full gates and preview verification; merge only with required checks green.
 
+- [x] User-reported manual invoice follow-up: reuse the shared shadcn form composition; contain long fee rows; keep body scrollable and footer reachable at short desktop/mobile sizes and during keyboard navigation.
+- [x] Verify shared form consumers, full gates and independent review; prepare the follow-up for the protected staging PR workflow.
+
 ## Implementation
 
 - Subagent plan: driver=gpt-6-astra, implementation=gpt-6-sol; independent shared UI, parent context/payment, and admin permission/state subparts run in parallel with exclusive file ownership. Driver reviews integration, runs gates, and ships. Subsequent role cycles are sequential after foundation.
@@ -69,6 +72,16 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 - The staging integration brought new TanStack v9 pagination regressions with obsolete button selectors. They now select the existing destination-aware accessible labels (`Halaman berikutnya, 2/3`) while retaining the server callback, unchanged server rows, client page-size reset, and shrinking-data clamp assertions. Production pagination behavior is unchanged.
 
+### Manual invoice scrolling follow-up — 25 September
+
+- User explicitly added the production screenshot defect to this cycle after foundation PR #559 merged. New isolated feature branch `feat/invoice-form-scroll` starts from staging `d8b418ec`; production promotion remains separate.
+- Subagent plan: driver=gpt-6-astra; existing implementation agent owns the two form components, independent verification agent owns browser regressions, driver reviews integration and shipping. Independent review follows implementation.
+- Reproduced at 1366×640 with four synthetic long fee labels: dialog bottom 608px, footer bottom 776px (outside viewport), and fee controls escape horizontally. Desktop body has no bounded scroll region; mobile duplicates an uncapped sheet; intrinsic fee-label width defeats the grid.
+- Reuse `ResponsiveFormDialog` over existing shadcn Base UI Dialog/Sheet/ScrollArea, with dynamic viewport bounds, a scrolling body, and docked header/footer. Keep domain validation and invoice creation unchanged. Stack fee controls at narrow widths and label each row accessibly. No new primitive library or custom CSS.
+- References reviewed: `.claude/standards/design-system.html` Forms and Overlays, UI/CRUD/Page Recipes, better-ui/layout/accessibility/typography guidance; current shadcn ScrollArea documentation fetched through Context7. Updated the shared form recipe and UI standard so future forms reuse the same scroll/height/footer contract.
+- Simplification: removed duplicated invoice Dialog/Sheet branches and their duplicated footer. The existing shared wrapper now owns both modes; global Dialog/Sheet/Select primitives and domain submission are unchanged.
+- Independent review approved the production and E2E diff. Shared-consumer browser smoke passed for salary-component creation and guardian journal composition (including its `p-card` override) at 320×568 and 1440×600. No blocking findings.
+
 ## Verification
 
 - Historical checkpoint results follow; the final local verification record below supersedes earlier environment blockers. Canonical visual reference: design-system plus the approved standalone HTML, rendered again locally.
@@ -109,8 +122,19 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 - Current-base re-verification: after staging advanced to `5037dac2` (unused `input-otp` dependency update), resolved only the generated CLAUDE counts conflict, preserved the upstream lockfile, and rebuilt source **`8c85b074a071a2e8d10870b7c1eaa1098f80509c`** successfully. Repeated the selected local route on that exact source: independent browser **35/35**, API **26/26**, and parent journal/context/payment callback checks all passed. No app/auth consumer of `input-otp` exists. The earlier screenshots illustrate unchanged UI; full source reruns and fresh four-check CI on the final evidence head remain mandatory before merge.
 - Existing security follow-up, outside this PR's changed admissions boundary: `POST /api/invoices` on staging uses the broad admin-role gate and lacks `invoices.create`; a custom invoices-view-only school admin's empty payload reaches validation (400), whereas payroll creation correctly denies its view-only role (403). No valid unauthorized invoice was created. Both the staging file and this PR's diff prove this predates the foundation change. Address it in the authorized admin permission/consistency cycle; do not describe the foundation review as an all-endpoint permission audit.
 
+### Manual invoice follow-up verification
+
+- Verification route: demo-auth browser + disposable local Postgres; no Google login, shared database writes, schema, dependency, auth/session, permission or payment API changes. Actual runtime diff is limited to `manual-invoice-dialog.tsx` and `responsive-form-dialog.tsx`.
+- Production build passed; focused Playwright **6/6** passed with retries disabled. Full Playwright **151 passed, eight existing skips, no failures or retries (4.4 minutes)**. The new tests use a real seeded admin/student and actual components; only the fee catalogue label is replaced with a deterministic long string. Invoice creation remains covered by the existing full-suite flow.
+- Layout/interaction: 1280×600, 1440×900, 768×640, 390×740, 320×568; eight fee rows, real wheel scroll, Total and footer visible, full dropdown label bounds, keyboard traversal to the last amount and submit, popup/modal Escape and focus return, values retained through 390→1280→320 resize. Additional screenshots exercise 1366×640 and 720×450 at DPR 2 (the reflow equivalent of 1440×900 at 200%; native toolbar zoom was not automated).
+- Shared-consumer verification: salary-component creation and guardian journal composer at 320×568 and 1440×600 pass; no horizontal overflow, docked footers, actual mobile body scroll and computed overscroll containment. Independent production/test review approved.
+- Initial complete Vitest run passed all 3,347 assertions but correctly failed its gate on ten unhandled errors: jsdom has no `getAnimations`, which the newly reused Base UI ScrollArea calls. Added a conditional jsdom-only empty-animation implementation; no exception suppression or component mock. The leave-sheet handoff test now advances one animation frame before asserting the empty-overlay gap, then its existing 240ms timer before asserting exactly one overlay. All three affected suites (**11 tests**) pass with zero unhandled errors. Independent review approved both test-harness changes.
+- Final local gate: production build passed; full Vitest passed **349 files / 3,347 tests**, two existing skipped files and 42 todo, with **zero unhandled errors**. Full lint passed (zero errors, 59 existing warnings), typecheck passed, docs audit passed (13 ok, one pre-existing ADR-age warning), diff check passed. Skip-pattern count: staging 31, candidate 31, delta zero.
+- The subsequent full unit run exposed one remaining immediate-close assertion in the report editor cancel test. It now waits for the real dismissal lifecycle and additionally verifies the edited Hafalan value is retained; all nine focused tests and the final complete suite pass. Independent review approved. No test timeout or skip changes.
+- Durable screenshots: [desktop bottom of form](screenshots/intuitive-ui-foundation/form-scroll/after-manual-invoice-1280.png), [320px bottom of form](screenshots/intuitive-ui-foundation/form-scroll/after-manual-invoice-320.png), [full long option](screenshots/intuitive-ui-foundation/form-scroll/after-long-fee-option-320.png). Canonical design-system Forms/Overlays checked; no custom CSS or primitive migration.
+
 ## Ship Notes
 
-- Local invoice verification exposed a 320px resume-draft banner collision when an existing billing draft is present. Its two actions now occupy a wrapping row below the message instead of overlapping the title; this is a scoped layout fix with no billing state change. Final rebuilt visual verification remains pending.
+- Foundation PR #559 merged to staging before this user-requested follow-up. The manual invoice follow-up reuses the shared form layout and improves existing form consumers; verify scrolling to Total, editing the final amount, dropdown labels, Escape/focus return and visible actions. Production promotion remains a separate operation.
 
 - No planned migrations or new environment variables. Rollback through PR revert. Preserve role permissions, parent ownership and settlement truth. Production promotion remains separate.

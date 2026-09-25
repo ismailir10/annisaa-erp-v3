@@ -19,8 +19,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type Size = "sm" | "md" | "lg" | "xl" | "2xl";
+
+// A shrinkable grid track bounds the viewport even when the popup only has
+// max-height. Padding belongs inside the viewport so field rings stay visible.
+const BODY_SCROLL_CLASS =
+  "grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:min-w-0 [&>[data-slot=scroll-area-viewport]]:overscroll-contain";
 
 const SIZE_CLASS: Record<Size, string> = {
   sm: "sm:max-w-sm",
@@ -63,14 +69,16 @@ export function ResponsiveFormDialog({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
-          className={cn("max-h-[90vh] overflow-y-auto", contentClassName)}
+          className={cn("max-h-[90dvh] min-h-0 safe-area-bottom", contentClassName)}
         >
-          <SheetHeader>
+          <SheetHeader className="shrink-0">
             <SheetTitle>{title}</SheetTitle>
             {description ? <SheetDescription>{description}</SheetDescription> : null}
           </SheetHeader>
-          <div className="space-y-field px-4 pb-2">{children}</div>
-          <SheetFooter className="sm:justify-end">{footer}</SheetFooter>
+          <ScrollArea className={BODY_SCROLL_CLASS}>
+            <div className="min-w-0 space-y-field px-4 py-2">{children}</div>
+          </ScrollArea>
+          <SheetFooter className="shrink-0 sm:justify-end">{footer}</SheetFooter>
         </SheetContent>
       </Sheet>
     );
@@ -78,15 +86,15 @@ export function ResponsiveFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(SIZE_CLASS[size], contentClassName)}>
+      <DialogContent className={cn("max-h-[90dvh]", SIZE_CLASS[size], contentClassName)}>
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {/* body is the only scrolling region — header/footer stay docked */}
-        <div className="space-y-field py-2 flex-1 min-h-0 overflow-y-auto pr-2">
-          {children}
-        </div>
+        <ScrollArea className={BODY_SCROLL_CLASS}>
+          <div className="min-w-0 space-y-field py-2 pl-1 pr-3">{children}</div>
+        </ScrollArea>
         <DialogFooter className="shrink-0">{footer}</DialogFooter>
       </DialogContent>
     </Dialog>

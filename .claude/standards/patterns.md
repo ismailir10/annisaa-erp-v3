@@ -101,32 +101,44 @@ Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (
 
 **When:** create or edit an entity from a list page. Never a separate route.
 
-**Rule:** Dialog on desktop, Sheet on mobile (`useIsMobile()`). Destructive confirm always `<AlertDialog>`, never `<Dialog>`. One overlay at a time — toasts excepted.
+**Rule:** Use `ResponsiveFormDialog` for create/edit forms: it renders Dialog on desktop and Sheet on mobile, freezing that choice while open. Destructive confirmation remains `<AlertDialog>`. One overlay at a time — toasts excepted.
 
-**Layout skeleton (desktop):**
+The wrapper owns the viewport-height limit, shadcn `ScrollArea` body, internal focus-ring padding, and docked header/footer. Put fields in `children` and action buttons in `footer`; do not add another scrolling wrapper or viewport-height constraint. Choose width through `size`.
+
+**Layout skeleton:**
 
 ```tsx
-<Dialog open={open} onOpenChange={setOpen}>
-  <DialogContent className="sm:max-w-lg">
-    <DialogHeader>
-      <DialogTitle>Tambah Siswa</DialogTitle>
-      <DialogDescription>Isi data siswa baru.</DialogDescription>
-    </DialogHeader>
-    <form className="space-y-field" onSubmit={onSubmit}>
-      <Field>
-        <FieldLabel>Nama Lengkap</FieldLabel>
-        <Input {...register("name")} />
-        <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
-      </Field>
-      {/* ...more fields */}
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-        <Button type="submit" disabled={isPending}>Simpan</Button>
-      </DialogFooter>
-    </form>
-  </DialogContent>
-</Dialog>
+const formId = useId();
+
+<ResponsiveFormDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="Tambah Siswa"
+  description="Isi data siswa baru."
+  size="lg"
+  footer={
+    <>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+        Batal
+      </Button>
+      <Button type="submit" form={formId} disabled={isPending}>
+        {isPending ? "Menyimpan..." : "Tambah Siswa"}
+      </Button>
+    </>
+  }
+>
+  <form id={formId} className="space-y-field" onSubmit={onSubmit}>
+    <Field>
+      <FieldLabel required htmlFor={`${formId}-name`}>Nama Lengkap</FieldLabel>
+      <Input id={`${formId}-name`} required {...register("name")} />
+      <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
+    </Field>
+    {/* ...more fields */}
+  </form>
+</ResponsiveFormDialog>
 ```
+
+The footer sits outside the form's DOM subtree; its submit button must use the matching `form` attribute. For existing click-driven submissions, keep the submit handler on the footer button.
 
 **Required pieces:** `<Field>` + `<FieldLabel>` + `<FieldDescription>` (never raw `<Label>` + `<Input>`) · Zod schema + React Hook Form · submit button shows loading state · ghost-Cancel on the left, solid-Submit on the right.
 

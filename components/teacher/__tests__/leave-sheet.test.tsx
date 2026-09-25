@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaveSheet, type LeaveBalance, type LeaveRequest } from "../leave-sheet";
@@ -66,33 +66,33 @@ describe("LeaveSheet", () => {
   });
 
   it("hands off from sheet to request dialog without stacking overlays", async () => {
-    render(<Harness />);
+    vi.useFakeTimers();
+    const { unmount } = render(<Harness />);
 
-    await waitFor(() => {
+    try {
       expect(window.matchMedia).toHaveBeenCalled();
-    });
+      expect(screen.getByText("Cuti dan izin")).toBeInTheDocument();
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
 
-    expect(screen.getByText("Cuti dan izin")).toBeInTheDocument();
-    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Ajukan cuti" }));
 
-    // `fireEvent`, not `user.click`, on purpose. LeaveSheet's
-    // `openAfterSheetCloses` closes the sheet and opens the next overlay on a
-    // real SHEET_CLOSE_TRANSITION_MS (240ms) timer, so "no overlay is up yet"
-    // is a *window*, not a state. `await user.click` yields to the event loop
-    // several times, and on a loaded runner those 240ms elapse inside it —
-    // the dialog is already open and the assertion goes red for nothing. It
-    // did, in 6 of 10 stressed full-suite runs. `fireEvent.click` is
-    // synchronous, so no timer can fire between it and the assertion below,
-    // whatever the machine is doing.
-    fireEvent.click(screen.getByRole("button", { name: "Ajukan cuti" }));
+      // Base UI completes the close after an animation frame and the resolved
+      // getAnimations() promises. Advance only that frame, leaving the 240ms
+      // handoff timer pending so the gap is deterministic under runner load.
+      await act(async () => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(0);
 
-    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(0);
-
-    // ...and exactly one once the timer fires — never two.
-    await waitFor(() => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(240);
+      });
       expect(screen.getByText("Pengajuan akan dikirim ke admin untuk persetujuan")).toBeInTheDocument();
       expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    });
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("associates every leave-request control with its visible label", async () => {
