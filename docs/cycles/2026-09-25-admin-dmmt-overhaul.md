@@ -161,7 +161,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Update README for the nav, the hub, `/admin/work-queue`, and the renames.
   - Run `audit-docs.sh --write`.
   - *Accept:* `bash scripts/audit-docs.sh` exits 0.
-- [ ] **T8 — End-of-cycle gate and browser verification.**
+- [x] **T8 — End-of-cycle gate and browser verification.**
   - Run build, vitest, playwright, and lint.
   - Verify in a local demo browser, checking against the design-system reference:
     - Dasbor at 1440×900 and at 390px
@@ -290,4 +290,34 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Both specs are updated. A re-run of `e2e/admin-dialogs.spec.ts` and `e2e/admin.spec.ts` passed 30, with 1 skipped. The required CI check `Playwright E2E` remains the merge gate.
   - Safety note: `prisma.config.ts` prefers `DIRECT_URL`, which `.env` sets to staging, so both URLs were pinned to localhost and the resolved Datasource was checked before any write.
 
+- Local browser verification: a `DEMO_MODE` production build ran against the disposable local Postgres, driven by a Playwright script, signed in as `u_super_admin`. Checked against the design-system tokens in `design-system.html`:
+  - Dasbor:
+    - At 1440×900, `scrollHeight` is 900 and `innerHeight` is 900, so there is no vertical scroll.
+    - At 390×844, `scrollHeight` is 1007, about 1.2 viewports, within the 2-viewport budget.
+    - Tiles, the urgent list with "Lihat semua (2)", the attendance strip, and the xl activity rail all render.
+  - Sidebar: the groups are Kesiswaan, Harian, Penilaian, Keuangan, and SDM, with Pengaturan pinned at the bottom.
+  - `/admin/settings`: renders 4 sections, Sekolah, Akademik, Keuangan & Gaji, and Akses. The dev-only section is stripped from the production build as intended.
+  - `/admin/enrollments`: the "Formulir" tab has `aria-current`.
+  - `/admin/work-queue?kind=leave` renders.
+  - `/admin/raport` 308-redirects to `/admin/report-cards`.
+  - `/admin/classes/[id]`: Dossier nav, sections, and rail all render.
+  - `/admin/employees/[id]#attendance`: the deep link expands and scrolls to Kehadiran.
+  - Console errors are limited to `/_vercel/*insights` 404s, which are expected off-Vercel.
+  - Screenshots are in `/tmp/dmmt-shots/`, local and not committed.
+  - The guardian detail page wasn't reached by the script (the parents API shape wasn't matched); T6a is covered by vitest and CI e2e (`e2e/admin-guardian-detail.spec.ts`).
+
 ## Ship Notes
+
+- **Migrations and env:** none. There are no schema, dependency, or env-var changes.
+- **Route renames:**
+  - Pages: `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`, each with permanent 308 redirects that preserve sub-paths.
+  - API: `/api/admin/penilaian` → `/api/admin/assessments`, `/api/admin/raport/**` → `/api/admin/report-cards/**`, `/api/guardian/raport/**` → `/api/guardian/report-cards/**`. These have no redirects. Client and server ship together in one deploy, and no email, webhook, or runbook links the old API paths (checked in T0).
+  - The legacy `/admin/assessments` → `/admin/penilaian` redirect is removed, and `/admin/assessment-templates` now points at `/admin/assessments`.
+- **New surfaces:** the `/admin/settings` hub, `/admin/work-queue`, and `GET /api/attendance/trend` (gated by `attendance.view` + `hr.view`, tenant-scoped).
+- **Preview smoke steps:** open the Dasbor (it should not scroll on a laptop), Pengaturan (hub sections should match the user's permissions), Pendaftaran (switch between the two tabs), a class detail page, an employee detail page with `#attendance`, and an old `/admin/raport` bookmark.
+- **Rollback:** revert the squash commit. Since there's no data change, a revert is safe, though old bookmarks will 404 again for the renamed pages until it is redeployed.
+- **Follow-ups (out of scope):**
+  - The classes/[id] swap Sheet is gated on `canWrite` rather than `writeAllowed`. This predates the cycle.
+  - The admissions sibling-convert confirm is a plain Dialog, not a ConfirmDialog.
+  - The ADR 60-day window warning.
+  - A pre-existing `lib/raport/*` module rename to English (the voice.md rule now says new code must use English).
