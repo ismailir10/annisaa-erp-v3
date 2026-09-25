@@ -18,13 +18,13 @@ One cycle = three commands and exactly **one** markdown file, `docs/cycles/YYYY-
 |---|---|---|
 | `/spec` | Creates the cycle doc: Context / Spec / Tasks. Surfaces assumptions before any code. | [`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md) |
 | `/build` | Loops the Tasks one at a time: implement → between-task gate → review + simplify → update cycle doc → commit. One commit per task. After the last task: end-of-cycle gate, code review, Ship Notes. | [`.claude/skills/build/SKILL.md`](.claude/skills/build/SKILL.md) |
-| `/ship` | `/audit-docs` preflight → PR `feat/*` → `staging` → preview-verify loop → merge. `--to-main` promotes staging → main. | [`.claude/skills/ship/SKILL.md`](.claude/skills/ship/SKILL.md) |
+| `/ship` | `/audit-docs` preflight → classify actual PR diff → PR `feat/*` → `staging` → required verification route + four CI checks → merge. `--to-main` promotes staging → main. | [`.claude/skills/ship/SKILL.md`](.claude/skills/ship/SKILL.md) |
 
 The skills are the source of truth for procedure. Below are only the rules that bind **outside** them.
 
 **Non-negotiable ship rules:**
 - **No direct pushes to `staging` or `main`, ever.** Use `/ship`.
-- Self-merge only when all four required checks are green **and** preview-verify is clean — never on red or pending.
+- Self-merge only when the verification route selected from the actual diff is clean and all four required checks are green — never on red or pending. Auth-impacting or uncertain changes require signed-in preview verification; other app changes may use local demo-auth browser verification with disposable local Postgres.
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
 - Playwright status must be recorded in the cycle doc's Verification before `/ship`: a local pass, or an explicit deferral to the required CI `Playwright E2E` check.
 
@@ -35,7 +35,7 @@ The skills are the source of truth for procedure. Below are only the rules that 
 | Request | Action |
 |---|---|
 | Changes tracked code — `app/`, `lib/`, `components/`, `prisma/`, `scripts/`, `e2e/`, `proxy.ts`, build or CI config | **Run a cycle** |
-| Changes tracked workflow docs — `CLAUDE.md`, `.claude/**`, `.githooks/**`, `docs/**`, root project docs | **Use the isolated PR path.** Work in a worktree and ship by PR; a lightweight docs-only cycle is enough when the change is more than a one-line maintenance fix. Pure-docs changes may skip Playwright and preview-verify with that skip recorded. |
+| Changes tracked workflow docs — `CLAUDE.md`, `.claude/**`, `.githooks/**`, `docs/**`, root project docs | **Use the isolated PR path.** Work in a worktree and ship by PR; a lightweight docs-only cycle is enough when the change is more than a one-line maintenance fix. Skip browser/database verification and local Playwright only when the actual PR diff contains documentation files exclusively; package/lock, build/CI/config, schema, migration, generated, or runtime files disqualify the skip. CI checks still gate merge. |
 | Existing PR review/fix/merge work the user has already authorized | **Continue in that PR/worktree.** Do not restart `/spec` or ask for a new gate unless the fix changes scope beyond the PR/request. |
 | A question, a code read, a grep, DB/ops work, an untracked personal-doc/config edit such as `~/.claude` | **Answer inline.** No cycle doc, no PR |
 
@@ -60,9 +60,9 @@ Invoke `/caveman` and `/using-superpowers` by default.
 |------|---------|------|
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
 | End-of-cycle | the above **+** `npx playwright test` (local best-effort; harnesses that cannot run it defer to the required CI check) | After the last task |
-| Preview-verify | `/ship` Step 3 — Chrome MCP walks the Vercel preview signed into the role-scoped Google account per portal | After the PR opens, before the merge |
+| Ship verification | `/ship` classifies the actual PR diff. App behavior uses a local demo-auth browser with disposable local Postgres; scope `DEMO_MODE` to the app process, and use localhost-only E2E fixture identity for local production builds. Google login, OAuth callback, session, cookie, auth-guard, auth-dependency, or uncertain auth impact requires a signed-in Vercel preview. Documentation-only diffs skip browser/database verification. | After the PR opens, before merge |
 
-**Why three tiers.** Playwright cold-spin is ~2 min, so running it between tasks adds 10+ min to a 5-task cycle. Keep the e2e suite lean and cross-module (auth shell, admin dashboard, students, invoices/payment, attendance, teacher daily, parent invoice/report, tenant boundaries) — prefer Vitest for business logic, permissions and validation. Preview-verify catches what CI cannot: OAuth, staging config, Vercel, layout. It complements the required check, never replaces it. **Pure-docs cycles may skip Playwright + preview-verify** — record each skip in Verification.
+**Why three tiers.** Playwright cold-spin is ~2 min, so running it between tasks adds 10+ min to a 5-task cycle. Keep the e2e suite lean and cross-module (auth shell, admin dashboard, students, invoices/payment, attendance, teacher daily, parent invoice/report, tenant boundaries) — prefer Vitest for business logic, permissions and validation. Local browser verification with demo auth and disposable local Postgres covers non-auth app changes. Signed-in preview catches auth and deployment behavior that demo mode cannot replay. Both supplement the required CI checks. Documentation-only diffs may skip local Playwright and browser/database verification only when every changed file is documentation; record the changed paths and compared SHA in Verification. Package, lock, build/CI/config, schema, migration, generated, or runtime files disqualify the skip.
 
 E2E runs against a production build (`DEMO_MODE=true npm run start`), Chromium-only, workers: 1.
 
@@ -178,7 +178,7 @@ Allowed markdown: root (`README.md`, `CLAUDE.md`, `AGENTS.md`, `LICENSE.md`, `CH
 ## Ship Notes     <!-- /ship: migrations, env vars, rollback -->
 ```
 
-**`/ship` preflight:** gates green (or Playwright deferred/skipped with a recorded reason) · Verification filled · README updated if modules/routes/entities changed · Ship Notes filled · `bash scripts/audit-docs.sh` exits 0.
+**`/ship` preflight:** actual PR diff classified and verification route recorded against a source SHA · gates green (or Playwright deferred/skipped with a valid recorded reason) · Verification filled · README updated if modules/routes/entities changed · Ship Notes filled · `bash scripts/audit-docs.sh` exits 0.
 
 **Superpowers output redirect.** `superpowers:brainstorming` and `superpowers:writing-plans` default to writing `docs/superpowers/*`. The project rule overrides that — brainstorming goes to `## Context` + `## Spec`, writing-plans to `## Tasks`. Per that skill's own priority order, user instructions in CLAUDE.md win. Legacy files live in `docs/archive/superpowers-legacy/`.
 
@@ -291,7 +291,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 65 |
 | `e2e/*.spec.ts` | 34 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 40 / 233 |
+| `docs/cycles` active / archived | 41 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.
