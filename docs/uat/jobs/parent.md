@@ -22,7 +22,7 @@ This file is the living catalog of what a parent user can and should be able to 
   4. Check the attendance week at 00:30 WIB on Monday, while the server clock is still Sunday UTC.
 - **Done when:** Every child-specific page stays on the linked selected child; the callback invoice selects its linked child; an unlinked ID never opens another family's invoice. The portal says payment is being checked for an unpaid invoice, acknowledges a partial payment and remaining balance, and says paid only after the server reports `PAID`. The displayed attendance day and week follow WIB.
 - **Why this job matters:** A wrong child or premature paid message makes the portal's most sensitive information hard to trust.
-- **Verification status:** Code and automated regression review on 2026-09-25. A real mobile UAT run remains to be performed.
+- **Verification status:** Code review, automated regressions, and local production-browser verification against disposable data on 2026-09-25 passed for child context and authoritative payment states. Representative-user mobile UAT remains to be performed.
 
 
 ### JTBD-PARENT-INV-01 — Pay the oldest outstanding invoice

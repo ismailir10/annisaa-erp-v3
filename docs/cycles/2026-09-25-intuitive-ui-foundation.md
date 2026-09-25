@@ -16,8 +16,8 @@ The CTO user approved the [realistic HTML concept](assets/talib-ux-concept.html)
 
 ## Tasks
 
-- [ ] Foundation slice: shared visual patterns plus independent parent trust and permission fixes. Acceptance: focused regressions pass, shared components compose over existing shadcn, build and full Vitest pass, independent review clears.
-- [ ] Verify and ship foundation: document design-system decisions and UAT changes; run full gates and preview verification; merge only with required checks green.
+- [x] Foundation slice: shared visual patterns plus independent parent trust and permission fixes. Acceptance: focused regressions pass, shared components compose over existing shadcn, build and full Vitest pass, independent review clears.
+- [x] Verify and ship foundation: document design-system decisions and UAT changes; run full gates and preview verification; merge only with required checks green.
 
 ## Implementation
 
@@ -71,7 +71,7 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 ## Verification
 
-- Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.
+- Historical checkpoint results follow; the final local verification record below supersedes earlier environment blockers. Canonical visual reference: design-system plus the approved standalone HTML, rendered again locally.
 - Shared UI focused checks: 25 tests across 6 files, scoped ESLint and diff check passed.
 - Parent focused checks: 77 tests across 7 files, scoped ESLint and diff check passed before the outstanding race fix.
 - Admin focused checks: 65 tests across 9 files and scoped ESLint passed before final canEdit detail edits; those edits remain unverified.
@@ -93,6 +93,20 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 - First local full Playwright run completed with 143 passed, 8 existing skips, and 2 failures: stale childless Rapor URL matching and a stale success-toast expectation on an unpaid callback. After the test-only corrections, `npx playwright test e2e/payment.spec.ts e2e/parent.spec.ts --workers=1 --reporter=line` passed all 15 tests in 13.1 s against the production server and disposable local Postgres. Initial sandbox port binding failed before tests; the authorized local-server rerun succeeded. A fresh full Playwright run remains required.
 
 - CI at `5f51b606` found two failing upstream TanStack v9 compatibility tests because their selectors omitted the destination number in pagination labels (348 files/3345 tests passed; 2 tests failed). After aligning those selectors, all four focused DataTable suites passed (10/10 tests, `--maxWorkers=1`), including the new v9 sorting/pagination regressions; scoped ESLint and diff checks passed.
+
+### Final local verification — 25 September
+
+- Source SHA: `6be17f13fd3f16a47f9df66ebe8edfff42d94ab0`; PR [#559](https://github.com/ismailir10/annisaa-erp-v3/pull/559), target `staging`. Integrated staging through `deb0f035` (including TanStack v9 compatibility) before final verification. No direct staging/main push.
+- Route: **demo-auth browser + disposable local PostgreSQL** on loopback port 55439. Both `DATABASE_URL` and `DIRECT_URL` target that database. No shared database writes, account credentials, Google login, or auth guard changes. The actual PR diff has no changes to auth/session/OAuth modules or package manifests/lockfile relative to current staging; independent review confirmed this route applies.
+- Production `npm run build` passed with Turbopack, including TypeScript and prerender completion. Full local Vitest on this source passed **349 files / 3,347 tests**, with two existing skipped files and 42 todo tests. Full lint passed with 0 errors and 59 existing warnings before the final class-only banner change; scoped banner/test ESLint then passed, and the required CI lint/typecheck/test job passed on this source. Docs audit: 13 ok, one pre-existing ADR-age warning. Skip-pattern count remains 31 versus staging's 31 (delta zero).
+- Final local Playwright on the verified source passed **145 tests / eight existing skips in 2.4 minutes, with no failures or retries**. The earlier staging-integrated run had one loopback `ECONNRESET` that passed its existing retry; it did not recur in the final run. No skips or timeout increases were introduced.
+- Parent browser verification passed: child switch, home-journal save/reload, invoice navigation and Back, invalid-child fallback, five navigation slots, and keyboard focus. Callback checks passed for real `SENT`, `PARTIALLY_PAID`, and `PAID` states, cancel returns, conflicting child context, preserved unrelated query parameters, and unowned invoice IDs. The permanent payment E2E regression also records an actual local settlement before expecting success.
+- Independent admin browser verification: **35/35** checks passed (read/edit admissions, restricted navigation, real edit/save/reload, dialogs and focus return, payroll failure/retry, table filtering/sorting/pagination/menu). **26/26** API checks passed for admissions permissions, tenant scope, guardian invoice ownership and editor roundtrip. Fixture changes were restored; the verification-only billing draft was canceled before the full E2E run.
+- Visual inspection passed at **320/390/768/1440 CSS pixels**. Fixed two observed overlaps: long StatCard labels now have sufficient mobile width and wrap safely; invoice resume-draft actions occupy their own wrapping row. The banner passed all four widths. A 720-CSS-pixel viewport at DPR 2 exercised the reflow equivalent of a 1440-pixel desktop at 200%; native browser-toolbar zoom was not automated. This is engineering verification, not representative-user usability testing or completion of the remaining role-home/all-route redesign.
+- No unexpected page exceptions or application 5xx remained. Local production serving lacks Vercel's `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js`, so their 404/MIME console messages are recorded as platform-only noise. The payroll 503 was deliberately injected and recovery was verified. Desktop browser-control connection later timed out; the explicitly requested Playwright workflow captured and exercised the local production build.
+- All four required CI checks succeeded on the verified source `6be17f13`: Docs sync, Lint/Typecheck/Test, Build, and Playwright E2E. Vercel deployment also succeeded. The subsequent documentation-only evidence commit must receive fresh successful checks before the protected merge; this record does not pre-assert that merge.
+- Durable screenshots: [parent journal 390](screenshots/intuitive-ui-foundation/parent-journal-390.png), [parent journal 320](screenshots/intuitive-ui-foundation/parent-journal-320.png), [partial payment](screenshots/intuitive-ui-foundation/parent-invoice-partially_paid.png), [unpaid callback](screenshots/intuitive-ui-foundation/parent-invoice-sent.png), [read-only enrollment](screenshots/intuitive-ui-foundation/local-admissions-readonly-390.png), [invoice draft 320](screenshots/intuitive-ui-foundation/local-invoice-draft-320.png), [payroll recovery](screenshots/intuitive-ui-foundation/local-payroll-retry-390.png).
+- Existing security follow-up, outside this PR's changed admissions boundary: `POST /api/invoices` on staging uses the broad admin-role gate and lacks `invoices.create`; a custom invoices-view-only school admin's empty payload reaches validation (400), whereas payroll creation correctly denies its view-only role (403). No valid unauthorized invoice was created. Both the staging file and this PR's diff prove this predates the foundation change. Address it in the authorized admin permission/consistency cycle; do not describe the foundation review as an all-endpoint permission audit.
 
 ## Ship Notes
 
