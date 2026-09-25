@@ -12,8 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -2009,27 +2008,16 @@ export default function StudentDetailPage() {
               ? "Periksa Data Wali"
               : "Tambah Wali Baru";
 
-        // side="right" on mobile: multi-section form (name/contact + pekerjaan subsection, 9 fields)
-        // benefits from full-height surface; bottom sheet would only show ~30% before scroll.
-        return isMobile ? (
-          <Sheet open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-              <SheetHeader><SheetTitle>{guardianTitle}</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4">{guardianBody}</div>
-              <SheetFooter>{guardianFooter}</SheetFooter>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={guardianDialog} onOpenChange={setGuardianDialog}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>{guardianTitle}</DialogTitle></DialogHeader>
-              {/* flex-1 min-h-0 overflow-y-auto: T7+T8 grew the form
-                  (childrenTotal + address + Data Anak section); body now
-                  needs inner scroll to keep DialogFooter docked. */}
-              <div className="flex-1 min-h-0 overflow-y-auto">{guardianBody}</div>
-              <DialogFooter>{guardianFooter}</DialogFooter>
-            </DialogContent>
-          </Dialog>
+        return (
+          <ResponsiveFormDialog
+            open={guardianDialog}
+            onOpenChange={setGuardianDialog}
+            title={guardianTitle}
+            size="lg"
+            footer={guardianFooter}
+          >
+            {guardianBody}
+          </ResponsiveFormDialog>
         );
       })()}
 
@@ -2041,50 +2029,34 @@ export default function StudentDetailPage() {
         isMobile={isMobile}
       />
 
-      {/* ---------- Promote (2 fields) — side="bottom" on mobile ---------- */}
-      {(() => {
-        const promoteBody = (
-          <div className="space-y-field">
-            <Field>
-              <FieldLabel required htmlFor="promote-class-section">Kelas Tujuan</FieldLabel>
-              <ClassSectionCombobox
-                id="promote-class-section"
-                sections={sections}
-                value={promoteTarget}
-                onChange={setPromoteTarget}
-                placeholder="Pilih kelas tujuan..."
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="promote-notes">Catatan (opsional)</FieldLabel>
-              <Textarea id="promote-notes" value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
-            </Field>
-          </div>
-        );
-        return isMobile ? (
-          <Sheet open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-              <SheetHeader><SheetTitle>Naik Kelas</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4">{promoteBody}</div>
-              <SheetFooter>
-                <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
-                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={promoteDialog} onOpenChange={setPromoteDialog}>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>Naik Kelas</DialogTitle></DialogHeader>
-              <div>{promoteBody}</div>
-              <DialogFooter>
-                <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-                <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+      {/* ---------- Promote (2 fields) ---------- */}
+      <ResponsiveFormDialog
+        open={promoteDialog}
+        onOpenChange={setPromoteDialog}
+        title="Naik Kelas"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPromoteDialog(false)} disabled={promoting}>Batal</Button>
+            <Button onClick={handlePromote} disabled={promoting}>{promoting ? "Memproses..." : "Naik Kelas"}</Button>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel required htmlFor="promote-class-section">Kelas Tujuan</FieldLabel>
+          <ClassSectionCombobox
+            id="promote-class-section"
+            sections={sections}
+            value={promoteTarget}
+            onChange={setPromoteTarget}
+            placeholder="Pilih kelas tujuan..."
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="promote-notes">Catatan (opsional)</FieldLabel>
+          <Textarea id="promote-notes" value={promoteNotes} onChange={e => setPromoteNotes(e.target.value)} placeholder="Catatan naik kelas" rows={2} />
+        </Field>
+      </ResponsiveFormDialog>
 
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />

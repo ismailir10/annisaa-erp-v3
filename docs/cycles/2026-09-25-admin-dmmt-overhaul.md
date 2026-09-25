@@ -209,6 +209,12 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - The admissions form now uses ResponsiveFormDialog. It keeps the domain verb "Catat Pertanyaan" for create.
   - Enrollments: DataTableRowActions, space-y-section, and a 3-card StatsCardsRow (`cols={3}`) built from the existing `/api/enrollments` endpoint via `pageSize=1` status queries.
   - Review: feature-dev:code-reviewer found no issues. Its one cosmetic finding (3 cards in a 4-column row) is fixed here and on students.
+- T4b: Kesiswaan consistency.
+  - Files: `app/admin/guardians/page.tsx`, `app/admin/students/page.tsx`, `app/admin/students/[id]/page.tsx`.
+  - Five hand-rolled Dialog/Sheet overlays now use ResponsiveFormDialog: guardian edit, student create, student edit, the 3-step Tambah Wali dialog, and Naik Kelas.
+  - The guardians description is now a static line, and the students stat row uses `cols={3}`.
+  - `useIsMobile` stays on students/[id], but only for non-dialog responsive layout.
+  - Review: no issues.
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
