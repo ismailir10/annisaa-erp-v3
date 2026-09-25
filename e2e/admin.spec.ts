@@ -35,7 +35,9 @@ test.describe("Admin flows", () => {
   test("employee list loads", async ({ page }) => {
     await page.goto("/admin/employees");
     await page.waitForURL("**/admin/employees");
-    await expect(page.locator("text=karyawan terdaftar")).toBeVisible();
+    // PageHeader description is a static purpose line (counts live in StatsCardsRow).
+    await expect(page.getByRole("heading", { name: "Karyawan", level: 1 })).toBeVisible();
+    await expect(page.getByRole("table")).toBeVisible();
   });
 
   test("employee detail loads with salary section", async ({ page }) => {

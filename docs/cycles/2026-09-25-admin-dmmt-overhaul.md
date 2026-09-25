@@ -280,4 +280,14 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
 
 - T7: `bash scripts/audit-docs.sh` exits 0, with 13 ok, 1 warn, 0 fail. The warning is the pre-existing ADR 60-day window.
 
+- T8 end-of-cycle gate, on the final tree (sha e62fb761 plus the e2e locator fix):
+  - `npm run build` exited 0.
+  - `npx vitest run` passed 3518 tests in 375 files (2 files skipped, 42 todo).
+  - `npx eslint app components lib config e2e` reported 0 errors and 46 warnings, all pre-existing.
+  - `bash scripts/audit-docs.sh` exited 0.
+- Playwright ran locally against a disposable local Postgres 17, mirroring CI (Homebrew `-17` binaries on :55432, `prisma db push` on the empty DB, `prisma db seed`, a `DEMO_MODE=true` production build, then `npx playwright test`).
+  - First run: 152 passed, 8 skipped, 2 failed. Both failures were stale locators from this cycle's intended copy changes: the Tambah Kelas create submit is now "Tambah Kelas" rather than "Simpan", and the employees description no longer carries the count "karyawan terdaftar".
+  - Both specs are updated. A re-run of `e2e/admin-dialogs.spec.ts` and `e2e/admin.spec.ts` passed 30, with 1 skipped. The required CI check `Playwright E2E` remains the merge gate.
+  - Safety note: `prisma.config.ts` prefers `DIRECT_URL`, which `.env` sets to staging, so both URLs were pinned to localhost and the resolved Datasource was checked before any write.
+
 ## Ship Notes

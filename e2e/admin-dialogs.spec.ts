@@ -250,7 +250,8 @@ test.describe("Tambah Kelas — Program combobox writes selected value", () => {
     await ageGroupTrigger.click();
     await page.getByRole("option", { name: /TK A/ }).click();
 
-    await dialog.getByRole("button", { name: /Simpan/i }).click();
+    // Create-mode submit reads "Tambah Kelas" (edit mode: "Simpan Perubahan").
+    await dialog.getByRole("button", { name: "Tambah Kelas" }).click();
     await expect(dialog).toBeHidden({ timeout: 10_000 });
 
     // Verify persistence via the API — visual-only text would lie if the
