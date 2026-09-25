@@ -81,7 +81,7 @@ function adminSession(): Session {
     name: "A",
     employeeId: null,
     parentId: null,
-    permissions: [],
+    permissions: ["admissions.view", "admissions.edit"],
     customRoleCode: null,
   };
 }
@@ -160,6 +160,13 @@ describe("PUT /api/admissions/[id] — campusPreference (T9)", () => {
 });
 
 describe("PUT /api/admissions/[id] — role and tenant boundaries", () => {
+  it("returns 403 for a read-only admissions admin", async () => {
+    state.session = { ...adminSession(), permissions: ["admissions.view"] };
+    const res = await PUT(putReq({ childName: "Aisyah Putri" }) as never, { params });
+    expect(res.status).toBe(403);
+    expect(state.lastUpdate).toBeNull();
+  });
+
   it.each(["TEACHER", "GUARDIAN"] as const)(
     "returns 403 for %s and never reads the admission",
     async (role) => {

@@ -4,6 +4,7 @@ import {
   adminNav,
   getActiveItem,
   getBreadcrumbs,
+  getVisibleAdminNav,
   type NavItem,
 } from "../admin-nav";
 
@@ -51,7 +52,7 @@ describe("adminNav IA — ordering + grouping", () => {
   it("academic group lists Tahun Ajaran + Kelas + Semester; Semester gated by curriculum.read", () => {
     const group = adminNav.groups.find((g) => g.id === "academic")!;
     expect(group.label).toBe("Akademik");
-    expect(group.permission).toBe("academic.view");
+    expect(group.permission).toBeUndefined();
     expect(group.items.map((i) => i.label)).toEqual([
       "Tahun Ajaran",
       "Kelas",
@@ -116,7 +117,7 @@ describe("adminNav IA — ordering + grouping", () => {
     ]);
     const salary = group.items.find((i) => i.label === "Komponen Gaji")!;
     expect(salary.href).toBe("/admin/salary-components");
-    expect(salary.permission).toBe("hr.view");
+    expect(salary.permission).toBe("payroll.view");
   });
 
   it("settings stays flat: campuses, work-hours, holidays, users, roles (+ design-system in dev)", () => {
@@ -205,5 +206,39 @@ describe("getBreadcrumbs", () => {
 
   it("returns empty array for unknown path", () => {
     expect(getBreadcrumbs("/admin/does-not-exist")).toEqual([]);
+  });
+});
+
+describe("getVisibleAdminNav", () => {
+  const hrefs = (permissions: string[]) => {
+    const nav = getVisibleAdminNav(permissions);
+    return [...nav.groups.flatMap((group) => group.items), ...nav.settings].map((item) => item.href);
+  };
+
+  it("hides admissions and enrollment destinations from finance and HR roles", () => {
+    expect(hrefs(["invoices.view", "fees.view"])).toEqual([
+      "/admin/fees", "/admin/invoices", "/admin/payments",
+    ]);
+    expect(hrefs(["hr.view", "leave.view", "attendance.view"])).toEqual([
+      "/admin/employees", "/admin/employee-attendance", "/admin/leave-requests",
+    ]);
+  });
+
+  it("shows both read-only admission destinations without student or payroll links", () => {
+    expect(hrefs(["admissions.view"])).toEqual([
+      "/admin/admissions", "/admin/enrollments",
+    ]);
+  });
+
+  it("does not let broad group gates hide separately granted destinations", () => {
+    expect(hrefs(["curriculum.read", "reportCard.read"])).toEqual([
+      "/admin/semesters", "/admin/raport",
+    ]);
+  });
+
+  it("requires both HR module access and payroll read access for payroll links", () => {
+    expect(hrefs(["payroll.view"])).not.toContain("/admin/payroll");
+    expect(hrefs(["hr.view", "payroll.view"])).toContain("/admin/payroll");
+    expect(hrefs(["hr.view"])).not.toContain("/admin/payroll");
   });
 });

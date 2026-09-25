@@ -18,7 +18,7 @@ Source is public; school data and secrets are not. Deployed single-tenant — a 
 | Database | Supabase Postgres (Singapore `ap-southeast-1`); Prisma datasource is Postgres-only, so local dev points at a Postgres too |
 | ORM | Prisma 7 |
 | Auth | Supabase Auth — Google OAuth only, invitation-only. `/auth/callback` gates on an ACTIVE `User`/`Employee`/`Parent` row |
-| UI | Shadcn UI + Tailwind + TanStack Table; Plus Jakarta Sans + JetBrains Mono |
+| UI | Shadcn Base UI + Tailwind + TanStack Table; shared task rows, context and save feedback; Plus Jakarta Sans + JetBrains Mono |
 | Payments | Pluggable `PaymentGateway` port ([`lib/payments/`](lib/payments/)) — DOKU Checkout or Xendit, selected by `PAYMENT_GATEWAY` |
 | Email | Resend |
 | PDF | `@react-pdf/renderer` |
@@ -61,6 +61,8 @@ All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An N
 ---
 
 ## Setup
+
+Use Node.js 24 for local checks; CI is pinned to 24.
 
 ```bash
 git clone https://github.com/ismailir10/annisaa-erp-v3.git

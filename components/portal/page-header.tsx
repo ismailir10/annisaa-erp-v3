@@ -11,7 +11,7 @@ export type PageHeaderProps = {
 /**
  * Page-header primitive for portal routes. Renders a semantic `<header>` with
  * the page title (`h1`), an optional subtitle, and an optional actions slot
- * (filters, CTAs). Standard block margin: `mb-6`.
+ * (filters, CTAs). The title stays ahead of actions when the viewport narrows.
  *
  * Shared by parent + teacher + admin pages. Keep the API tiny — if a page
  * needs icons or custom markup in the heading, wrap this primitive rather
@@ -19,14 +19,14 @@ export type PageHeaderProps = {
  */
 export function PageHeader({ title, subtitle, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn("mb-6 flex items-start justify-between gap-3", className)}>
+    <header className={cn("mb-section flex flex-wrap items-start justify-between gap-x-4 gap-y-3", className)}>
       <div className="flex-1 min-w-0">
-        <h1 className="text-h1 font-semibold tracking-tight text-foreground">{title}</h1>
+        <h1 className="text-h1 font-bold leading-tight tracking-tight text-foreground text-balance">{title}</h1>
         {subtitle ? (
-          <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+          <p className="mt-1 text-body leading-relaxed text-muted-foreground">{subtitle}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex items-center gap-2 shrink-0">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div> : null}
     </header>
   );
 }

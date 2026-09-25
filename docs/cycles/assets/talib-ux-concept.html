@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Talib — Usulan pengalaman baru</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f7fafa;--ink:#1c1917;--muted:#57534e;--line:#e5e2de;--teal:#5db4b8;--teal-dark:#2f7a7d;--teal-light:#e8f5f6;--sidebar:#1a2e2f;--white:#fff;--amber:#fff4e6;--amber-ink:#9a5700;--green:#e6f9f1;--green-ink:#00704a;--red:#ffe6e6;--red-ink:#b42323;--blue:#e0f2fe;--blue-ink:#0369a1;--shadow:0 8px 28px rgba(25,47,47,.055),0 1px 3px rgba(25,47,47,.04)}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.48 'Plus Jakarta Sans',system-ui,-apple-system,sans-serif}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    button:disabled{opacity:.52;cursor:not-allowed}
+    :focus-visible{outline:3px solid #2f7a7d;outline-offset:3px}
+    .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .icon{width:19px;height:19px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .demo-bar{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:68px;padding:10px clamp(16px,3vw,44px);background:#fff;border-bottom:1px solid var(--line)}
+    .demo-title{display:flex;align-items:center;gap:12px;white-space:nowrap;min-width:0}
+    .demo-mark{width:30px;height:30px;border-radius:9px;background:var(--sidebar);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
+    .demo-title strong{font-size:15px;letter-spacing:-.035em}
+    .demo-title span{font-size:12px;color:var(--muted)}
+    .role-tabs{display:flex;align-items:center;gap:3px;padding:4px;background:#f1f5f4;border:1px solid #e5ebea;border-radius:11px}
+    .role-tabs button{border:0;background:transparent;color:#526260;border-radius:8px;min-width:62px;min-height:36px;padding:0 11px;font-weight:700;font-size:12px}
+    .role-tabs button[aria-selected=true]{background:white;color:var(--sidebar);box-shadow:0 1px 3px #00000014}
+    .demo-meta{display:flex;align-items:center;gap:10px;color:#73807d;font-size:11px;white-space:nowrap}
+    .demo-dot{width:6px;height:6px;background:var(--teal);border-radius:50%}
+    #app{min-height:calc(100vh - 68px)}
+    .mobile-canvas{min-height:calc(100vh - 68px);padding:28px 18px 60px;display:flex;justify-content:center;align-items:flex-start;background:radial-gradient(circle at 50% 0,#edf7f7 0,transparent 580px),var(--bg)}
+    .mobile-app{width:min(100%,448px);min-height:750px;background:#fff;border:1px solid #e5eceb;border-radius:20px;box-shadow:0 18px 65px rgba(24,53,54,.09);overflow:hidden;position:relative;padding-bottom:82px}
+    .mobile-head{padding:25px 26px 18px;background:#fff}
+    .mobile-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+    .brand{display:flex;align-items:center;gap:8px;color:var(--sidebar);font-weight:800;font-size:18px;letter-spacing:-.055em}
+    .brand-mark{width:23px;height:23px;border-radius:7px;background:var(--teal);display:grid;place-items:center;color:var(--sidebar);font-size:15px;font-weight:800}
+    .head-date{font-size:11px;color:#63706d;font-weight:600}
+    .avatar{display:grid;place-items:center;flex:none;width:37px;height:37px;border-radius:12px;background:#e5f0e9;color:#356752;font-size:12px;font-weight:800}
+    .avatar.tone2{background:#f3e8e2;color:#925b43}.avatar.tone3{background:#e5eaf6;color:#536caa}
+    .head-greeting{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px}
+    h1,h2,h3,p{margin-top:0}
+    h1{font-size:25px;letter-spacing:-.055em;line-height:1.25;margin-bottom:7px;font-weight:800}
+    h2{font-size:18px;letter-spacing:-.04em;line-height:1.35}
+    h3{font-size:14px;letter-spacing:-.025em}
+    .subtle{color:var(--muted)}
+    .mobile-content{padding:0 26px 28px}
+    .mobile-content h2{margin:0}
+    .mobile-section{margin-top:28px}
+    .section-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+    .section-hint{font-size:11px;color:#697471}
+    .eyebrow{font-size:11px;color:var(--muted);font-weight:700}
+    .primary{border:0;background:var(--teal);color:#173536;border-radius:10px;min-height:45px;padding:0 15px;font-weight:800;box-shadow:0 2px 4px #5db4b82b}
+    .primary:hover{background:#4ca5a9}
+    .secondary{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;min-height:44px;padding:0 13px;font-weight:700}
+    .secondary:hover,.text-button:hover{background:#f5f9f8}
+    .text-button{border:0;background:transparent;color:var(--teal-dark);min-height:42px;padding:0 7px;font-weight:800}
+    .icon-button{display:inline-grid;place-items:center;border:1px solid var(--line);background:#fff;border-radius:10px;width:44px;height:44px;color:var(--ink)}
+    .button-row{display:flex;gap:8px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 1px 2px #00000005}
+    .hero-class{background:#e8f5f6;border:1px solid #d2e9e9;border-radius:14px;padding:18px 19px 17px;position:relative;overflow:hidden}
+    .hero-class:after{content:'';position:absolute;width:96px;height:96px;right:-27px;top:-34px;border:13px solid rgba(93,180,184,.12);border-radius:50%;pointer-events:none}
+    .hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .hero-class h2{font-size:22px;margin:0 0 4px}
+    .hero-class p{color:#526969;font-size:12px;margin:0}
+    .hero-class .primary{margin-top:17px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px}
+    .status-chip{display:inline-flex;align-items:center;gap:6px;min-height:25px;padding:3px 9px;border-radius:8px;font-size:10px;font-weight:800;white-space:nowrap}
+    .status-chip.teal{background:#d7eeee;color:#276b6e}
+    .status-chip.green{background:var(--green);color:var(--green-ink)}
+    .status-chip.amber{background:var(--amber);color:var(--amber-ink)}
+    .status-chip.red{background:var(--red);color:var(--red-ink)}
+    .status-chip.blue{background:var(--blue);color:var(--blue-ink)}
+    .status-chip.gray{background:#f0f0f3;color:#595d60}
+    .status-dot{width:6px;height:6px;border-radius:100%;background:currentColor}
+    .check-in{display:flex;align-items:center;gap:9px;color:#506562;font-size:11px;font-weight:700;margin:0 0 19px}
+    .check-in .icon{width:17px;height:17px;color:var(--green-ink)}
+    .task-list{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff}
+    .task-row{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;text-align:left;border:0;border-bottom:1px solid #eceae7;background:white;padding:11px 14px;color:var(--ink)}
+    .task-row:last-child{border-bottom:0}
+    .task-row:hover{background:#f8fbfa}
+    .task-icon{display:grid;place-items:center;width:39px;height:39px;border-radius:10px;background:#e8f5f6;color:#2f7a7d;flex:none}
+    .task-icon.warm{background:#fff4e6;color:#9a5700}.task-icon.purple{background:#f2effa;color:#746095}
+    .task-copy{flex:1;min-width:0}.task-copy strong{display:block;font-size:12px;margin-bottom:2px}.task-copy small{display:block;color:#6c746f;font-size:10px;line-height:1.4}
+    .task-end{color:#87918e;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700}
+    .task-end .icon{width:16px;height:16px}
+    .next-session{display:flex;gap:13px;padding:15px;background:#f8faf9;border:1px solid var(--line);border-radius:11px}
+    .session-time{min-width:67px;font-size:13px;font-weight:800;color:#255f62}
+    .next-session strong{display:block;font-size:12px}.next-session small{color:#6e7772;font-size:10px}
+    .bottom-nav{position:fixed;z-index:5;bottom:0;left:50%;transform:translateX(-50%);width:min(calc(100% - 36px),448px);min-height:72px;display:grid;grid-template-columns:repeat(4,1fr);align-items:stretch;background:#fff;border:1px solid var(--line);border-bottom:0;padding:4px 8px max(4px,env(safe-area-inset-bottom))}
+    .bottom-nav button{border:0;background:transparent;color:#7e8986;min-height:59px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:700;border-radius:9px}
+    .bottom-nav button[aria-current=page]{color:#2f7a7d}
+    .bottom-nav .icon{width:20px;height:20px}
+    .detail-head{display:flex;align-items:center;gap:13px;padding:22px 25px 16px;border-bottom:1px solid #efeeec;background:#fff}
+    .detail-head .back{border:0;background:#f5f8f7;border-radius:10px;width:42px;height:42px;display:grid;place-items:center}
+    .detail-head h1{font-size:17px;margin:0}.detail-head p{font-size:10px;color:#74807d;margin:3px 0 0}
+    .detail-head .head-date{margin-left:auto}
+    .detail-intro{padding:18px 26px 15px}
+    .detail-intro h2{font-size:20px;margin:0 0 4px}
+    .detail-intro p{font-size:11px;color:var(--muted);margin:0}
+    .progress-panel{display:flex;align-items:center;justify-content:space-between;padding:15px 16px;background:#e8f5f6;border-radius:12px;margin-bottom:20px}
+    .progress-panel strong{font-size:22px;letter-spacing:-.055em;display:block;line-height:1.1}
+    .progress-panel small{font-size:10px;color:#506765}
+    .progress-ring{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--teal) var(--pct),#cbe5e5 0);position:relative}
+    .progress-ring:after{content:'';position:absolute;inset:6px;background:#e8f5f6;border-radius:50%}
+    .progress-ring .icon{position:relative;z-index:1;color:#2f7a7d;width:16px;height:16px}
+    .list-label{font-size:12px;font-weight:800;margin:0 0 10px}
+    .student-list{border-top:1px solid var(--line)}
+    .student-row{padding:12px 0;border-bottom:1px solid #eeece9}
+    .student-identity{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .student-identity .avatar{width:31px;height:31px;border-radius:9px;font-size:10px}
+    .student-identity strong{display:block;font-size:11px}.student-identity small{display:block;color:#7a817e;font-size:10px}
+    .student-identity .status-chip{margin-left:auto}
+    .segmented{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+    .segmented button{border:1px solid var(--line);background:#fff;color:#5e6865;min-height:42px;border-radius:8px;font-size:10px;font-weight:700;padding:4px 2px}
+    .segmented button[aria-pressed=true]{background:#d7eeee;color:#265f62;border-color:#5db4b8;box-shadow:inset 0 0 0 1px #5db4b8}
+    .segmented button[data-status=Sakit][aria-pressed=true]{background:var(--amber);color:var(--amber-ink);border-color:#e9bd76;box-shadow:none}
+    .segmented button[data-status=Izin][aria-pressed=true]{background:var(--blue);color:var(--blue-ink);border-color:#8dcced;box-shadow:none}
+    .segmented button[data-status=Alpa][aria-pressed=true]{background:var(--red);color:var(--red-ink);border-color:#e9a4a4;box-shadow:none}
+    .save-note{display:flex;align-items:center;gap:7px;font-size:10px;color:#60746f;min-height:22px}
+    .save-note .icon{width:14px;height:14px;color:var(--green-ink)}
+    .pill-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+    .pill-grid button{text-align:left;border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px;min-height:68px}
+    .pill-grid button strong{display:block;font-size:11px}.pill-grid button small{color:#73807c;font-size:10px}
+    .pill-grid button:hover{border-color:var(--teal)}
+    .message-card{padding:15px;margin-bottom:9px;display:flex;align-items:flex-start;gap:12px}
+    .message-card strong{font-size:12px}.message-card p{font-size:11px;color:var(--muted);margin:5px 0 0}
+    .message-card .text-button{margin-left:auto;font-size:11px}
+    .parent-hello{background:#fff;padding:25px 26px 20px}
+    .family-summary{padding:16px;background:#f5faf9;border:1px solid #deebea;border-radius:13px;display:flex;gap:13px;align-items:flex-start}
+    .family-summary .icon{color:#2f7a7d}
+    .family-summary strong{font-size:12px;display:block}.family-summary p{font-size:10px;color:#63716e;margin:3px 0 0}
+    .child-card{padding:16px;margin-top:10px}
+    .child-card-top{display:flex;gap:10px;align-items:center}
+    .child-card-top strong{display:block;font-size:12px}.child-card-top small{display:block;color:#74807c;font-size:10px}
+    .child-card-top .status-chip{margin-left:auto}
+    .child-signal{padding:10px 0 0 47px;margin-top:11px;border-top:1px solid #efeeec;font-size:10px;color:#5c6966}
+    .child-signal strong{font-weight:800;color:var(--ink)}
+    .child-actions{display:flex;gap:14px;padding-left:47px;margin-top:8px}
+    .child-actions button{min-height:35px;border:0;background:transparent;padding:0;color:var(--teal-dark);font-size:10px;font-weight:800}
+    .notice-card{padding:15px 16px;display:flex;gap:12px;align-items:flex-start}
+    .notice-card .icon{color:#9a7300;margin-top:2px}
+    .notice-card strong{font-size:12px;display:block}.notice-card p{font-size:10px;color:#67716e;margin:4px 0 8px}
+    .notice-card button{border:0;background:transparent;padding:0;min-height:29px;color:var(--teal-dark);font-weight:800;font-size:10px}
+    .context-strip{display:flex;gap:9px;align-items:center;padding:11px 26px;background:#f3f8f7;border-bottom:1px solid #e0ebea;font-size:11px;font-weight:800;color:#3a6764}
+    .context-strip .avatar{width:26px;height:26px;border-radius:8px;font-size:9px}
+    .amount{font-variant-numeric:tabular-nums lining-nums}
+    .bill-total{padding:20px;background:#e8f5f6;border-radius:12px;margin-bottom:18px}
+    .bill-total small{font-size:10px;color:#56716d}.bill-total strong{font-size:27px;letter-spacing:-.055em;display:block;margin:2px 0}
+    .bill-lines{width:100%;border-collapse:collapse;font-size:11px;margin:12px 0 19px}
+    .bill-lines td{padding:9px 0;border-bottom:1px solid #eceae7}.bill-lines td:last-child{text-align:right;font-weight:700}
+    .instruction{background:#f8faf9;border:1px solid var(--line);padding:14px;border-radius:11px;margin-top:13px;font-size:11px}
+    .instruction strong{display:block;margin-bottom:5px}.instruction p{margin:0;color:var(--muted)}
+    .note-body{padding:18px;border:1px solid var(--line);border-radius:12px;font-size:12px;line-height:1.75;color:#3c4845}
+    .note-body p:last-child{margin-bottom:0}
+    .reply-list{margin:18px 0 10px}.reply{padding:12px 0;border-bottom:1px solid var(--line);font-size:11px}.reply strong{display:block;margin-bottom:3px}.reply p{margin:0;color:#52615d}
+    .field-label{font-size:11px;font-weight:800;display:block;margin:14px 0 7px}
+    textarea,input[type=search]{width:100%;border:1px solid #d8ddda;border-radius:10px;background:#fff;color:var(--ink)}
+    textarea{padding:12px;min-height:92px;resize:vertical}
+    .admin-shell{min-height:calc(100vh - 68px);display:grid;grid-template-columns:239px minmax(0,1fr)}
+    .admin-sidebar{background:var(--sidebar);color:#8aacad;padding:22px 14px 20px;display:flex;flex-direction:column}
+    .admin-sidebar .brand{color:#fff;font-size:21px;margin:0 10px 32px}.admin-sidebar .brand-mark{width:27px;height:27px}
+    .side-label{color:#708f90;font-size:10px;font-weight:800;margin:22px 12px 7px}
+    .side-nav{display:grid;gap:3px}
+    .side-nav button{display:flex;align-items:center;gap:11px;min-height:42px;text-align:left;width:100%;border:0;background:transparent;color:#b2c6c4;border-radius:9px;padding:0 11px;font-size:12px;font-weight:700}
+    .side-nav button:hover{background:#243d3e;color:#fff}.side-nav button.active{background:#2a4344;color:#fff}
+    .side-nav button.active .icon{color:#82ced0}
+    .side-nav .icon{width:17px;height:17px}
+    .sidebar-foot{margin-top:auto;border-top:1px solid #ffffff17;padding:17px 9px 0;display:flex;gap:10px;align-items:center}
+    .sidebar-foot .avatar{background:#3a5654;color:#d9f4ef;width:34px;height:34px}
+    .sidebar-foot strong{display:block;color:#f7faf8;font-size:11px}.sidebar-foot small{font-size:10px}
+    .admin-main{min-width:0}
+    .admin-topbar{height:67px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(22px,3vw,42px);gap:18px}
+    .campus{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;white-space:nowrap}.campus .icon{color:var(--teal-dark);width:17px;height:17px}
+    .top-right{display:flex;align-items:center;gap:12px;color:#687572;font-size:11px;font-weight:700}
+    .top-right span{white-space:nowrap}.top-right .avatar{width:32px;height:32px;border-radius:10px}
+    .admin-work{padding:32px clamp(22px,3vw,42px) 60px;max-width:1540px;margin:auto}
+    .admin-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:26px}
+    .admin-heading h1{font-size:27px;margin:0 0 5px}.admin-heading p{font-size:12px;color:#6f7773;margin:0}
+    .admin-date{font-size:11px;color:#6d7975;background:#fff;border:1px solid var(--line);padding:9px 12px;border-radius:9px;white-space:nowrap}
+    .admin-layout{display:grid;grid-template-columns:minmax(0,1fr) 276px;gap:20px;align-items:start}
+    .queue-card{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);min-width:0}
+    .queue-top{padding:20px 21px 15px;border-bottom:1px solid #ebeae7}
+    .queue-top h2{font-size:17px;margin:0 0 3px}.queue-top p{font-size:11px;color:#79817d;margin:0}
+    .queue-controls{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 20px;border-bottom:1px solid #ebeae7}
+    .filters{display:flex;gap:4px;flex-wrap:wrap}
+    .filters button{border:0;background:transparent;border-radius:8px;min-height:34px;padding:0 10px;font-size:10px;font-weight:800;color:#66736e}
+    .filters button.active{background:#e8f5f6;color:#276f72}
+    .queue-search{width:min(220px,100%);position:relative}
+    .queue-search .icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#80908b}
+    .queue-search input{height:36px;padding:0 11px 0 33px;font-size:10px}
+    .queue-table-wrap{overflow-x:auto}
+    .queue-table{width:100%;border-collapse:collapse;min-width:610px}
+    .queue-table th{text-align:left;color:#858c88;font-size:9px;font-weight:800;padding:12px 20px 10px;background:#fbfcfb;white-space:nowrap}
+    .queue-table th:last-child{text-align:right}
+    .queue-table td{padding:15px 20px;border-top:1px solid #efeeec;vertical-align:middle;font-size:11px}
+    .queue-table tr:hover td{background:#fafdfc}
+    .queue-table td strong{display:block;font-size:11px;margin-bottom:3px}.queue-table td small{display:block;color:#77817d;font-size:10px;line-height:1.45}
+    .queue-table td:last-child{text-align:right}
+    .queue-table .text-button{font-size:10px;min-height:34px;white-space:nowrap;padding:0}
+    .queue-foot{padding:13px 20px;color:#808a86;font-size:10px;border-top:1px solid #efeeec}
+    .rail-card{padding:18px;background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 1px 2px #00000005;margin-bottom:13px}
+    .rail-card h2{font-size:13px;margin:0 0 13px}
+    .rail-row{display:flex;gap:10px;padding:10px 0;border-top:1px solid #efeeec}
+    .rail-row:first-of-type{border-top:0;padding-top:0}
+    .rail-day{width:37px;height:39px;border-radius:8px;background:#f1f7f6;color:#3b7674;display:grid;place-items:center;flex:none;font-size:13px;font-weight:800}
+    .rail-row strong{display:block;font-size:10px}.rail-row small{display:block;color:#78837e;font-size:9px;margin-top:2px}
+    .rail-muted{font-size:10px;color:#64736e;line-height:1.6;margin:0}
+    .empty{padding:30px;text-align:center;color:var(--muted)}.empty strong{display:block;color:var(--ink);font-size:13px;margin-bottom:4px}.empty p{font-size:11px;margin:0}
+    dialog{border:0;border-radius:16px;padding:0;max-height:min(88vh,800px);box-shadow:0 24px 70px #152c2d38}
+    dialog::backdrop{background:#0d2428a8}
+    .admin-dialog{width:min(480px,calc(100vw - 30px))}
+    .dialog-head{padding:21px 23px 17px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .dialog-head h2{font-size:18px;margin:0 0 4px}.dialog-head p{color:#6f7b76;font-size:11px;margin:0}
+    .dialog-body{padding:21px 23px;overflow:auto}
+    .dialog-body .key-value{display:grid;grid-template-columns:105px 1fr;gap:11px;padding:11px 0;border-bottom:1px solid #efeeec;font-size:11px}
+    .key-value span{color:#79837e}.key-value strong{font-weight:700}
+    .dialog-note{margin-top:15px;padding:13px;background:#f4f9f8;border-radius:10px;font-size:11px;color:#486562;line-height:1.6}
+    .dialog-actions{padding:16px 23px 21px;display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+    .skip-link{position:absolute;top:-70px;left:10px;padding:10px;background:#fff;z-index:100}.skip-link:focus{top:10px}
+    @media(max-width:1100px){.admin-layout{grid-template-columns:1fr}.admin-rail{display:grid;grid-template-columns:1fr 1fr;gap:13px}.rail-card{margin-bottom:0}}
+    @media(max-width:760px){.admin-shell{grid-template-columns:1fr}.admin-sidebar{display:none}.admin-topbar{padding:0 16px}.admin-work{padding:24px 16px 50px}.admin-heading{margin-bottom:20px}.admin-date{display:none}.top-right span{display:none}.admin-rail{grid-template-columns:1fr}.queue-controls{align-items:stretch;flex-direction:column}.queue-search{width:100%}.admin-heading h1{font-size:24px}}
+    @media(max-width:600px){.demo-bar{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 14px}.demo-title span{display:none}.role-tabs{grid-column:2;grid-row:1}.demo-meta{grid-column:1/-1;font-size:10px}.mobile-canvas{padding:0;background:#fff}.mobile-app{border:0;border-radius:0;box-shadow:none;min-height:calc(100dvh - 92px)}.bottom-nav{width:100%}}
+    @media(max-width:360px){.mobile-head,.parent-hello{padding-left:19px;padding-right:19px}.mobile-content{padding-left:19px;padding-right:19px}.detail-head{padding-left:18px;padding-right:18px}.detail-intro,.context-strip{padding-left:19px;padding-right:19px}.role-tabs button{min-width:53px;padding:0 7px}.demo-title strong{font-size:13px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#app">Lewati ke isi</a>
+  <svg class="sr" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 20c-3-2-6-2-9-1V4c3-1 6-1 9 1 3-2 6-2 9-1v15c-3-1-6-1-9 1zM12 5v15"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V9m6 11V4m6 16v-7m5 7H2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8 9 9 0 0 1-4-.9L3 20l1.9-5A8 8 0 1 1 20 11z"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18m-5 5h2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2zm13-15a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5v1"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6zM14 2v5h4M9 12h6m-6 4h6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19"/></symbol>
+    <symbol id="i-school" viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13M3 21h18M9 21v-7h6v7M7 10h2m6 0h2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20 5a5 5 0 0 0-7 0l-1 1-1-1a5 5 0 0 0-7 7l8 8 8-8a5 5 0 0 0 0-7z"/></symbol>
+  </svg>
+  <header class="demo-bar">
+    <div class="demo-title"><div class="demo-mark" aria-hidden="true">t</div><strong>Talib</strong><span>/ Usulan pengalaman baru</span></div>
+    <div class="role-tabs" role="tablist" aria-label="Lihat portal">
+      <button type="button" role="tab" data-role="admin" aria-selected="false">Admin</button>
+      <button type="button" role="tab" data-role="teacher" aria-selected="true">Guru</button>
+      <button type="button" role="tab" data-role="parent" aria-selected="false">Wali</button>
+    </div>
+    <div class="demo-meta"><span class="demo-dot" aria-hidden="true"></span>Data contoh · Jumat, 25 Sep 2026</div>
+  </header>
+  <main id="app" tabindex="-1"></main>
+  <dialog id="record-dialog" class="admin-dialog" aria-labelledby="dialog-title"></dialog>
+  <div id="announce" class="sr" aria-live="polite" aria-atomic="true"></div>
+  <script>
+    const $=s=>document.querySelector(s);
+    const icon=(name,cls='')=>`<svg class="icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+    const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const money=n=>'Rp'+n.toLocaleString('id-ID');
+    const students=[
+      'Alya Putri Rahmawati','Bilal Zhafran','Caca Zahra','Danish Alfarizi','Elina Kirana',
+      'Farhan Aditya','Ghani Arsyad','Hana Safira','Ibrahim Fawwaz','Jasmine Aulia',
+      'Khalid Azzam','Laila Nadhira','Malik Rayyan','Naira Alesha','Omar Hakim',
+      'Putri Aisyah','Qais Nugraha','Rania Khadijah','Salman Yusuf','Tania Maharani'
+    ];
+    const state={
+      role:'teacher',teacherPage:'home',parentPage:'home',parentReturnPage:'home',parentChild:0,
+      attendance:students.map((_,i)=>i<17?'Hadir':i===17?'Sakit':null),
+      journal:students.map((_,i)=>i<12),assessment:students.map((_,i)=>i<8),
+      readReplies:[false,false],parentNoteRead:false,parentReplies:[],
+      adminFilter:'Semua',adminSearch:'',adminSection:'home',adminDone:new Set(),
+      paymentInfo:false,teacherSave:'Semua perubahan tersimpan di contoh ini'
+    };
+    const children=[
+      {name:'Alya Putri',class:'TK B Anggur',initial:'AP',tone:'',attendance:'Hadir',note:'Alya mulai percaya diri memimpin doa bersama teman-temannya.',invoice:485000},
+      {name:'Bilal Zhafran',class:'TK A Melati',initial:'BZ',tone:'tone2',attendance:'Hadir',note:'Bilal tekun menyusun pola warna pada kegiatan sentra hari ini.',invoice:0}
+    ];
+    const adminRecords=[
+      {id:'ADM-0268',domain:'Akademik',priority:'Hari ini',priorityStyle:'amber',title:'Formulir pendaftaran menunggu tinjauan',sub:'Naila Hasanah · TK A · 2026/2027',date:'Masuk 24 Sep',action:'Tinjau',note:'Data wali dan kontak sudah lengkap. Periksa kesiapan sebelum melanjutkan proses penerimaan.',facts:[['Calon siswa','Naila Hasanah'],['Tingkat','TK A'],['Wali','Nadia Hasanah'],['Tanggal masuk','24 September 2026']],done:'Tinjauan selesai'},
+      {id:'INV-2026-184',domain:'Keuangan',priority:'Perlu dicek',priorityStyle:'red',title:'Tautan pembayaran belum berhasil',sub:'Tagihan Alya Putri · September 2026',date:'Sejak 23 Sep',action:'Buka tagihan',note:'Status pembayaran terakhir belum berhasil. Periksa rincian dan hubungi wali bila perlu; tagihan tidak ditandai lunas dari tampilan ini.',facts:[['Siswa','Alya Putri'],['Periode','September 2026'],['Sisa tagihan','Rp485.000'],['Status','Menunggu pembayaran']],done:'Sudah ditindaklanjuti'},
+      {id:'CUTI-0925',domain:'SDM',priority:'Hari ini',priorityStyle:'amber',title:'Permohonan izin guru menunggu keputusan',sub:'Ustadzah Rina · 29 Sep 2026',date:'Diajukan 25 Sep',action:'Tinjau izin',note:'Permohonan untuk keperluan keluarga. Jadwal pengganti kelas perlu dikonfirmasi sebelum persetujuan.',facts:[['Guru','Ustadzah Rina'],['Tanggal izin','29 September 2026'],['Kelas','TK A Melati'],['Pengganti','Belum ditentukan']],done:'Ditandai telah ditinjau'},
+      {id:'RPT-B-SEP',domain:'Akademik',priority:'Minggu ini',priorityStyle:'blue',title:'Rapor TK B belum siap diterbitkan',sub:'3 catatan perkembangan belum lengkap',date:'Batas 30 Sep',action:'Lihat kesiapan',note:'Tiga catatan perkembangan masih perlu dilengkapi. Daftar siswa membantu wali kelas menuntaskan bagian yang kurang.',facts:[['Kelas','TK B Anggur'],['Semester','Ganjil 2026/2027'],['Siap','17 dari 20 siswa'],['Kurang','3 catatan perkembangan']],done:'Kesiapan telah ditinjau'},
+      {id:'INV-2026-190',domain:'Keuangan',priority:'Minggu ini',priorityStyle:'blue',title:'Tagihan baru perlu diperiksa',sub:'SPP Oktober · 20 siswa TK B Anggur',date:'Batas 30 Sep',action:'Periksa tagihan',note:'Draf tagihan Oktober dapat diperiksa sebelum dikirim ke wali.',facts:[['Periode','Oktober 2026'],['Kelas','TK B Anggur'],['Jumlah','20 tagihan'],['Status','Draf']],done:'Draf telah diperiksa'}
+    ];
+    function announce(message){$('#announce').textContent=message}
+    function setRole(role){state.role=role;document.querySelectorAll('[data-role]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.role===role)));render();$('#app').focus()}
+    function mobileShell(body,nav){return `<div class="mobile-canvas"><div class="mobile-app">${body}${nav}</div></div>`}
+    function mobileHeader(person){return `<div class="mobile-head"><div class="mobile-topline"><div class="brand"><span class="brand-mark">t</span>talib</div><div style="display:flex;align-items:center;gap:10px"><span class="head-date">Jumat, 25 Sep 2026</span><span class="avatar">${person}</span></div></div>`}
+    function detailHeader(title,sub,back){return `<div class="detail-head"><button class="back" type="button" data-action="${back}" aria-label="Kembali">${icon('back')}</button><div><h1>${title}</h1><p>${sub}</p></div></div>`}
+    function nav(role,active){
+      const items=role==='teacher'?[['home','Beranda','home'],['attendance','Absensi','calendar'],['journal','Jurnal','book'],['more','Lainnya','more']]:[['home','Beranda','home'],['bills','Tagihan','wallet'],['notes','Catatan','message'],['more','Lainnya','more']];
+      return `<nav class="bottom-nav" aria-label="Navigasi ${role==='teacher'?'guru':'wali'}">${items.map(([page,label,ic])=>`<button type="button" data-action="${role}-page" data-page="${page}" ${active===page?'aria-current="page"':''}>${icon(ic)}<span>${label}</span></button>`).join('')}</nav>`;
+    }
+    function teacherHome(){
+      const done=state.attendance.filter(Boolean).length, unread=state.readReplies.filter(x=>!x).length;
+      return mobileShell(`${mobileHeader('SS')}<div class="head-greeting">Assalamu’alaikum, Ustadzah Sari</div><h1>Selamat pagi, Bu Sari</h1><p class="subtle" style="font-size:11px;margin:0">Hari ini bersama TK B Anggur.</p></div><div class="mobile-content"><div class="check-in">${icon('check')}Check-in 07.13 · sudah tercatat</div>
+        <section class="hero-class" aria-labelledby="today-class"><div class="hero-top"><span class="eyebrow">Kelas saat ini</span><span class="status-chip teal">08.00–10.30</span></div><h2 id="today-class">TK B Anggur</h2><p>20 siswa · Ruang Anggur · Jumat, 25 September</p><button class="primary" type="button" data-action="teacher-page" data-page="attendance">${icon('calendar')}Lanjutkan absensi · ${done}/20</button></section>
+        <section class="mobile-section" aria-labelledby="teacher-tasks"><div class="section-row"><h2 id="teacher-tasks">Yang perlu diselesaikan</h2><span class="section-hint">Hari ini</span></div><div class="task-list">
+        ${taskRow('attendance','calendar','Absensi kelas',done+' dari 20 siswa tercatat',(20-done)+' lagi')}
+        ${taskRow('journal','book','Jurnal harian',state.journal.filter(Boolean).length+' dari 20 catatan terisi','Lanjutkan','warm')}
+        ${taskRow('assessment','chart','Penilaian perkembangan',state.assessment.filter(Boolean).length+' dari 20 siswa dinilai','Lanjutkan','purple')}
+        ${taskRow('messages','message','Balasan dari wali','Pesan tentang Alya dan Bilal',unread+' baru')}</div></section>
+        <section class="mobile-section" aria-labelledby="session-next"><div class="section-row"><h2 id="session-next">Setelah ini</h2></div><div class="next-session"><span class="session-time">10.45</span><div><strong>Sentra seni dan kreasi</strong><small>TK B Anggur · 20 siswa · Ruang Anggur</small></div></div></section>
+      </div>`,nav('teacher','home'));
+    }
+    function taskRow(page,ic,title,sub,end,tone=''){return `<button class="task-row" type="button" data-action="teacher-page" data-page="${page}"><span class="task-icon ${tone}">${icon(ic)}</span><span class="task-copy"><strong>${title}</strong><small>${sub}</small></span><span class="task-end">${end}${icon('chevron')}</span></button>`}
+    function teacherRoster(type){
+      const config={attendance:['Absensi kelas','Catat kehadiran setiap siswa.','Kehadiran',state.attendance],journal:['Jurnal harian','Catatan kegiatan belajar hari ini.','Catatan terisi',state.journal],assessment:['Penilaian perkembangan','Perkembangan siswa hari ini.','Sudah dinilai',state.assessment]}[type];
+      const done=config[3].filter(Boolean).length;
+      const initialDone={attendance:18,journal:12,assessment:8}[type];
+      const indices=students.map((_,i)=>i).sort((a,b)=>Number(a<initialDone)-Number(b<initialDone)||a-b);
+      const rows=indices.map(i=>{
+        const status=config[3][i];
+        const chip=type==='attendance'?(status?`<span class="status-chip ${status==='Hadir'?'green':status==='Sakit'?'amber':status==='Izin'?'blue':'red'}">${status}</span>`:'<span class="status-chip gray">Belum dicatat</span>'):`<span class="status-chip ${status?'green':'gray'}">${status?'Selesai':'Belum diisi'}</span>`;
+        return `<div class="student-row"><div class="student-identity"><span class="avatar ${i%3===1?'tone2':i%3===2?'tone3':''}">${students[i].split(' ').slice(0,2).map(x=>x[0]).join('')}</span><span><strong>${students[i]}</strong><small>TK B Anggur · No. ${String(i+1).padStart(2,'0')}</small></span>${chip}</div>
+          ${type==='attendance'?`<div class="segmented" role="group" aria-label="Kehadiran ${students[i]}">${['Hadir','Sakit','Izin','Alpa'].map(s=>`<button type="button" data-action="attendance-status" data-index="${i}" data-status="${s}" aria-pressed="${status===s}">${s}</button>`).join('')}</div>`:`<button type="button" class="${status?'secondary':'primary'}" style="width:100%" data-action="toggle-work" data-type="${type}" data-index="${i}">${status?'Tandai belum selesai':'Tandai selesai'}</button>`}</div>`;
+      }).join('');
+      return mobileShell(`${detailHeader(config[0],'TK B Anggur · 25 September 2026','teacher-back')}<div class="detail-intro"><h2>${config[0]}</h2><p>${config[1]}</p></div><div class="mobile-content"><div class="progress-panel"><div><strong>${done}/20</strong><small>${config[2]}</small></div><span class="progress-ring" style="--pct:${done*5}%">${icon('check')}</span></div><div class="section-row"><h3 class="list-label">Daftar siswa</h3><span class="section-hint">Belum selesai di atas</span></div><div class="student-list">${rows}</div><p class="save-note" style="margin-top:15px">${icon('check')}${state.teacherSave}</p></div>`,nav('teacher',type==='attendance'?'attendance':type==='journal'?'journal':'more'));
+    }
+    function teacherMessages(){return mobileShell(`${detailHeader('Balasan wali','TK B Anggur · 2 percakapan','teacher-back')}<div class="mobile-content" style="padding-top:20px"><h2 style="margin-bottom:13px">Percakapan terbaru</h2>
+      ${[['Alya Putri','Ibu Nadia','Terima kasih atas catatannya. Alya bercerita tentang kegiatan memimpin doa di rumah.'],['Bilal Zhafran','Bapak Fikri','Bilal ingin membawa hasil karya sentra ke rumah. Apakah boleh hari ini?']].map((m,i)=>`<div class="message-card card"><span class="avatar ${i?'tone2':''}">${i?'BZ':'AP'}</span><div style="flex:1"><strong>${m[1]} · ${m[0]}</strong><p>${m[2]}</p><button class="text-button" type="button" data-action="read-reply" data-index="${i}">${state.readReplies[i]?'Sudah dibaca':'Tandai dibaca'}</button></div>${!state.readReplies[i]?'<span class="status-dot" style="color:#5db4b8;margin-top:5px"></span>':''}</div>`).join('')}</div>`,nav('teacher','more'))}
+    function teacherMore(){return mobileShell(`${mobileHeader('SS')}<h1>Lainnya</h1><p class="subtle" style="font-size:11px;margin:0">Pekerjaan dan informasi kelas.</p></div><div class="mobile-content"><div class="task-list">
+      ${taskRow('assessment','chart','Penilaian perkembangan',state.assessment.filter(Boolean).length+'/20 siswa dinilai','Buka','purple')}
+      ${taskRow('messages','message','Balasan wali',state.readReplies.filter(x=>!x).length+' belum dibaca','Buka')}
+      ${taskRow('journal','book','Jurnal harian',state.journal.filter(Boolean).length+'/20 catatan terisi','Buka','warm')}</div>
+      <div class="instruction" style="margin-top:24px"><strong>Ustadzah Sari Maulida</strong><p>Wali kelas TK B Anggur · Tahun ajaran 2026/2027</p></div></div>`,nav('teacher','more'))}
+    function renderTeacher(){return state.teacherPage==='home'?teacherHome():['attendance','journal','assessment'].includes(state.teacherPage)?teacherRoster(state.teacherPage):state.teacherPage==='messages'?teacherMessages():teacherMore()}
+    function parentHome(){return mobileShell(`${mobileHeader('NH')}<div class="head-greeting">Assalamu’alaikum, Ibu Nadia</div><h1>Kabar keluarga hari ini</h1><p class="subtle" style="font-size:11px;margin:0">Jumat, 25 September 2026</p></div><div class="mobile-content">
+      <div class="family-summary">${icon('check')}<div><strong>Alya dan Bilal sudah hadir</strong><p>Kehadiran hari ini dicatat oleh guru kelas masing-masing.</p></div></div>
+      <section class="mobile-section" aria-labelledby="children-heading"><div class="section-row"><h2 id="children-heading">Anak saya</h2><span class="section-hint">2 anak</span></div>
+      ${children.map((c,i)=>`<div class="child-card card"><div class="child-card-top"><span class="avatar ${c.tone}">${c.initial}</span><span style="flex:1"><strong>${c.name}</strong><small>${c.class}</small></span><span class="status-chip green">Hadir</span></div><div class="child-signal"><strong>Catatan guru:</strong> ${c.note}</div><div class="child-actions"><button type="button" data-action="parent-detail" data-page="note" data-index="${i}">Baca catatan</button><button type="button" data-action="parent-detail" data-page="attendance" data-index="${i}">Lihat kehadiran</button></div></div>`).join('')}</section>
+      <section class="mobile-section" aria-labelledby="family-bills"><div class="section-row"><h2 id="family-bills">Tagihan keluarga</h2></div><div class="notice-card card">${icon('wallet')}<div><strong>SPP September · Alya Putri</strong><p>Jatuh tempo 30 September · Sisa ${money(485000)}. Belum dibayar.</p><button type="button" data-action="parent-detail" data-page="bill" data-index="0">Lihat rincian tagihan</button></div></div></section>
+    </div>`,nav('parent','home'))}
+    function parentList(page){
+      if(page==='bills')return mobileShell(`${mobileHeader('NH')}<h1>Tagihan keluarga</h1><p class="subtle" style="font-size:11px;margin:0">Semua tagihan anak Anda.</p></div><div class="mobile-content"><h2 style="margin-bottom:12px">September 2026</h2><div class="task-list">${taskRowParent('bill',0,'Alya Putri','SPP September · jatuh tempo 30 Sep',money(485000),'wallet')}${taskRowParent('bill',1,'Bilal Zhafran','SPP September · sudah dibayar','Lunas','wallet')}</div><div class="instruction"><strong>Status pembayaran</strong><p>Rincian tagihan ini adalah data contoh. Pembayaran tidak diproses di prototipe.</p></div></div>`,nav('parent','bills'));
+      if(page==='notes')return mobileShell(`${mobileHeader('NH')}<h1>Catatan guru</h1><p class="subtle" style="font-size:11px;margin:0">Kabar dari kelas anak Anda.</p></div><div class="mobile-content"><h2 style="margin-bottom:12px">Terbaru</h2><div class="task-list">${children.map((c,i)=>taskRowParent('note',i,c.name,c.note,'25 Sep','message')).join('')}</div></div>`,nav('parent','notes'));
+      if(page==='attendance')return mobileShell(`${mobileHeader('NH')}<h1>Kehadiran anak</h1><p class="subtle" style="font-size:11px;margin:0">Jumat, 25 September 2026</p></div><div class="mobile-content"><div class="task-list">${children.map((c,i)=>taskRowParent('attendance',i,c.name,c.class,'Hadir','calendar')).join('')}</div></div>`,nav('parent','more'));
+      return mobileShell(`${mobileHeader('NH')}<h1>Lainnya</h1><p class="subtle" style="font-size:11px;margin:0">Informasi keluarga dan sekolah.</p></div><div class="mobile-content"><div class="task-list">${taskRowParent('attendance',0,'Kehadiran anak','Lihat catatan hadir Alya dan Bilal','Buka','calendar')}${taskRowParent('bill',0,'Tagihan','Lihat rincian SPP September','Buka','wallet')}${taskRowParent('note',0,'Catatan guru','Baca pesan dari wali kelas','Buka','message')}</div><div class="instruction" style="margin-top:22px"><strong>Ibu Nadia Hasanah</strong><p>Wali dari Alya Putri dan Bilal Zhafran.</p></div></div>`,nav('parent','more'));
+    }
+    function taskRowParent(page,i,title,sub,end,ic){return `<button class="task-row" type="button" data-action="parent-detail" data-page="${page}" data-index="${i}"><span class="task-icon">${icon(ic)}</span><span class="task-copy"><strong>${title}</strong><small>${sub}</small></span><span class="task-end">${end}${icon('chevron')}</span></button>`}
+    function parentDetail(page){
+      const i=state.parentChild,c=children[i],context=`<div class="context-strip"><span class="avatar ${c.tone}">${c.initial}</span><span>${c.name} · ${c.class}</span></div>`;
+      if(page==='bill')return mobileShell(`${detailHeader('Rincian tagihan','September 2026','parent-back')}${context}<div class="mobile-content" style="padding-top:19px"><div class="bill-total"><small>${i===0?'Sisa tagihan':'Tagihan sudah dibayar'}</small><strong class="amount">${money(c.invoice)}</strong><span class="status-chip ${i===0?'amber':'green'}">${i===0?'Menunggu pembayaran':'Lunas'}</span></div><h2 style="font-size:16px">SPP September 2026</h2><p class="subtle" style="font-size:11px">Nomor tagihan: INV-2026-${i===0?'184':'179'} · Jatuh tempo 30 Sep 2026</p><table class="bill-lines"><tbody><tr><td>SPP September 2026</td><td class="amount">${money(i===0?450000:430000)}</td></tr><tr><td>Kegiatan kelas</td><td class="amount">${money(i===0?35000:25000)}</td></tr>${i===1?'<tr><td>Pembayaran diterima</td><td class="amount">−Rp455.000</td></tr>':''}</tbody></table>${i===0?`<button class="primary" type="button" data-action="payment-info" style="width:100%">Lihat cara bayar</button>${state.paymentInfo?'<div class="instruction"><strong>Cara bayar</strong><p>Di aplikasi asli, metode pembayaran dan tautan resmi ditampilkan di sini. Prototipe ini tidak menerima pembayaran. Status tetap menunggu sampai sekolah mengonfirmasi transaksi.</p></div>':''}`:'<div class="instruction"><strong>Pembayaran tercatat</strong><p>Tagihan ini sudah lunas pada 20 September 2026.</p></div>'}</div>`,nav('parent','bills'));
+      if(page==='note')return mobileShell(`${detailHeader('Catatan guru','25 September 2026','parent-back')}${context}<div class="mobile-content" style="padding-top:19px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span class="avatar">SS</span><div><strong style="font-size:11px">Ustadzah Sari</strong><div class="subtle" style="font-size:10px">Wali kelas · 11.35</div></div></div><div class="note-body"><p>Assalamu’alaikum, Ibu Nadia.</p><p>${c.note} Hari ini ${i===0?'Alya juga membantu teman menyiapkan alat belajar. Mohon terus beri semangat di rumah.':'Bilal menyelesaikan kegiatannya dengan sabar dan ingin menunjukkan hasilnya di rumah.'}</p><p>Terima kasih.</p></div><div class="reply-list">${state.parentReplies.filter(r=>r.child===i).map(r=>`<div class="reply"><strong>Anda · baru saja</strong><p>${esc(r.text)}</p></div>`).join('')}</div><label class="field-label" for="parent-reply">Balas catatan</label><textarea id="parent-reply" placeholder="Tulis balasan untuk Ustadzah Sari"></textarea><button class="primary" type="button" data-action="send-reply" style="width:100%;margin-top:9px">Kirim balasan</button><p class="subtle" style="font-size:10px;margin-top:9px">Balasan tersimpan dalam contoh ini selama halaman terbuka.</p></div>`,nav('parent','notes'));
+      return mobileShell(`${detailHeader('Kehadiran','September 2026','parent-back')}${context}<div class="mobile-content" style="padding-top:19px"><div class="progress-panel"><div><strong>Hadir hari ini</strong><small>Dicatat guru kelas · 07.48</small></div><span class="status-chip green">Hadir</span></div><h2 style="font-size:16px;margin-bottom:12px">Catatan minggu ini</h2><div class="task-list">${[['Senin, 21 Sep','Hadir'],['Selasa, 22 Sep','Hadir'],['Rabu, 23 Sep',i===0?'Sakit':'Hadir'],['Kamis, 24 Sep','Hadir'],['Jumat, 25 Sep','Hadir']].map(([d,s])=>`<div class="task-row" style="min-height:55px"><span class="task-copy"><strong>${d}</strong></span><span class="status-chip ${s==='Hadir'?'green':'amber'}">${s}</span></div>`).join('')}</div></div>`,nav('parent','more'));
+    }
+    function renderParent(){return state.parentPage==='home'?parentHome():['bill','note','attendance-detail'].includes(state.parentPage)?parentDetail(state.parentPage==='attendance-detail'?'attendance':state.parentPage):parentList(state.parentPage)}
+    function filteredRecords(){return adminRecords.filter(r=>!state.adminDone.has(r.id)&&(state.adminFilter==='Semua'||r.domain===state.adminFilter)&&(`${r.title} ${r.sub} ${r.id} ${r.domain}`.toLocaleLowerCase('id').includes(state.adminSearch.toLocaleLowerCase('id'))))}
+    function adminShell(){
+      const side=[['home','Perlu ditangani','home'],['Akademik','Akademik','book'],['Keuangan','Keuangan','wallet'],['SDM','SDM & guru','users']];
+      const rows=filteredRecords().map(r=>`<tr><td><span class="status-chip ${r.priorityStyle}">${r.priority}</span></td><td><strong>${r.title}</strong><small>${r.sub}</small></td><td><strong>${r.domain}</strong><small>${r.id}</small></td><td><small>${r.date}</small></td><td><button type="button" class="text-button" data-action="open-record" data-id="${r.id}">${r.action} ›</button></td></tr>`).join('');
+      const counts=adminRecords.filter(r=>!state.adminDone.has(r.id));
+      return `<div class="admin-shell"><aside class="admin-sidebar"><div class="brand"><span class="brand-mark">t</span>talib</div><div class="side-label">SEKOLAH</div><nav class="side-nav" aria-label="Navigasi admin">${side.map(([key,label,ic])=>`<button type="button" class="${state.adminSection===key?'active':''}" data-action="admin-section" data-section="${key}">${icon(ic)}${label}</button>`).join('')}</nav><div class="sidebar-foot"><span class="avatar">FA</span><div><strong>Fajar Arifin</strong><small>Administrator sekolah</small></div></div></aside>
+      <div class="admin-main"><div class="admin-topbar"><div class="campus">${icon('school')}An Nisaa' Sekolahku Taman Aster <span style="color:#a1aaa6;font-weight:500">/</span> 2026/2027</div><div class="top-right"><span>Jumat, 25 September 2026</span><span class="avatar">FA</span></div></div>
+      <div class="admin-work"><div class="admin-heading"><div><h1>${state.adminSection==='home'?'Perlu ditangani':state.adminSection}</h1><p>${state.adminSection==='home'?'Pekerjaan yang menunggu keputusan atau pemeriksaan hari ini.':'Daftar pekerjaan '+state.adminSection.toLowerCase()+' yang masih terbuka.'}</p></div><span class="admin-date">Jumat, 25 September 2026</span></div>
+      <div class="admin-layout"><section class="queue-card" aria-labelledby="queue-title"><div class="queue-top"><h2 id="queue-title">Antrean pekerjaan</h2><p>${counts.length} pekerjaan terbuka di sekolah ini</p></div><div class="queue-controls"><div class="filters" role="group" aria-label="Filter bidang">${['Semua','Keuangan','Akademik','SDM'].map(f=>`<button type="button" class="${state.adminFilter===f?'active':''}" data-action="admin-filter" data-filter="${f}" aria-pressed="${state.adminFilter===f}">${f} <span>${f==='Semua'?counts.length:counts.filter(r=>r.domain===f).length}</span></button>`).join('')}</div><label class="queue-search"><span class="sr">Cari pekerjaan</span>${icon('search')}<input type="search" id="admin-search" placeholder="Cari pekerjaan..." value="${esc(state.adminSearch)}"></label></div>
+      ${rows?`<div class="queue-table-wrap"><table class="queue-table"><thead><tr><th>Prioritas</th><th>Pekerjaan</th><th>Bidang / ID</th><th>Konteks waktu</th><th>Tindakan</th></tr></thead><tbody>${rows}</tbody></table></div><div class="queue-foot">Menampilkan ${filteredRecords().length} dari ${counts.length} pekerjaan terbuka</div>`:`<div class="empty"><strong>${state.adminSearch?'Tidak ada hasil untuk pencarian ini':'Tidak ada pekerjaan di bidang ini'}</strong><p>${state.adminSearch?'Coba kata lain atau hapus pencarian.':'Pilih bidang lain untuk melihat pekerjaan terbuka.'}</p></div>`}</section>
+      <aside class="admin-rail"><section class="rail-card"><h2>Tenggat terdekat</h2><div class="rail-row"><span class="rail-day">29</span><div><strong>Penugasan guru pengganti</strong><small>Permohonan izin Ustadzah Rina · Sep</small></div></div><div class="rail-row"><span class="rail-day">30</span><div><strong>Rapor TK B Anggur</strong><small>3 catatan perkembangan belum lengkap · Sep</small></div></div><div class="rail-row"><span class="rail-day">30</span><div><strong>SPP September Alya Putri</strong><small>Jatuh tempo pembayaran · Sep</small></div></div></section><section class="rail-card"><h2>Baru ditangani</h2><p class="rail-muted">${state.adminDone.size?`${state.adminDone.size} pekerjaan ditandai selesai dalam contoh ini. Antrean langsung diperbarui.`:'Belum ada pekerjaan yang ditandai selesai dalam contoh ini.'}</p></section></aside></div></div></div></div>`;
+    }
+    function render(){const app=$('#app');app.innerHTML=state.role==='teacher'?renderTeacher():state.role==='parent'?renderParent():adminShell()}
+    let returnFocus=null;
+    function openRecord(id){
+      const r=adminRecords.find(x=>x.id===id);if(!r)return;
+      returnFocus=document.activeElement;
+      const d=$('#record-dialog');
+      d.innerHTML=`<div class="dialog-head"><div><h2 id="dialog-title">${r.title}</h2><p>${r.id} · ${r.domain}</p></div><button class="icon-button" type="button" data-action="close-record" aria-label="Tutup rincian">${icon('close')}</button></div><div class="dialog-body"><span class="status-chip ${r.priorityStyle}">${r.priority}</span>${r.facts.map(([k,v])=>`<div class="key-value"><span>${k}</span><strong>${v}</strong></div>`).join('')}<div class="dialog-note">${r.note}</div></div><div class="dialog-actions"><button class="secondary" type="button" data-action="close-record">Kembali</button><button class="primary" type="button" data-action="resolve-record" data-id="${r.id}">${r.done}</button></div>`;
+      d.showModal();d.querySelector('[data-action=close-record]').focus();
+    }
+    function closeRecord(){const d=$('#record-dialog');if(d.open)d.close();if(returnFocus&&returnFocus.isConnected)returnFocus.focus();returnFocus=null}
+    document.addEventListener('click',e=>{
+      const role=e.target.closest('[data-role]');if(role){setRole(role.dataset.role);return}
+      const b=e.target.closest('[data-action]');if(!b)return;
+      const a=b.dataset.action;
+      if(a==='teacher-page'){state.teacherPage=b.dataset.page;state.teacherSave='Semua perubahan tersimpan di contoh ini';render();$('#app').focus()}
+      if(a==='teacher-back'){state.teacherPage='home';render();$('#app').focus()}
+      if(a==='attendance-status'){const scroll=scrollY;state.attendance[+b.dataset.index]=b.dataset.status;state.teacherSave='Pilihan tersimpan di contoh ini';render();scrollTo(0,scroll);announce(`${students[+b.dataset.index]}: ${b.dataset.status}. ${state.attendance.filter(Boolean).length} dari 20 tercatat.`);const target=document.querySelector(`[data-action="attendance-status"][data-index="${b.dataset.index}"][data-status="${b.dataset.status}"]`);target?.focus({preventScroll:true})}
+      if(a==='toggle-work'){const scroll=scrollY,arr=state[b.dataset.type];arr[+b.dataset.index]=!arr[+b.dataset.index];state.teacherSave='Perubahan tersimpan di contoh ini';render();scrollTo(0,scroll);announce(`${students[+b.dataset.index]} ${arr[+b.dataset.index]?'selesai':'belum selesai'}.`);document.querySelector(`[data-action="toggle-work"][data-index="${b.dataset.index}"]`)?.focus({preventScroll:true})}
+      if(a==='read-reply'){state.readReplies[+b.dataset.index]=true;render();announce('Balasan ditandai dibaca')}
+      if(a==='parent-page'){state.parentPage=b.dataset.page;render();$('#app').focus()}
+      if(a==='parent-detail'){state.parentReturnPage=state.parentPage;state.parentChild=+b.dataset.index;state.parentPage=b.dataset.page==='attendance'?'attendance-detail':b.dataset.page;state.paymentInfo=false;if(state.parentPage==='note')state.parentNoteRead=true;render();$('#app').focus()}
+      if(a==='parent-back'){state.parentPage=state.parentReturnPage;state.paymentInfo=false;render();$('#app').focus()}
+      if(a==='payment-info'){state.paymentInfo=true;render();announce('Cara bayar ditampilkan. Status tagihan tetap menunggu pembayaran.');document.querySelector('.instruction:last-child')?.scrollIntoView({block:'nearest'})}
+      if(a==='send-reply'){const field=$('#parent-reply'),value=field?.value.trim();if(!value){field?.focus();announce('Tulis balasan sebelum mengirim.');return}state.parentReplies.push({child:state.parentChild,text:value});render();announce('Balasan tersimpan dalam contoh ini.')}
+      if(a==='admin-section'){state.adminSection=b.dataset.section;state.adminFilter=b.dataset.section==='home'?'Semua':b.dataset.section;state.adminSearch='';render();$('#app').focus()}
+      if(a==='admin-filter'){state.adminFilter=b.dataset.filter;state.adminSection='home';render();document.querySelector(`[data-filter="${b.dataset.filter}"]`)?.focus()}
+      if(a==='open-record')openRecord(b.dataset.id);
+      if(a==='close-record')closeRecord();
+      if(a==='resolve-record'){const r=adminRecords.find(x=>x.id===b.dataset.id);state.adminDone.add(b.dataset.id);closeRecord();render();announce(`${r.done}. Antrean sekarang ${adminRecords.length-state.adminDone.size} pekerjaan.`)}
+    });
+    document.addEventListener('input',e=>{if(e.target.id==='admin-search'){const caret=e.target.selectionStart;state.adminSearch=e.target.value;render();const n=$('#admin-search');n.focus();n.setSelectionRange(caret,caret)}});
+    $('#record-dialog').addEventListener('close',()=>{if(returnFocus&&returnFocus.isConnected)returnFocus.focus();returnFocus=null});
+    render();
+  </script>
+</body>
+</html>

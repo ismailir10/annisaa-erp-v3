@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Home,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { PortalBottomNav, type PortalBottomNavItem } from "@/components/portal/portal-bottom-nav";
 import { ParentMoreSheet, PARENT_MORE_ITEMS } from "@/components/parent/more-sheet";
+import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 
 // Frequency-of-use ordering: daily/financial actions first. The bar holds four
 // destinations plus an overflow trigger; weekly (Perkembangan), semester (Rapor)
@@ -34,21 +35,13 @@ const baseTabs = [
 // Only `child` is meaningful across parent tabs (selected student). Other
 // filters (invoice month, attendance range, etc.) are local to their own
 // tab and must not leak when switching tabs.
-const PARENT_NAV_FORWARDED_PARAMS = ["child"] as const;
-
-export function ParentBottomNav() {
+export function ParentBottomNav({ childIds = [] }: { childIds?: string[] }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const forwardedQuery = useMemo(() => {
-    const forwarded = new URLSearchParams();
-    for (const key of PARENT_NAV_FORWARDED_PARAMS) {
-      const value = searchParams.get(key);
-      if (value) forwarded.set(key, value);
-    }
-    return forwarded.toString();
-  }, [searchParams]);
+  const detailChildId = pathname.match(/^\/parent\/perkembangan\/([^/]+)$/)?.[1];
+  const childId = resolveParentChildId(childIds, detailChildId ?? searchParams.get("child"));
 
   // Keep the "Lainnya" tab lit while the user is on one of its destinations,
   // so the bar never shows zero active tabs.
@@ -56,12 +49,11 @@ export function ParentBottomNav() {
     pathname.startsWith(item.href),
   );
 
-  const items = useMemo<PortalBottomNavItem[]>(() => {
-    const qs = forwardedQuery;
+  const items: PortalBottomNavItem[] = (() => {
     const links: PortalBottomNavItem[] = baseTabs.map((tab) => ({
       kind: "link",
       label: tab.label,
-      href: `${tab.href}${qs ? `?${qs}` : ""}`,
+      href: parentHref(tab.href, childId),
       icon: tab.icon,
       matcher: (p: string) =>
         tab.href === "/parent" ? p === "/parent" : p.startsWith(tab.href),
@@ -78,7 +70,7 @@ export function ParentBottomNav() {
         active: moreOpen || onMoreRoute,
       },
     ];
-  }, [forwardedQuery, moreOpen, onMoreRoute]);
+  })();
 
   return (
     <>
@@ -86,7 +78,7 @@ export function ParentBottomNav() {
       <ParentMoreSheet
         open={moreOpen}
         onOpenChange={setMoreOpen}
-        queryString={forwardedQuery}
+        childId={childId}
       />
     </>
   );

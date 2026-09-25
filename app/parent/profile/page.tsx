@@ -6,6 +6,7 @@ import { getParentWithChildren } from "@/lib/parent-helpers";
 import { LogoutButton } from "./logout-button";
 import { PageHeader } from "@/components/portal/page-header";
 import { SectionLabel } from "@/components/portal/section-label";
+import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -14,7 +15,9 @@ function initialsOf(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-export default async function ParentProfilePage() {
+export default async function ParentProfilePage({ searchParams }: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   // Vercel injects this on every deploy; undefined on a local dev server.
   const buildRef = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
   const session = await getSession();
@@ -22,6 +25,7 @@ export default async function ParentProfilePage() {
 
   const { parent, children } = await getParentWithChildren(session);
   if (!parent) redirect("/parent");
+  const childId = resolveParentChildId(children.map((child) => child.studentId), (await searchParams).child);
 
   // Email shown comes from session (the OAuth-verified address Anda use to
   // sign in). Falls back to the parent record's email if seed-imported.
@@ -34,7 +38,7 @@ export default async function ParentProfilePage() {
           "Profil" row in the Lainnya sheet leading somewhere unnamed. */}
       <div className="flex items-center gap-1">
         <Link
-          href="/parent"
+          href={parentHref("/parent", childId)}
           className="grid size-11 -ml-2 shrink-0 place-items-center rounded-md text-foreground transition-colors hover:bg-primary/10 active:bg-primary/20"
           aria-label="Kembali"
         >
@@ -75,7 +79,7 @@ export default async function ParentProfilePage() {
               return (
                 <li key={c.studentId}>
                   <Link
-                    href={`/parent/attendance?child=${c.studentId}`}
+                    href={parentHref("/parent/attendance", c.studentId)}
                     className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 active:border-primary/40"
                   >
                     <div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary text-xs font-bold">
@@ -135,4 +139,3 @@ function ContactCard({ icon: Icon, primary, secondary }: CardIconProps) {
     </div>
   );
 }
-

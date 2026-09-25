@@ -63,19 +63,18 @@ export const adminNav: NavConfig = {
       label: "Kesiswaan",
       icon: GraduationCap,
       items: [
-        { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus },
-        { label: "Formulir Pendaftaran", href: "/admin/enrollments", icon: ClipboardList },
-        { label: "Siswa", href: "/admin/students", icon: GraduationCap },
-        { label: "Wali Murid", href: "/admin/guardians", icon: Heart },
+        { label: "Pendaftaran", href: "/admin/admissions", icon: UserPlus, permission: "admissions.view" },
+        { label: "Formulir Pendaftaran", href: "/admin/enrollments", icon: ClipboardList, permission: "admissions.view" },
+        { label: "Siswa", href: "/admin/students", icon: GraduationCap, permission: "students.view" },
+        { label: "Wali Murid", href: "/admin/guardians", icon: Heart, permission: "students.view" },
       ],
     },
     {
       id: "academic",
       label: "Akademik",
       icon: School,
-      permission: "academic.view",
       items: [
-        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays },
+        { label: "Tahun Ajaran", href: "/admin/academic-years", icon: CalendarDays, permission: "academic.view" },
         { label: "Kelas", href: "/admin/classes", icon: School, permission: "academic.view" },
         { label: "Semester", href: "/admin/semesters", icon: CalendarDays, permission: "curriculum.read" },
       ],
@@ -84,7 +83,6 @@ export const adminNav: NavConfig = {
       id: "assessment",
       label: "Penilaian",
       icon: ClipboardList,
-      permission: "assessments.read",
       items: [
         { label: "Pemantauan", href: "/admin/penilaian", icon: ClipboardCheck, permission: "assessments.read" },
         { label: "Rapor", href: "/admin/raport", icon: FileText, permission: "reportCard.read" },
@@ -96,8 +94,8 @@ export const adminNav: NavConfig = {
       label: "Kelas Harian",
       icon: NotebookPen,
       items: [
-        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck },
-        { label: "Buku Penghubung — Templat", href: "/admin/student-journal", icon: BookOpen },
+        { label: "Kehadiran Siswa", href: "/admin/student-attendance", icon: CalendarCheck, permission: "students.view" },
+        { label: "Buku Penghubung — Templat", href: "/admin/student-journal", icon: BookOpen, permission: "students.view" },
       ],
     },
     {
@@ -105,9 +103,9 @@ export const adminNav: NavConfig = {
       label: "Keuangan",
       icon: Coins,
       items: [
-        { label: "Biaya", href: "/admin/fees", icon: Coins },
-        { label: "Tagihan", href: "/admin/invoices", icon: Receipt },
-        { label: "Penerimaan", href: "/admin/payments", icon: Wallet },
+        { label: "Biaya", href: "/admin/fees", icon: Coins, permission: "fees.view" },
+        { label: "Tagihan", href: "/admin/invoices", icon: Receipt, permission: "invoices.view" },
+        { label: "Penerimaan", href: "/admin/payments", icon: Wallet, permission: "invoices.view" },
       ],
     },
     {
@@ -116,33 +114,48 @@ export const adminNav: NavConfig = {
       icon: Users,
       permission: "hr.view",
       items: [
-        { label: "Karyawan", href: "/admin/employees", icon: Users },
-        { label: "Kehadiran", href: "/admin/employee-attendance", icon: CalendarCheck },
-        { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff },
-        { label: "Komponen Gaji", href: "/admin/salary-components", icon: Coins, permission: "hr.view" },
-        { label: "Penggajian", href: "/admin/payroll", icon: Banknote },
+        { label: "Karyawan", href: "/admin/employees", icon: Users, permission: "hr.view" },
+        { label: "Kehadiran", href: "/admin/employee-attendance", icon: CalendarCheck, permission: "attendance.view" },
+        { label: "Pengajuan Cuti", href: "/admin/leave-requests", icon: CalendarOff, permission: "leave.view" },
+        { label: "Komponen Gaji", href: "/admin/salary-components", icon: Coins, permission: "payroll.view" },
+        { label: "Penggajian", href: "/admin/payroll", icon: Banknote, permission: "payroll.view" },
       ],
     },
   ],
 
   settings: [
-    { label: "Kampus", href: "/admin/settings/campuses", icon: Building2 },
-    { label: "Jam Kerja", href: "/admin/settings/work-hours", icon: Clock },
+    { label: "Kampus", href: "/admin/settings/campuses", icon: Building2, permission: "settings.view" },
+    { label: "Jam Kerja", href: "/admin/settings/work-hours", icon: Clock, permission: "settings.view" },
     {
       label: "Hari Libur",
       href: "/admin/settings/holidays",
       icon: CalendarDays,
+      permission: "settings.view",
     },
-    { label: "Pengguna", href: "/admin/settings/users", icon: Users },
-    { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield },
+    { label: "Pengguna", href: "/admin/settings/users", icon: Users, permission: "users.view" },
+    { label: "Peran & Izin", href: "/admin/settings/roles", icon: Shield, permission: "users.view" },
     // Design System is an internal dev/reference page — hide in production so
     // school admins don't see it. The build inlines NODE_ENV so this branch
     // is dead-code-eliminated from the production bundle.
     ...(process.env.NODE_ENV !== "production"
-      ? [{ label: "Design System", href: "/admin/design-system", icon: Palette } satisfies NavItem]
+      ? [{ label: "Design System", href: "/admin/design-system", icon: Palette, permission: "settings.view" } satisfies NavItem]
       : []),
   ],
 };
+
+/** Keep groups only when their own gate and at least one destination are usable. */
+export function getVisibleAdminNav(permissions: readonly string[]): NavConfig {
+  const canSee = (item: { permission?: PermissionCode }) =>
+    !item.permission || permissions.includes(item.permission);
+  return {
+    standalone: adminNav.standalone.filter(canSee),
+    groups: adminNav.groups
+      .filter(canSee)
+      .map((group) => ({ ...group, items: group.items.filter(canSee) }))
+      .filter((group) => group.items.length > 0),
+    settings: adminNav.settings.filter(canSee),
+  };
+}
 
 export function isItemActive(pathname: string, item: NavItem): boolean {
   if (item.matchExact) return pathname === item.href;

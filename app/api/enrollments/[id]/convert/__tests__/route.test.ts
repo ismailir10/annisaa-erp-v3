@@ -76,6 +76,12 @@ beforeEach(() => {
 });
 
 describe("POST /api/enrollments/[id]/convert", () => {
+  it("denies an admissions read-only custom admin before loading the application", async () => {
+    getSession.mockResolvedValue({ id: "u-1", tenantId: "t-1", role: "SCHOOL_ADMIN", permissions: ["admissions.view"] });
+    expect((await POST(reqx(), ctx())).status).toBe(403);
+    expect(appFindUnique).not.toHaveBeenCalled();
+  });
+
   it("403 for non-admin", async () => {
     isAdminRole.mockReturnValue(false);
     expect((await POST(reqx(), ctx())).status).toBe(403);

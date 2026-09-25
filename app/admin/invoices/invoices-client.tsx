@@ -580,13 +580,13 @@ export function InvoicesClient({ gatewayId }: { gatewayId: "xendit" | "doku" }) 
           instead of it silently sitting invisible until they happen to
           re-open the wizard fresh and hit the 409. */}
       {draftRun && (
-        <Alert>
+        <Alert className="has-data-[slot=alert-action]:pr-2.5">
           <AlertTriangle className="size-4" />
           <AlertTitle>Ada draf tagihan yang belum selesai</AlertTitle>
           <AlertDescription>
             Periode {draftRun.periodLabel} punya draf yang belum dikomit.
           </AlertDescription>
-          <AlertAction className="flex gap-2">
+          <AlertAction className="static col-span-full flex flex-wrap justify-end gap-2 pt-2">
             <Button size="sm" variant="ghost" onClick={() => setDiscardDraftOpen(true)}>
               Buang draf
             </Button>

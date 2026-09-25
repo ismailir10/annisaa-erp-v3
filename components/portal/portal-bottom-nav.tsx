@@ -117,14 +117,14 @@ export function PortalBottomNav({ items, layoutId, ariaLabel }: PortalBottomNavP
                 strokeWidth={isActive ? 2 : 1.5}
                 className={cn(
                   "shrink-0",
-                  isActive ? "text-primary" : "text-muted-foreground",
+                  isActive ? "text-primary-text" : "text-muted-foreground",
                 )}
                 aria-hidden="true"
               />
               <span
                 className={cn(
                   LABEL_CLASS,
-                  isActive ? "text-primary" : "text-muted-foreground",
+                  isActive ? "text-primary-text" : "text-muted-foreground",
                 )}
               >
                 {item.label}

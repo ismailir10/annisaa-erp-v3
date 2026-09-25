@@ -4,7 +4,7 @@ import { vi } from "vitest";
 vi.mock("@/lib/auth", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/attendance/timezone", () => ({ getTodayInTimezone: () => "2026-08-03" }));
 vi.mock("@/lib/curriculum/weekly-assessment-loader", () => ({ loadWeeklyAssessment: vi.fn() }));
-import { normalizeWeeklyDate, WeeklyDateRecovery } from "../page";
+import { normalizeWeeklyDate, WeeklyDateRecovery } from "../date-recovery";
 
 describe("weekly date recovery", () => {
   it("submits a required date query to the weekly route", () => {

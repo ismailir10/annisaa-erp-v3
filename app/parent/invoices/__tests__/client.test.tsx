@@ -205,15 +205,12 @@ describe("InvoicesClient (cycle-4)", () => {
   });
 
   describe("Xendit return-URL handler", () => {
-    it("opens detail sheet, fires success toast, and clears params on ?invoice=&xenditStatus=paid", () => {
+    it("opens detail sheet and reports pending when the legacy return URL says paid but server says sent", () => {
       mockSearchParams = new URLSearchParams("invoice=inv-1&xenditStatus=paid");
       render(<InvoicesClient data={mockInvoices} />);
-      expect(toastFn.success).toHaveBeenCalledWith(
-        expect.stringContaining("Alhamdulillah"),
-      );
-      expect(toastFn.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agustus 2024"),
-      );
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("sedang diperiksa"));
+      expect(refreshFn).toHaveBeenCalled();
       expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
       expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
     });
@@ -256,17 +253,26 @@ describe("InvoicesClient (cycle-4)", () => {
   // alongside the legacy `xenditStatus` param (sessions created before this
   // cycle), preferring `paymentStatus` when both are present.
   describe("Payment return-URL handler (paymentStatus, gateway-neutral)", () => {
-    it("opens detail sheet, fires success toast, and clears params on ?invoice=&paymentStatus=paid", () => {
-      mockSearchParams = new URLSearchParams("invoice=inv-1&paymentStatus=paid");
-      render(<InvoicesClient data={mockInvoices} />);
+    it("shows a partial payment as partial even when the callback claims paid", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-2&paymentStatus=paid&child=second");
+      render(<InvoicesClient data={mockInvoices} selectedChildId="second" />);
+      expect(toastFn.success).not.toHaveBeenCalled();
+      expect(toastFn).toHaveBeenCalledWith(expect.stringContaining("tercatat sebagian"));
+      expect(screen.getByRole("button", { name: /September 2024/ })).toHaveTextContent("Dibayar sebagian");
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=second", { scroll: false });
+    });
+
+    it("opens detail sheet and confirms payment only when the server says paid", () => {
+      mockSearchParams = new URLSearchParams("invoice=inv-3&paymentStatus=paid&child=second&view=home");
+      render(<InvoicesClient data={mockInvoices} selectedChildId="second" />);
       expect(toastFn.success).toHaveBeenCalledWith(
         expect.stringContaining("Alhamdulillah"),
       );
       expect(toastFn.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agustus 2024"),
+        expect.stringContaining("Juli 2024"),
       );
-      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices", { scroll: false });
-      expect(screen.getByText(/Sheet open: inv-1/)).toBeInTheDocument();
+      expect(replaceFn).toHaveBeenCalledWith("/parent/invoices?child=second&view=home", { scroll: false });
+      expect(screen.getByText(/Sheet open: inv-3/)).toBeInTheDocument();
     });
 
     it("fires neutral cancel toast on ?invoice=&paymentStatus=cancel", () => {
@@ -280,10 +286,10 @@ describe("InvoicesClient (cycle-4)", () => {
 
     it("prefers paymentStatus over xenditStatus when both are present", () => {
       mockSearchParams = new URLSearchParams(
-        "invoice=inv-1&paymentStatus=paid&xenditStatus=cancel",
+        "invoice=inv-3&paymentStatus=paid&xenditStatus=cancel",
       );
       render(<InvoicesClient data={mockInvoices} />);
-      // paymentStatus=paid wins → success toast, not the cancel toast.
+      // The paid server state wins; both transient URL params are removed.
       expect(toastFn.success).toHaveBeenCalledWith(
         expect.stringContaining("Alhamdulillah"),
       );

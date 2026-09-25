@@ -17,7 +17,7 @@
  * open/close/positioning internals, which are unrelated to T7.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 
@@ -171,7 +171,7 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     });
 
     const reasonField = screen.getByLabelText(/^Alasan\*?$/);
-    await user.type(reasonField, "Penempatan sesuai kemampuan anak");
+    fireEvent.change(reasonField, { target: { value: "Penempatan sesuai kemampuan anak" } });
     expect(confirmBtn).not.toBeDisabled();
 
     await user.click(confirmBtn);
@@ -192,7 +192,7 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     await openAddStudentAndPick(user, "Bilal Ahmad");
     await user.click(screen.getByRole("button", { name: "Tambahkan" }));
     await screen.findByText(AGE_MESSAGE);
-    await user.type(screen.getByLabelText(/^Alasan\*?$/), "some reason");
+    fireEvent.change(screen.getByLabelText(/^Alasan\*?$/), { target: { value: "some reason" } });
 
     await user.click(screen.getByRole("button", { name: "Batal" }));
 
@@ -216,7 +216,7 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     const confirmBtn = screen.getByRole("button", { name: "Tetap Tambahkan" });
     expect(confirmBtn).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/^Alasan\*?$/), "   ");
+    fireEvent.change(screen.getByLabelText(/^Alasan\*?$/), { target: { value: "   " } });
     expect(confirmBtn).toBeDisabled();
   });
 
@@ -248,7 +248,7 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     await openAddStudentAndPick(user, "Bilal Ahmad");
     await user.click(screen.getByRole("button", { name: "Tambahkan" }));
     await screen.findByText(AGE_MESSAGE);
-    await user.type(screen.getByLabelText(/^Alasan\*?$/), "some reason");
+    fireEvent.change(screen.getByLabelText(/^Alasan\*?$/), { target: { value: "some reason" } });
 
     // Escape closes the Dialog (Base UI's default dismissible behaviour).
     await user.keyboard("{Escape}");
