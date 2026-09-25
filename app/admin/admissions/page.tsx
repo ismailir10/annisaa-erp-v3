@@ -24,20 +24,14 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Users2 } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { AdminLinkTabs } from "@/components/admin/admin-tabs";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight, Send } from "lucide-react";
@@ -431,7 +425,6 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
 // ------------------------------------------------------------------
 
 export default function AdmissionsPage() {
-  const isMobile = useIsMobile();
   const [data, setData] = useState<Admission[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -904,7 +897,7 @@ export default function AdmissionsPage() {
     <>
       <PageHeader
         title="Pendaftaran"
-        description={`${pagination.total} calon siswa`}
+        description="Calon siswa yang bertanya atau mendaftar."
         actions={
           canEdit ? <Button size="sm" onClick={openDialog}>
             <Plus size={14} className="mr-1.5" /> Catat Pertanyaan
@@ -912,7 +905,14 @@ export default function AdmissionsPage() {
         }
       />
 
-      <StatsCardsRow cols={4}>
+      <AdminLinkTabs
+        items={[
+          { href: "/admin/admissions", label: "Calon Siswa" },
+          { href: "/admin/enrollments", label: "Formulir" },
+        ]}
+      />
+
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Calon" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Pertanyaan" value={stats.inquiry} icon={PhoneCall} color="warning" index={1} />
         <StatCard label="Diterima" value={stats.admitted} icon={CheckCircle} color="success" index={2} />
@@ -955,53 +955,28 @@ export default function AdmissionsPage() {
         emptyDescription="Catat pertanyaan baru ketika orang tua menghubungi sekolah"
       />
 
-      {/* Add/Edit Admission — Sheet on mobile (bottom, form is narrow when grids collapse), Dialog on desktop */}
-      {isMobile ? (
-        <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
-          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</SheetTitle>
-            </SheetHeader>
-            <div className="p-card space-y-field">
-              {editingAdmission?.detectedParent && (
-                <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
-              )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
-              <div className="flex flex-col-reverse gap-2 pt-2">
-                <Button onClick={handleSubmit} disabled={saving}>
-                  {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
-                </Button>
-                <SheetClose render={<Button variant="ghost">Batal</Button>} />
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="p-card sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}</DialogTitle>
-            </DialogHeader>
-            {/* flex-1 min-h-0 overflow-y-auto: T9 added campusPreference and
-                the form now overflows 90vh. Inner scroll keeps DialogFooter
-                docked while the body scrolls. */}
-            <div className="p-card space-y-field flex-1 min-h-0 overflow-y-auto">
-              {editingAdmission?.detectedParent && (
-                <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
-              )}
-              <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
-            </div>
-            <DialogFooter>
-              <DialogClose>
-                <Button variant="ghost">Batal</Button>
-              </DialogClose>
-              <Button onClick={handleSubmit} disabled={saving}>
-                {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Add/Edit Admission — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}
+        size="xl"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
+              Batal
+            </Button>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
+            </Button>
+          </>
+        }
+      >
+        {editingAdmission?.detectedParent && (
+          <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
+        )}
+        <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
+      </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog
         open={!!cancelTarget}

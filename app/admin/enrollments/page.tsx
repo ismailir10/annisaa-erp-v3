@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { Button } from "@/components/ui/button";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
+import { AdminLinkTabs } from "@/components/admin/admin-tabs";
+import { FileText, Send, CheckCircle2 } from "lucide-react";
 import { StatusChip } from "./status-chip";
 import { formatDateShort } from "@/lib/format";
 
@@ -32,6 +36,7 @@ type Pagination = {
 };
 
 export default function EnrollmentsPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [status, setStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -42,6 +47,29 @@ export default function EnrollmentsPage() {
     totalPages: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, submitted: 0, accepted: 0 });
+
+  // Counts by status for the stat cards. Reuses the existing paginated
+  // /api/enrollments endpoint (pageSize=1, status filter) rather than adding
+  // a dedicated counts API — same pattern as /admin/admissions' fetchStats.
+  const fetchStats = useCallback(() => {
+    Promise.all([
+      fetch("/api/enrollments?pageSize=1").then((r) => r.json()),
+      fetch("/api/enrollments?pageSize=1&status=SUBMITTED").then((r) => r.json()),
+      fetch("/api/enrollments?pageSize=1&status=ACCEPTED").then((r) => r.json()),
+    ])
+      .then(([all, submitted, accepted]) => {
+        setStats({
+          total: all.pagination?.total ?? 0,
+          submitted: submitted.pagination?.total ?? 0,
+          accepted: accepted.pagination?.total ?? 0,
+        });
+      })
+      .catch((err) => console.error("[enrollments] stats fetch failed", err));
+  }, []);
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,56 +145,73 @@ export default function EnrollmentsPage() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <Button variant="outline" size="sm" render={<Link href={`/admin/enrollments/${row.original.id}`} />}>
-          Lihat
-        </Button>
+        <DataTableRowActions
+          rowLabel={row.original.childName || undefined}
+          onView={() => router.push(`/admin/enrollments/${row.original.id}`)}
+        />
       ),
     },
   ];
 
   return (
-    <div className="space-y-4">
+    <>
       <PageHeader
-        title="Formulir Pendaftaran"
-        description="Formulir penerimaan murid baru yang dikirim orang tua melalui tautan."
+        title="Pendaftaran"
+        description="Formulir pendaftaran yang dikirim wali."
       />
-      <DataTableToolbar
-        value={search}
-        onSearchChange={(value) => {
-          setSearch(value);
-          setPagination((current) => ({ ...current, page: 1 }));
-        }}
-        searchPlaceholder="Cari nama anak atau email orang tua..."
-        filters={[
-          {
-            key: "status",
-            label: "Status",
-            value: status,
-            onChange: (value) => {
-              setStatus(value);
-              setPagination((current) => ({ ...current, page: 1 }));
-            },
-            options: [
-              { value: "all", label: "Semua Status" },
-              { value: "SUBMITTED", label: "Terkirim" },
-              { value: "UNDER_REVIEW", label: "Ditinjau" },
-              { value: "ACCEPTED", label: "Diterima" },
-              { value: "REJECTED", label: "Ditolak" },
-              { value: "INVITED", label: "Diundang" },
-            ],
-          },
+
+      <AdminLinkTabs
+        items={[
+          { href: "/admin/admissions", label: "Calon Siswa" },
+          { href: "/admin/enrollments", label: "Formulir" },
         ]}
       />
-      <DataTable
-        columns={columns}
-        data={rows}
-        pagination={pagination}
-        onPageChange={(page) => setPagination((current) => ({ ...current, page }))}
-        onPageSizeChange={(pageSize) => setPagination((current) => ({ ...current, page: 1, pageSize }))}
-        loading={loading}
-        emptyTitle="Belum ada formulir masuk"
-        emptyDescription="Formulir yang dikirim orang tua akan muncul di sini."
-      />
-    </div>
+
+      <div className="space-y-section">
+        <StatsCardsRow cols={3}>
+          <StatCard label="Total Formulir" value={stats.total} icon={FileText} color="primary" index={0} />
+          <StatCard label="Terkirim" value={stats.submitted} icon={Send} color="warning" index={1} />
+          <StatCard label="Diterima" value={stats.accepted} icon={CheckCircle2} color="success" index={2} />
+        </StatsCardsRow>
+
+        <DataTableToolbar
+          value={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPagination((current) => ({ ...current, page: 1 }));
+          }}
+          searchPlaceholder="Cari nama anak atau email orang tua..."
+          filters={[
+            {
+              key: "status",
+              label: "Status",
+              value: status,
+              onChange: (value) => {
+                setStatus(value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              },
+              options: [
+                { value: "all", label: "Semua Status" },
+                { value: "SUBMITTED", label: "Terkirim" },
+                { value: "UNDER_REVIEW", label: "Ditinjau" },
+                { value: "ACCEPTED", label: "Diterima" },
+                { value: "REJECTED", label: "Ditolak" },
+                { value: "INVITED", label: "Diundang" },
+              ],
+            },
+          ]}
+        />
+        <DataTable
+          columns={columns}
+          data={rows}
+          pagination={pagination}
+          onPageChange={(page) => setPagination((current) => ({ ...current, page }))}
+          onPageSizeChange={(pageSize) => setPagination((current) => ({ ...current, page: 1, pageSize }))}
+          loading={loading}
+          emptyTitle="Belum ada formulir masuk"
+          emptyDescription="Formulir yang dikirim orang tua akan muncul di sini."
+        />
+      </div>
+    </>
   );
 }

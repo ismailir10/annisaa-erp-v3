@@ -125,7 +125,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Files: `config/admin-nav.ts` (a `settingsHub` sections config replaces `settings`), `components/admin/sidebar.tsx`, the breadcrumbs, and a new `app/admin/settings/page.tsx`.
   - Add longest-prefix active matching and `alsoMatch`.
   - *Accept:* nav vitest covers grouping, permission filtering, active matching, and breadcrumbs.
-- [ ] **T2 — Pendaftaran merge.**
+- [x] **T2 — Pendaftaran merge.**
   - Add a link-tab strip (reuse `AdminTabs` styling, adding an href mode if needed) to admissions and enrollments.
   - In enrollments: the row action becomes `DataTableRowActions`, spacing moves to tokens, and a `StatsCardsRow` is added.
   - *Accept:* both routes show the strip and activate a single nav item.
@@ -203,6 +203,12 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Edge case: `/admin/student-journal/classes/*` highlights Pengaturan, because its only matching prefix is the hub's `/admin/student-journal`.
   - Review: feature-dev:code-reviewer found no issues.
 
+- T2: Pendaftaran merge.
+  - Files: `components/admin/admin-tabs.tsx` (new additive `AdminLinkTabs`: `usePathname`, `aria-current`) and its test, `app/admin/admissions/page.tsx` and its new tsx test, `app/admin/enrollments/page.tsx` and its new test, `enrollments/[id]/page.tsx`.
+  - A shared tab strip, "Calon Siswa" | "Formulir", sits on both list pages, and both pages are titled "Pendaftaran" with static descriptions.
+  - The admissions form now uses ResponsiveFormDialog. It keeps the domain verb "Catat Pertanyaan" for create.
+  - Enrollments: DataTableRowActions, space-y-section, and a 3-card StatsCardsRow (`cols={3}`) built from the existing `/api/enrollments` endpoint via `pageSize=1` status queries.
+  - Review: feature-dev:code-reviewer found no issues. Its one cosmetic finding (3 cards in a 4-column row) is fixed here and on students.
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
