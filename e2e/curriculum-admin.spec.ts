@@ -40,12 +40,13 @@ test.describe("Admin curriculum", () => {
     expect(academicYearName).toBeTruthy();
     if (!academicYearName) throw new Error("No semester academic year found");
     await expect(page.getByText(academicYearName).first()).toBeVisible();
-    // Sidebar entry: scope to the sidebar nav so the breadcrumb's
-    // aria-current page (also role="link" + text "Semester") doesn't
-    // collide with the strict-mode resolver.
-    await expect(
-      page.locator('[data-slot="sidebar-menu-button"]', { hasText: "Semester" }).first(),
-    ).toBeVisible();
+    // admin-dmmt-overhaul: Semester moved out of the sidebar into the
+    // /admin/settings hub (Sekolah section) — it no longer renders as a
+    // `sidebar-menu-button`. Confirm it's reachable from the hub instead.
+    await page.goto("/admin/settings");
+    await expect(page.getByRole("link", { name: /Semester/ })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("theme create + subtheme create + week create end-to-end", async ({ page }) => {

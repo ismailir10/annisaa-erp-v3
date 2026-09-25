@@ -383,7 +383,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   };
 
   return (
-    <div className="min-w-0 space-y-section">
+    <>
       <PageHeader
         title="Kelas"
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
@@ -401,6 +401,11 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         }
       />
 
+      {/* min-w-0 preserved on both wrappers — the class table's columns
+          (Wali Kelas, Kondisi badge, etc.) overflow a flex/grid ancestor
+          without it, which clips the DataTable horizontally on narrow
+          viewports. */}
+      <div className="min-w-0 space-y-section">
       <div className="min-w-0 [&>div]:flex-wrap">
       <DataTableToolbar
         value={query}
@@ -468,6 +473,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         emptyTitle="Belum ada kelas"
         emptyDescription="Kelas yang dibuat akan tampil di sini."
       />
+      </div>
 
       <BulkPromoteDialog
         open={promoteOpen}
@@ -500,7 +506,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
               Batal
             </Button>
             <Button onClick={save} disabled={saving}>
-              {saving ? "Menyimpan..." : "Simpan"}
+              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kelas"}
             </Button>
           </>
         }
@@ -673,6 +679,6 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           }
         }}
       />
-    </div>
+    </>
   );
 }

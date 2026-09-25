@@ -48,7 +48,7 @@ export default async function TeacherAssessmentsPage() {
       )
     : null;
   // m3: the semester half used to track the calendar month (Jul-Dec = Sem 1),
-  // which put the teacher header on "Semester 1" while /admin/raport and
+  // which put the teacher header on "Semester 1" while /admin/report-cards and
   // /parent/perkembangan both read "Semester 2" off the DB row that actually
   // owns the Weeks this page renders. Resolve it from the same rows they do.
   const period = await getCurrentPeriodFromDb(session.tenantId);

@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/curriculum/penilaian-monitor", () => ({ loadPenilaianMonitor }));
 
-import { GET } from "@/app/api/admin/penilaian/route";
+import { GET } from "@/app/api/admin/assessments/route";
 
 const ALLOW = { session: { tenantId: "tenant_x", role: "SCHOOL_ADMIN" } };
 
@@ -25,19 +25,19 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("GET /api/admin/penilaian", () => {
+describe("GET /api/admin/assessments", () => {
   it("propagates the auth guard's error (deny)", async () => {
     requirePermission.mockResolvedValue({
       error: Response.json({ error: "forbidden", missing: "assessments.read" }, { status: 403 }),
     });
-    const res = await GET(req("http://t/api/admin/penilaian"));
+    const res = await GET(req("http://t/api/admin/assessments"));
     expect(res.status).toBe(403);
     expect(loadPenilaianMonitor).not.toHaveBeenCalled();
   });
 
   it("400 on malformed date param", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    const res = await GET(req("http://t/api/admin/penilaian?week=2026-13-99x"));
+    const res = await GET(req("http://t/api/admin/assessments?week=2026-13-99x"));
     expect(res.status).toBe(400);
     expect(academicYearFindFirst).not.toHaveBeenCalled();
   });
@@ -45,7 +45,7 @@ describe("GET /api/admin/penilaian", () => {
   it("422 when no active academic year", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     academicYearFindFirst.mockResolvedValue(null);
-    const res = await GET(req("http://t/api/admin/penilaian?week=2026-08-03&day=2026-08-03"));
+    const res = await GET(req("http://t/api/admin/assessments?week=2026-08-03&day=2026-08-03"));
     expect(res.status).toBe(422);
     expect(loadPenilaianMonitor).not.toHaveBeenCalled();
   });
@@ -59,7 +59,7 @@ describe("GET /api/admin/penilaian", () => {
       sentra: [{ center: "WORSHIP", entries: 1, studentsAssessed: 1 }],
     });
 
-    const res = await GET(req("http://t/api/admin/penilaian?week=2026-08-03&day=2026-08-03"));
+    const res = await GET(req("http://t/api/admin/assessments?week=2026-08-03&day=2026-08-03"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.academicYear).toBe("2026/2027");
@@ -78,7 +78,7 @@ describe("GET /api/admin/penilaian", () => {
     requirePermission.mockResolvedValue(ALLOW);
     academicYearFindFirst.mockResolvedValue({ id: "ay1", name: "2026/2027" });
     loadPenilaianMonitor.mockResolvedValue({ week: null, walas: [], sentra: [] });
-    const res = await GET(req("http://t/api/admin/penilaian"));
+    const res = await GET(req("http://t/api/admin/assessments"));
     expect(res.status).toBe(200);
     expect(loadPenilaianMonitor).toHaveBeenCalledTimes(1);
   });

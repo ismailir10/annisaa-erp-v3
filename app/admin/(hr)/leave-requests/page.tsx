@@ -11,30 +11,13 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetClose,
-} from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // ------------------------------------------------------------------
@@ -146,7 +129,6 @@ function LeaveReviewBody({
 }
 
 export default function AdminLeavePage() {
-  const isMobile = useIsMobile();
   const routeSearchParams = useSearchParams();
   const requestId = routeSearchParams.get("requestId");
   const router = useRouter();
@@ -261,6 +243,19 @@ export default function AdminLeavePage() {
       .finally(() => { if (active) setDeepLinkLoading(false); });
     return () => { active = false; };
   }, [requestId, deepLinkRetry]);
+
+  // ResponsiveFormDialog doesn't expose Base UI's `finalFocus` passthrough, so
+  // a deep-linked review (opened with no trigger element to restore focus to)
+  // would otherwise drop focus on close. Restore it to the page heading once
+  // the dialog has actually unmounted — an effect, not an inline call in
+  // closeReview(), so it runs after Base UI's own close/unmount work instead
+  // of racing it (see reference_focus_settimeout_race).
+  useEffect(() => {
+    if (!reviewTarget && openedFromLink.current) {
+      pageHeading.current?.focus();
+      openedFromLink.current = false;
+    }
+  }, [reviewTarget]);
 
   function closeReview() {
     setDeepLinkError(false);
@@ -451,7 +446,7 @@ export default function AdminLeavePage() {
       <div ref={pageHeading} tabIndex={-1} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
         <PageHeader
           title="Pengajuan Cuti"
-          description={fetchError ? "Daftar pengajuan belum tersedia" : loading ? "Memuat pengajuan…" : `${pagination.total} pengajuan`}
+          description={fetchError ? "Daftar pengajuan belum tersedia" : "Tinjau dan proses pengajuan cuti karyawan"}
         />
       </div>
 
@@ -507,139 +502,66 @@ export default function AdminLeavePage() {
         emptyDescription="Pengajuan cuti dari guru akan muncul di sini."
       />}
 
-      {/* Review dialog/sheet — split by viewport */}
+      {/* Review dialog — Dialog on desktop, Sheet on mobile via ResponsiveFormDialog */}
       {reviewTarget && (
-        isMobile ? (
-          <Sheet
-            open={!!reviewTarget}
-            onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}
-          >
-            <SheetContent finalFocus={() => openedFromLink.current ? pageHeading.current : true} side="bottom" className="max-h-[90vh] overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>
-                  {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
-                </SheetTitle>
-                <SheetDescription>
-                  {reviewTarget.employee.nama} —{" "}
-                  {TYPE_LABELS[reviewTarget.leaveType] ?? reviewTarget.leaveType} (
-                  {reviewTarget.days} hari)
-                </SheetDescription>
-              </SheetHeader>
-              <div className="p-card space-y-field">
-                <LeaveReviewBody
-                  target={reviewTarget}
-                  viewOnly={viewOnly}
-                  reviewAction={reviewAction}
-                  reviewNote={reviewNote}
-                  setReviewNote={setReviewNote}
-                />
-                <div className="flex flex-col-reverse gap-2 pt-2">
-                  {/* FIND-018: mirror row-kebab Setujui/Tolak in detail view. */}
-                  {viewOnly && canApprove && reviewTarget.status === "PENDING" && (
-                    <>
-                      <Button onClick={() => { setReviewAction("approve"); setViewOnly(false); }}>
-                        Setujui
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
-                        className="text-destructive hover:bg-destructive/10"
-                      >
-                        Tolak
-                      </Button>
-                    </>
-                  )}
-                  {!viewOnly && (
-                    <Button
-                      onClick={handleReview}
-                      disabled={reviewing}
-                      className={
-                        reviewAction === "reject"
-                          ? "bg-destructive hover:bg-destructive/90"
-                          : ""
-                      }
-                    >
-                      {reviewing
-                        ? "Memproses..."
-                        : reviewAction === "approve"
-                          ? "Setujui"
-                          : "Tolak"}
-                    </Button>
-                  )}
-                  <SheetClose
-                    render={
-                      <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
-                    }
-                  />
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Dialog open={!!reviewTarget} onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}>
-            <DialogContent finalFocus={() => openedFromLink.current ? pageHeading.current : true} className="p-card sm:max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
-                </DialogTitle>
-                <DialogDescription>
-                  {reviewTarget.employee.nama} —{" "}
-                  {TYPE_LABELS[reviewTarget.leaveType] ?? reviewTarget.leaveType} (
-                  {reviewTarget.days} hari)
-                </DialogDescription>
-              </DialogHeader>
-              <div className="p-card space-y-field">
-                <LeaveReviewBody
-                  target={reviewTarget}
-                  viewOnly={viewOnly}
-                  reviewAction={reviewAction}
-                  reviewNote={reviewNote}
-                  setReviewNote={setReviewNote}
-                />
-              </div>
-              <DialogFooter>
-                <DialogClose
-                  render={
-                    <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
-                  }
-                />
-                {/* FIND-018: mirror the row-kebab Setujui/Tolak actions in the
-                    detail dialog footer when the leave is still PENDING. Pre-fix
-                    the detail view only offered Tutup, forcing admins to close
-                    and re-open via the kebab to act. */}
-                {viewOnly && canApprove && reviewTarget.status === "PENDING" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      Tolak
-                    </Button>
-                    <Button
-                      onClick={() => { setReviewAction("approve"); setViewOnly(false); }}
-                    >
-                      Setujui
-                    </Button>
-                  </>
-                )}
-                {!viewOnly && (
+        <ResponsiveFormDialog
+          open={!!reviewTarget}
+          onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}
+          title={viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
+          description={
+            <>
+              {reviewTarget.employee.nama} —{" "}
+              {TYPE_LABELS[reviewTarget.leaveType] ?? reviewTarget.leaveType} (
+              {reviewTarget.days} hari)
+            </>
+          }
+          size="xl"
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeReview} disabled={reviewing}>
+                {viewOnly ? "Tutup" : "Batal"}
+              </Button>
+              {/* FIND-018: mirror row-kebab Setujui/Tolak in detail view — the
+                  detail view otherwise only offers Tutup, forcing admins to
+                  close and re-open via the kebab to act. */}
+              {viewOnly && canApprove && reviewTarget.status === "PENDING" && (
+                <>
                   <Button
-                    onClick={handleReview}
-                    disabled={reviewing}
-                    variant={reviewAction === "reject" ? "destructive" : "default"}
+                    variant="outline"
+                    onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
+                    className="text-destructive hover:bg-destructive/10"
                   >
-                    {reviewing
-                      ? "Memproses..."
-                      : reviewAction === "approve"
-                        ? "Setujui"
-                        : "Tolak"}
+                    Tolak
                   </Button>
-                )}
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )
+                  <Button onClick={() => { setReviewAction("approve"); setViewOnly(false); }}>
+                    Setujui
+                  </Button>
+                </>
+              )}
+              {!viewOnly && (
+                <Button
+                  onClick={handleReview}
+                  disabled={reviewing}
+                  variant={reviewAction === "reject" ? "destructive" : "default"}
+                >
+                  {reviewing
+                    ? "Memproses..."
+                    : reviewAction === "approve"
+                      ? "Setujui"
+                      : "Tolak"}
+                </Button>
+              )}
+            </>
+          }
+        >
+          <LeaveReviewBody
+            target={reviewTarget}
+            viewOnly={viewOnly}
+            reviewAction={reviewAction}
+            reviewNote={reviewNote}
+            setReviewNote={setReviewNote}
+          />
+        </ResponsiveFormDialog>
       )}
     </>
   );

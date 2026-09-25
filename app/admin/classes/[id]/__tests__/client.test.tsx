@@ -16,7 +16,7 @@
  * render, focus, disabled gating) without fighting Base UI's
  * open/close/positioning internals, which are unrelated to T7.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
@@ -259,5 +259,53 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     expect(await screen.findByLabelText(/^Siswa\*?$/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Alasan\*?$/)).not.toBeInTheDocument();
     expect(screen.queryByText(AGE_MESSAGE)).not.toBeInTheDocument();
+  });
+});
+
+describe("ClassDetailClient — Recipe 2b dossier layout", () => {
+  const originalInnerWidth = window.innerWidth;
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: originalInnerWidth,
+    });
+  });
+
+  it("renders every dossier section as a hash-addressable anchor", async () => {
+    vi.stubGlobal("fetch", stubFetch([]));
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    // Section ids double as DOM anchors that DossierNav / #hash deep links
+    // jump to — see the trigger rule + retrofit backlog in
+    // .claude/standards/patterns.md Recipe 2b.
+    await waitFor(() => {
+      expect(document.getElementById("roster")).toBeInTheDocument();
+      expect(document.getElementById("teachers")).toBeInTheDocument();
+      expect(document.getElementById("sessions")).toBeInTheDocument();
+    });
+  });
+
+  it("shows the Roster stat tile exactly once on mobile — not stacked above the sections and again in the rail", async () => {
+    // useIsMobile() reads window.innerWidth inside an effect on mount; no
+    // hook mock needed, just a narrow viewport before render (same technique
+    // as components/teacher/__tests__/leave-sheet.test.tsx). matchMedia is
+    // polyfilled globally in vitest.setup.dom.ts.
+    Object.defineProperty(window, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: 375,
+    });
+    vi.stubGlobal("fetch", stubFetch([]));
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Roster")).toHaveLength(1);
+    });
   });
 });

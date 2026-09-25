@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { userMessage } from "@/lib/api/client-errors";
@@ -324,15 +323,15 @@ export function ImportPromesClient({ semester }: { semester: Semester }) {
                 >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="A" id="age-a" />
-                    <Label htmlFor="age-a" className="cursor-pointer">
+                    <FieldLabel htmlFor="age-a" className="cursor-pointer">
                       TK A (4–5 tahun)
-                    </Label>
+                    </FieldLabel>
                   </div>
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="B" id="age-b" />
-                    <Label htmlFor="age-b" className="cursor-pointer">
+                    <FieldLabel htmlFor="age-b" className="cursor-pointer">
                       TK B (5–6 tahun)
-                    </Label>
+                    </FieldLabel>
                   </div>
                 </RadioGroup>
               </fieldset>

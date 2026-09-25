@@ -20,7 +20,7 @@ import { JAKARTA_TZ } from "@/lib/sessions/dates";
  * Plus a tenant-level `summary.activeStudentCount` — DISTINCT students, not a
  * sum of per-class counts (a student may hold more than one active enrollment).
  *
- * Scoped to the ACTIVE AcademicYear, matching `/api/admin/penilaian`. Without
+ * Scoped to the ACTIVE AcademicYear, matching `/api/admin/assessments`. Without
  * that filter archived cohorts leaked into the monitor: staging listed 15
  * classes (7 of them from the archived 2024/2025 year) and counted 37
  * "active students" against 21 real ones.

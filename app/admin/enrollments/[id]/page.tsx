@@ -128,7 +128,7 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
   const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
 
   return (
-    <div className="space-y-4">
+    <>
       <DetailPageHeader
         backHref="/admin/enrollments"
         backLabel="Kembali ke Daftar Formulir Pendaftaran"
@@ -148,37 +148,40 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         }
       />
 
-      <EnrollmentApplicationView
-        application={{
-          id,
-          studentData: d.studentData,
-          ayahData: d.ayahData,
-          ibuData: d.ibuData,
-          consentData: d.consentData,
-        }}
-      />
+      <div className="space-y-section">
+        <EnrollmentApplicationView
+          application={{
+            id,
+            studentData: d.studentData,
+            ayahData: d.ayahData,
+            ibuData: d.ibuData,
+            consentData: d.consentData,
+          }}
+        />
 
-      {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (
-        <>
-          <Separator />
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-            <p className="text-sm text-muted-foreground">
-              Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
+        {d.canEdit && d.status === "ACCEPTED" && !d.studentId && (
+          <>
+            <Separator />
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+              <p className="text-sm text-muted-foreground">
+                Formulir sudah diterima. Konversi menjadi data siswa + orang tua.
+              </p>
+              <Button onClick={() => setConvertOpen(true)} disabled={busy}>
+                Konversi ke Siswa
+              </Button>
+            </div>
+          </>
+        )}
+        {d.studentId && (
+          <>
+            <Separator />
+            <p className="text-sm text-status-present-text">
+              Formulir ini sudah dikonversi menjadi data siswa.
             </p>
-            <Button onClick={() => setConvertOpen(true)} disabled={busy}>
-              Konversi ke Siswa
-            </Button>
-          </div>
-        </>
-      )}
-      {d.studentId && (
-        <>
-          <Separator />
-          <p className="text-sm text-status-present-text">
-            Formulir ini sudah dikonversi menjadi data siswa.
-          </p>
-        </>
-      )}
+          </>
+        )}
+      </div>
+
       <ConfirmDialog
         open={convertOpen}
         onOpenChange={setConvertOpen}
@@ -188,6 +191,6 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         loading={busy}
         onConfirm={convert}
       />
-    </div>
+    </>
   );
 }

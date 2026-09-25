@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminTabs, AdminTabsContent, AdminTabsList, AdminTabsTrigger } from "@/components/admin/admin-tabs";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { AuditDiff } from "@/components/student-journal/audit-diff";
@@ -347,21 +347,21 @@ export default function StudentJournalDetailPage({
         }
       />
 
-      <Tabs
+      <AdminTabs
         defaultValue="school"
         onValueChange={(v) => {
           if (v === "audit") fetchAudit();
         }}
       >
-        <TabsList className="mb-4">
-          <TabsTrigger value="school">Sekolah</TabsTrigger>
-          <TabsTrigger value="home">Rumah</TabsTrigger>
-          <TabsTrigger value="notes">Catatan</TabsTrigger>
-          <TabsTrigger value="audit">Audit</TabsTrigger>
-        </TabsList>
+        <AdminTabsList className="mb-4">
+          <AdminTabsTrigger value="school">Sekolah</AdminTabsTrigger>
+          <AdminTabsTrigger value="home">Rumah</AdminTabsTrigger>
+          <AdminTabsTrigger value="notes">Catatan</AdminTabsTrigger>
+          <AdminTabsTrigger value="audit">Audit</AdminTabsTrigger>
+        </AdminTabsList>
 
         {/* Sekolah tab */}
-        <TabsContent value="school">
+        <AdminTabsContent value="school">
           <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.schoolCategories ?? []}
@@ -375,10 +375,10 @@ export default function StudentJournalDetailPage({
               }
             />
           </div>
-        </TabsContent>
+        </AdminTabsContent>
 
         {/* Rumah tab */}
-        <TabsContent value="home">
+        <AdminTabsContent value="home">
           <div className="bg-card border border-border rounded-xl p-card">
             <WeekGrid
               categories={weekData?.homeCategories ?? []}
@@ -392,10 +392,10 @@ export default function StudentJournalDetailPage({
               }
             />
           </div>
-        </TabsContent>
+        </AdminTabsContent>
 
         {/* Catatan tab */}
-        <TabsContent value="notes">
+        <AdminTabsContent value="notes">
           <NoteThreadPanel
             studentId={studentId}
             /* Gates the action icons only. onEdit is deliberately not passed —
@@ -419,10 +419,10 @@ export default function StudentJournalDetailPage({
             destructive
             loading={noteDeleting}
           />
-        </TabsContent>
+        </AdminTabsContent>
 
         {/* Audit tab */}
-        <TabsContent value="audit">
+        <AdminTabsContent value="audit">
           {auditLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -461,8 +461,8 @@ export default function StudentJournalDetailPage({
               ))}
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
     </>
   );
 }

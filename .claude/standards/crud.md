@@ -63,13 +63,17 @@ Immutable events appended by the system; correction via override/void, not edit.
 
 ## List Page Layout Standard
 
-Every admin list page follows this exact structure:
+Every **operational** admin list page (day-to-day volume: students, invoices, admissions, leave requests, ...) follows this structure:
 ```
-PageHeader (title + count + "Tambah" button)
-├── StatCards (3-4 key metrics, grid cols-2 lg:cols-4)
+PageHeader (static purpose line + "Tambah" button — no live count in the description)
+├── StatsCardsRow (operational lists only — cols 2-6, see ui.md)
 ├── DataTableToolbar (search + status filter + any domain filters)
 └── DataTable (sortable columns + standard action column)
 ```
+
+**Config lists get no `StatsCardsRow`.** Settings-hub entities (campuses, academic years, holidays, salary components, users, roles, templates) go straight from `PageHeader` to `DataTableToolbar` — a metric row over a list that changes a few times a year is noise, not signal.
+
+**`PageHeader` description is a static purpose line, never a live count.** "Kelola data siswa aktif dan riwayat", not "142 siswa aktif terdaftar". Counts live in `StatsCardsRow` or the toolbar, where they're styled as data rather than prose.
 
 ## Detail Page Layout Standard
 
@@ -133,6 +137,10 @@ import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui
   <FieldError>{error}</FieldError>
 </Field>
 ```
+
+## Dialog Standard
+
+Every create, edit, and action dialog — including nested-entity dialogs and one-off action dialogs (approve, void, override, record payment, ...) — uses `<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`). Never hand-roll a `useIsMobile` + `Dialog`/`Sheet` branch. Confirms (destructive or not) are the one exception: they use `<ConfirmDialog>` — never a raw `<AlertDialog>` import (see `ui.md` Overlays Rule).
 
 ## Edit Dialog Standard (for nested entities)
 

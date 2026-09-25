@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -258,6 +259,7 @@ function safeParsePermissions(json: string): string[] {
 export default function RolesPage() {
   const [roles, setRoles] = useState<RoleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -298,6 +300,12 @@ export default function RolesPage() {
     () => roles.filter((r) => !r.isSystem),
     [roles]
   );
+
+  const filteredCustomRoles = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return customRoles;
+    return customRoles.filter((r) => r.name.toLowerCase().includes(needle));
+  }, [customRoles, query]);
 
   // Open create dialog
   const openCreate = useCallback(() => {
@@ -391,10 +399,10 @@ export default function RolesPage() {
     () => ({
       page: 1,
       pageSize: 50,
-      total: customRoles.length,
+      total: filteredCustomRoles.length,
       totalPages: 1,
     }),
-    [customRoles.length]
+    [filteredCustomRoles.length]
   );
 
   return (
@@ -419,9 +427,14 @@ export default function RolesPage() {
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         Peran Kustom
       </h2>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama peran..."
+      />
       <DataTable
         columns={columns}
-        data={customRoles}
+        data={filteredCustomRoles}
         pagination={pagination}
         onPageChange={() => {}}
         onPageSizeChange={() => {}}

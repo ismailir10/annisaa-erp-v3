@@ -12,7 +12,7 @@ import {
  * Turns a student's penilaian (`AssessmentEntry`) + attendance over a Term
  * window into a *suggested* raport draft: a dominant `AchievementLevel` per
  * narrative section + auto-pulled attendance counts. Every value is a seed —
- * the admin overrides freely on `/admin/raport`. Nothing here persists.
+ * the admin overrides freely on `/admin/report-cards`. Nothing here persists.
  *
  * Section ↔ penilaian-element mapping (master design's 5 narrative sections are
  * NOT 1:1 with the 5 curriculum elements):

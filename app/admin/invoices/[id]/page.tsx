@@ -10,10 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -85,7 +83,6 @@ function PaymentFormBody({
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const isMobile = useIsMobile();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -431,34 +428,21 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Payment Dialog (desktop) / Sheet (mobile, side="bottom" — narrow single-column form) */}
-      {isMobile ? (
-        <Sheet open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <SheetContent side="bottom" className="overflow-y-auto">
-            <SheetHeader><SheetTitle>Catat Pembayaran</SheetTitle></SheetHeader>
-            <div className="space-y-field px-4 pb-4">
-              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
-            </div>
-            <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
-              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader><DialogTitle>Catat Pembayaran</DialogTitle></DialogHeader>
-            <div className="space-y-field">
-              <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
-            </div>
-            <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Payment Dialog — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
+      <ResponsiveFormDialog
+        open={paymentDialog}
+        onOpenChange={setPaymentDialog}
+        title="Catat Pembayaran"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPaymentDialog(false)} disabled={paying}>Batal</Button>
+            <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
+          </>
+        }
+      >
+        <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
+      </ResponsiveFormDialog>
     </>
   );
 }

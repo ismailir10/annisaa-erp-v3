@@ -33,9 +33,9 @@ vi.mock("@/lib/curriculum/raport-aggregator", () => ({ loadRaportDraft }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
 import { GET as termsGET, POST as termsPOST } from "@/app/api/admin/terms/route";
-import { GET as rosterGET } from "@/app/api/admin/raport/route";
-import { GET as entryGET, PUT as entryPUT } from "@/app/api/admin/raport/[studentId]/[termId]/route";
-import { POST as publishPOST } from "@/app/api/admin/raport/[studentId]/[termId]/publish/route";
+import { GET as rosterGET } from "@/app/api/admin/report-cards/route";
+import { GET as entryGET, PUT as entryPUT } from "@/app/api/admin/report-cards/[studentId]/[termId]/route";
+import { POST as publishPOST } from "@/app/api/admin/report-cards/[studentId]/[termId]/publish/route";
 
 const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
 const DENY = { error: Response.json({ error: "forbidden", missing: "reportCard.read" }, { status: 403 }) };
@@ -110,19 +110,19 @@ describe("POST /api/admin/terms", () => {
   });
 });
 
-describe("GET /api/admin/raport (roster)", () => {
+describe("GET /api/admin/report-cards (roster)", () => {
   it("403 when denied", async () => {
     requirePermission.mockResolvedValue(DENY);
-    expect((await rosterGET(req("http://t/api/admin/raport?termId=term1&classSectionId=c1"))).status).toBe(403);
+    expect((await rosterGET(req("http://t/api/admin/report-cards?termId=term1&classSectionId=c1"))).status).toBe(403);
   });
   it("400 when params missing", async () => {
     requirePermission.mockResolvedValue(ALLOW);
-    expect((await rosterGET(req("http://t/api/admin/raport"))).status).toBe(400);
+    expect((await rosterGET(req("http://t/api/admin/report-cards"))).status).toBe(400);
   });
   it("404 when term not found", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.term.findFirst.mockResolvedValue(null);
-    expect((await rosterGET(req("http://t/api/admin/raport?termId=x&classSectionId=c1"))).status).toBe(404);
+    expect((await rosterGET(req("http://t/api/admin/report-cards?termId=x&classSectionId=c1"))).status).toBe(404);
   });
   it("200 roster with statuses", async () => {
     requirePermission.mockResolvedValue(ALLOW);
@@ -133,7 +133,7 @@ describe("GET /api/admin/raport (roster)", () => {
       { student: { id: "s2", name: "Budi", nickname: null } },
     ]);
     db.reportCardEntry.findMany.mockResolvedValue([{ studentId: "s1", status: "PUBLISHED" }]);
-    const res = await rosterGET(req("http://t/api/admin/raport?termId=term1&classSectionId=c1"));
+    const res = await rosterGET(req("http://t/api/admin/report-cards?termId=term1&classSectionId=c1"));
     expect(res.status).toBe(200);
     const { roster } = (await res.json()).data;
     expect(roster.find((r: { studentId: string }) => r.studentId === "s1").status).toBe("PUBLISHED");
@@ -141,7 +141,7 @@ describe("GET /api/admin/raport (roster)", () => {
   });
 });
 
-describe("GET /api/admin/raport/[studentId]/[termId]", () => {
+describe("GET /api/admin/report-cards/[studentId]/[termId]", () => {
   it("403 when denied", async () => {
     requirePermission.mockResolvedValue(DENY);
     expect((await entryGET(req("http://t/x"), ctx("s1", "term1"))).status).toBe(403);
@@ -167,7 +167,7 @@ describe("GET /api/admin/raport/[studentId]/[termId]", () => {
   });
 });
 
-describe("PUT /api/admin/raport/[studentId]/[termId]", () => {
+describe("PUT /api/admin/report-cards/[studentId]/[termId]", () => {
   const body = JSON.stringify({
     sectionLevels: { RELIGIOUS_MORAL: "CONSISTENT" },
     sectionNarratives: { INTRODUCTION: "Halo" },

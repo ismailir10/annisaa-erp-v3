@@ -210,7 +210,7 @@ function ReportCardDetail({
           variant="outline"
           className="w-full"
           onClick={() =>
-            window.open(`/api/guardian/raport/${studentId}/${card.termId}/pdf`, "_blank")
+            window.open(`/api/guardian/report-cards/${studentId}/${card.termId}/pdf`, "_blank")
           }
         >
           <Download size={16} className="mr-2" />

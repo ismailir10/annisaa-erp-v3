@@ -58,7 +58,7 @@ Nine domain modules. Seven are stable; `curriculum` and `reportCard` are mid-cut
 
 All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An Nisaa' Sekolahku" sub-label — and the Indonesian voice defined in [`.claude/standards/voice.md`](.claude/standards/voice.md). Legal pages: `/legal/terms`, `/legal/privacy`.
 
-Role homes apply “Don't Make Me Think”: teachers see their class and unfinished work, guardians see family actions and clearly identified children, and admins see an authorized queue linked to the original records. Shared shadcn components keep navigation, context, save feedback, and recovery consistent; the two mobile portals retain five navigation slots.
+Role homes apply "Don't Make Me Think": teachers see their class and unfinished work, guardians see family actions for clearly identified children, and admins get a one-screen Dasbor (queue counts, top-5 urgent items, today's staff attendance) with the full queue at `/admin/work-queue`. The sidebar holds daily work only; setup lives in the `/admin/settings` hub. Shared shadcn components keep navigation, context, and save feedback consistent; the two mobile portals retain five navigation slots.
 
 ---
 

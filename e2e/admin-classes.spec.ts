@@ -229,20 +229,28 @@ test.describe("Admin /admin/classes", () => {
     expect(apiTeachers.status()).toBe(404);
   });
 
-  test("nav sidebar shows Akademik group with Tahun Ajaran + Kelas only", async ({
+  test("nav sidebar shows Kelas under Kesiswaan; Tahun Ajaran lives in the settings hub", async ({
     page,
   }) => {
+    // admin-dmmt-overhaul: the standalone "Akademik" sidebar group was
+    // retired — Kelas moved into Kesiswaan, and Tahun Ajaran moved into the
+    // /admin/settings hub (no longer a sidebar row at all).
     await page.goto("/admin");
     await page.waitForURL("**/admin");
-    // Akademik group label
-    await expect(page.locator("text=Akademik").first()).toBeVisible({
+    await expect(page.getByRole("button", { name: "Kesiswaan" })).toBeVisible({
       timeout: 10_000,
     });
-    // Kelas item present
+    // Kelas item present under Kesiswaan
     await expect(page.locator("text=Kelas").first()).toBeVisible();
     // Old labels gone
     await expect(page.locator("text=Identitas Kelas")).toHaveCount(0);
     await expect(page.locator("text=Guru Pengajar")).toHaveCount(0);
+
+    // Tahun Ajaran no longer renders as a sidebar row — confirm via the hub.
+    await page.goto("/admin/settings");
+    await expect(page.getByRole("link", { name: /Tahun Ajaran/ })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("Naik Kelas Massal dialog opens with year/class selectors and roster placeholder", async ({

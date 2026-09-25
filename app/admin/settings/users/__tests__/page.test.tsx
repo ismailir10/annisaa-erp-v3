@@ -49,10 +49,6 @@ function usersListResponse(rows: Array<Record<string, unknown>>) {
   };
 }
 
-function statsResponse(total: number) {
-  return { ok: true, json: async () => ({ pagination: { total } }) };
-}
-
 describe("UsersPage deactivate/activate confirmation", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -75,12 +71,6 @@ describe("UsersPage deactivate/activate confirmation", () => {
       .fn()
       // roles fetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
-      // 5 stats fetches
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(1))
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(0))
       // initial list fetch
       .mockResolvedValueOnce(usersListResponse([activeUser]))
       // PUT status
@@ -132,11 +122,6 @@ describe("UsersPage deactivate/activate confirmation", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(0))
-      .mockResolvedValueOnce(statsResponse(1))
       .mockResolvedValueOnce(usersListResponse([inactiveUser]))
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       .mockResolvedValueOnce(usersListResponse([{ ...inactiveUser, status: "ACTIVE" }]));

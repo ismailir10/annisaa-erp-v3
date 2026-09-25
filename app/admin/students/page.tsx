@@ -25,26 +25,12 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Plus, Users, GraduationCap, UserCheck, Download } from "lucide-react";
 import { StudentExportDialog } from "@/components/admin/student-export-dialog";
 import { formatDateShort } from "@/lib/format";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
@@ -438,7 +424,6 @@ const columns: ColumnDef<Student>[] = [
 
 export default function StudentsPage() {
   const router = useRouter();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<Student[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -714,7 +699,7 @@ export default function StudentsPage() {
 
       <StudentExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
-      <StatsCardsRow>
+      <StatsCardsRow cols={3}>
         <StatCard label="Total Siswa" value={stats.total} icon={Users} color="primary" index={0} />
         <StatCard label="Aktif" value={stats.active} icon={UserCheck} color="success" index={1} />
         <StatCard label="Lulus" value={stats.graduated} icon={GraduationCap} color="warning" index={2} />
@@ -758,104 +743,49 @@ export default function StudentsPage() {
         destructive={deactivateTarget?.status !== "INACTIVE"}
       />
 
-      {/* Edit Student — side="bottom" on mobile (narrow 2-col form, quick in-and-out) */}
-      {isMobile ? (
-        <Sheet open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Edit Siswa</SheetTitle>
-            </SheetHeader>
-            <div className="p-card">
-              <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
-            </div>
-            <SheetFooter>
-              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
-                Batal
-              </Button>
-              <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan Perubahan"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={!!editTarget} onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit Siswa</DialogTitle>
-            </DialogHeader>
-            {/* flex-1 min-h-0 overflow-y-auto: T2 expanded the form to 3 sections;
-                without inner scroll the Status field falls below the 90vh dialog cap. */}
-            <div className="p-card flex-1 min-h-0 overflow-y-auto">
-              <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
-                Batal
-              </Button>
-              <Button onClick={handleEdit} disabled={editing}>
-                {editing ? "Menyimpan..." : "Simpan Perubahan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Edit Student */}
+      <ResponsiveFormDialog
+        open={!!editTarget}
+        onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}
+        title="Edit Siswa"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
+              Batal
+            </Button>
+            <Button onClick={handleEdit} disabled={editing}>
+              {editing ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </>
+        }
+      >
+        <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
+      </ResponsiveFormDialog>
 
-      {/* Create Student — side="bottom" on mobile (same form as edit) */}
-      {isMobile ? (
-        <Sheet
-          open={createOpen}
-          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
-        >
-          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Tambah Siswa</SheetTitle>
-            </SheetHeader>
-            <div className="p-card">
-              <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
-            </div>
-            <SheetFooter>
-              <Button
-                variant="ghost"
-                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
-                disabled={creating}
-              >
-                Batal
-              </Button>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Tambah Siswa"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog
-          open={createOpen}
-          onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
-        >
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Tambah Siswa</DialogTitle>
-            </DialogHeader>
-            {/* flex-1 min-h-0 overflow-y-auto: see Edit dialog above. */}
-            <div className="p-card flex-1 min-h-0 overflow-y-auto">
-              <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
-            </div>
-            <DialogFooter>
-              <Button
-                variant="ghost"
-                onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
-                disabled={creating}
-              >
-                Batal
-              </Button>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? "Menyimpan..." : "Tambah Siswa"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Create Student */}
+      <ResponsiveFormDialog
+        open={createOpen}
+        onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        title="Tambah Siswa"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
+              disabled={creating}
+            >
+              Batal
+            </Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? "Menyimpan..." : "Tambah Siswa"}
+            </Button>
+          </>
+        }
+      >
+        <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
+      </ResponsiveFormDialog>
     </>
   );
 }

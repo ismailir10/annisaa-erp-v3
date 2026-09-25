@@ -14,14 +14,16 @@ export type AdminWorkItem = {
   actionLabel: string;
   timeLabel?: string;
   dueDate?: string;
+  /** ISO date used to rank urgency (invoice dueDate, leave startDate, payroll periodStart, enrollment updatedAt). */
+  sortDate?: string;
 };
 
 export type AdminQueueSection<T> =
   | { status: "hidden" }
   | { status: "unavailable" }
-  | { status: "ready"; records: T[] };
+  | { status: "ready"; records: T[]; count: number };
 
-type EnrollmentRow = { id: string; childName: string; status: string };
+type EnrollmentRow = { id: string; childName: string; status: string; updatedAt: string };
 type LeaveRow = {
   id: string;
   leaveType: string;
@@ -67,6 +69,7 @@ export function buildAdminWorkQueue(sources: AdminQueueSources): AdminWorkItem[]
       state: row.status,
       recordId: row.id,
       actionLabel: "Tinjau formulir",
+      sortDate: row.updatedAt,
     })));
   }
   if (sources.leave.status === "ready") {
@@ -80,6 +83,7 @@ export function buildAdminWorkQueue(sources: AdminQueueSources): AdminWorkItem[]
       recordId: row.id,
       actionLabel: "Tinjau izin",
       timeLabel: `Mulai ${formatDateShort(row.startDate)}`,
+      sortDate: row.startDate,
     })));
   }
   if (sources.invoices.status === "ready") {
@@ -94,6 +98,7 @@ export function buildAdminWorkQueue(sources: AdminQueueSources): AdminWorkItem[]
       actionLabel: "Buka tagihan",
       dueDate: row.dueDate,
       timeLabel: row.dueDate ? `Jatuh tempo ${formatDateShort(row.dueDate)}` : undefined,
+      sortDate: row.dueDate,
     })));
   }
   if (sources.payroll.status === "ready") {
@@ -107,9 +112,57 @@ export function buildAdminWorkQueue(sources: AdminQueueSources): AdminWorkItem[]
       recordId: row.id,
       actionLabel: "Tinjau draf",
       timeLabel: `Periode ${formatDateShort(row.periodStart)}–${formatDateShort(row.periodEnd)}`,
+      sortDate: row.periodStart,
     })));
   }
   return items;
+}
+
+/**
+ * Ranks work items so the most time-sensitive surface first: items carrying
+ * a `sortDate` (invoice dueDate, leave startDate, payroll periodStart,
+ * enrollment updatedAt) sort ascending ahead of items without one. Stable —
+ * items sharing a rank (both dated, or both undated) keep their original
+ * `buildAdminWorkQueue` order.
+ */
+export function rankUrgent(items: AdminWorkItem[]): AdminWorkItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      if (a.item.sortDate && b.item.sortDate) {
+        const diff = a.item.sortDate.localeCompare(b.item.sortDate);
+        return diff !== 0 ? diff : a.index - b.index;
+      }
+      if (a.item.sortDate) return -1;
+      if (b.item.sortDate) return 1;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
+}
+
+export type QueueSummaryItem = { kind: AdminWorkKind; status: "ready" | "unavailable"; count: number };
+
+/** Per-kind counts for visible (non-hidden) sources, plus the grand total. Never reports a false zero for an unavailable source. */
+export function summarizeQueue(sources: AdminQueueSources): { items: QueueSummaryItem[]; total: number } {
+  const kinds: Array<[keyof AdminQueueSources, AdminWorkKind]> = [
+    ["enrollments", "enrollment"],
+    ["leave", "leave"],
+    ["invoices", "invoice"],
+    ["payroll", "payroll"],
+  ];
+  const items: QueueSummaryItem[] = [];
+  let total = 0;
+  for (const [key, kind] of kinds) {
+    const section = sources[key];
+    if (section.status === "hidden") continue;
+    if (section.status === "unavailable") {
+      items.push({ kind, status: "unavailable", count: 0 });
+      continue;
+    }
+    items.push({ kind, status: "ready", count: section.count });
+    total += section.count;
+  }
+  return { items, total };
 }
 
 export function unavailableAdminQueueSections(sources: AdminQueueSources): AdminWorkKind[] {

@@ -5,11 +5,11 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  AdminTabs,
+  AdminTabsContent,
+  AdminTabsList,
+  AdminTabsTrigger,
+} from "@/components/admin/admin-tabs";
 import {
   Dialog,
   DialogContent,
@@ -233,12 +233,12 @@ export default function StudentJournalAdminPage() {
         }
       />
 
-      <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
+      <AdminTabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
-            <TabsTrigger value="SCHOOL">Sekolah</TabsTrigger>
-            <TabsTrigger value="HOME">Rumah</TabsTrigger>
-          </TabsList>
+          <AdminTabsList>
+            <AdminTabsTrigger value="SCHOOL">Sekolah</AdminTabsTrigger>
+            <AdminTabsTrigger value="HOME">Rumah</AdminTabsTrigger>
+          </AdminTabsList>
           <div className="w-full sm:w-48">
             <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)} items={{ ALL: "Semua Status", ACTIVE: "Aktif", INACTIVE: "Tidak Aktif" }}>
               <SelectTrigger>
@@ -253,7 +253,7 @@ export default function StudentJournalAdminPage() {
           </div>
         </div>
 
-        <TabsContent value="SCHOOL" className="mt-4">
+        <AdminTabsContent value="SCHOOL" className="mt-4">
           <CategoryAccordion
             categories={categories}
             loading={loading}
@@ -262,8 +262,8 @@ export default function StudentJournalAdminPage() {
             onAddIndicator={openCreateIndicator}
             onEditIndicator={openEditIndicator}
           />
-        </TabsContent>
-        <TabsContent value="HOME" className="mt-4">
+        </AdminTabsContent>
+        <AdminTabsContent value="HOME" className="mt-4">
           <CategoryAccordion
             categories={categories}
             loading={loading}
@@ -272,8 +272,8 @@ export default function StudentJournalAdminPage() {
             onAddIndicator={openCreateIndicator}
             onEditIndicator={openEditIndicator}
           />
-        </TabsContent>
-      </Tabs>
+        </AdminTabsContent>
+      </AdminTabs>
 
       {/* Category create/edit dialog */}
       <Dialog

@@ -20,21 +20,27 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin", { timeout: 15_000 });
   });
 
-  test("dashboard loads with stats", async ({ page }) => {
+  test("dashboard loads with the queue tiles and attendance strip", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Perlu ditangani" })).toBeVisible();
+    await expect(page.getByTestId("dashboard-queue-tiles")).toBeVisible();
+    await expect(page.getByTestId("dashboard-attendance-strip")).toBeVisible();
+  });
+
+  test("work queue table loads at /admin/work-queue", async ({ page }) => {
+    await page.goto("/admin/work-queue");
+    await page.waitForURL("**/admin/work-queue");
     await expect(page.getByTestId("admin-work-queue")).toBeVisible();
-    const stats = page.getByTestId("dashboard-stat-grid");
-    await expect(stats.getByText("Total Karyawan")).toBeVisible();
-    await expect(stats.getByText("Hadir Hari Ini")).toBeVisible();
   });
 
   test("employee list loads", async ({ page }) => {
     await page.goto("/admin/employees");
     await page.waitForURL("**/admin/employees");
-    await expect(page.locator("text=karyawan terdaftar")).toBeVisible();
+    // PageHeader description is a static purpose line (counts live in StatsCardsRow).
+    await expect(page.getByRole("heading", { name: "Karyawan", level: 1 })).toBeVisible();
+    await expect(page.getByRole("table")).toBeVisible();
   });
 
-  test("employee detail loads with salary tab", async ({ page }) => {
+  test("employee detail loads with salary section", async ({ page }) => {
     // Navigate via API to avoid depending on employee name in the table
     const res = await page.request.get("/api/employees?pageSize=1");
     const json = await res.json();
@@ -42,9 +48,9 @@ test.describe("Admin flows", () => {
     if (!empId) return;
     await page.goto(`/admin/employees/${empId}`);
     await page.waitForURL(`**/admin/employees/${empId}`);
-    await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
-    await page.getByRole("tab", { name: "Gaji" }).click();
-    await expect(page.locator("text=Gaji Pokok")).toBeVisible();
+    // Dossier layout (2026-09-26): single scroll, sections open by default.
+    await expect(page.locator("#profile")).toBeVisible();
+    await expect(page.locator("#salary").getByText("Gaji Pokok")).toBeVisible();
   });
 
   test("attendance page loads", async ({ page }) => {
@@ -88,11 +94,16 @@ test.describe("Admin flows", () => {
 
   test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
     // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
-    // admin surfaces retired → all redirect to /admin/penilaian. The page
+    // admin surfaces retired → all redirect to /admin/assessments. The page
     // files were deleted in the 2026-07-31 retirement cycle, so this rule is
     // now the only thing standing between an old bookmark and a 404.
-    await page.goto("/admin/assessments/templates");
-    await expect(page).toHaveURL("/admin/penilaian");
+    //
+    // 2026-09-25: the monitor itself was renamed /admin/penilaian →
+    // /admin/assessments, so the old /admin/assessments/:path* legacy alias
+    // (which used to redirect elsewhere) was retired — that slug is now the
+    // live route. The remaining legacy alias is /admin/assessment-templates.
+    await page.goto("/admin/assessment-templates");
+    await expect(page).toHaveURL("/admin/assessments");
     await expect(page.getByRole("heading", { name: "Pemantauan" })).toBeVisible();
   });
 
