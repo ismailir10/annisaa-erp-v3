@@ -223,6 +223,14 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - The monthly matrix moves to the ui/table primitives, keeping its sticky column and horizontal scroll.
   - Raw ui/tabs became AdminTabs.
   - Review: no issues.
+- T4a: HR consistency.
+  - Files: `(hr)/employees`, `leave-requests`, `payroll`, `payroll/[id]`, `salary-components`.
+  - Dialog/Sheet overlays now use ResponsiveFormDialog, including the payroll/[id] variables and line-adjustment modals.
+  - Raw AlertDialog is replaced by ConfirmDialog for payroll approve and salary deactivate. The handlers now throw on failure, so ConfirmDialog stays open for a retry, which keeps the prior UX.
+  - leave-requests: Base UI `finalFocus` becomes a post-close focus effect, deep-link-only; this follows the focus/setTimeout race note.
+  - payroll/[id]: not-found now renders EmptyState.
+  - Live-count descriptions are now static.
+  - Review: no issues. ConfirmDialog's catch-and-stay-open behavior was verified in `components/ui/confirm-dialog.tsx`.
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 

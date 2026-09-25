@@ -16,9 +16,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
 
 // ------------------------------------------------------------------
@@ -111,7 +109,6 @@ function defaultPayrollPeriod() {
 export default function PayrollListPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMobile = useIsMobile();
   const [data, setData] = useState<PayrollRun[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [periodStart, setPeriodStart] = useState(() => defaultPayrollPeriod().start);
@@ -257,7 +254,7 @@ export default function PayrollListPage() {
     <>
       <PageHeader
         title="Penggajian"
-        description={`${pagination.total} riwayat penggajian`}
+        description="Kelola periode penggajian dan slip gaji karyawan"
         actions={
           <Button size="sm" onClick={openCreate}>
             <Plus size={14} className="mr-1.5" /> Buat Penggajian
@@ -312,42 +309,23 @@ export default function PayrollListPage() {
         emptyDescription="Mulai dengan membuat penggajian baru."
       />
 
-      {/* Create Payroll — Dialog on desktop, Sheet on mobile */}
-      {isMobile ? (
-        <Sheet open={createOpen} onOpenChange={setCreateOpen}>
-          <SheetContent side="bottom" className="h-auto">
-            <SheetHeader>
-              <SheetTitle>Buat Penggajian Baru</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-field py-4">
-              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
-            </div>
-            <SheetFooter>
-              <SheetClose><Button variant="ghost">Batal</Button></SheetClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Memproses..." : "Buat Draft Penggajian"}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Buat Penggajian Baru</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-field py-2">
-              <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
-            </div>
-            <DialogFooter>
-              <DialogClose><Button variant="ghost">Batal</Button></DialogClose>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? "Memproses..." : "Buat Draft Penggajian"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Create Payroll */}
+      <ResponsiveFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Buat Penggajian Baru"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={generating}>Batal</Button>
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? "Memproses..." : "Buat Draft Penggajian"}
+            </Button>
+          </>
+        }
+      >
+        <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
+      </ResponsiveFormDialog>
     </>
   );
 }
