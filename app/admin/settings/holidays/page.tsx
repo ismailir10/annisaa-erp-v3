@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export default function HolidaysPage() {
   const [form, setForm] = useState({ date: "", name: "", type: "NATIONAL", isHalfDay: false });
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Holiday | null>(null);
+  const [query, setQuery] = useState("");
 
   async function fetchHolidays() {
     const res = await fetch("/api/config/holidays");
@@ -90,6 +92,14 @@ export default function HolidaysPage() {
     if (res.ok) { toast.success("Hari libur dihapus"); setDeleteTarget(null); fetchHolidays(); }
     else toast.error("Gagal menghapus");
   }
+
+  const filteredHolidays = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return holidays;
+    return holidays.filter((h) =>
+      [h.name, formatDateShort(h.date)].some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [holidays, query]);
 
   const columns: ColumnDef<Holiday>[] = [
     {
@@ -150,7 +160,7 @@ export default function HolidaysPage() {
     <>
       <PageHeader
         title="Hari Libur"
-        description={`${holidays.length} hari libur terdaftar`}
+        description="Kelola tanggal libur untuk perhitungan hari kerja"
         actions={
           <Button onClick={openNew} size="sm">
             <Plus size={16} className="mr-1.5" /> Tambah Hari Libur
@@ -158,9 +168,15 @@ export default function HolidaysPage() {
         }
       />
 
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama atau tanggal..."
+      />
+
       <DataTable
         columns={columns}
-        data={holidays}
+        data={filteredHolidays}
         loading={loading}
         defaultSort={{ field: "date", order: "asc" }}
         emptyTitle="Belum ada hari libur"

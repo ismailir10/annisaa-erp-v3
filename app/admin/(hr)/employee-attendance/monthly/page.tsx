@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -131,34 +132,34 @@ export default function MonthlyAttendancePage() {
           description="Tidak ada data kehadiran untuk bulan dan kampus ini. Ubah filter atau kembali ke tampilan harian untuk mencatat kehadiran."
         />
       ) : (
-        <div className="overflow-x-auto bg-card border border-border rounded-xl">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="sticky left-0 bg-card z-10 text-left px-3 py-2 font-semibold text-muted-foreground w-40">Nama</th>
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <Table className="text-xs">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold text-muted-foreground w-40">Nama</TableHead>
                 {days.map((d) => {
                   const dow = new Date(year, month - 1, d).getDay();
                   const isWeekend = dow === 0 || dow === 6;
                   return (
-                    <th key={d} className={`px-1 py-2 font-medium text-center w-7 ${isWeekend ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                    <TableHead key={d} className={`px-1 py-2 h-auto text-center font-medium w-7 ${isWeekend ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
                       {d}
-                    </th>
+                    </TableHead>
                   );
                 })}
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="H = Hadir">H</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="T = Terlambat">T</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="A = Alpa">A</th>
-                <th className="px-2 py-2 text-center font-semibold text-muted-foreground" title="I = Izin">I</th>
-              </tr>
-            </thead>
-            <tbody>
+                <TableHead className="px-2 py-2 h-auto text-center font-semibold text-muted-foreground" title="H = Hadir">H</TableHead>
+                <TableHead className="px-2 py-2 h-auto text-center font-semibold text-muted-foreground" title="T = Terlambat">T</TableHead>
+                <TableHead className="px-2 py-2 h-auto text-center font-semibold text-muted-foreground" title="A = Alpa">A</TableHead>
+                <TableHead className="px-2 py-2 h-auto text-center font-semibold text-muted-foreground" title="I = Izin">I</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.map((emp) => {
                 const recordMap = new Map(emp.records.map((r) => [r.date, r]));
                 return (
-                  <tr key={emp.employee.id} className="border-b border-border/50 hover:bg-accent/30">
-                    <td className="sticky left-0 bg-card z-10 px-3 py-1.5 font-medium truncate max-w-[160px]">
+                  <TableRow key={emp.employee.id}>
+                    <TableCell className="sticky left-0 z-10 bg-card px-3 py-1.5 font-medium truncate max-w-[160px]">
                       {emp.employee.nama}
-                    </td>
+                    </TableCell>
                     {days.map((d) => {
                       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
                       const record = recordMap.get(dateStr);
@@ -170,7 +171,7 @@ export default function MonthlyAttendancePage() {
                           ? "Akhir pekan"
                           : "Tidak ada data";
                       return (
-                        <td key={d} className="px-0.5 py-1 text-center">
+                        <TableCell key={d} className="px-0.5 py-1 text-center">
                           <button
                             onClick={() => handleCellClick(emp, d)}
                             aria-label={`${emp.employee.nama}, ${dateStr}, ${status}${record?.isLocked ? ", terkunci" : ""}`}
@@ -180,18 +181,18 @@ export default function MonthlyAttendancePage() {
                             } ${record?.isLocked ? "opacity-50 cursor-not-allowed" : "hover:ring-1 hover:ring-primary cursor-pointer"}`}
                             title={status}
                           />
-                        </td>
+                        </TableCell>
                       );
                     })}
-                    <td className="px-2 py-1 text-center font-currency text-status-present">{emp.summary.present}</td>
-                    <td className="px-2 py-1 text-center font-currency text-status-late">{emp.summary.late}</td>
-                    <td className="px-2 py-1 text-center font-currency text-destructive">{emp.summary.absent}</td>
-                    <td className="px-2 py-1 text-center font-currency text-status-leave">{emp.summary.leave}</td>
-                  </tr>
+                    <TableCell className="px-2 py-1 text-center font-currency text-status-present">{emp.summary.present}</TableCell>
+                    <TableCell className="px-2 py-1 text-center font-currency text-status-late">{emp.summary.late}</TableCell>
+                    <TableCell className="px-2 py-1 text-center font-currency text-destructive">{emp.summary.absent}</TableCell>
+                    <TableCell className="px-2 py-1 text-center font-currency text-status-leave">{emp.summary.leave}</TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
+import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -208,7 +209,7 @@ export default function PaymentsLedgerPage() {
         description="Pembayaran masuk per rentang tanggal — rekap kas harian dan bulanan."
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+      <StatsCardsRow cols={2}>
         <StatCard
           label="Total Penerimaan"
           value={formatRupiah(summary.totalAmount)}
@@ -223,7 +224,7 @@ export default function PaymentsLedgerPage() {
           color="primary"
           index={1}
         />
-      </div>
+      </StatsCardsRow>
 
       {summary.byMethod.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">

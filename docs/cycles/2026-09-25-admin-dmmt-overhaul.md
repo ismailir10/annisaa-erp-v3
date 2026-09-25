@@ -215,6 +215,14 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - The guardians description is now a static line, and the students stat row uses `cols={3}`.
   - `useIsMobile` stays on students/[id], but only for non-dialog responsive layout.
   - Review: no issues.
+- T4d: List-shape consistency.
+  - Files: `academic-years`, `settings/users` (and its test), `payments`, `settings/holidays`, `settings/roles`, `(hr)/employee-attendance/monthly`, `student-journal`, `student-journal/students/[id]`, `components/admin/stats-cards-row.tsx`.
+  - Config lists lose their stat grids (academic-years, and users along with its 5 count fetches). The users description is now static.
+  - Payments uses `StatsCardsRow cols={2}`, a new 2-column option.
+  - Holidays and roles get a DataTableToolbar search, and the holidays description is now static.
+  - The monthly matrix moves to the ui/table primitives, keeping its sticky column and horizontal scroll.
+  - Raw ui/tabs became AdminTabs.
+  - Review: no issues.
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
