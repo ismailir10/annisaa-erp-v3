@@ -121,7 +121,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Add 308 page redirects in `next.config.ts`.
   - Run `verify-api-auth` and `verify-rls-coverage`.
   - *Accept:* grep finds no `/penilaian` or `/raport` path references except the redirects; build is green.
-- [ ] **T1 — Nav restructure and settings hub.**
+- [x] **T1 — Nav restructure and settings hub.**
   - Files: `config/admin-nav.ts` (a `settingsHub` sections config replaces `settings`), `components/admin/sidebar.tsx`, the breadcrumbs, and a new `app/admin/settings/page.tsx`.
   - Add longest-prefix active matching and `alsoMatch`.
   - *Accept:* nav vitest covers grouping, permission filtering, active matching, and breadcrumbs.
@@ -136,6 +136,11 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Move the chart to employee-attendance; delete QuickActions.
   - Rewrite `e2e/admin-dashboard.spec.ts`.
   - *Accept:* no scroll at 1440×900; vitest covers `rankUrgent` and the tiles.
+- **Re-slice note (during build):**
+  - T4 and T5 share files with each other and with T2: admissions, report-cards, semesters.
+  - To keep parallel subagents on disjoint files, T5 is merged into T4, and T4 runs as four file-owned slices, T4a–T4d, each committed on its own.
+  - T2 also owns the admissions dialog migration.
+  - The acceptance criteria are unchanged.
 - [ ] **T4 — Consistency A: dialogs and confirms** (3 slices).
   - Move 9 hand-rolled Dialog/Sheet pages to `ResponsiveFormDialog`.
   - Fix the submit ternary in classes and semesters, and the Triwulan wording in report-cards.
@@ -190,6 +195,13 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Reviews:
     - feature-dev:code-reviewer: no issues. Its one sub-threshold note (the silent 200 cap) is fixed.
     - superpowers:code-reviewer: two items, both fixed. The route now uses `requirePermission`, and a trend permission-gate test is in `hr-permission-gate.test.ts`, covering 401, both one-sided 403s, 200, and the tenant-scoped `where`.
+
+- T1: Nav restructure and settings hub.
+  - Files: `config/admin-nav.ts` (a `settingsHub` of sections replaces `settings`; new `alsoMatch`, `resolveActive`/`getActiveHref`/`hasVisibleSettings`; `getActiveGroup` now takes the nav object), `components/admin/sidebar.tsx` (Pengaturan is a flat link; there is one resolver per render), the new `app/admin/settings/page.tsx` and its test, `config/__tests__/admin-nav.test.ts`, `e2e/admin-classes.spec.ts`, `e2e/curriculum-admin.spec.ts`. README gained a line on the hub.
+  - The sidebar has 16 entries, and the hub has the sections Sekolah, Akademik, Keuangan & Gaji, Akses, and Pengembang (dev only).
+  - Driver check: evaluating the old and new configs with tsx gives identical href→permission maps. The only differences are intended: `/admin/enrollments` is now an `alsoMatch` of Pendaftaran (same `admissions.view`), and `/admin/student-journal/monitoring` is new.
+  - Edge case: `/admin/student-journal/classes/*` highlights Pengaturan, because its only matching prefix is the hub's `/admin/student-journal`.
+  - Review: feature-dev:code-reviewer found no issues.
 
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.

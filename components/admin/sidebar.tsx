@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, LogOut, Settings } from "lucide-react";
+import { ChevronRight, LogOut } from "lucide-react";
 
 import {
   Sidebar,
@@ -28,26 +28,26 @@ import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import {
   adminNav,
   getActiveGroup,
-  getActiveItem,
+  getActiveHref,
   getVisibleAdminNav,
-  isItemActive,
+  hasVisibleSettings,
+  settingsNavLink,
   type NavItem,
   type NavGroup,
 } from "@/config/admin-nav";
 
 function NavMenuItems({
   items,
-  pathname,
+  activeHref,
 }: {
   items: NavItem[];
-  pathname: string;
+  activeHref: string | null;
 }) {
-  const activeItem = getActiveItem(pathname, items);
   return (
     <SidebarMenu>
       {items.map((item) => {
         const Icon = item.icon;
-        const active = item.href === activeItem?.href;
+        const active = item.href === activeHref;
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
@@ -67,12 +67,12 @@ function NavMenuItems({
 
 function CollapsibleNavGroup({
   group,
-  pathname,
+  activeHref,
   open,
   onOpenChange,
 }: {
   group: NavGroup;
-  pathname: string;
+  activeHref: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -92,7 +92,7 @@ function CollapsibleNavGroup({
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
-            <NavMenuItems items={group.items} pathname={pathname} />
+            <NavMenuItems items={group.items} activeHref={activeHref} />
           </SidebarGroupContent>
         </CollapsibleContent>
       </SidebarGroup>
@@ -106,11 +106,16 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
   );
-  const [settingsOpen, setSettingsOpen] = useState(true);
 
   const visibleNav = useMemo(() => getVisibleAdminNav(permissions), [permissions]);
   const visibleGroups = visibleNav.groups;
-  const visibleSettings = visibleNav.settings;
+  const showSettingsLink = hasVisibleSettings(visibleNav);
+
+  // Single source of truth for "which sidebar entry is active" — same
+  // resolver used for breadcrumbs, so a hub-owned path (e.g.
+  // /admin/report-cards/templates) lights up Pengaturan rather than the
+  // shorter-matching Rapor entry.
+  const activeHref = getActiveHref(pathname, visibleNav);
 
   // Auto-expand whichever group contains the active route so users who
   // collapsed a group and then navigated into it via breadcrumb/back don't
@@ -121,16 +126,13 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
      functional setState bails out when the value already matches, so no
      cascading renders occur. */
   useEffect(() => {
-    const activeGroupId = getActiveGroup(pathname, visibleGroups);
+    const activeGroupId = getActiveGroup(pathname, visibleNav);
     if (activeGroupId) {
       setOpenGroups((prev) =>
         prev[activeGroupId] ? prev : { ...prev, [activeGroupId]: true }
       );
     }
-    if (visibleSettings.some((item) => isItemActive(pathname, item))) {
-      setSettingsOpen(true);
-    }
-  }, [pathname, visibleGroups, visibleSettings]);
+  }, [pathname, visibleNav]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleLogout() {
@@ -166,7 +168,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
           <SidebarMenu>
             {visibleNav.standalone.map((item) => {
               const Icon = item.icon;
-              const active = isItemActive(pathname, item);
+              const active = item.href === activeHref;
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
@@ -185,12 +187,12 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
 
         <SidebarSeparator />
 
-        {/* Module groups — SDM, Akademik, Keuangan */}
+        {/* Module groups — Kesiswaan, Harian, Penilaian, Keuangan, SDM */}
         {visibleGroups.map((group) => (
           <CollapsibleNavGroup
             key={group.id}
             group={group}
-            pathname={pathname}
+            activeHref={activeHref}
             open={openGroups[group.id] ?? false}
             onOpenChange={(open) =>
               setOpenGroups((prev) => ({ ...prev, [group.id]: open }))
@@ -198,26 +200,24 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
           />
         ))}
 
-        {/* Pengaturan — last group in main nav, not pinned to footer */}
-        {visibleSettings.length > 0 && (
-          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <SidebarGroup>
-              <SidebarGroupLabel
-                render={
-                  <CollapsibleTrigger className="group/nav-group flex w-full items-center gap-2" />
-                }
-              >
-                <Settings className="size-4" />
-                <span>Pengaturan</span>
-                <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[panel-open]/nav-group:rotate-90" />
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <NavMenuItems items={visibleSettings} pathname={pathname} />
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
+        {/* Pengaturan — single link to the settings hub, not a collapsible
+            group. Any destination formerly nested under a module group now
+            lives on /admin/settings instead. */}
+        {showSettingsLink && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  render={<Link href={settingsNavLink.href} />}
+                  isActive={activeHref === settingsNavLink.href}
+                  tooltip={settingsNavLink.label}
+                >
+                  <settingsNavLink.icon />
+                  <span>{settingsNavLink.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
         )}
       </SidebarContent>
 
