@@ -31,17 +31,29 @@ type ClassDayGridProps = {
   /** state[studentId][indicatorId] = checked */
   state: Record<string, Record<string, boolean>>;
   onToggle: (studentId: string, indicatorId: string) => void;
+  /**
+   * Set every indicator for one student at once. Absent → the bulk controls
+   * are not rendered (the admin/read-only callers do not want them).
+   */
+  onBulkSet?: (studentId: string, checked: boolean) => void;
   /** Open the add-note dialog for this student. If absent, the affordance is hidden. */
   onAddNote?: (student: Student) => void;
   /** Per-student notes count (for optimistic badge next to add-note button). */
   noteCounts?: Record<string, number>;
+  /**
+   * Per-student count of catatan written by somebody else since this guru last
+   * opened that student's thread. Rendered as the only loud thing in the row —
+   * before this, a wali's reply was invisible until the guru happened to open
+   * the right student on the right week.
+   */
+  unreadCounts?: Record<string, number>;
   /** Picker date (YYYY-MM-DD) — passed through as `?week=` when the chevron drills into the per-student week view. */
   visibleDate?: string;
   /** Set of `${studentId}:${indicatorId}` keys currently saving — renders a subtle saving affordance. */
   pendingCells?: Set<string>;
 };
 
-export function ClassDayGrid({ students, categories, state, onToggle, onAddNote, noteCounts, visibleDate, pendingCells }: ClassDayGridProps) {
+export function ClassDayGrid({ students, categories, state, onToggle, onBulkSet, onAddNote, noteCounts, unreadCounts, visibleDate, pendingCells }: ClassDayGridProps) {
   const router = useRouter();
   // The row-stagger ignored the OS reduced-motion setting, unlike every other
   // animated surface in the portal.
@@ -60,6 +72,28 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
     });
   }
 
+    /**
+   * "AF" for "Abdullah Faris Siregar". A single letter put three "A" avatars in
+   * a row on the DCARE roster — an identifier that identifies nothing.
+   */
+  function initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  /**
+   * The nickname line earns its space only when it says something the name does
+   * not. "Abdullah Faris Siregar" over "Abdullah" is the same word twice.
+   */
+  function secondaryName(student: Student): string | null {
+    const nickname = student.nickname?.trim();
+    if (!nickname) return null;
+    const first = student.name.trim().split(/\s+/)[0] ?? "";
+    return nickname.toLowerCase() === first.toLowerCase() ? null : nickname;
+  }
+
   function countChecked(studentId: string): number {
     const studentState = state[studentId] ?? {};
     return Object.values(studentState).filter(Boolean).length;
@@ -72,6 +106,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
       {students.map((student, i) => {
         const isExpanded = expandedStudents.has(student.id);
         const checkedCount = countChecked(student.id);
+        const unreadCount = unreadCounts?.[student.id] ?? 0;
 
         return (
           <motion.div
@@ -99,7 +134,7 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                     {checkedCount === totalIndicators && totalIndicators > 0 ? (
                       <Check size={14} />
                     ) : (
-                      <span>{student.name[0]}</span>
+                      <span>{initials(student.name)}</span>
                     )}
                   </div>
                   {/*
@@ -109,12 +144,21 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                   */}
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{student.name}</p>
-                    {student.nickname && (
-                      <p className="text-xs text-muted-foreground">{student.nickname}</p>
+                    {secondaryName(student) && (
+                      <p className="text-xs text-muted-foreground">{secondaryName(student)}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {unreadCount > 0 ? (
+                    <span
+                      data-testid="unread-badge"
+                      className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-white"
+                      aria-label={`${unreadCount} catatan baru untuk ${student.name}`}
+                    >
+                      {unreadCount} baru
+                    </span>
+                  ) : null}
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {checkedCount}/{totalIndicators}
                   </span>
@@ -169,6 +213,29 @@ export function ClassDayGrid({ students, categories, state, onToggle, onAddNote,
                   className="overflow-hidden"
                 >
                   <div className="border-t border-border px-3.5 pb-3 pt-2 space-y-3">
+                    {onBulkSet && totalIndicators > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          data-testid="bulk-check-all"
+                          onClick={() => onBulkSet(student.id, true)}
+                          disabled={checkedCount === totalIndicators}
+                          className="tap-target inline-flex items-center gap-1 rounded-md border border-primary/40 px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:hover:bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <Check size={14} aria-hidden="true" />
+                          Tandai semua
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="bulk-clear-all"
+                          onClick={() => onBulkSet(student.id, false)}
+                          disabled={checkedCount === 0}
+                          className="tap-target inline-flex items-center rounded-md border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          Hapus semua
+                        </button>
+                      </div>
+                    ) : null}
                     {categories.map((category) => (
                       <div key={category.id}>
                         <SectionLabel>{category.name}</SectionLabel>

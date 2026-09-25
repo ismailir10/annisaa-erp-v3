@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
  * as a hard e2e gate against `DEMO_MODE=true npm run start` (production
  * build). Failing this guard means a regression on one of the four
  * surfaces UAT 2026-04-26 flagged. Diagnosis on rolled-back staging
- * recorded in docs/cycles/2026-05-10-phase0-perf-sweep.md §"Task 1"
+ * recorded in docs/cycles/archive/2026-05-10-phase0-perf-sweep.md §"Task 1"
  * found all four surfaces healed by rollback alone (medians: /teacher
  * 119 ms, /teacher/class-attendance roster-visible 541 ms, /parent
  * 127 ms, /parent/reports 147 ms). This spec is the long-lived guard

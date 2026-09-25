@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 
   // Best-effort lookup — billing parent stays nullable on Invoice.
   const guardian = await prisma.studentGuardian.findFirst({
-    where: { studentId, isPrimary: true },
+    where: { studentId, isPrimary: true, status: "ACTIVE" },
     select: { parentId: true },
   });
 

@@ -61,4 +61,29 @@ describe("NoteThread", () => {
       screen.getByText("Catatan dari guru akan tampil di sini setelah dituliskan."),
     ).toBeInTheDocument();
   });
+
+  it("addresses the reader in the empty state — a guru is not told to wait for a guru", () => {
+    const { unmount } = render(<NoteThread notes={[]} audience="teacher" />);
+    expect(
+      screen.getByText("Belum ada catatan di pekan ini. Tulis catatan pertama untuk wali murid."),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(<NoteThread notes={[]} audience="parent" />);
+    // Was "Belum ada catatan. Tulis catatan pertama…" directly under a
+    // "Belum ada catatan" title — the same sentence twice.
+    expect(
+      screen.getByText("Tulis catatan pertama, atau tunggu catatan dari Ustadzah."),
+    ).toBeInTheDocument();
+  });
+
+  it("names a seeded author once, not name-plus-English-role beside the badge", () => {
+    render(<NoteThread notes={[{ ...baseNote, authorName: "Ismail Rabbani (Teacher)" }]} />);
+
+    expect(screen.getByText("Ismail Rabbani")).toBeInTheDocument();
+    expect(screen.queryByText("Ismail Rabbani (Teacher)")).toBeNull();
+    // Initials follow the cleaned name rather than picking up the role word.
+    expect(screen.getByText("IR")).toBeInTheDocument();
+    expect(screen.getByText("Guru")).toBeInTheDocument();
+  });
 });

@@ -36,31 +36,75 @@ export async function GET(
   // 4. Look up ALL student's active enrollments. Grant if teacher is assigned
   //    to ANY of them — students with cross-program enrollments (e.g. day-care
   //    + school) can otherwise 403 when findFirst picks the wrong class.
+  //    The same rows carry everything the page needs to name its subject — the
+  //    student and the class(es) they sit in — so identity costs no extra query.
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       studentId,
       status: "ACTIVE",
       classSection: { tenantId: session.tenantId },
     },
-    select: { classSectionId: true },
+    select: {
+      classSectionId: true,
+      classSection: { select: { name: true } },
+      student: { select: { id: true, name: true, nickname: true } },
+    },
   });
   if (enrollments.length === 0) {
     return NextResponse.json({ error: JOURNAL_NOT_ENROLLED_MSG }, { status: 404 });
   }
 
-  // 5. Verify teacher is assigned to one of the student's classes
-  const assignment = await prisma.teachingAssignment.findFirst({
+  // 5. Verify teacher is assigned to one of the student's classes. findMany,
+  //    not findFirst: the ids are needed again below, because a link into the
+  //    fill grid must target a class this teacher may actually fill.
+  const assignments = await prisma.teachingAssignment.findMany({
     where: {
       employeeId: session.employeeId,
       classSectionId: { in: enrollments.map((e) => e.classSectionId) },
       classSection: { tenantId: session.tenantId },
     },
+    select: { classSectionId: true },
   });
-  if (!assignment) {
+  if (assignments.length === 0) {
     return NextResponse.json({ error: JOURNAL_FORBIDDEN_MSG }, { status: 403 });
   }
+  const assignedClassIds = new Set(assignments.map((a) => a.classSectionId));
 
-  // 6. Resolve weekStart param
+  // 6. Identity for the page header. A student may hold several ACTIVE
+  //    enrollments (day-care + school), so the class list is de-duplicated
+  //    rather than reduced to whichever row sorted first.
+  //    Null rather than a throw when the relation is missing: the header is a
+  //    nicety, the week grid is the payload, and a partial row must not 500.
+  const identity = enrollments.find((e) => e.student)?.student;
+  //    `classes` carries ids as well as names because the page links back into
+  //    the fill grid, and that link needs a classSectionId — but ONLY for a
+  //    class this teacher is assigned to. Abdullah on staging holds two ACTIVE
+  //    DCARE enrollments and this guru teaches the second; linking to the first
+  //    sent him to a "Data kelas tidak bisa dimuat" + Forbidden, because the
+  //    week route grants on ANY enrollment while class-grid guards the specific
+  //    class. `classNames` stays the full list — that is identity, not a link.
+  const seenClassIds = new Set<string>();
+  const classes: Array<{ id: string; name: string }> = [];
+  const allClassNames: string[] = [];
+  for (const e of enrollments) {
+    if (!e.classSection || seenClassIds.has(e.classSectionId)) continue;
+    seenClassIds.add(e.classSectionId);
+    allClassNames.push(e.classSection.name);
+    if (assignedClassIds.has(e.classSectionId)) {
+      classes.push({ id: e.classSectionId, name: e.classSection.name });
+    }
+  }
+  const student = identity
+    ? {
+        id: identity.id,
+        name: identity.name,
+        nickname: identity.nickname,
+        classes,
+        classNames: [...new Set(allClassNames)],
+      }
+    : null;
+
+  // 7. Resolve weekStart param
   const { searchParams } = new URL(req.url);
   const weekStartParam = searchParams.get("weekStart");
 
@@ -78,11 +122,11 @@ export async function GET(
     ws = weekStart(today);
   }
 
-  // 7. Compute week date range
+  // 8. Compute week date range
   const dates = weekDates(ws);
   const dateEnd = dates[dates.length - 1];
 
-  // 8. Fetch tenant template
+  // 9. Fetch tenant template
   const tmpl = await prisma.studentJournalTemplate.findUnique({
     where: { tenantId: session.tenantId },
     select: { id: true },
@@ -90,11 +134,11 @@ export async function GET(
 
   if (!tmpl) {
     return NextResponse.json({
-      data: { weekStart: ws, dates, categories: [], entries: [], notes: [] },
+      data: { weekStart: ws, dates, student, categories: [], entries: [], notes: [] },
     });
   }
 
-  // 9. Parallel fetch: SCHOOL categories + entries + notes
+  // 10. Parallel fetch: SCHOOL categories + entries + notes
   const [categories, entries, notes] = await Promise.all([
     prisma.studentJournalCategory.findMany({
       where: { templateId: tmpl.id, scope: "SCHOOL", status: JournalStatus.ACTIVE },
@@ -156,6 +200,7 @@ export async function GET(
     data: {
       weekStart: ws,
       dates,
+      student,
       categories,
       entries: entriesWithAudit,
       notes: notesWithAuthor,

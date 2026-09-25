@@ -1,6 +1,6 @@
 ---
 name: uat
-description: Standalone heuristic UAT. Role-play as a fixed persona (Pak Budi, Bu Sari, or Ibu Nur) and drive scripted Jobs-to-be-Done through the app via Playwright MCP, measuring page/API/click-to-visible timings against strict thresholds. Produces a severity-gated report at docs/uat/reports/YYYY-MM-DD-<area>.md. Not part of the 3-step /spec → /build → /ship loop; run on demand when you want a synthetic first-pass on UX friction and performance in a specific area. Folds in browser-testing-with-devtools and performance-optimization from the upstream agent-skills plugin.
+description: Standalone heuristic UAT. Role-play as a fixed persona (Pak Budi, Bu Sari, or Ibu Nur) and drive scripted Jobs-to-be-Done through the app via Playwright MCP, measuring page/API/click-to-visible timings against strict thresholds. Produces a severity-gated report at docs/uat/reports/YYYY-MM-DD-<area>.md. Not part of the 3-step /spec → /build → /ship loop; run on demand when you want a synthetic first-pass on UX friction and performance in a specific area.
 disable-model-invocation: true
 ---
 

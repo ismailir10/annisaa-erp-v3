@@ -9,6 +9,7 @@ import { ClassDayGrid } from "@/components/student-journal/class-day-grid";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
 import { Users } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/portal/page-header";
 import { BackLink } from "@/components/portal/back-link";
@@ -43,6 +44,11 @@ type Category = {
   indicators: Indicator[];
 };
 
+type ClassSection = {
+  id: string;
+  name: string;
+};
+
 type EntryRow = {
   id: string;
   studentId: string;
@@ -57,6 +63,8 @@ export default function StudentJournalEntryPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [classSection, setClassSection] = useState<ClassSection | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   /** state[studentId][indicatorId] = checked */
   const [gridState, setGridState] = useState<GridState>({});
   const gridStateRef = useRef<GridState>({});
@@ -102,6 +110,8 @@ export default function StudentJournalEntryPage() {
 
     setStudents(loadedStudents);
     setCategories(loadedCategories);
+    setClassSection(data.classSection ?? null);
+    setUnreadCounts(data.unreadNoteCounts ?? {});
 
     // Build initial grid state from pre-filled entries
     const initial: Record<string, Record<string, boolean>> = {};
@@ -229,7 +239,30 @@ export default function StudentJournalEntryPage() {
 
   function handleToggle(studentId: string, indicatorId: string) {
     const previousChecked = gridStateRef.current[studentId]?.[indicatorId] ?? false;
-    const checked = !previousChecked;
+    setCell(studentId, indicatorId, !previousChecked);
+  }
+
+  /**
+   * Mark every indicator for one student at once.
+   *
+   * Nine students × seven indicators is 63 taps a day; "hari ini semua lancar"
+   * is the common case and cost the same as a bad day. Each cell still goes
+   * through the coalescer, so the whole gesture folds into one batched request
+   * and rolls back cell-by-cell exactly like individual taps — no second write
+   * path to keep in sync.
+   */
+  function handleBulkSet(studentId: string, checked: boolean) {
+    for (const category of categories) {
+      for (const indicator of category.indicators) {
+        const current = gridStateRef.current[studentId]?.[indicator.id] ?? false;
+        if (current === checked) continue;
+        setCell(studentId, indicator.id, checked);
+      }
+    }
+  }
+
+  function setCell(studentId: string, indicatorId: string, checked: boolean) {
+    const previousChecked = gridStateRef.current[studentId]?.[indicatorId] ?? false;
     const cellKey = getJournalCellKey(studentId, indicatorId);
     const requestId = (latestSaveRequestIds.current[cellKey] ?? 0) + 1;
 
@@ -253,11 +286,40 @@ export default function StudentJournalEntryPage() {
   const dateLabel = date
     ? formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
+  // Class first, then the day: which roster is on screen is the question a guru
+  // with two classes asks, and the header answered only the second half of it.
+  const headerSubtitle =
+    [classSection?.name, dateLabel].filter(Boolean).join(" · ") || undefined;
+
+  // How far along the class is, derived from live grid state rather than the
+  // loaded payload — the guru is looking at this number precisely while they
+  // tap, and a figure that only moved on reload would be worse than none.
+  const totalIndicators = categories.reduce(
+    (sum, cat) => sum + cat.indicators.length,
+    0,
+  );
+  const completeStudents =
+    totalIndicators === 0
+      ? 0
+      : students.filter(
+          (s) =>
+            Object.values(gridState[s.id] ?? {}).filter(Boolean).length ===
+            totalIndicators,
+        ).length;
+
+  const changePicker = (
+    <Link
+      href="/teacher/student-journal?pick=1"
+      className="tap-target inline-flex items-center rounded-md px-3 text-xs font-medium text-primary-text transition-colors hover:bg-primary/10 active:bg-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      Ganti kelas atau tanggal
+    </Link>
+  );
 
   if (loading) {
     return (
       <div className="space-y-3">
-        <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
+        <PageHeader title="Isi Buku Penghubung" subtitle={headerSubtitle} />
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-16 w-full rounded-xl" />
         ))}
@@ -273,7 +335,7 @@ export default function StudentJournalEntryPage() {
           title="Kelas dan tanggal belum dipilih"
           description="Pilih kelas dan tanggal dulu untuk mengisi Buku Penghubung."
           actionLabel="Pilih kelas dan tanggal"
-          actionHref="/teacher/student-journal"
+          actionHref="/teacher/student-journal?pick=1"
         />
       </div>
     );
@@ -305,17 +367,27 @@ export default function StudentJournalEntryPage() {
 
   return (
     <div>
-      <BackLink href="/teacher/student-journal" />
+      <BackLink href="/teacher/student-journal?pick=1" />
 
-      <PageHeader title="Isi Buku Penghubung" subtitle={dateLabel || undefined} />
+      <PageHeader
+        title="Isi Buku Penghubung"
+        subtitle={headerSubtitle}
+        actions={changePicker}
+      />
+
+      <p className="-mt-4 mb-4 text-xs text-muted-foreground" data-testid="class-progress">
+        {completeStudents}/{students.length} siswa lengkap
+      </p>
 
       <ClassDayGrid
         students={students}
         categories={categories}
         state={gridState}
         onToggle={handleToggle}
+        onBulkSet={handleBulkSet}
         onAddNote={(s) => setNoteStudent(s)}
         noteCounts={noteCounts}
+        unreadCounts={unreadCounts}
         pendingCells={pendingCells}
         visibleDate={date}
       />
@@ -331,6 +403,7 @@ export default function StudentJournalEntryPage() {
           weekDates={noteWeekDates}
           initialDate={date}
           title={`Tulis catatan untuk ${noteStudent.name}`}
+          audience="teacher"
           placeholder={`Tulis catatan untuk ${noteStudent.name}…`}
           onSaved={() => {
             setNoteCounts((prev) => ({

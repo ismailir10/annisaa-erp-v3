@@ -58,6 +58,9 @@ const state = {
   lastParentUpdate: null as Record<string, unknown> | null,
   lastJunctionUpdate: null as Record<string, unknown> | null,
   lastUpdateMany: null as Record<string, unknown> | null,
+  // Set by the top-level (non-tx) studentGuardian.update mock — used by the
+  // PATCH status-toggle handler, which does not run inside a transaction.
+  lastPatchUpdate: null as Record<string, unknown> | null,
   /** Set to "P2034" to make the first tx attempt throw a Prisma serialization
    *  failure; the route should retry once then succeed. */
   forceP2034Once: false,
@@ -136,6 +139,17 @@ vi.mock("@/lib/db", () => ({
         if (where.studentId && g.studentId !== where.studentId) return null;
         return { ...g, parent: { ...g.parent } };
       }),
+      update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        state.lastPatchUpdate = data;
+        const g = state.guardian;
+        if (!g) throw new Error("no guardian");
+        const merged: GuardianRow = { ...g, parent: { ...g.parent } };
+        for (const [k, v] of Object.entries(data)) {
+          (merged as Record<string, unknown>)[k] = v as unknown;
+        }
+        state.guardian = merged;
+        return { ...merged };
+      }),
     },
     parent: {
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -167,7 +181,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { PUT } from "../route";
+import { PUT, PATCH } from "../route";
 
 function adminSession(): Session {
   return {
@@ -220,6 +234,14 @@ function putReq(body: unknown): Request {
   });
 }
 
+function patchReq(body: unknown): Request {
+  return new Request("http://x/api/students/s1/guardians/sg1", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 const params = Promise.resolve({ id: "s1", guardianId: "sg1" });
 
 beforeEach(() => {
@@ -230,6 +252,7 @@ beforeEach(() => {
   state.lastParentUpdate = null;
   state.lastJunctionUpdate = null;
   state.lastUpdateMany = null;
+  state.lastPatchUpdate = null;
   state.forceP2034Once = false;
   state.txAttempts = 0;
 });
@@ -342,6 +365,99 @@ describe("PUT /api/students/[id]/guardians/[guardianId] — childOrder + isPrima
     const res = await PUT(putReq({ isPrimary: true }) as never, { params });
     expect(res.status).toBe(200);
     expect(state.txAttempts).toBe(2);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T4 — a bare `{ isPrimary: true }` PUT (the new card action's payload) must
+// not blank the parent's bio or disturb relationship/childOrder.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PUT /api/students/[id]/guardians/[guardianId] — bare isPrimary payload is bio-safe (T4)", () => {
+  it("writes the CURRENT phone/email/whatsapp/name back, not null, for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    // Every bio field falls through to its CURRENT value (name/relationship
+    // by `||` fallback, the rest by `!== undefined ? … : current`) — none of
+    // them may come out null or blank just because the body omitted them.
+    expect(state.lastParentUpdate?.name).toBe("Pak Budi");
+    expect(state.lastParentUpdate?.phone).toBe("08111");
+    expect(state.lastParentUpdate?.email).toBe("budi@x");
+    expect(state.lastParentUpdate?.whatsapp).toBe("08111");
+    // The rest are `undefined` (Prisma "do not touch"), never null.
+    for (const key of [
+      "nik", "education", "occupation", "employer",
+      "employerAddress", "employerCity", "incomeRange", "address", "childrenTotal",
+    ] as const) {
+      expect(state.lastParentUpdate?.[key]).toBeUndefined();
+    }
+    // The in-memory parent row proves nothing was actually blanked.
+    expect(state.guardian?.parent.phone).toBe("08111");
+    expect(state.guardian?.parent.email).toBe("budi@x");
+    expect(state.guardian?.parent.whatsapp).toBe("08111");
+  });
+
+  it("keeps the current relationship and does not touch childOrder for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.guardian.relationship = "IBU";
+    state.guardian.childOrder = 2;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    expect(state.lastJunctionUpdate?.relationship).toBe("IBU");
+    expect(state.lastJunctionUpdate?.isPrimary).toBe(true);
+    expect(state.lastJunctionUpdate?.childOrder).toBeUndefined();
+    expect(state.guardian?.childOrder).toBe(2);
+  });
+
+  it("still demotes the sibling primary for a bare { isPrimary: true } body", async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = false;
+    state.otherGuardians = [
+      { ...freshGuardian(), id: "sg2", parentId: "p2", isPrimary: true },
+    ];
+
+    const res = await PUT(putReq({ isPrimary: true }) as never, { params });
+
+    expect(res.status).toBe(200);
+    expect(state.lastUpdateMany).toEqual({ isPrimary: false });
+    expect(state.otherGuardians[0].isPrimary).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T2 — PATCH status toggle clears isPrimary on deactivation
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("PATCH /api/students/[id]/guardians/[guardianId] — status toggle clears isPrimary (T2)", () => {
+  it('PATCH {status:"INACTIVE"} writes status: "INACTIVE", isPrimary: false', async () => {
+    state.guardian = freshGuardian();
+    state.guardian.isPrimary = true;
+    const res = await PATCH(patchReq({ status: "INACTIVE" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastPatchUpdate).toEqual({ status: "INACTIVE", isPrimary: false });
+  });
+
+  it('PATCH {status:"ACTIVE"} writes status: "ACTIVE" with no isPrimary key', async () => {
+    state.guardian = freshGuardian();
+    state.guardian.status = "INACTIVE";
+    state.guardian.isPrimary = false;
+    const res = await PATCH(patchReq({ status: "ACTIVE" }) as never, { params });
+    expect(res.status).toBe(200);
+    expect(state.lastPatchUpdate).toEqual({ status: "ACTIVE" });
+    expect("isPrimary" in (state.lastPatchUpdate ?? {})).toBe(false);
   });
 });
 

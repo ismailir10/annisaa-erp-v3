@@ -11,6 +11,7 @@
  */
 
 import { LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 // ------------------------------------------------------------------
 // Row shape — the subset of the student query this module reads.
@@ -29,12 +30,15 @@ export type StudentExportRow = {
   kkNumber: string | null;
   address: string | null;
   livingWith: string | null;
-  // Active enrollment, `take: 1` — empty when the student has none.
+  // ALL active enrollments — a student may hold a SEMESTER (sekolah) row
+  // and a YEAR_ROUND (daycare) row at once. Empty when the student has none.
+  // `program` is non-null: `ClassSection.programId` is a required FK.
   enrollments: {
+    id: string;
     enrollDate: string;
     classSection: {
       name: string;
-      program: { name: string } | null;
+      program: { name: string; type: string };
       academicYear: { name: string } | null;
     };
   }[];
@@ -63,8 +67,31 @@ const STATUS_LABELS: Record<string, string> = {
   WITHDRAWN: "Keluar",
 };
 
-const firstEnrollment = (r: StudentExportRow) => r.enrollments[0];
 const primaryGuardian = (r: StudentExportRow) => r.guardians[0];
+
+/**
+ * Active enrollments ordered primary (SEMESTER/sekolah) first, then any
+ * other ACTIVE enrollment (e.g. daycare). For the common single-enrollment
+ * case this is a no-op array of length 1 — `pickPrimaryEnrollment` is only
+ * invoked when there's an actual choice to make.
+ */
+function orderedEnrollments(r: StudentExportRow) {
+  const list = r.enrollments;
+  if (list.length <= 1) return list;
+  const primary = pickPrimaryEnrollment(list);
+  if (!primary) return list;
+  return [primary, ...list.filter((e) => e.id !== primary.id)];
+}
+
+/**
+ * Join one field across every active enrollment with " / " — keeps the CSV
+ * column count stable (no new columns) while surfacing both classes for a
+ * dual-enrolled student. A single-enrollment student's cell is byte-identical
+ * to before (`.join(" / ")` on a 1-element array is just that element).
+ */
+function joinEnrollmentField(r: StudentExportRow, accessor: (e: StudentExportRow["enrollments"][number]) => string) {
+  return orderedEnrollments(r).map(accessor).filter(Boolean).join(" / ");
+}
 
 // ------------------------------------------------------------------
 // Canonical column registry — CSV column order follows this array,
@@ -86,11 +113,12 @@ export const STUDENT_EXPORT_COLUMNS: readonly ExportColumn[] = [
   { key: "kkNumber", group: "compliance", header: "No. KK", accessor: (r) => r.kkNumber ?? "" },
   { key: "address", group: "compliance", header: "Alamat", accessor: (r) => r.address ?? "" },
   { key: "livingWith", group: "compliance", header: "Tinggal Bersama", accessor: (r) => (r.livingWith ? (LIVING_WITH_LABELS[r.livingWith] ?? r.livingWith) : "") },
-  // Kelas & Pendaftaran (from the single ACTIVE enrollment)
-  { key: "classSection", group: "enrollment", header: "Kelas", accessor: (r) => firstEnrollment(r)?.classSection.name ?? "" },
-  { key: "program", group: "enrollment", header: "Program", accessor: (r) => firstEnrollment(r)?.classSection.program?.name ?? "" },
-  { key: "academicYear", group: "enrollment", header: "Tahun Ajaran", accessor: (r) => firstEnrollment(r)?.classSection.academicYear?.name ?? "" },
-  { key: "enrollDate", group: "enrollment", header: "Tanggal Daftar", accessor: (r) => firstEnrollment(r)?.enrollDate ?? "" },
+  // Kelas & Pendaftaran — from ALL active enrollments, joined " / " (primary
+  // first) when a student holds more than one (e.g. sekolah + daycare).
+  { key: "classSection", group: "enrollment", header: "Kelas", accessor: (r) => joinEnrollmentField(r, (e) => e.classSection.name) },
+  { key: "program", group: "enrollment", header: "Program", accessor: (r) => joinEnrollmentField(r, (e) => e.classSection.program.name) },
+  { key: "academicYear", group: "enrollment", header: "Tahun Ajaran", accessor: (r) => joinEnrollmentField(r, (e) => e.classSection.academicYear?.name ?? "") },
+  { key: "enrollDate", group: "enrollment", header: "Tanggal Daftar", accessor: (r) => joinEnrollmentField(r, (e) => e.enrollDate) },
   // Wali Murid (primary guardian)
   { key: "guardianName", group: "guardian", header: "Nama Wali", accessor: (r) => primaryGuardian(r)?.parent.name ?? "" },
   { key: "guardianPhone", group: "guardian", header: "No. Telepon Wali", accessor: (r) => primaryGuardian(r)?.parent.phone ?? "" },

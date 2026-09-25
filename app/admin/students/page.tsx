@@ -46,6 +46,7 @@ import { StudentExportDialog } from "@/components/admin/student-export-dialog";
 import { formatDateShort } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 // ------------------------------------------------------------------
 // Types
@@ -63,9 +64,11 @@ type Student = {
   notes: string | null;
   photoUrl: string | null;
   createdAt: string;
-  guardians: { parent: { name: string; phone: string | null } }[];
+  guardians: { parent: { id: string; name: string; phone: string | null } }[];
   enrollments: {
-    classSection: { name: string; program: { name: string } };
+    id: string;
+    enrollDate: string;
+    classSection: { name: string; program: { name: string; type: string } };
   }[];
 };
 
@@ -351,19 +354,36 @@ const columns: ColumnDef<Student>[] = [
     id: "program",
     header: "Program / Kelas",
     cell: ({ row }) => {
-      const e = row.original.enrollments[0];
-      if (!e) {
+      const enrollments = row.original.enrollments;
+      if (enrollments.length === 0) {
         return (
           <span className="text-xs text-muted-foreground italic">
             Belum terdaftar
           </span>
         );
       }
+      // Primary (sekolah/SEMESTER) enrollment first, then any other ACTIVE
+      // enrollment (e.g. daycare) — a dual-enrolled student shows both
+      // classes instead of an arbitrary one.
+      const primary =
+        enrollments.length <= 1 ? enrollments[0] : pickPrimaryEnrollment(enrollments);
+      const ordered = primary
+        ? [primary, ...enrollments.filter((e) => e.id !== primary.id)]
+        : enrollments;
+      // One placement per line rather than a " + "-joined run: TableCell is
+      // whitespace-nowrap, so joining them inline forced this column wide
+      // enough to push the page past the viewport. Stacking also reads
+      // better than mixing "·" (program/class) with "+" (placements) in one
+      // string. A single-enrollment row renders exactly as it did before.
       return (
-        <span className="text-sm">
-          {e.classSection.program.name}{" "}
-          <span className="text-muted-foreground">· {e.classSection.name}</span>
-        </span>
+        <div className="flex flex-col gap-0.5 whitespace-normal text-sm">
+          {ordered.map((e) => (
+            <span key={e.id}>
+              {e.classSection.program.name}{" "}
+              <span className="text-muted-foreground">· {e.classSection.name}</span>
+            </span>
+          ))}
+        </div>
       );
     },
   },
@@ -371,17 +391,24 @@ const columns: ColumnDef<Student>[] = [
     id: "guardian",
     header: "Wali",
     cell: ({ row }) => {
+      // The API returns the primary guardian, or the first active one when no
+      // primary is flagged. There is no row-level click handler on this table
+      // (navigation goes through the Lihat action), so the link needs no
+      // stopPropagation.
       const g = row.original.guardians[0];
       if (!g) return <span className="text-xs text-muted-foreground">—</span>;
       return (
-        <div className="text-sm">
+        <Link
+          href={`/admin/guardians/${g.parent.id}`}
+          className="block rounded-md px-2 -mx-2 py-1 -my-1 text-sm hover:bg-accent/50 transition-colors"
+        >
           <span>{g.parent.name}</span>
           {g.parent.phone && (
             <span className="text-xs text-muted-foreground ml-1.5">
               {g.parent.phone}
             </span>
           )}
-        </div>
+        </Link>
       );
     },
   },

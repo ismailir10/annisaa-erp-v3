@@ -11,11 +11,16 @@ The nightly backup workflow encrypts each `pg_dump` to a public key whose privat
 ### Generate the keypair (one time)
 
 ```bash
-# ED25519 sign primary + CV25519 encrypt subkey (GnuPG creates both
-# automatically when you ask for ED25519 with sign+encr capabilities,
-# since ED25519 itself is sign-only). Never expires. UID is synthetic
-# — the address never receives mail.
-gpg --quick-generate-key "Talib Backup <backup@talib.local>" ed25519 sign,encr never
+# ED25519 primary (certify only) + CV25519 encryption subkey. Two steps:
+# ED25519 is a signing curve and CANNOT encrypt, so asking for `sign,encr`
+# on it fails with "gpg: Key generation failed: Wrong key usage". The
+# subkey must be added explicitly. Never expires; the UID is synthetic —
+# the address never receives mail.
+gpg --quick-generate-key "Talib Backup <backup@talib.local>" ed25519 cert never
+
+# Capture the primary fingerprint, then hang the encryption subkey off it.
+FPR=$(gpg --with-colons --fingerprint backup@talib.local | awk -F: '/^fpr:/{print $10; exit}')
+gpg --quick-add-key "$FPR" cv25519 encr never
 
 # Export the public key for the repo
 gpg --armor --export backup@talib.local > ops/backup-public.asc
@@ -23,10 +28,16 @@ gpg --armor --export backup@talib.local > ops/backup-public.asc
 # Export the private key for 1Password + paper backup
 gpg --armor --export-secret-keys backup@talib.local > /tmp/backup-private.asc
 
-# Capture the fingerprint — store as the BACKUP_GPG_FINGERPRINT secret.
-# The workflow refuses to encrypt against a key whose fingerprint doesn't
-# match this value (tamper-detection on ops/backup-public.asc).
-gpg --with-colons --fingerprint backup@talib.local | awk -F: '/^fpr:/{print $10; exit}'
+# The fingerprint captured above is the BACKUP_GPG_FINGERPRINT secret value
+# (primary key, no spaces). The workflow refuses to encrypt against a key
+# whose fingerprint doesn't match it — tamper-detection on the committed
+# ops/backup-public.asc.
+echo "$FPR"
+
+# Sanity-check the key before committing it: this is exactly what the
+# workflow runs, so a pass here means the backup will get past the key step.
+gpg --armor --export backup@talib.local > ops/backup-public.asc
+bash scripts/backup-prod.sh check-pubkey ops/backup-public.asc "$FPR"
 ```
 
 ### Store the private key

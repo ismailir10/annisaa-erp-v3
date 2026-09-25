@@ -138,4 +138,34 @@ describe("GET /api/guardian/raport/[studentId]/[termId]/pdf", () => {
     const religious = props.sections.find((s: { label: string }) => s.label.includes("Agama"));
     expect(religious.level).toBe("Mampu dan Konsisten");
   });
+
+  it("names the SEMESTER (sekolah) class, never the daycare one, for a dual-enrolled student", async () => {
+    getSession.mockResolvedValue(GUARDIAN);
+    db.parent.findFirst.mockResolvedValue({ guardians: [{ studentId: "s1" }] });
+    db.term.findFirst.mockResolvedValue(TERM);
+    db.student.findFirst.mockResolvedValue({
+      name: "Ali",
+      enrollments: [
+        {
+          id: "enr-daycare",
+          enrollDate: "2025-06-01",
+          classSection: { name: "Daycare 1", program: { type: "YEAR_ROUND" } },
+        },
+        {
+          id: "enr-sekolah",
+          enrollDate: "2025-07-01",
+          classSection: { name: "TKIT A", program: { type: "SEMESTER" } },
+        },
+      ],
+    });
+    db.reportCardEntry.findFirst.mockResolvedValue(ENTRY);
+    db.studentMeasurement.findFirst.mockResolvedValue({ heightCm: "110.5", weightKg: "18.2" });
+    db.tenant.findUnique.mockResolvedValue({ name: "An Nisaa" });
+    renderToBuffer.mockResolvedValue(Buffer.from("%PDF-1.4 fake"));
+
+    const res = await GET({} as never, ctx);
+    expect(res.status).toBe(200);
+    const props = renderToBuffer.mock.calls[0]![0].props.data;
+    expect(props.className).toBe("TKIT A");
+  });
 });

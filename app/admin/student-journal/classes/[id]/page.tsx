@@ -4,17 +4,16 @@ import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { Progress } from "@/components/ui/progress";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { toast } from "sonner";
-import Link from "next/link";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
@@ -230,17 +229,9 @@ export default function ClassWeekPage({
 
   return (
     <>
-      <div className="mb-4">
-        <Link
-          href="/admin/student-journal/monitoring"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Kembali ke Pemantauan
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref="/admin/student-journal/monitoring"
+        backLabel="Kembali ke Pemantauan"
         title={headerTitle}
         description="Rekap kelengkapan pengisian Buku Penghubung per siswa."
         actions={

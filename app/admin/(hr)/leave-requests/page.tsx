@@ -530,9 +530,11 @@ export default function AdminLeavePage() {
                 />
               </div>
               <DialogFooter>
-                <DialogClose>
-                  <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
-                </DialogClose>
+                <DialogClose
+                  render={
+                    <Button variant="ghost">{viewOnly ? "Tutup" : "Batal"}</Button>
+                  }
+                />
                 {/* FIND-018: mirror the row-kebab Setujui/Tolak actions in the
                     detail dialog footer when the leave is still PENDING. Pre-fix
                     the detail view only offered Tutup, forcing admins to close

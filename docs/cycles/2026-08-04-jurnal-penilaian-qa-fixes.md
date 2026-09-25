@@ -2,7 +2,7 @@
 
 ## Context
 
-The 2026-08-04 cross-role QA pass on staging (report: [`docs/qa/2026-08-04-jurnal-penilaian-cross-role-staging.md`](../qa/2026-08-04-jurnal-penilaian-cross-role-staging.md)) drove Jurnal and Penilaian end to end across admin, teacher and parent on the deployed preview at `5dba30ac`, corroborated by direct reads against the staging DB.
+The 2026-08-04 cross-role QA pass on staging (report: [`docs/archive/legacy-doc-dirs/qa/2026-08-04-jurnal-penilaian-cross-role-staging.md`](../qa/2026-08-04-jurnal-penilaian-cross-role-staging.md)) drove Jurnal and Penilaian end to end across admin, teacher and parent on the deployed preview at `5dba30ac`, corroborated by direct reads against the staging DB.
 
 The cross-role data chains themselves were sound — a sentra entry propagated correctly to the admin monitor, parent Capaian, raport auto-suggest and the published parent raport; per-child and per-family scoping held on all ten probes. What the pass surfaced was one blocker and four majors, all confirmed both live and in the source at `origin/staging`.
 

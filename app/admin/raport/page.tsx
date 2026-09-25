@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,24 @@ function toJakartaYmd(value: string): string {
 }
 
 export default function AdminRaportPage() {
+  // `?termId=&classSectionId=&studentId=` so the student dossier's Akademik
+  // rows can deep-link straight at one child's raport. Without it the link
+  // landed on three empty selectors and the admin had to re-find the student
+  // they had just clicked — the same reason `/admin/fees` learned `?tab=`.
+  //
+  // Seeded, not controlled: the params only set the *initial* selection, and
+  // only for values that actually exist in the loaded lists (a stale link to an
+  // archived cohort must not blank the page). Changing a selector afterwards is
+  // never fought by the URL.
+  const searchParams = useSearchParams();
+  const deepLink = useRef({
+    termId: searchParams.get("termId") ?? "",
+    classSectionId: searchParams.get("classSectionId") ?? "",
+    studentId: searchParams.get("studentId") ?? "",
+  });
+  const deepLinkApplied = useRef(false);
+  const deepLinkStudentApplied = useRef(false);
+
   const [terms, setTerms] = useState<Term[] | null>(null);
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -112,6 +131,16 @@ export default function AdminRaportPage() {
     loadSelectors();
   }, [loadSelectors]);
 
+  // Apply the deep link once the selector lists exist, and only for ids they
+  // actually contain.
+  useEffect(() => {
+    if (deepLinkApplied.current || terms === null || classes === null) return;
+    deepLinkApplied.current = true;
+    const { termId: wantTerm, classSectionId: wantClass } = deepLink.current;
+    if (wantTerm && terms.some((t) => t.id === wantTerm)) setTermId(wantTerm);
+    if (wantClass && classes.some((c) => c.id === wantClass)) setClassId(wantClass);
+  }, [terms, classes]);
+
   const loadRoster = useCallback(async () => {
     if (!termId || !classId) {
       setRoster(null);
@@ -140,6 +169,18 @@ export default function AdminRaportPage() {
   useEffect(() => {
     loadRoster();
   }, [loadRoster]);
+
+  // Open the editor on the linked student once their roster row exists. Fires
+  // at most once, so closing the editor does not bounce straight back into it.
+  useEffect(() => {
+    if (deepLinkStudentApplied.current || !roster) return;
+    const wanted = deepLink.current.studentId;
+    if (!wanted) return;
+    const row = roster.find((r) => r.studentId === wanted);
+    if (!row) return;
+    deepLinkStudentApplied.current = true;
+    setSelected(row);
+  }, [roster]);
 
   const currentTerm = useMemo(
     () => (terms ?? []).find((term) => term.id === termId) ?? null,

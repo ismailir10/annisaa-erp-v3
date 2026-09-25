@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalEmail } from "./optional-email";
 
 // Used by PUT /api/parents/[id] — edits the Parent contact fields shown on
 // the /admin/guardians list ("Wali Murid"). Junction-table fields like
@@ -7,7 +8,7 @@ import { z } from "zod";
 export const updateParentSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi").max(200).optional(),
   phone: z.string().max(20).optional().nullable(),
-  email: z.string().email("Email tidak valid").max(200).optional().nullable(),
+  email: optionalEmail,
   whatsapp: z.string().max(20).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   // Both `nik` (legacy field name on the Parent row) and `parentNik` (the

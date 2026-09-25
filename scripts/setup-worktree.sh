@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup-worktree.sh — create a clean worktree for a product-builder session
+# setup-worktree.sh — create a clean worktree for a development session
 #
 # Usage (from the main checkout root):
 #   ./scripts/setup-worktree.sh <slug>
@@ -12,7 +12,7 @@
 #   2. Symlinks .env, .env.local, and node_modules from the main checkout
 #      so the worktree can run `npm run dev` and `npm run build` immediately
 #   3. Installs git hooks in the worktree
-#   4. Writes .claude/session-role as product-builder (override on first AI turn)
+#   4. Writes .claude/session-role (the assistant overwrites model on its first turn)
 #
 # Why symlinks instead of copies:
 #   .env — symlinked so secrets stay in one place; changes in main propagate automatically
@@ -93,7 +93,7 @@ bash "$WORKTREE_PATH/scripts/install-hooks.sh"
 
 mkdir -p "$WORKTREE_PATH/.claude"
 cat > "$WORKTREE_PATH/.claude/session-role" <<'EOF'
-role=product-builder
+role=cto
 model=unknown
 EOF
 echo "setup-worktree: wrote .claude/session-role (AI will overwrite model on first turn)"

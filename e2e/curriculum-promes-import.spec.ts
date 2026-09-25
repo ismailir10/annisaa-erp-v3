@@ -27,7 +27,7 @@ test.describe("Admin curriculum — PROMES import", () => {
   let semesterId: string | null = null;
   // The seeded current AcademicYear (2025/2026) is ACTIVE. Creating this
   // spec's own ACTIVE year now demotes it (single-active invariant —
-  // docs/cycles/2026-06-05-staging-hygiene-active-year.md), which would break
+  // docs/cycles/archive/2026-06-05-staging-hygiene-active-year.md), which would break
   // later serial specs that depend on the seeded year being current (e.g.
   // teacher-assessments-weekly). Capture the prior ACTIVE year here and
   // re-activate it in afterAll so the shared CI DB is left as we found it.

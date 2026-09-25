@@ -492,6 +492,53 @@ describe("getParentWithChildren — lookup invariants (U10 hardening)", () => {
       relationship: "IBU",
     });
   });
+
+  it("joins both classes for a dual-enrolled child (sekolah + daycare), SEMESTER first", async () => {
+    vi.mocked(prisma.parent.findFirst).mockResolvedValue({
+      id: "parent-a",
+      tenantId: "tenant-a",
+      guardians: [
+        {
+          studentId: "stu-1",
+          relationship: "IBU",
+          student: {
+            id: "stu-1",
+            name: "Aisyah",
+            nickname: "Aisha",
+            enrollments: [
+              {
+                id: "enr-daycare",
+                status: "ACTIVE",
+                enrollDate: "2025-06-01",
+                classSection: {
+                  id: "cs-daycare",
+                  name: "Daycare 1",
+                  program: { name: "Daycare", type: "YEAR_ROUND" },
+                },
+              },
+              {
+                id: "enr-sekolah",
+                status: "ACTIVE",
+                enrollDate: "2025-07-01",
+                classSection: {
+                  id: "cs-sekolah",
+                  name: "TK B1",
+                  program: { name: "TK", type: "SEMESTER" },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    } as never);
+
+    const result = await getParentWithChildren(session({}));
+    expect(result.children).toHaveLength(1);
+    // SEMESTER enrollment ordered first even though it's listed second in
+    // the Prisma result and has a later enrollDate.
+    expect(result.children[0].className).toBe("TK B1 & Daycare 1");
+    expect(result.children[0].programName).toBe("TK & Daycare");
+  });
 });
 
 describe("countAttendanceThisWeek", () => {

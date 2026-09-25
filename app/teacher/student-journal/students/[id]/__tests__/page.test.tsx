@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nav = vi.hoisted(() => ({
@@ -16,8 +16,11 @@ vi.mock("sonner", () => ({ toast: { error: toastError } }));
 vi.mock("@/components/portal/week-grid", () => ({
   WeekGrid: () => <div data-testid="week-grid" />,
 }));
-vi.mock("@/components/student-journal/note-thread", () => ({
-  NoteThread: () => <div data-testid="note-thread" />,
+// The thread is its own fetching component now (covered by
+// components/student-journal/__tests__/note-thread-panel.test.tsx); this page
+// only owns the week grid, the header and the navigator.
+vi.mock("@/components/student-journal/note-thread-panel", () => ({
+  NoteThreadPanel: () => <div data-testid="note-thread" />,
 }));
 vi.mock("@/components/student-journal/note-compose-dialog", () => ({
   NoteComposeDialog: () => null,
@@ -29,6 +32,13 @@ const weekData = {
   data: {
     weekStart: "2026-08-03",
     dates: ["2026-08-03", "2026-08-04"],
+    student: {
+      id: "student_1",
+      name: "Abdullah Faris Siregar",
+      nickname: "Abdullah",
+      classNames: ["DCARE"],
+      classes: [{ id: "class-1", name: "DCARE" }],
+    },
     categories: [],
     entries: [],
     notes: [],
@@ -85,6 +95,50 @@ describe("TeacherStudentWeekPage", () => {
     }
   });
 
+  it("names the student the week belongs to, with nickname and class", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => weekData }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Abdullah Faris Siregar" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Abdullah · DCARE")).toBeInTheDocument();
+  });
+
+  it("renders the grid even when the payload carries no student identity", async () => {
+    const withoutStudent = { data: { ...weekData.data, student: null } };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => withoutStudent }));
+    render(<TeacherStudentWeekPage />);
+
+    await screen.findByTestId("week-grid");
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
+  it("offers a jump into the fill grid, carrying the class and the day", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => weekData }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    // Viewing a past week (?week=2026-08-03): the jump targets that week's last
+    // day rather than today, which is the day a guru paging back is fixing.
+    expect(screen.getByTestId("fill-day-link")).toHaveAttribute(
+      "href",
+      "/teacher/student-journal/entry?classId=class-1&date=2026-08-04",
+    );
+  });
+
+  it("hides the jump when the payload carries no class for the student", async () => {
+    const noClasses = {
+      data: { ...weekData.data, student: { ...weekData.data.student, classes: [] } },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => noClasses }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+
+    expect(screen.queryByTestId("fill-day-link")).toBeNull();
+  });
+
   it("ignores a stale prior-week response after week navigation", async () => {
     const first = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     const second = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
@@ -97,15 +151,20 @@ describe("TeacherStudentWeekPage", () => {
     second.resolve({ ok: true, json: async () => weekData });
     await screen.findByTestId("week-grid");
 
-    first.resolve({
-      ok: true,
-      json: async () => ({ data: { ...weekData.data, dates: ["2026-07-27"] } }),
+    // Flush the stale prior-week response before asserting it was ignored.
+    // The `waitFor` this replaces was satisfied on its first poll — the
+    // heading was already rendered by the newer response — so it was not a
+    // barrier, and the range assertion below raced the stale response's
+    // flush. `await act` makes that flush deterministic.
+    await act(async () => {
+      first.resolve({
+        ok: true,
+        json: async () => ({ data: { ...weekData.data, dates: ["2026-07-27"] } }),
+      });
     });
-    await waitFor(() =>
-      expect(
-        screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
-      ).toBeInTheDocument(),
-    );
-    expect(screen.getByText("3 Agu – 4 Agu")).toBeInTheDocument();
+    expect(
+      screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("3 Agu – 4 Agu 2026")).toBeInTheDocument();
   });
 });

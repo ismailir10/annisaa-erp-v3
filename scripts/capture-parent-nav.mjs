@@ -1,6 +1,6 @@
 /**
  * Captures the parent portal bottom nav at mobile widths into
- * `docs/proposals/parent-nav/`, and asserts nothing overflows the viewport.
+ * `docs/archive/legacy-doc-dirs/proposals/parent-nav/`, and asserts nothing overflows the viewport.
  *
  *   DEMO_MODE=true npm run start        # or next dev
  *   node scripts/capture-parent-nav.mjs [baseUrl]
@@ -13,7 +13,7 @@ import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
 const BASE = process.argv[2] ?? "http://localhost:3117";
-const OUT = "docs/proposals/parent-nav";
+const OUT = "docs/archive/legacy-doc-dirs/proposals/parent-nav";
 const WIDTHS = [
   { w: 375, h: 812, tag: "375" },
   { w: 360, h: 800, tag: "360" },

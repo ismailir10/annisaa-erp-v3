@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/admin/page-header";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,11 +12,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WeekGrid } from "@/components/portal/week-grid";
-import { NoteThread } from "@/components/student-journal/note-thread";
+import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { AuditDiff } from "@/components/student-journal/audit-diff";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Check } from "lucide-react";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // ------------------------------------------------------------------
@@ -26,15 +26,6 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
 type Indicator = { id: string; label: string; order: number };
 type Category = { id: string; name: string; scope: string; indicators: Indicator[] };
 type Entry = { id?: string; indicatorId: string; date: string; checked: boolean };
-type Note = {
-  id: string;
-  date: string;
-  authorRole: string;
-  authorUserId?: string;
-  authorName?: string;
-  body: string;
-  createdAt: string;
-};
 type AuditRow = {
   id: string;
   entityType: string;
@@ -54,7 +45,6 @@ type WeekData = {
   homeCategories: Category[];
   schoolEntries: Entry[];
   homeEntries: Entry[];
-  notes: Note[];
 };
 
 // ------------------------------------------------------------------
@@ -256,9 +246,10 @@ export default function StudentJournalDetailPage({
   // ------------------------------------------------------------------
   const [noteDeleteTarget, setNoteDeleteTarget] = useState<string | null>(null);
   const [noteDeleting, setNoteDeleting] = useState(false);
+  const [noteReloadToken, setNoteReloadToken] = useState(0);
 
   async function handleNoteDeleteConfirm() {
-    if (!noteDeleteTarget || !weekData) return;
+    if (!noteDeleteTarget) return;
     setNoteDeleting(true);
     let errorToasted = false;
     try {
@@ -274,10 +265,7 @@ export default function StudentJournalDetailPage({
         throw new Error(message);
       }
       toast.success("Catatan dihapus");
-      setWeekData({
-        ...weekData,
-        notes: weekData.notes.filter((n) => n.id !== noteDeleteTarget),
-      });
+      setNoteReloadToken((t) => t + 1);
       setNoteDeleteTarget(null);
     } catch (error) {
       if (!errorToasted) {
@@ -295,35 +283,14 @@ export default function StudentJournalDetailPage({
   // Skeleton
   // ------------------------------------------------------------------
   if (loading) {
-    return (
-      <>
-        <div className="mb-4">
-          <Skeleton className="h-4 w-40" />
-        </div>
-        <Skeleton className="h-10 w-64 mb-6" />
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      </>
-    );
+    return <DetailPageSkeleton />;
   }
 
   return (
     <>
-      {/* Back link */}
-      <div className="mb-4">
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Kembali ke Pemantauan
-        </Link>
-      </div>
-
-      <PageHeader
+      <DetailPageHeader
+        backHref={backHref}
+        backLabel="Kembali ke Pemantauan"
         title={studentName || "Detail Jurnal Siswa"}
         description="Buku Penghubung — rincian per minggu"
         actions={
@@ -402,6 +369,7 @@ export default function StudentJournalDetailPage({
               dates={weekData?.dates ?? []}
               editable={isEditing}
               disablePastDays={false}
+              emptyWeekMessage="Belum ada centang di pekan ini."
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "SCHOOL")
               }
@@ -418,6 +386,7 @@ export default function StudentJournalDetailPage({
               dates={weekData?.dates ?? []}
               editable={isEditing}
               disablePastDays={false}
+              emptyWeekMessage="Belum ada centang di pekan ini."
               onToggle={(indicatorId, date, next) =>
                 handleToggle(indicatorId, date, next, "HOME")
               }
@@ -427,21 +396,15 @@ export default function StudentJournalDetailPage({
 
         {/* Catatan tab */}
         <TabsContent value="notes">
-          {!weekData || weekData.notes.length === 0 ? (
-            <EmptyState
-              title="Belum ada catatan minggu ini"
-              description="Catatan dari guru atau orang tua untuk minggu ini akan tampil di sini setelah dituliskan."
-            />
-          ) : (
-            <NoteThread
-              notes={weekData.notes}
-              /* Gates the action icons only. onEdit is deliberately not passed —
-                 admins delete any note but never edit note bodies; wiring onEdit
-                 here later would grant edit-any-note and needs a design decision. */
-              canEdit={() => true}
-              onDelete={(noteId) => setNoteDeleteTarget(noteId)}
-            />
-          )}
+          <NoteThreadPanel
+            studentId={studentId}
+            /* Gates the action icons only. onEdit is deliberately not passed —
+               admins delete any note but never edit note bodies; wiring onEdit
+               here later would grant edit-any-note and needs a design decision. */
+            canEdit={() => true}
+            onDelete={(noteId) => setNoteDeleteTarget(noteId)}
+            reloadToken={noteReloadToken}
+          />
 
           <ConfirmDialog
             open={noteDeleteTarget !== null}

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceReceiptPdf, InvoiceReceiptData } from "@/lib/pdf/invoice-receipt";
 import React from "react";
+import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
 
 /**
  * GET /api/guardian/invoices/[id]/pdf
@@ -81,16 +82,30 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           name: true,
           nickname: true,
           enrollments: {
-            where: { status: "ACTIVE" },
+            where: {
+              status: "ACTIVE",
+              // Exclude ARCHIVED-year rows. Un-closed prior-year ACTIVE
+              // enrollments (bulk-import artifact — see T9 regression,
+              // docs/cycles/2026-08-21-enrollment-flexibility.md) would
+              // otherwise sit in `pickPrimaryEnrollment`'s pool alongside
+              // the real current-year row and can win its earliest-
+              // enrollDate tiebreak, naming last year's class + program on
+              // the receipt header.
+              classSection: { academicYear: { NOT: { status: "ARCHIVED" } } },
+            },
+            // No `take: 1` — a dual-enrolled student (sekolah + daycare)
+            // needs every ACTIVE row so `pickPrimaryEnrollment` below can
+            // pick the SEMESTER one. A receipt header must be singular.
             select: {
+              id: true,
+              enrollDate: true,
               classSection: {
                 select: {
                   name: true,
-                  program: { select: { name: true } },
+                  program: { select: { name: true, type: true } },
                 },
               },
             },
-            take: 1,
           },
         },
       },
@@ -121,6 +136,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const totalDue = Number(invoice.totalDue);
   const totalPaid = Number(invoice.totalPaid);
 
+  const primaryEnrollment =
+    invoice.student.enrollments.length <= 1
+      ? (invoice.student.enrollments[0] ?? null)
+      : pickPrimaryEnrollment(invoice.student.enrollments);
+
   const data: InvoiceReceiptData = {
     schoolName: tenant?.name ?? "School",
     logoUrl: `${appUrl}/logo.png`,
@@ -130,8 +150,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     paidAt: invoice.paidAt ? fmtIdDate(invoice.paidAt) : null,
     studentName: invoice.student.name,
     studentNickname: invoice.student.nickname,
-    className: invoice.student.enrollments[0]?.classSection?.name ?? null,
-    programName: invoice.student.enrollments[0]?.classSection?.program.name ?? null,
+    className: primaryEnrollment?.classSection?.name ?? null,
+    programName: primaryEnrollment?.classSection?.program.name ?? null,
     lines: invoice.lines.map((l) => ({
       label: l.labelSnapshot,
       amount: Number(l.finalAmount ?? l.amount),

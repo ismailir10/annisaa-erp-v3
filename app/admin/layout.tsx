@@ -17,7 +17,12 @@ export default async function AdminLayout({
   return (
     <SidebarProvider>
       <AppSidebar permissions={session.permissions} />
-      <div className="relative flex w-full flex-1 flex-col bg-background">
+      {/* min-w-0 is load-bearing: this is a flex child, and a flex item's
+          default `min-width: auto` refuses to shrink below its content. A
+          wide table would otherwise stretch this column past the viewport,
+          carrying the header and its action buttons off-screen instead of
+          letting the table's own overflow-x-auto scroll it. */}
+      <div className="relative flex w-full min-w-0 flex-1 flex-col bg-background">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 !h-4" />

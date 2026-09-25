@@ -39,7 +39,13 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 ## Recipe 2 — Admin Detail
 
-**When:** `/admin/<entity>/[id]` pages — single entity overview with sub-sections (tabs or vertical).
+**When:** `/admin/<entity>/[id]` pages. Two variants — pick by trigger rule, do not default to either without checking:
+
+**Trigger rule — use 2b (dossier) only when *both* hold:** (1) the page is a read/overview surface, not a stateful editor or workflow tool, and (2) the entity has 3+ independent concerns worth their own section (finance, academics, documents, ... — something an admin would search for by name). Otherwise use 2a. See `docs/cycles/2026-09-03-detail-page-pattern-decision.md` for the full reasoning and the current retrofit backlog (which existing pages are 2a today but qualify for 2b).
+
+### Recipe 2a — Simple Detail
+
+**When:** single-concern entities (one invoice, one payroll run) or stateful editors/workflow tools (raport editor) — the common case for anything that isn't named in the 2b backlog.
 
 **Layout skeleton:**
 
@@ -61,6 +67,35 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 ```
 
 **Required pieces:** PageHeader with entity name + identifier subtitle + action cluster (destructive-left / edit-right) · Tabs for sub-sections (if >1) · right-rail aside for metadata (created_at, updated_at, audit log link) · StatusBadge on every state field.
+
+### Recipe 2b — Dossier
+
+**When:** multi-concern entity overviews. Canonical example: `/admin/students/[id]`. Backlog candidates: `guardians/[id]` (high priority — the components below were built naming this page), `classes/[id]`, `employees/[id]`.
+
+**Layout skeleton:**
+
+```tsx
+<main className="flex flex-1 flex-col p-page-x py-page-y">
+  <DetailPageHeader title={entity.name} subtitle={...} actions={...} />
+  <div className="mt-section grid gap-section lg:grid-cols-[1fr_280px]">
+    <div>
+      <DossierNav sections={sectionDefs} openMap={openMap} onNavigate={...} />
+      <DossierSection id="keuangan" label="Keuangan" open={openMap.keuangan} onOpenChange={...}>
+        ...
+      </DossierSection>
+      {/* more DossierSections, one per concern */}
+    </div>
+    <DetailRail>
+      <RailStatTiles tiles={[...]} />
+      <RailCard title="Kontak">...</RailCard>
+    </DetailRail>
+  </div>
+</main>
+```
+
+**Required pieces:** `DetailPageHeader` + `DetailPageSkeleton` for loading (`components/admin/`) · sticky `DossierNav` that expands a collapsed section before scrolling to it · one `DossierSection` per concern, `id` = DOM anchor = nav target, `keepMounted` only for sections whose fetch is worth surviving a collapse · `DetailRail` (`RailStatTiles` / `RailCard` / `RailKV` / `RailChecklist`) — collapses into normal document flow below `lg` · hash-addressable sections (`#akademik` etc.) · aggregate numbers distinguish "not loaded" (`Memuat…`) from a real zero (never a bare `0` while a fetch is pending) · lazy sections fetch only on first open; above-the-fold rail data fetches eagerly.
+
+Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (`crud.md`) for inline section edits.
 
 ## Recipe 3 — Admin Form (Dialog or Sheet)
 

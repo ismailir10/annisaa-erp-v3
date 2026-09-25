@@ -73,14 +73,29 @@ PageHeader (title + count + "Tambah" button)
 
 ## Detail Page Layout Standard
 
+Two layouts — pick by `patterns.md` Recipe 2's trigger rule (read-overview + 3-or-more independent concerns → 2b; otherwise 2a). See `docs/cycles/2026-09-03-detail-page-pattern-decision.md` for the reasoning and the retrofit backlog.
+
+**Recipe 2a — Simple Detail** (single-concern entities, editors, workflow tools):
+
 ```
 Back link ("← Kembali ke Daftar {Entity}")
 PageHeader (title + description + StatusBadge + action buttons)
 ├── Summary Card (read-only info grid, 2-col)
-└── Tabs (if entity has multiple concerns)
+└── Tabs (if entity has 2 concerns — 3+, move to Recipe 2b)
     ├── Tab 1: Primary related data
-    ├── Tab 2: Secondary data
-    └── Tab 3: History
+    └── Tab 2: Secondary data
+```
+
+**Recipe 2b — Dossier** (multi-concern overviews, e.g. `students/[id]`):
+
+```
+DetailPageHeader (title + description + StatusBadge + action buttons)
+├── DossierNav (sticky, anchors to each section below)
+├── DossierSection × N (one per concern — finance, academics, documents, ...)
+└── DetailRail (desktop aside, collapses to inline flow below lg)
+    ├── RailStatTiles (glanceable KPIs — "not loaded" ≠ real zero)
+    ├── RailCard × N (contact, checklist, ...)
+    └── quick-contact actions
 ```
 
 ## Edit Toggle Pattern (Detail Pages)

@@ -10,7 +10,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM } from "../guardian-edit-dialog";
+import { GuardianFormBody, EMPTY_GUARDIAN_FORM, guardianCreatePayload } from "../guardian-edit-dialog";
 
 describe("GuardianFormBody — accessible names (AC1)", () => {
   it("resolves getByLabelText for representative fields when showRelationship is true (student-detail entry point)", () => {
@@ -65,5 +65,23 @@ describe("GuardianFormBody — accessible names (AC1)", () => {
     expect(screen.getByLabelText("Jumlah Anak")).toBeInTheDocument();
     expect(screen.queryByLabelText("Hubungan")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Anak ke-")).not.toBeInTheDocument();
+  });
+});
+
+describe("guardianCreatePayload (FIND-010)", () => {
+  it("omits isPrimary from the CREATE payload when the Switch is off", () => {
+    const body = guardianCreatePayload({ ...EMPTY_GUARDIAN_FORM, isPrimary: false });
+    expect("isPrimary" in body).toBe(false);
+  });
+
+  it("sends isPrimary: true when the admin switched it on", () => {
+    const body = guardianCreatePayload({ ...EMPTY_GUARDIAN_FORM, isPrimary: true });
+    expect(body).toMatchObject({ isPrimary: true });
+  });
+
+  it("passes every other field through unchanged", () => {
+    const form = { ...EMPTY_GUARDIAN_FORM, name: "Siti Aminah", relationship: "IBU", isPrimary: false };
+    const body = guardianCreatePayload(form);
+    expect(body).toMatchObject({ name: "Siti Aminah", relationship: "IBU" });
   });
 });

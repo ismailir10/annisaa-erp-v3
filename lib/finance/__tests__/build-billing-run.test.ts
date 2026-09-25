@@ -19,6 +19,7 @@ function enrollment(overrides: Partial<BuildEnrollment> = {}): BuildEnrollment {
     studentName: "Budi",
     classLabel: "TKIT A",
     programId: "program-tkit",
+    programName: "TKIT",
     classSectionId: "class-a",
     ...overrides,
   };
@@ -253,6 +254,298 @@ describe("buildBillingRunRows", () => {
   it("a student with no parent guardian gets parentId null, not an error", () => {
     const out = build({ parentByStudent: new Map() });
     expect(out.rows[0].parentId).toBeNull();
+  });
+
+  describe("dual enrollment (T8 — enrollment-flexibility)", () => {
+    it("a student with a KB + DCARE enrollment yields one row with both programs' fee components, totalDue equal to the resolver's total", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            classLabel: "KB Aster",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            classLabel: "D'Care Aster",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", label: "SPP Bulanan", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", label: "SPP Bulanan", amount: D("300000") })]],
+        ]),
+      });
+
+      expect(out.rows).toHaveLength(1);
+      expect(out.summary.total).toBe(1);
+      const row = out.rows[0];
+      expect(row.status).toBe("PENDING");
+      expect(row.lines).toHaveLength(2);
+      const kbLine = row.lines.find((l) => l.feeComponentId === "fc-spp-kb")!;
+      const dcareLine = row.lines.find((l) => l.feeComponentId === "fc-spp-dcare")!;
+      expect(kbLine).toBeDefined();
+      expect(dcareLine).toBeDefined();
+      // totalDue is verbatim from applyAdjustments, never re-summed.
+      expect(row.totalDue.toString()).toBe("800000");
+    });
+
+    it("label disambiguation appears only when merged lines span more than one program", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            classLabel: "KB Aster",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            classLabel: "D'Care Aster",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", label: "SPP", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", label: "SPP", amount: D("300000") })]],
+        ]),
+      });
+
+      const row = out.rows[0];
+      const kbLine = row.lines.find((l) => l.feeComponentId === "fc-spp-kb")!;
+      const dcareLine = row.lines.find((l) => l.feeComponentId === "fc-spp-dcare")!;
+      expect(kbLine.labelSnapshot).toBe("SPP (KB)");
+      expect(dcareLine.labelSnapshot).toBe("SPP (D'Care)");
+    });
+
+    it("classLabelSnapshot joins both class names, sorted, when a student has two in-scope enrollments", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            classLabel: "KB Aster",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            classLabel: "D'Care Aster",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", amount: D("300000") })]],
+        ]),
+      });
+
+      expect(out.rows[0].classLabelSnapshot).toBe("D'Care Aster, KB Aster");
+    });
+
+    it("a single-enrollment student's row and labels are byte-identical to today (no disambiguation, single class label)", () => {
+      const out = build();
+      const row = out.rows[0];
+      expect(row.lines[0].labelSnapshot).toBe("SPP Bulanan");
+      expect(row.classLabelSnapshot).toBe("TKIT A");
+    });
+
+    it("a program with fees plus a program without fees is PENDING with only the fees that exist, undisambiguated", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            classLabel: "KB Aster",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            classLabel: "D'Care Aster",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", label: "SPP", amount: D("500000") })]],
+          // program-dcare has no fee structure rows at all.
+        ]),
+      });
+
+      expect(out.rows).toHaveLength(1);
+      const row = out.rows[0];
+      expect(row.status).toBe("PENDING");
+      expect(row.lines).toHaveLength(1);
+      // Only one program contributed lines, so no disambiguation.
+      expect(row.lines[0].labelSnapshot).toBe("SPP");
+      expect(out.summary.skippedNoFeeStructure).toBe(0);
+      expect(out.summary.pending).toBe(1);
+    });
+
+    it("SKIPPED_NO_FEE_STRUCTURE only when NO in-scope program has fees, across all of a student's enrollments", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map(), // neither program has fees
+      });
+
+      expect(out.rows).toHaveLength(1);
+      expect(out.rows[0].status).toBe("SKIPPED_NO_FEE_STRUCTURE");
+      expect(out.summary.skippedNoFeeStructure).toBe(1);
+      expect(out.summary.pending).toBe(0);
+    });
+
+    it("a keringanan adjustment applies once across the merged fee set, matching only the program's own fee component", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", label: "SPP", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", label: "SPP", amount: D("300000") })]],
+        ]),
+        adjustmentsByStudent: new Map([
+          ["student-1", [adjustment({ feeComponentId: "fc-spp-kb", mode: "PERCENT", value: "10" })]],
+        ]),
+      });
+
+      const row = out.rows[0];
+      const kbLine = row.lines.find((l) => l.feeComponentId === "fc-spp-kb")!;
+      const dcareLine = row.lines.find((l) => l.feeComponentId === "fc-spp-dcare")!;
+      expect(kbLine.adjustmentAmount.toString()).toBe("-50000");
+      expect(dcareLine.adjustmentAmount.toString()).toBe("0"); // untouched — different feeComponentId
+      // 450000 + 300000
+      expect(row.totalDue.toString()).toBe("750000");
+      expect(out.summary.withAdjustments).toBe(1);
+    });
+
+    // The tests above deliberately give each program its OWN feeComponentId,
+    // which is what let the double-discount bug hide. `FeeComponentDef` is a
+    // TENANT-LEVEL shared catalog (prisma/seed.ts attaches one "spp" to TKIT,
+    // KB, DCARE and POPUP alike), so the realistic dual-enrolment shape is two
+    // base lines carrying the SAME feeComponentId with DIFFERENT amounts.
+    it("a FIXED keringanan on a feeComponentId SHARED by both programs fires exactly once, not once per program", () => {
+      const out = build({
+        enrollments: [
+          enrollment({ studentId: "student-1", programId: "program-kb", programName: "KB", classSectionId: "class-kb" }),
+          enrollment({ studentId: "student-1", programId: "program-dcare", programName: "D'Care", classSectionId: "class-dcare" }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        // Same fc-spp on both programs — the shared-catalog case.
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp", label: "SPP", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp", label: "SPP", amount: D("300000") })]],
+        ]),
+        adjustmentsByStudent: new Map([
+          ["student-1", [adjustment({ feeComponentId: "fc-spp", mode: "FIXED", value: "50000" })]],
+        ]),
+      });
+
+      const row = out.rows[0];
+      const sppLines = row.lines.filter((l) => l.feeComponentId === "fc-spp");
+      // Collapsed to ONE line so a single grant cannot match twice.
+      expect(sppLines).toHaveLength(1);
+      expect(sppLines[0].amount.toString()).toBe("800000"); // 500000 + 300000
+      // The bug would have produced -100000 here (50000 taken off each line).
+      expect(sppLines[0].adjustmentAmount.toString()).toBe("-50000");
+      expect(row.totalDue.toString()).toBe("750000");
+      expect(out.summary.withAdjustments).toBe(1);
+    });
+
+    it("a PERCENT keringanan on a SHARED feeComponentId uses the summed cross-program amount as its base", () => {
+      const out = build({
+        enrollments: [
+          enrollment({ studentId: "student-1", programId: "program-kb", programName: "KB", classSectionId: "class-kb" }),
+          enrollment({ studentId: "student-1", programId: "program-dcare", programName: "D'Care", classSectionId: "class-dcare" }),
+        ],
+        scope: { classSectionIds: ["class-kb", "class-dcare"], includeStudentIds: [], excludeStudentIds: [] },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp", label: "SPP", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp", label: "SPP", amount: D("300000") })]],
+        ]),
+        adjustmentsByStudent: new Map([
+          ["student-1", [adjustment({ feeComponentId: "fc-spp", mode: "PERCENT", value: "10" })]],
+        ]),
+      });
+
+      const row = out.rows[0];
+      const spp = row.lines.find((l) => l.feeComponentId === "fc-spp")!;
+      // 10% of the merged 800000 base — not 10% of 500000 plus 10% of 300000
+      // charged twice, and not 10% of whichever program happened to sort first.
+      expect(spp.adjustmentAmount.toString()).toBe("-80000");
+      expect(row.totalDue.toString()).toBe("720000");
+    });
+
+    it("excludeSet still wins over class-scope even when the student has multiple in-scope enrollments", () => {
+      const out = build({
+        enrollments: [
+          enrollment({
+            studentId: "student-1",
+            programId: "program-kb",
+            programName: "KB",
+            classSectionId: "class-kb",
+          }),
+          enrollment({
+            studentId: "student-1",
+            programId: "program-dcare",
+            programName: "D'Care",
+            classSectionId: "class-dcare",
+          }),
+        ],
+        scope: {
+          classSectionIds: ["class-kb", "class-dcare"],
+          includeStudentIds: [],
+          excludeStudentIds: ["student-1"],
+        },
+        feesByProgram: new Map([
+          ["program-kb", [feeLine({ feeComponentId: "fc-spp-kb", amount: D("500000") })]],
+          ["program-dcare", [feeLine({ feeComponentId: "fc-spp-dcare", amount: D("300000") })]],
+        ]),
+      });
+
+      expect(out.rows).toHaveLength(0);
+      expect(out.summary.total).toBe(0);
+    });
   });
 
   it("summary.total counts every row regardless of status", () => {
