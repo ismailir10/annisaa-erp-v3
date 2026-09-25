@@ -36,9 +36,12 @@ const chartConfig = {
 export function AttendanceTrendChart({
   data,
   className,
+  hideDetailLink = false,
 }: {
   data: WeeklyTrend[];
   className?: string;
+  /** Omit the "Lihat detail" → employee-attendance link when the chart already renders on that page. */
+  hideDetailLink?: boolean;
 }) {
   const isEmpty =
     data.length === 0 || data.every((d) => d.present + d.late + d.absent === 0);
@@ -63,16 +66,18 @@ export function AttendanceTrendChart({
       <CardHeader className="border-b">
         <CardTitle>Tren Kehadiran</CardTitle>
         <CardDescription>7 hari kerja terakhir</CardDescription>
-        <CardAction>
-          <Button
-            variant="ghost"
-            size="sm"
-            render={<Link href="/admin/employee-attendance" />}
-          >
-            Lihat detail
-            <ArrowRight />
-          </Button>
-        </CardAction>
+        {!hideDetailLink && (
+          <CardAction>
+            <Button
+              variant="ghost"
+              size="sm"
+              render={<Link href="/admin/employee-attendance" />}
+            >
+              Lihat detail
+              <ArrowRight />
+            </Button>
+          </CardAction>
+        )}
       </CardHeader>
       <CardContent className="space-y-4 pt-4">
         {isEmpty ? (

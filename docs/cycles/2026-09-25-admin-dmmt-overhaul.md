@@ -129,7 +129,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Add a link-tab strip (reuse `AdminTabs` styling, adding an href mode if needed) to admissions and enrollments.
   - In enrollments: the row action becomes `DataTableRowActions`, spacing moves to tokens, and a `StatsCardsRow` is added.
   - *Accept:* both routes show the strip and activate a single nav item.
-- [ ] **T3 — One-screen Dasbor.**
+- [x] **T3 — One-screen Dasbor.**
   - Bounded sources and `rankUrgent` in `lib/dashboard/admin-work-queue.ts`.
   - New `QueueSummaryTiles`, `UrgentList`, and `AttendanceTodayStrip`.
   - New `app/admin/work-queue/page.tsx`.
@@ -179,7 +179,21 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - These were left as-is on purpose, because they're module names or labels, not URL routes (the voice.md rule): `lib/raport/*`, `lib/validations/raport*`, the `RaportEditor` identifier, and the PDF download filename.
   - Reviews: feature-dev:code-reviewer found no issues. superpowers:code-reviewer, run because this is security-sensitive, came back clean: guards are byte-identical, and the guardian PDF ownership guard is intact. The proxy doesn't gate APIs by prefix.
 
+- T3: One-screen Dasbor.
+  - Files: `app/admin/page.tsx`, the new `app/admin/work-queue/page.tsx`, `lib/dashboard/{admin-work-queue,queue-sources}.ts`, `components/admin/dashboard/*` (new `queue-summary-tiles`, `urgent-list`, `attendance-today-strip`), `app/admin/(hr)/employee-attendance/page.tsx`, the new `app/api/attendance/trend/route.ts`, `e2e/admin-dashboard.spec.ts`, and the dashboard parts of `e2e/admin.spec.ts`. README's admin-home sentence is updated.
+  - The sources are bounded: each is a `count` plus `findMany({take})` sharing one `where`, loaded once in `loadAdminQueueSources`.
+  - New helpers `rankUrgent` and `summarizeQueue`.
+  - The Dasbor main column holds the tiles, the top-5 urgent list, and the one-line attendance strip. Activity is capped at 5 in a rail shown only at `xl`.
+  - `/admin/work-queue` hosts the full `AdminWorkQueue`, now filtered by kind rather than domain (`?kind=` is validated). It shows the true total when a queue passes the 200 cap.
+  - The trend chart moved to employee-attendance, fed by a new `GET /api/attendance/trend` gated on `requirePermission("attendance.view")` plus `hr.view`.
+  - Deleted QuickActions, StatGrid, and PendingActions (PendingActions was already dead before this cycle).
+  - Reviews:
+    - feature-dev:code-reviewer: no issues. Its one sub-threshold note (the silent 200 cap) is fixed.
+    - superpowers:code-reviewer: two items, both fixed. The route now uses `requirePermission`, and a trend permission-gate test is in `hr-permission-gate.test.ts`, covering 401, both one-sided 403s, 200, and the tenant-scoped `where`.
+
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
+
+- T0+T1+T3 joint gate: `npm run build` exited 0. `npx vitest run` passed 3504 tests in 370 files (2 files skipped, 42 todo), run at 23:20. `verify-api-auth` reports 197/197.
 
 ## Ship Notes

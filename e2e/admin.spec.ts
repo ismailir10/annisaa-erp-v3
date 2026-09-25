@@ -20,12 +20,16 @@ test.describe("Admin flows", () => {
     await page.waitForURL("**/admin", { timeout: 15_000 });
   });
 
-  test("dashboard loads with stats", async ({ page }) => {
+  test("dashboard loads with the queue tiles and attendance strip", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Perlu ditangani" })).toBeVisible();
+    await expect(page.getByTestId("dashboard-queue-tiles")).toBeVisible();
+    await expect(page.getByTestId("dashboard-attendance-strip")).toBeVisible();
+  });
+
+  test("work queue table loads at /admin/work-queue", async ({ page }) => {
+    await page.goto("/admin/work-queue");
+    await page.waitForURL("**/admin/work-queue");
     await expect(page.getByTestId("admin-work-queue")).toBeVisible();
-    const stats = page.getByTestId("dashboard-stat-grid");
-    await expect(stats.getByText("Total Karyawan")).toBeVisible();
-    await expect(stats.getByText("Hadir Hari Ini")).toBeVisible();
   });
 
   test("employee list loads", async ({ page }) => {
@@ -88,11 +92,16 @@ test.describe("Admin flows", () => {
 
   test("legacy assessment URLs redirect to the consolidated penilaian monitor", async ({ page }) => {
     // Penilaian consolidation: legacy AssessmentTemplate/StudentAssessment
-    // admin surfaces retired → all redirect to /admin/penilaian. The page
+    // admin surfaces retired → all redirect to /admin/assessments. The page
     // files were deleted in the 2026-07-31 retirement cycle, so this rule is
     // now the only thing standing between an old bookmark and a 404.
-    await page.goto("/admin/assessments/templates");
-    await expect(page).toHaveURL("/admin/penilaian");
+    //
+    // 2026-09-25: the monitor itself was renamed /admin/penilaian →
+    // /admin/assessments, so the old /admin/assessments/:path* legacy alias
+    // (which used to redirect elsewhere) was retired — that slug is now the
+    // live route. The remaining legacy alias is /admin/assessment-templates.
+    await page.goto("/admin/assessment-templates");
+    await expect(page).toHaveURL("/admin/assessments");
     await expect(page.getByRole("heading", { name: "Pemantauan" })).toBeVisible();
   });
 
