@@ -1331,29 +1331,29 @@ export default function StudentDetailPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="flex items-center gap-3">
                     <User size={16} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{student.name}</p></div>
+                    <div className="min-w-0"><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium break-words">{student.name}</p></div>
                   </div>
                   {student.nickname && <div><p className="text-xs text-muted-foreground">Nama Panggilan</p><p className="text-sm font-medium">{student.nickname}</p></div>}
                   {student.dateOfBirth && <div><p className="text-xs text-muted-foreground">Tanggal Lahir</p><p className="text-sm font-medium">{formatDateShort(student.dateOfBirth)}{age ? ` · ${age}` : ""}</p></div>}
                   {student.gender && <div><p className="text-xs text-muted-foreground">Jenis Kelamin</p><p className="text-sm font-medium">{student.gender === "L" ? "Laki-laki" : student.gender === "P" ? "Perempuan" : "—"}</p></div>}
                   {student.address && (
-                    <div className="col-span-2 flex items-start gap-3 sm:col-span-3">
+                    <div className="flex items-start gap-3 sm:col-span-3">
                       <MapPin size={16} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{student.address}</p></div>
                     </div>
                   )}
-                  {student.notes && <div className="col-span-2 sm:col-span-3"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
+                  {student.notes && <div className="sm:col-span-3"><p className="text-xs text-muted-foreground">Catatan</p><p className="text-sm">{student.notes}</p></div>}
                 </div>
 
                 {(student.nis || student.nisn || student.nik || student.birthPlace || student.kkNumber || student.livingWith) && (
                   <>
                     <div className="mt-6"><SectionHeading label="Identitas Resmi" /></div>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                      {student.nis && <div><p className="text-xs text-muted-foreground">NIS</p><p className="font-currency text-sm font-medium">{student.nis}</p></div>}
-                      {student.nisn && <div><p className="text-xs text-muted-foreground">NISN</p><p className="font-currency text-sm font-medium">{student.nisn}</p></div>}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      {student.nis && <div className="min-w-0"><p className="text-xs text-muted-foreground">NIS</p><p className="font-currency text-sm font-medium break-all">{student.nis}</p></div>}
+                      {student.nisn && <div className="min-w-0"><p className="text-xs text-muted-foreground">NISN</p><p className="font-currency text-sm font-medium break-all">{student.nisn}</p></div>}
                       {student.birthPlace && <div><p className="text-xs text-muted-foreground">Tempat Lahir</p><p className="text-sm">{student.birthPlace}</p></div>}
                       {/* NIK and No. KK are specific personal data under UU PDP
                           27/2022 — masked by default now that they share a

@@ -306,15 +306,15 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
           <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <User size={16} className="text-muted-foreground shrink-0" />
-                <div><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium">{parent.name}</p></div>
+                <div className="min-w-0"><p className="text-xs text-muted-foreground">Nama Lengkap</p><p className="text-sm font-medium break-words">{parent.name}</p></div>
               </div>
               {parent.email && (
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <Mail size={16} className="text-muted-foreground shrink-0" />
-                  <div><p className="text-xs text-muted-foreground">Email</p><p className="text-sm font-medium">{parent.email}</p></div>
+                  <div className="min-w-0"><p className="text-xs text-muted-foreground">Email</p><p className="text-sm font-medium break-all">{parent.email}</p></div>
                 </div>
               )}
               {parent.phone && (
@@ -330,7 +330,7 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               )}
               {parent.address && (
-                <div className="col-span-2 flex items-start gap-3">
+                <div className="flex items-start gap-3 sm:col-span-2">
                   <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
                   <div><p className="text-xs text-muted-foreground">Alamat</p><p className="text-sm">{parent.address}</p></div>
                 </div>
@@ -440,10 +440,10 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-2">
                 {parent.guardians.map(g => (
                   <Link key={g.id} href={`/admin/students/${g.student.id}`} className="block">
-                    <div className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{g.student.name}</span>
+                    <div className="flex flex-col gap-2 py-2.5 border-b border-border/50 last:border-0 hover:bg-accent/50 rounded-md px-2 -mx-2 transition-colors sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="min-w-0 break-words text-sm font-medium">{g.student.name}</span>
                           <Badge variant="outline" className="text-xs">{REL_LABELS[g.relationship] ?? g.relationship}</Badge>
                           {g.isPrimary && <Badge className="bg-primary/10 text-primary-text text-xs">Utama</Badge>}
                         </div>
