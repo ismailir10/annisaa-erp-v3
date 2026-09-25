@@ -136,7 +136,7 @@ On the prod URL, signed in as a real walas:
 2. Open it → correct class, current pekan with theme + sub-theme, full student roster, **indicator list non-empty** (empty ⇒ step 4's theme links).
 3. Tap a level for one student → reload → the value persisted.
 4. `/teacher/assessments/center/<sentra>` → pick today, roster and IKTP list both populate.
-5. `/admin/penilaian` → the class shows `1/N` assessed for the current pekan.
+5. `/admin/assessments` → the class shows `1/N` assessed for the current pekan.
 6. Void the test entry afterwards, or leave it and tell the walas.
 
 ---

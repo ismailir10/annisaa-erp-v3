@@ -1,8 +1,8 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending).
+> Last audited: 2026-09-26 in cycle `admin-dmmt-overhaul` (sidebar cut to daily work + `/admin/settings` hub; one-screen Dasbor replaces the full home queue, with the full list moved to `/admin/work-queue?kind=`; `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`; job steps updated accordingly — engineering review, representative-user UAT remains pending).
 
-> Prior reviews: 2026-09-25 in cycle `intuitive-ui-foundation` (manual invoice scroll/keyboard/reflow acceptance added to JTBD-ADMIN-INV-01; engineering regression verification). Prior: 2026-09-24 in cycle `guardian-primary-fix` (guardian card gained a one-click **Jadikan wali utama** action, confirm-gated, replacing the buried Edit Wali switch as the only way to promote; new JTBD-ADMIN-GUARD-04). Prior: 2026-08-21 in cycle `siswa-wali-linking` (one Parent record is shared across siblings — Tambah Wali opens on a search and links an existing wali, retyping an existing one raises an overridable duplicate warning; siswa ↔ wali navigation is bidirectional and a Saudara row lists siblings; wali bio saves through the parent route so an unlinked wali is editable; new JTBD-ADMIN-GUARD-02 and -03, GUARD-01 updated). Prior: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
+> Prior reviews: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-09-25 in cycle `intuitive-ui-foundation` (manual invoice scroll/keyboard/reflow acceptance added to JTBD-ADMIN-INV-01; engineering regression verification). Prior: 2026-09-24 in cycle `guardian-primary-fix` (guardian card gained a one-click **Jadikan wali utama** action, confirm-gated, replacing the buried Edit Wali switch as the only way to promote; new JTBD-ADMIN-GUARD-04). Prior: 2026-08-21 in cycle `siswa-wali-linking` (one Parent record is shared across siblings — Tambah Wali opens on a search and links an existing wali, retyping an existing one raises an overridable duplicate warning; siswa ↔ wali navigation is bidirectional and a Saudara row lists siblings; wali bio saves through the parent route so an unlinked wali is editable; new JTBD-ADMIN-GUARD-02 and -03, GUARD-01 updated). Prior: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
 > Default persona: Ibu Nur (SUPER_ADMIN) — see `.claude/personas/ibu-nur.md`
 
@@ -26,8 +26,8 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 ### JTBD-ADMIN-HOME-01 — Act on an authorized pending record
 - **Persona:** School administrator, repeated with restricted finance, HR, and admissions roles
 - **Preconditions:** Unconverted submitted/under-review enrollment forms, pending leave, an invoice awaiting a payment link, and draft payroll. Include authorized records outside the list's initial page/filter.
-- **Steps:** Open the home queue; scan or filter by area; open a named record; confirm its identity and permitted actions; dismiss or return; complete the original domain workflow when authorized; return to the queue.
-- **Done when:** Queue, navigation, and endpoints agree on access. A leave dialog stays closed after Cancel/Escape and Back behaves predictably. Only authoritative domain-state changes remove work. No generic completion control exists. Real zero, unavailable data, and loading are distinguishable, with a working retry for unavailable sources.
+- **Steps:** Open the Dasbor (`/admin`); read the top-5 urgent list (or a queue count tile); for anything beyond the top 5, follow a tile or "Lihat semua" to the full queue at `/admin/work-queue?kind=<kind>`; open a named record; confirm its identity and permitted actions; dismiss or return; complete the original domain workflow when authorized; return to the queue.
+- **Done when:** Dasbor, `/admin/work-queue`, navigation, and endpoints agree on access. A leave dialog stays closed after Cancel/Escape and Back behaves predictably. Only authoritative domain-state changes remove work. No generic completion control exists. Real zero, unavailable data, and loading are distinguishable, with a working retry for unavailable sources.
 - **Permission checks:** Read-only accounts have no mutation affordances or working mutation endpoints. Recording money follows `payments.record`, creating invoices follows `invoices.create`, and voiding follows `invoices.void`. HR links also satisfy the HR destination guard. Foreign-tenant records never appear or open.
 - **Verification status:** Engineering acceptance contract; record browser/API results in the cycle. No measured usability claim.
 
@@ -438,7 +438,7 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Expected perf:** list load <1.5s
 - **Preconditions:** Logged in as SUPER_ADMIN, ≥1 academic year + ≥1 class section in seed
 - **Steps:**
-  1. Open the academic / settings area
+  1. Open Pengaturan → Sekolah → Tahun Ajaran (`/admin/academic-years`)
   2. See the list of academic years
   3. Navigate to the current year's class sections
   4. Confirm each class section shows student count and wali kelas assignment
@@ -487,7 +487,7 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Expected perf:** save <1s
 - **Preconditions:** Logged in as SUPER_ADMIN
 - **Steps:**
-  1. Open settings → Hari Libur
+  1. Open Pengaturan → Sekolah → Hari Libur (`/admin/settings/holidays`)
   2. Add a new holiday (date, name, applies-to campuses)
   3. Save
   4. Confirm student and employee attendance screens mark that date as "Libur" and do not require marking
@@ -501,7 +501,7 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Expected perf:** invite send <1.5s
 - **Preconditions:** Logged in as SUPER_ADMIN, ≥1 active employee with no user account yet
 - **Steps:**
-  1. Open settings → Pengguna
+  1. Open Pengaturan → Akses → Pengguna (`/admin/settings/users`)
   2. Invite by email, pick role (TEACHER), link to the employee record
   3. Send
 - **Done when:** Invited user can sign in via Google and lands in the correct portal. Linking is explicit — an orphan user account (no employee) is not allowed.
@@ -518,7 +518,7 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 - **Student detail inline edit** (`/admin/students/[id]`) — edit-toggle pattern exists; add JTBD once field coverage is final
 - **Admission → enrolled student conversion** — flow exists but the handoff UX is still evolving
 - **Teacher-portal leave request submission** — teacher-side form not yet shipped (see teacher.md Appendix)
-- **Penilaian monitor** (`/admin/penilaian`) — covered by `JTBD-ADMIN-PENILAIAN-01`. The legacy assessment-template authoring surface (`/admin/assessment-templates`, `/admin/assessments`) was retired in the `penilaian-consolidation` cycle (redirects → `/admin/penilaian`); the new IKTP penilaian is authored via Kurikulum (Semester → IKTP) + entered by teachers.
+- **Penilaian monitor** (`/admin/assessments`) — covered by `JTBD-ADMIN-PENILAIAN-01`. The legacy assessment-template authoring surface (`/admin/assessment-templates`) was retired in the `penilaian-consolidation` cycle and now redirects to `/admin/assessments`; the route itself was renamed from `/admin/penilaian` to `/admin/assessments` (English-only slugs) in the `admin-dmmt-overhaul` cycle, with a 308 redirect from the old path. The new IKTP penilaian is authored via Kurikulum (Semester → IKTP) + entered by teachers.
 - **Settings: campuses, roles & permissions, salary components, work hours** — low-frequency configuration; add JTBD only when a cycle touches them
 - **Enrollment move** (move student between class sections mid-term) — edge case, low-frequency
 - **Guardian create & link to student** — covered obliquely by `JTBD-ADMIN-STUDENT-01`; promote to first-class if friction shows up in UAT
@@ -529,7 +529,7 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 - **Expected perf:** page load <4s; week/day change → table refresh <2s
 - **Preconditions:** Logged in with `assessments.read`; active academic year set; ≥1 active class section; some `AssessmentEntry` rows for the selected week/day
 - **Steps (user intent, not UI clicks):**
-  1. Open Penilaian → Pemantauan (`/admin/penilaian`)
+  1. Open Penilaian → Pemantauan (`/admin/assessments`)
   2. Read walas-weekly completion (assessed/enrolled) per class for the current week
   3. Change the week or sentra-day selector to inspect another period
   4. Read sentra-daily entries-made counts per center
@@ -543,7 +543,7 @@ These areas exist in the product but don't have first-class JTBD entries yet. Ad
 - **Expected perf:** page load <4s; open a student's raport (auto-draft) <3s
 - **Preconditions:** Logged in with `reportCard.*`; active semester set; ≥1 Term (triwulan) created; ≥1 class with active students; some `AssessmentEntry` rows in the term window
 - **Steps (user intent, not UI clicks):**
-  1. Open Penilaian → Raport (`/admin/raport`); if no triwulan exists, create one (semester + number + dates)
+  1. Open Penilaian → Rapor (`/admin/report-cards`); if no triwulan exists, create one (semester + number + dates)
   2. Pick a triwulan + class → read the roster with per-student status (Belum dibuat / Draft / Terbit)
   3. Open a student → see narrative sections pre-filled with a suggested level (from penilaian) + the "saran penilaian" count hint, and attendance auto-pulled
   4. Override a level / edit a narrative / adjust attendance; Simpan

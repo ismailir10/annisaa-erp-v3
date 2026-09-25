@@ -143,16 +143,16 @@ Kalau butuh SCHOOL_ADMIN, buat via `/admin/settings` (User + role SCHOOL_ADMIN) 
 - **Langkah:**
   1. Guru walas: `/teacher/assessments/weekly` → isi skala 3-level (Konsisten/Belum/Penguatan) untuk kelasnya.
   2. Guru sentra: `/teacher/assessments/center/[center]` → isi entri harian.
-  3. Admin: `/admin/penilaian` → cek completion monitor menunjukkan progress benar (walas-weekly + sentra-daily).
+  3. Admin: `/admin/assessments` → cek completion monitor menunjukkan progress benar (walas-weekly + sentra-daily).
 - **Hasil diharapkan:** Entry tersimpan dengan source benar (WEEKLY vs CENTER), admin monitor real-time reflect status.
 
 ### CURRICULUM-02 — Admin susun & terbitkan raport → parent baca
 - **Peran:** SUPER_ADMIN → GUARDIAN
 - **Fase:** staff-only untuk langkah 1, parent-live untuk langkah 2
 - **Langkah:**
-  1. Admin: `/admin/raport` → pilih siswa+term → cek draft auto-generated dari AssessmentEntry (dominant level + attendance), override field jika perlu, Publish, cek PDF.
+  1. Admin: `/admin/report-cards` → pilih siswa+term → cek draft auto-generated dari AssessmentEntry (dominant level + attendance), override field jika perlu, Publish, cek PDF.
   2. Parent: `/parent/reports` → cek hanya raport yang PUBLISHED muncul, isi (narasi + skala 3-level + kehadiran) cocok dengan yang admin publish.
-- **Hasil diharapkan:** Draft-before-publish tidak terlihat parent. Setelah publish, PDF via `/api/guardian/raport/...` bisa diunduh parent. Unpublish menyembunyikan lagi dari parent.
+- **Hasil diharapkan:** Draft-before-publish tidak terlihat parent. Setelah publish, PDF via `/api/guardian/report-cards/...` bisa diunduh parent. Unpublish menyembunyikan lagi dari parent.
 
 ### CURRICULUM-03 — Void entri penilaian (SCHOOL_ADMIN, bukan TEACHER)
 - **Peran:** SCHOOL_ADMIN

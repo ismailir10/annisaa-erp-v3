@@ -156,7 +156,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
 - [ ] **T6 — Dossier migration.**
   - `guardians/[id]`, `classes/[id]` (its stat grid moves to `StatsCardsRow`), and `employees/[id]` move to the Dossier layout.
   - *Accept:* existing tests pass; the three pages leave the patterns.md 2b backlog.
-- [ ] **T7 — Standards and README.**
+- [x] **T7 — Standards and README.**
   - Codify the rules in `patterns.md`, `crud.md`, and `ui.md`.
   - Update README for the nav, the hub, `/admin/work-queue`, and the renames.
   - Run `audit-docs.sh --write`.
@@ -243,9 +243,26 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Hash deep-link and mobile collapse effects mirror students/[id].
   - Review: no issues on this page.
 
+- T7: Standards and docs.
+  - `patterns.md`:
+    - new Settings Hub rule, with the daily vs setup definition
+    - Admin Dasbor rule: one screen, counts link out, no charts or launchers
+    - AdminLinkTabs note
+    - page-wrapper invariant
+    - Recipe 2b backlog closed: guardians, classes, and employees are adopted
+  - `crud.md`: StatsCardsRow on operational lists only; static PageHeader description; Dialog Standard, which also covers action dialogs; confirms always go through ConfirmDialog.
+  - `ui.md`: component-choice rows for table primitives, AdminTabs/AdminLinkTabs, and StatsCardsRow cols 2–6. The contradictory "Destructive = AlertDialog" rule is consolidated into ConfirmDialog.
+  - `voice.md`: "routes may keep raport" is replaced by the English-identifiers rule.
+  - `docs/uat/jobs/admin.md`: JTBD steps updated for the Dasbor, work-queue, and hub paths and the renamed routes; last audited 2026-09-26.
+  - Two runbooks had old paths, now fixed.
+  - README: the long line is trimmed to fit the 600-character budget.
+  - CLAUDE.md: counts regenerated with `audit-docs --write`.
+
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
 - T0+T1+T3 joint gate: `npm run build` exited 0. `npx vitest run` passed 3504 tests in 370 files (2 files skipped, 42 todo), run at 23:20. `verify-api-auth` reports 197/197.
+
+- T7: `bash scripts/audit-docs.sh` exits 0, with 13 ok, 1 warn, 0 fail. The warning is the pre-existing ADR 60-day window.
 
 ## Ship Notes
