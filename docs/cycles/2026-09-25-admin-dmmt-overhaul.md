@@ -306,6 +306,10 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Screenshots are in `/tmp/dmmt-shots/`, local and not committed.
   - The guardian detail page wasn't reached by the script (the parents API shape wasn't matched); T6a is covered by vitest and CI e2e (`e2e/admin-guardian-detail.spec.ts`).
 
+- /ship route selection: the actual diff `origin/staging...fccebc13` covers 115 files in app/, components/, lib/, config/, e2e/, next.config.ts, and docs/standards. It has no proxy, `lib/auth*`, package, or prisma files, so the route is **Local** (demo-auth browser plus a disposable local Postgres).
+  - Local verification passed for source SHA 9d3c7d7b, the last code commit; the later commits are docs-only. The flows and results are the T8 local browser bullet above: 0 blockers; the only console errors were the off-Vercel insights 404s.
+  - Ship gate re-run on fccebc13: `npm run build` exited 0, and vitest passed 3518 tests. The soft-skip delta vs origin/staging is 0.
+
 ## Ship Notes
 
 - **Migrations and env:** none. There are no schema, dependency, or env-var changes.
