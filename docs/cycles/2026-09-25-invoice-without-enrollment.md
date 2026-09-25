@@ -65,6 +65,14 @@ UAT input: no UAT report covers manual invoicing. The newest report (2026-06-04)
   - Vitest: 3311 passed, 42 todo.
 - `npx eslint` on the changed files is clean. `bash scripts/audit-docs.sh` exits 0 after `--write` regenerated the counts block for the new cycle doc. The only warning is the pre-existing ADR 60-day row.
 - Playwright: **deferred** to the required CI `Playwright E2E` check. This harness has no local `.env` or Supabase.
+- **Local verification, in place of preview-verify** (user-approved 2026-09-25, as long as it does not touch Google auth):
+  - Setup: a disposable local Postgres 16 with `prisma db push` and a seed, a production build, then `DEMO_MODE=true npm run start`. Signed in through the demo cookie `school-erp-session=u_school_admin`, so no Google OAuth was involved.
+  - Created an ACTIVE student, "Calon Siswa SPMB 2728", with **0 enrollments**, plus a primary guardian IBU with an email.
+  - Chromium (Playwright script) walked `/admin/invoices` → **Tagihan Manual** → picked the student → Periode "Biaya Daftar SPMB 27/28" → component "Daftar Ulang" Rp 500.000 → **Buat Tagihan**.
+    - Result: `POST /api/invoices` returned 201, and INV-2026-2003 was created with status `SENT` and a (demo) payment link.
+    - The detail page shows "Link Dibuat", with Kontak Wali set to the new guardian and her email.
+    - In the DB, `parentId` equals the primary guardian's parent, and the student still has 0 enrollments.
+  - Negative checks through the API with the same session: a WITHDRAWN student and a nonexistent id both return 400 "Siswa tidak ditemukan atau tidak aktif".
 - `design-system`: not applicable. The change is API-only with no frontend diff.
 
 ## Ship Notes
