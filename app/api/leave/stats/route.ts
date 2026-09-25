@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
@@ -18,6 +19,7 @@ export async function GET(_req: NextRequest) {
   const auth = await requirePermission("leave.view");
   if ("error" in auth) return auth.error;
   const { session } = auth;
+  if (!hasPermission(session, "hr.view")) return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
 
   const rows = await prisma.leaveRequest.groupBy({
     by: ["status"],

@@ -69,7 +69,7 @@ function makeSession(role: SessionUser["role"], tenantId: string | null = "t1"):
     tenantId,
     employeeId: null,
     parentId: null,
-    permissions: [],
+    permissions: ["payments.record"],
     customRoleCode: null,
   };
 }

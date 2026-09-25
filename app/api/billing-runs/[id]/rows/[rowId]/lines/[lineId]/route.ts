@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -84,7 +85,7 @@ export async function PATCH(
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id: billingRunId, rowId, lineId } = await params;
@@ -152,7 +153,7 @@ export async function DELETE(
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "invoices.create")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id: billingRunId, rowId, lineId } = await params;

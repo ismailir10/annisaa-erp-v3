@@ -1,199 +1,77 @@
-import { unstable_cache } from "next/cache";
+import Link from "next/link";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/admin/page-header";
-import { formatDate } from "@/lib/format";
-import {
-  StatGrid,
-  AttendanceTrendChart,
-  PendingActions,
-  ActivityFeed,
-  QuickActions,
-  type WeeklyTrend,
-} from "@/components/admin/dashboard";
-import { getRecentActivity, type ActivityEvent } from "@/lib/dashboard/activity-feed";
+import { formatDate, formatDateShort } from "@/lib/format";
+import { StatGrid, AttendanceTrendChart, ActivityFeed, QuickActions, type WeeklyTrend } from "@/components/admin/dashboard";
+import { AdminWorkQueue, DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getRecentActivity } from "@/lib/dashboard/activity-feed";
+import { buildAdminWorkQueue, unavailableAdminQueueSections, adminWorkPermissions, canViewAdminActivity, type AdminQueueSection } from "@/lib/dashboard/admin-work-queue";
 
-const getEmployeeCount = unstable_cache(
-  async (tenantId: string) =>
-    prisma.employee.count({ where: { tenantId, status: "ACTIVE" } }),
-  ["employees-count"],
-  { revalidate: 1800, tags: ["employees-count"] }
-);
-
-type PayrollRowWithCount = Awaited<ReturnType<typeof prisma.payrollRun.findFirst<{
-  include: { _count: { select: { items: true } } };
-}>>>;
-
-function settled<T>(result: PromiseSettledResult<T>, fallback: T, key: string): T {
-  if (result.status === "fulfilled") return result.value;
-  console.error("[dashboard] query failed", { key, err: result.reason });
-  return fallback;
-}
-
-// School ERP runs in Indonesian schools — use Asia/Jakarta (WIB, UTC+7) for the
-// current date, otherwise the dashboard shows zeroes during 00:00–07:00 local.
-function jakartaDateStr(date: Date): string {
-  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+async function loadSection<T>(allowed: boolean, key: string, query: () => Promise<T[]>): Promise<AdminQueueSection<T>> {
+  if (!allowed) return { status: "hidden" };
+  try { return { status: "ready", records: await query() }; }
+  catch (error) { console.error("[dashboard] source unavailable", { key, error }); return { status: "unavailable" }; }
 }
 
 export default async function AdminDashboard() {
   const session = await getSession();
-  if (!session || !isAdminRole(session.role)) redirect("/");
-  if (!session.tenantId) redirect("/");
-
+  if (!session || !isAdminRole(session.role) || !session.tenantId) redirect("/");
   const tenantId = session.tenantId;
-  const todayStr = jakartaDateStr(new Date());
-
-  // FIND-013: include today in the 7-weekday window. Pre-fix the cursor
-  // decremented BEFORE adding to the array, so the trend silently excluded
-  // today's row — and on a fresh staging DB where the only AttendanceRecord
-  // rows were for today, the panel rendered "Data kehadiran belum tersedia"
-  // despite there being data. The fix adds today first, then walks back.
-  const last7Weekdays: string[] = [];
-  const cursor = new Date(`${todayStr}T00:00:00+07:00`);
-  if (cursor.getDay() !== 0 && cursor.getDay() !== 6) {
-    last7Weekdays.push(jakartaDateStr(cursor));
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+  const can = (permission: string) => hasPermission(session, permission);
+  const permitted = adminWorkPermissions(session);
+  const canSeeAttendance = can("hr.view") && can("attendance.view");
+  const dates: string[] = [];
+  const cursor = new Date(`${today}T12:00:00Z`);
+  while (dates.length < 7) {
+    if (cursor.getUTCDay() !== 0 && cursor.getUTCDay() !== 6) dates.unshift(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
-  while (last7Weekdays.length < 7) {
-    cursor.setDate(cursor.getDate() - 1);
-    if (cursor.getDay() === 0 || cursor.getDay() === 6) continue;
-    last7Weekdays.unshift(jakartaDateStr(cursor));
-  }
-
-  const canSeePayroll = hasPermission(session, "payroll.view");
-  const canSeeAdmissions = hasPermission(session, "admissions.view");
-  const canSeeLeave = hasPermission(session, "leave.view");
-  const canSeeHr = hasPermission(session, "hr.view");
-  const canSeeActivity = canSeeHr;
-
-  const results = await Promise.allSettled([
-    getEmployeeCount(tenantId),
-    prisma.attendanceRecord.groupBy({
-      by: ["status"],
-      where: { employee: { tenantId }, date: todayStr },
-      _count: true,
+  const [enrollments, leave, invoices, payroll, attendance, activity] = await Promise.all([
+    loadSection(permitted.enrollments, "enrollments", () => prisma.enrollmentApplication.findMany({ where: { tenantId, studentId: null, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }, select: { id: true, childName: true, status: true }, orderBy: { updatedAt: "asc" } })),
+    loadSection(permitted.leave, "leave", () => prisma.leaveRequest.findMany({ where: { status: "PENDING", employee: { tenantId } }, select: { id: true, leaveType: true, startDate: true, endDate: true, status: true, employee: { select: { nama: true } } }, orderBy: { createdAt: "asc" } })),
+    loadSection(permitted.invoices, "invoices", () => prisma.invoice.findMany({ where: { tenantId, status: "PENDING_PAYMENT_LINK" }, select: { id: true, invoiceNumber: true, periodLabel: true, dueDate: true, status: true, student: { select: { name: true } } }, orderBy: { dueDate: "asc" } })),
+    loadSection(permitted.payroll, "payroll", () => prisma.payrollRun.findMany({ where: { tenantId, status: "DRAFT" }, select: { id: true, periodStart: true, periodEnd: true, status: true }, orderBy: { periodStart: "asc" } })),
+    loadSection(canSeeAttendance, "attendance", async () => {
+      const [total, rows] = await Promise.all([
+        prisma.employee.count({ where: { tenantId, status: "ACTIVE" } }),
+        prisma.attendanceRecord.groupBy({ by: ["date", "status"], where: { employee: { tenantId, status: "ACTIVE" }, date: { in: [...new Set([...dates, today])] } }, _count: true }),
+      ]);
+      return [{ total, rows }];
     }),
-    canSeeLeave
-      ? prisma.leaveRequest.count({
-          where: { employee: { tenantId }, status: "PENDING" },
-        })
-      : Promise.resolve(0),
-    canSeePayroll
-      ? prisma.payrollRun.findFirst({
-          where: { tenantId },
-          orderBy: { periodStart: "desc" },
-          include: { _count: { select: { items: true } } },
-        })
-      : Promise.resolve(null),
-    prisma.attendanceRecord.groupBy({
-      by: ["date", "status"],
-      where: { employee: { tenantId }, date: { in: last7Weekdays } },
-      _count: true,
-    }),
-    canSeeAdmissions
-      ? prisma.admission.count({ where: { tenantId, status: "INQUIRY" } })
-      : Promise.resolve(0),
-    canSeeActivity
-      ? getRecentActivity(tenantId, 8)
-      : Promise.resolve([] as ActivityEvent[]),
+    loadSection(can("hr.view"), "activity", async () => (await getRecentActivity(tenantId, 12)).filter(event => canViewAdminActivity(session, event.href))),
   ]);
-
-  const totalEmployees = settled(results[0], 0, "employees-count");
-  const todayAttendance = settled(
-    results[1],
-    [] as Array<{ status: string; _count: number }>,
-    "today-attendance"
-  );
-  const pendingLeave = settled(results[2], 0, "pending-leave");
-  const lastPayrollRow = settled(
-    results[3],
-    null as PayrollRowWithCount,
-    "last-payroll"
-  );
-  const weeklyTrendRaw = settled(
-    results[4],
-    [] as Array<{ date: string; status: string; _count: number }>,
-    "weekly-trend"
-  );
-  const pendingAdmissions = settled(results[5], 0, "pending-admissions");
-  const recentActivity = settled(results[6], [] as ActivityEvent[], "recent-activity");
-
-  const weeklyTrendMap = new Map<string, Record<string, number>>();
-  for (const row of weeklyTrendRaw) {
-    if (!weeklyTrendMap.has(row.date)) weeklyTrendMap.set(row.date, {});
-    weeklyTrendMap.get(row.date)![row.status] = row._count;
-  }
-  const weeklyTrend: WeeklyTrend[] = last7Weekdays.map((date) => {
-    const counts = weeklyTrendMap.get(date) || {};
-    return {
-      date,
-      present: (counts["PRESENT"] ?? 0) + (counts["PRESENT_NO_CHECKOUT"] ?? 0),
-      late: counts["LATE"] ?? 0,
-      absent: counts["ABSENT"] ?? 0,
-    };
+  const sources = { enrollments, leave, invoices, payroll };
+  const items = buildAdminWorkQueue(sources);
+  const deadlines = items.filter(item => item.dueDate).slice(0, 3);
+  const attendanceSummary = attendance.status === "ready" ? attendance.records[0] : null;
+  const todayRows = attendanceSummary?.rows.filter(row => row.date === today) ?? [];
+  const count = (status: string) => todayRows.find(row => row.status === status)?._count ?? 0;
+  const trend: WeeklyTrend[] = dates.map(date => {
+    const rows = attendanceSummary?.rows.filter(row => row.date === date) ?? [];
+    const value = (status: string) => rows.find(row => row.status === status)?._count ?? 0;
+    return { date, present: value("PRESENT") + value("PRESENT_NO_CHECKOUT"), late: value("LATE"), absent: value("ABSENT") };
   });
-
-  // Stat grid uses the same present/late split as the chart: late is its own
-  // status, not folded into present. This keeps both surfaces telling the same
-  // story about a single day.
-  const statusCounts: Record<string, number> = {};
-  for (const row of todayAttendance) statusCounts[row.status] = row._count;
-  const present =
-    (statusCounts["PRESENT"] ?? 0) + (statusCounts["PRESENT_NO_CHECKOUT"] ?? 0);
-  const late = statusCounts["LATE"] ?? 0;
-  const absent = Math.max(
-    0,
-    totalEmployees -
-      present -
-      late -
-      (statusCounts["LEAVE"] ?? 0) -
-      (statusCounts["HOLIDAY"] ?? 0)
-  );
-
-  const lastPayroll = lastPayrollRow
-    ? {
-        period: `${lastPayrollRow.periodStart} — ${lastPayrollRow.periodEnd}`,
-        status: lastPayrollRow.status,
-        employeeCount: lastPayrollRow._count.items,
-      }
-    : null;
-
-  return (
-    <>
-      <PageHeader
-        title="Dasbor"
-        description={formatDate(todayStr, {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })}
-      />
-      <div className="space-y-section">
-        <StatGrid
-          totalEmployees={totalEmployees}
-          present={present}
-          late={late}
-          absent={absent}
-        />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <AttendanceTrendChart data={weeklyTrend} className="lg:col-span-2" />
-          <div className="flex flex-col gap-4">
-            <PendingActions
-              pendingLeave={pendingLeave}
-              pendingAdmissions={pendingAdmissions}
-              lastPayroll={lastPayroll}
-              canSeePayroll={canSeePayroll}
-              canSeeAdmissions={canSeeAdmissions}
-              canSeeLeave={canSeeLeave}
-            />
-            <ActivityFeed events={recentActivity} />
-          </div>
+  return <>
+    <PageHeader title="Perlu ditangani" description="Pekerjaan yang menunggu keputusan atau pemeriksaan Anda." actions={<p className="text-body text-muted-foreground">{formatDate(today, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>} />
+    <div className="space-y-section">
+      <div className="grid min-w-0 items-start gap-section xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <AdminWorkQueue items={items} unavailable={unavailableAdminQueueSections(sources)} />
+        <div className="space-y-field">
+          {invoices.status !== "hidden" && <Card><CardHeader><CardTitle>Tenggat tagihan terdekat</CardTitle></CardHeader><CardContent>
+            {invoices.status === "unavailable" ? <div className="space-y-field"><p className="text-body text-muted-foreground">Tanggal tagihan belum dapat dimuat.</p><DashboardRetry /></div> : deadlines.length ? <ul className="space-y-field">{deadlines.map(item => <li key={item.id}><Link href={item.href} className="block rounded-md py-2 text-body outline-none focus-visible:ring-2 focus-visible:ring-ring"><p className="font-semibold">{formatDateShort(item.dueDate!)}</p><p className="text-muted-foreground">{item.title}</p></Link></li>)}</ul> : <p className="text-body text-muted-foreground">Tidak ada tenggat dari tagihan yang perlu Anda tangani.</p>}
+          </CardContent></Card>}
+          {activity.status === "ready" && <ActivityFeed events={activity.records} />}
+          {activity.status === "unavailable" && <Card><CardContent className="space-y-field"><p>Aktivitas belum dapat dimuat.</p><DashboardRetry /></CardContent></Card>}
         </div>
-        <QuickActions canSeePayroll={canSeePayroll} canSeeHr={canSeeHr} />
       </div>
-    </>
-  );
+      {attendanceSummary && <section aria-label="Ringkasan kehadiran karyawan" className="space-y-field"><h2 className="text-h2 font-semibold">Kehadiran karyawan</h2><StatGrid totalEmployees={attendanceSummary.total} present={count("PRESENT") + count("PRESENT_NO_CHECKOUT")} late={count("LATE")} absent={count("ABSENT")} /><AttendanceTrendChart data={trend} /></section>}
+      {attendance.status === "unavailable" && <Card><CardContent className="space-y-field"><p>Ringkasan kehadiran belum dapat dimuat. Jumlah belum diketahui.</p><DashboardRetry /></CardContent></Card>}
+      <QuickActions canSeePayroll={can("payroll.view") && can("payroll.create")} canSeeHr={can("hr.view")} canSeeAttendance={canSeeAttendance} canSeeLeave={can("leave.view")} canCreateEmployee={can("employees.create")} />
+    </div>
+  </>;
 }

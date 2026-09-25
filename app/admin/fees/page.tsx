@@ -212,7 +212,7 @@ export default function FeesPage() {
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
       <AdminTabs defaultValue={initialTab}>
-        <AdminTabsList>
+        <AdminTabsList className="h-auto w-full flex-wrap justify-start gap-1">
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
           <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
           <AdminTabsTrigger value="keringanan">Keringanan</AdminTabsTrigger>
@@ -266,13 +266,13 @@ export default function FeesPage() {
 
         {/* Fee Structure per Program */}
         <AdminTabsContent value="structure">
-          <div className="flex gap-3 mt-4 mb-4">
+          <div className="flex flex-wrap gap-3 mt-4 mb-4">
             <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)} items={programs.map(p => ({ label: p.name, value: p.id }))}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)} items={years.map(y => ({ label: y.name, value: y.id }))}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
