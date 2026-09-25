@@ -9,15 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Building2, MapPin, Plus, Pencil, Trash2, LocateFixed, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -246,15 +238,18 @@ export default function CampusesPage() {
       )}
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Kampus" : "Tambah Kampus"}</DialogTitle>
-            <DialogDescription>
-              {editing ? "Perbarui informasi kampus" : "Tambahkan lokasi kampus baru"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editing ? "Edit Kampus" : "Tambah Kampus"}
+        description={editing ? "Perbarui informasi kampus" : "Tambahkan lokasi kampus baru"}
+        footer={<>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}
+          </Button>
+        </>}
+      >
             <Field>
               <FieldLabel required htmlFor="campus-name">Nama</FieldLabel>
               <Input id="campus-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" required aria-required="true" />
@@ -276,17 +271,7 @@ export default function CampusesPage() {
             <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
               <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
             </Button>
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>
-              Batal
-            </DialogClose>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
 
       <ConfirmDialog
         open={!!deleteTarget}

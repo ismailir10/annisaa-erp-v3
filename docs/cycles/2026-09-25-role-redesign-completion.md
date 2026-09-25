@@ -20,7 +20,7 @@ The route inventory at the start of this cycle is 41 admin pages, 13 teacher pag
 - [x] Task 1: Make teacher home and core daily journeys task-first and truthful, with focused progress/context/recovery regressions.
 - [x] Task 2: Make parent home and child journeys family-first with persistent identity and authoritative billing states.
 - [x] Task 3: Add the permission-filtered admin work queue and close the invoice-create authorization gap.
-- [ ] Task 4: Apply and document shared consistency across all 62 portal page routes, recording route-level coverage and preserving capabilities.
+- [x] Task 4: Apply and document shared consistency across all 62 portal page routes, recording route-level coverage and preserving capabilities.
 - [ ] Task 5: Complete independent review, responsive/browser verification, full gates, and ship evidence.
 
 ## Implementation
@@ -131,7 +131,7 @@ This is the cloud worker's **source-inspection ledger**, not browser acceptance.
 
 ## Ship Notes
 
-- Implementation is being committed in role slices after the integrated gates. Task 5 remains open until rendered and signed-in acceptance plus protected CI pass. Do not merge until the corrected current source passes independent review, build, full Vitest, Playwright, local demo-auth browser verification with disposable PostgreSQL, and all four protected checks.
+- Tasks 1–4 implementation committed in role slices after the integrated gates. The route ledger still requires rendered acceptance under Task 5. Task 5 remains open until rendered and signed-in acceptance plus protected CI pass. Do not merge until the corrected current source passes independent review, build, full Vitest, Playwright, local demo-auth browser verification with disposable PostgreSQL, and all four protected checks.
 - Verification route classification: **auth-impacting**. The actual diff tightens teacher roster, finance, and leave authorization guards. Signed-in role-specific PR preview verification is required in addition to local demo-auth browser checks with disposable PostgreSQL. Browser screenshots and 320/390/768/1440, 200% reflow, keyboard/focus-return, reduced-motion, long-copy, multi-child/class, failure/save, and payment-return checks remain pending and are not claimed.
 - Historical cloud limitation (resolved on desktop): `npm run build` reached Next.js but stopped at the documented worktree environment limitation: Turbopack rejects the out-of-root `node_modules` symlink. A local dependency install was attempted after removing the symlink, but registry policy returned HTTP 403 for `input-otp@1.5.0`; the original symlink was restored. The transferred modules contain TanStack React Table v8 while current staging requires v9, so TypeScript/full-suite evidence cannot be fabricated.
 - Historical cloud Playwright deferral is superseded by desktop verification: matching dependencies, Chromium, and a disposable database are now available. Final local Playwright and signed-in preview are pending; required CI `Playwright E2E` still gates merge.

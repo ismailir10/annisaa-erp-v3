@@ -9,9 +9,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -179,13 +177,18 @@ export default function HolidaysPage() {
       />
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="p-card sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Hari Libur" : "Tambah Hari Libur"}</DialogTitle>
-            <DialogDescription>Hari libur mempengaruhi perhitungan hari kerja</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-field py-2">
+      <ResponsiveFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={editing ? "Edit Hari Libur" : "Tambah Hari Libur"}
+        description="Hari libur mempengaruhi perhitungan hari kerja"
+        footer={<>
+          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
+          </Button>
+        </>}
+      >
             <Field>
               <FieldLabel required htmlFor="holiday-date">Tanggal</FieldLabel>
               <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required aria-required="true" />
@@ -209,15 +212,7 @@ export default function HolidaysPage() {
               <Checkbox checked={form.isHalfDay} onCheckedChange={(c) => setForm({ ...form, isHalfDay: !!c })} />
               Setengah hari
             </label>
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>Batal</DialogClose>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ResponsiveFormDialog>
     </>
   );
 }
