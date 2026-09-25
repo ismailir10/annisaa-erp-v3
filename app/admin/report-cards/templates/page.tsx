@@ -187,7 +187,7 @@ export default function RaportTemplatesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
@@ -198,6 +198,7 @@ export default function RaportTemplatesPage() {
         }
       />
 
+      <div className="space-y-section">
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 pt-6">
           <Field className="min-w-56">
@@ -370,6 +371,7 @@ export default function RaportTemplatesPage() {
           </Card>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -257,18 +257,19 @@ export default function AdminRaportPage() {
   }
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Rapor"
         description="Susun & terbitkan rapor triwulan — terisi otomatis dari penilaian, dapat disunting."
       />
 
+      <div className="space-y-section">
       {terms !== null && terms.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="Belum ada triwulan."
           description="Buat triwulan untuk menentukan rentang penilaian dan kehadiran yang dirangkum ke rapor."
-          actionLabel="Buat Triwulan"
+          actionLabel="Tambah Triwulan"
           onAction={() => setTermDialog({ mode: "create" })}
         />
       ) : (
@@ -305,7 +306,7 @@ export default function AdminRaportPage() {
               onClick={() => currentTerm && setTermDialog({ mode: "edit", term: currentTerm })}
               disabled={!currentTerm}
             >
-              <Pencil className="size-4" /> Edit Triwulan
+              <Pencil className="size-4" /> Ubah Triwulan
             </Button>
           </div>
 
@@ -372,6 +373,7 @@ export default function AdminRaportPage() {
           ) : null}
         </>
       )}
+      </div>
 
       <TermFormDialog
         open={termDialog !== null}
@@ -387,7 +389,7 @@ export default function AdminRaportPage() {
           loadSelectors();
         }}
       />
-    </div>
+    </>
   );
 }
 
@@ -453,7 +455,7 @@ function TermFormDialog({
     <ResponsiveFormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={mode === "edit" ? "Edit Triwulan" : "Buat Triwulan"}
+      title={mode === "edit" ? "Ubah Triwulan" : "Tambah Triwulan"}
       description="Triwulan menentukan rentang tanggal penilaian dan kehadiran yang dirangkum ke rapor."
       size="lg"
       footer={

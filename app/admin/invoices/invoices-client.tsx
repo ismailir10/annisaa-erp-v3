@@ -29,17 +29,6 @@ import {
   runBulkRetry,
   type BulkRetrySnapshot,
 } from "@/lib/finance/run-bulk-retry";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
 // ------------------------------------------------------------------
 // Types
 // ------------------------------------------------------------------
@@ -624,7 +613,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
       {/* Overflow confirm — surfaces when more than 1000 invoices are stuck.
           Single confirm button per spec; closing the dialog without confirming
           aborts the orchestrator cleanly. */}
-      <AlertDialog
+      <ConfirmDialog
         open={!!overflowConfirm}
         onOpenChange={(o) => {
           if (!o && overflowConfirm) {
@@ -633,24 +622,15 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
             resolve(false);
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Antrian retry penuh</AlertDialogTitle>
-            <AlertDialogDescription>
-              {overflowConfirm
-                ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleOverflowConfirm}>
-              Mulai Proses
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Antrian retry penuh"
+        description={
+          overflowConfirm
+            ? `1000 tagihan akan diproses sekarang. Sisa ${overflowConfirm.total - 1000} tagihan: jalankan ulang "Coba Lagi Link" setelah batch ini selesai.`
+            : ""
+        }
+        onConfirm={handleOverflowConfirm}
+        confirmLabel="Mulai Proses"
+      />
 
       {statsState === "error" && <Alert><AlertTitle>Ringkasan tagihan belum dapat dimuat</AlertTitle><AlertDescription><Button variant="outline" onClick={fetchStats}>Muat ulang ringkasan</Button></AlertDescription></Alert>}
       {statsState === "ready" && <StatsCardsRow cols={stats.pendingPaymentLink > 0 ? 6 : 5}>

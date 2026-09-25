@@ -141,13 +141,13 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - To keep parallel subagents on disjoint files, T5 is merged into T4, and T4 runs as four file-owned slices, T4a–T4d, each committed on its own.
   - T2 also owns the admissions dialog migration.
   - The acceptance criteria are unchanged.
-- [ ] **T4 — Consistency A: dialogs and confirms** (3 slices).
+- [x] **T4 — Consistency A: dialogs and confirms** (3 slices).
   - Move 9 hand-rolled Dialog/Sheet pages to `ResponsiveFormDialog`.
   - Fix the submit ternary in classes and semesters, and the Triwulan wording in report-cards.
   - Replace raw `AlertDialog` with `ConfirmDialog` (salary-components, payroll/[id], invoices-client).
   - `EmptyState` for payroll/[id] "not found"; `Field` in semesters import.
   - *Accept:* grep finds no `useIsMobile` in `app/admin/**` pages and no `AlertDialog` imports there.
-- [ ] **T5 — Consistency B: list shape.**
+- [x] **T5 — Consistency B (merged into T4 slices): list shape.**
   - `StatsCardsRow` in academic-years, semesters, settings/users, and payments.
   - Page-wrapper standard; toolbars on holidays and roles.
   - Monthly attendance moves to the table primitives; `AdminTabs` in student-journal.
@@ -231,6 +231,12 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - payroll/[id]: not-found now renders EmptyState.
   - Live-count descriptions are now static.
   - Review: no issues. ConfirmDialog's catch-and-stay-open behavior was verified in `components/ui/confirm-dialog.tsx`.
+- T4c: Finance and academic consistency.
+  - The invoices/[id] payment dialog now uses ResponsiveFormDialog, and the `invoices-client` overflow AlertDialog is now a ConfirmDialog.
+  - Classes and semesters use the submit ternary `Simpan Perubahan / Tambah …`. The semesters stat grid becomes StatsCardsRow, and the semesters import form uses FieldLabel.
+  - report-cards: "Buat/Edit Triwulan" becomes "Tambah/Ubah Triwulan", with trigger, title and submit aligned.
+  - Page wrappers are fixed on report-cards, report-cards/templates, assessments, and classes (classes keeps `min-w-0` for table overflow).
+  - Review: no issues.
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 

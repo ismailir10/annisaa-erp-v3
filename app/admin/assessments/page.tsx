@@ -88,7 +88,7 @@ export default function AdminPenilaianPage() {
   }, [load]);
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Pemantauan"
         description={
@@ -103,7 +103,8 @@ export default function AdminPenilaianPage() {
         }
       />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end mb-6">
+      <div className="space-y-section">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <Field className="sm:w-48">
           <FieldLabel htmlFor="week-date">Pekan (tanggal acuan)</FieldLabel>
           <Input
@@ -210,6 +211,7 @@ export default function AdminPenilaianPage() {
           </section>
         </div>
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
