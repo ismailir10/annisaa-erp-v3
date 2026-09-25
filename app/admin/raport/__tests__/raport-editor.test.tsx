@@ -106,8 +106,11 @@ describe("RaportEditor unsaved-changes guard", () => {
 
     await user.click(screen.getByRole("button", { name: "Batal" }));
 
+    await waitFor(() => {
+      expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+    });
     expect(onBack).not.toHaveBeenCalled();
-    expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Hafalan (surah / hadis / doa)")).toHaveValue("An-Naba ayat 1-5");
   });
 
   it("blocks back navigation after editing a narrative textarea", async () => {

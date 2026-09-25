@@ -5,22 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select,
   SelectTrigger,
@@ -31,7 +16,6 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { userMessage } from "@/lib/api/client-errors";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
@@ -202,47 +186,68 @@ function ManualInvoiceFormBody({
           {form.lines.map((line, index) => (
             <div
               key={index}
-              className="grid grid-cols-[1fr_100px_auto] md:grid-cols-[1fr_120px_auto] gap-2 items-center"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:grid-cols-[minmax(0,1fr)_120px_auto]"
             >
-              <Select
-                value={line.feeComponentId}
-                onValueChange={(v) =>
-                  v && updateLine(index, { feeComponentId: v })
-                }
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Pilih komponen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {feeComponents.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      Belum ada komponen aktif
-                    </div>
-                  ) : (
-                    feeComponents.map((fc) => (
-                      <SelectItem key={fc.id} value={fc.id}>
-                        {fc.label}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={line.amount}
-                onChange={(e) => updateLine(index, { amount: e.target.value })}
-                placeholder="0"
-                className="w-full font-currency bg-background"
-              />
+              <Field className="col-span-2 min-w-0 md:col-span-1">
+                <FieldLabel required htmlFor={`manual-invoice-component-${index}`}>
+                  Komponen biaya {index + 1}
+                </FieldLabel>
+                <Select
+                  value={line.feeComponentId}
+                  onValueChange={(v) =>
+                    v && updateLine(index, { feeComponentId: v })
+                  }
+                >
+                  <SelectTrigger
+                    id={`manual-invoice-component-${index}`}
+                    aria-required="true"
+                    className="w-full min-w-0 bg-background"
+                  >
+                    <SelectValue className="min-w-0 truncate" placeholder="Pilih komponen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {feeComponents.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Belum ada komponen aktif
+                      </div>
+                    ) : (
+                      feeComponents.map((fc) => (
+                        <SelectItem
+                          key={fc.id}
+                          value={fc.id}
+                          className="[&>div]:min-w-0 [&>div]:shrink [&>div]:whitespace-normal [&>div]:wrap-break-word"
+                        >
+                          {fc.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field className="min-w-0">
+                <FieldLabel required htmlFor={`manual-invoice-amount-${index}`}>
+                  Jumlah {index + 1}
+                </FieldLabel>
+                <Input
+                  id={`manual-invoice-amount-${index}`}
+                  required
+                  aria-required="true"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={line.amount}
+                  onChange={(e) => updateLine(index, { amount: e.target.value })}
+                  placeholder="0"
+                  className="w-full font-currency bg-background"
+                />
+              </Field>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => removeLine(index)}
                 disabled={form.lines.length <= 1}
-                aria-label="Hapus baris"
+                aria-label={`Hapus baris ${index + 1}`}
               >
                 <X size={14} />
               </Button>
@@ -286,7 +291,6 @@ export function ManualInvoiceDialog({
   onCreated,
 }: ManualInvoiceDialogProps) {
   const router = useRouter();
-  const isMobile = useIsMobile();
 
   const [form, setForm] = useState<ManualFormState>(() => buildInitialForm());
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -409,57 +413,15 @@ export function ManualInvoiceDialog({
   const description =
     "Buat satu tagihan untuk satu siswa dengan komponen biaya khusus.";
 
-  if (isMobile) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{title}</SheetTitle>
-            <SheetDescription>{description}</SheetDescription>
-          </SheetHeader>
-          <div className="space-y-field px-4 pb-4">
-            <ManualInvoiceFormBody
-              form={form}
-              setForm={setForm}
-              selectedStudent={selectedStudent}
-              setSelectedStudent={setSelectedStudent}
-              feeComponents={feeComponents}
-            />
-          </div>
-          <SheetFooter>
-            <Button
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Membuat..." : "Buat Tagihan"}
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-field">
-          <ManualInvoiceFormBody
-            form={form}
-            setForm={setForm}
-            selectedStudent={selectedStudent}
-            setSelectedStudent={setSelectedStudent}
-            feeComponents={feeComponents}
-          />
-        </div>
-        <DialogFooter>
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      size="xl"
+      footer={
+        <>
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
@@ -470,8 +432,16 @@ export function ManualInvoiceDialog({
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? "Membuat..." : "Buat Tagihan"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <ManualInvoiceFormBody
+        form={form}
+        setForm={setForm}
+        selectedStudent={selectedStudent}
+        setSelectedStudent={setSelectedStudent}
+        feeComponents={feeComponents}
+      />
+    </ResponsiveFormDialog>
   );
 }
