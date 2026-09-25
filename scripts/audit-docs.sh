@@ -158,6 +158,156 @@ done < <(grep -oE '^\| 20[0-9]{2}-[0-9]{2}-[0-9]{2} \|' docs/adrs/active.md 2>/d
 [ -z "$STALE" ] && row ok "ADR 60-day window" "no out-of-window rows" ||
   row warn "ADR 60-day window" "move to docs/adrs/archive.md:$STALE"
 
+# ------------------------------------------------------ skill references resolve
+
+# Every backticked `<plugin>:<skill>` token in the workflow docs (e.g.
+# `superpowers:test-driven-development`, `feature-dev:code-reviewer`) must be
+# declared in the tracked registry below. That makes CI deterministic without
+# requiring every harness to install Claude-only plugins. When user plugin
+# settings exist locally, this check also catches disabled or missing installs.
+EXTERNAL_SKILL_REGISTRY=".claude/skills/external-skill-registry.tsv"
+USER_SETTINGS="${AUDIT_SKILL_SETTINGS:-$HOME/.claude/settings.json}"
+PLUGINS=""
+if [ -f "$USER_SETTINGS" ]; then
+  PLUGINS=$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)
+for key, enabled in data.get("enabledPlugins", {}).items():
+    plugin, _, marketplace = key.partition("@")
+    print(plugin + "\t" + marketplace + "\t" + str(bool(enabled)).lower())
+' "$USER_SETTINGS" 2>/dev/null)
+  if [ "$?" -ne 0 ]; then
+    row fail "Skill plugin settings" "cannot parse $USER_SETTINGS"
+  fi
+fi
+
+# The only non-skill colon token is a CSS utility in the vendored accessibility skill.
+SKILL_TOKENS=$(grep -hoE '`[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*`' .claude/skills/*/SKILL.md CLAUDE.md 2>/dev/null | tr -d '`' | grep -v '^focus:outline-none$' | sort -u)
+BROKEN=""
+while IFS= read -r tok; do
+  [ -z "$tok" ] && continue
+  plugin=${tok%%:*}
+  skill=${tok#*:}
+  if ! awk -F'\t' -v p="$plugin" -v s="$skill" '
+    $0 !~ /^#/ && $1 == p && $2 == s { found=1 }
+    END { exit found ? 0 : 1 }
+  ' "$EXTERNAL_SKILL_REGISTRY" 2>/dev/null; then
+    BROKEN="$BROKEN $tok(not-in-registry)"
+    continue
+  fi
+
+  match=$(printf '%s\n' "$PLUGINS" | awk -F'\t' -v p="$plugin" '$1==p{print;exit}')
+  if [ -f "$USER_SETTINGS" ] && [ -z "$match" ]; then
+    BROKEN="$BROKEN $tok(plugin-not-configured)"
+  elif [ -n "$match" ]; then
+    marketplace=$(printf '%s' "$match" | cut -f2)
+    enabled=$(printf '%s' "$match" | cut -f3)
+    if [ "$enabled" != "true" ]; then
+      BROKEN="$BROKEN $tok(plugin-disabled)"
+      continue
+    fi
+    PLUGIN_DIR="$HOME/.claude/plugins/cache/$marketplace/$plugin"
+    SKILL_HIT=$(find "$PLUGIN_DIR" -type d -path '*/skills/'"$skill" 2>/dev/null)
+    AGENT_HIT=$(find "$PLUGIN_DIR" \( -path '*/agents/'"$skill"'.md' -o -type d -path '*/agents/'"$skill" \) 2>/dev/null)
+    [ -z "$SKILL_HIT" ] && [ -z "$AGENT_HIT" ] && BROKEN="$BROKEN $tok(not-found)"
+  fi
+done <<< "$SKILL_TOKENS"
+
+[ -z "$BROKEN" ] && row ok "Skill references resolve" "every plugin:skill token is in the tracked registry; local plugin installs checked when settings exist" ||
+  row fail "Skill references resolve" "broken:$BROKEN"
+
+# --------------------------------------------------- standards-table paths exist
+
+# Converts a staged-file glob from build/SKILL.md's routing tables into a tracked-file
+# test. Source docs should resolve against committed paths, not generated artifacts,
+# ignored caches, or sibling worktrees that happen to sit under the checkout.
+path_glob_exists() {
+  local tok="$1" prefix rest items suffix item candidate pat hit
+  case "$tok" in
+    *'{'*) # brace group, e.g. components/{teacher,parent}/** — try each alternative
+      prefix=${tok%%\{*}
+      rest=${tok#*\{}
+      items=${rest%%\}*}
+      suffix=${rest#*\}}
+      for item in $(printf '%s' "$items" | tr ',' ' '); do
+        candidate="${prefix}${item}${suffix}"
+        pat=$(printf '%s' "$candidate" | sed 's/\*\*/*/g')
+        hit=$(git ls-files -- "$pat")
+        [ -n "$hit" ] && return 0
+      done
+      return 1
+      ;;
+    *)
+      pat=$(printf '%s' "$tok" | sed 's/\*\*/*/g')
+      hit=$(git ls-files -- "$pat")
+      [ -n "$hit" ]
+      ;;
+  esac
+}
+
+MISSING=""
+while IFS= read -r tok; do
+  [ -z "$tok" ] && continue
+  case "$tok" in
+    */*) ;;                     # looks like a path
+    *.ts|*.tsx|*.css) ;;        # or a bare file with a real source extension
+    *) continue ;;              # otherwise it's prose (`bg-status-*`, `text-wrap`, …) — skip
+  esac
+  path_glob_exists "$tok" || MISSING="$MISSING $tok"
+done < <(awk '
+  /^\| Staged file glob \| Load \|/ { f=1; next }
+  /^\| Frontend task touches \| Also invoke \|/ { f=1; next }
+  /^$/ { f=0 }
+  f && /^\|/ { print }
+' .claude/skills/build/SKILL.md | awk -F'|' '{print $2}' | grep -oE '`[^`]+`' | tr -d '`' | sort -u)
+
+[ -z "$MISSING" ] && row ok "Standards-table paths exist" "every staged-file glob in build/SKILL.md matches tracked source" ||
+  row fail "Standards-table paths exist" "no match on disk:$MISSING"
+
+# ------------------------------------- SessionStart hook messages reach the assistant
+
+# Claude Code only folds a SessionStart hook's STDOUT into the assistant's context;
+# stderr is silently dropped. A hook script that echoes an `Assistant:`-directed
+# message to `>&2` is writing guidance nobody will ever read.
+PROJECT_SETTINGS=".claude/settings.json"
+if [ ! -f "$PROJECT_SETTINGS" ]; then
+  row warn "SessionStart hook stdout" "no .claude/settings.json — skipping"
+else
+  HOOK_CMDS=$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+for entry in data.get("hooks", {}).get("SessionStart", []):
+    for h in entry.get("hooks", []):
+        cmd = h.get("command", "")
+        if cmd:
+            print(cmd)
+' "$PROJECT_SETTINGS" 2>/dev/null)
+
+  BROKEN=""
+  while IFS= read -r cmd; do
+    [ -z "$cmd" ] && continue
+    script=$(printf '%s\n' "$cmd" | awk '{print $2}')
+    [ -z "$script" ] && continue
+    [ -f "$script" ] || continue
+    matches=$(grep -E 'Assistant:' "$script" 2>/dev/null)
+    case "$matches" in
+      *'>&2'*) BROKEN="$BROKEN $script" ;;
+    esac
+  done < <(printf '%s\n' "$HOOK_CMDS")
+
+  [ -z "$BROKEN" ] && row ok "SessionStart hook stdout" "no Assistant: guidance sent to stderr" ||
+    row fail "SessionStart hook stdout" "stderr-only assistant message in:$BROKEN"
+fi
+
 # --------------------------------------------- File Structure paths still exist
 
 MISSING=""

@@ -91,7 +91,7 @@ export async function materializeBillingRun(
       select: { studentId: true },
     }),
     db.studentGuardian.findMany({
-      where: { studentId: { in: candidateStudentIds }, isPrimary: true },
+      where: { studentId: { in: candidateStudentIds }, isPrimary: true, status: "ACTIVE" },
       select: { studentId: true, parentId: true },
     }),
     // Candidate keringanan grants — narrowed here for efficiency;

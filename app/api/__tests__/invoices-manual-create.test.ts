@@ -5,7 +5,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 //   1. nextInvoiceNumber → tx.$queryRaw twice (advisory lock + last-number lookup)
 //   2. tx.invoice.create({ ..., lines: { create: [...] } }) → returns the new id
 //
-// The fee-component lookup, enrollment check, and guardian lookup happen on the
+// The fee-component lookup, student check, and guardian lookup happen on the
 // outer prisma client (see vi.mock below).
 const txMock = {
   $queryRaw: vi.fn(),
@@ -16,7 +16,7 @@ const txMock = {
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    studentEnrollment: { findFirst: vi.fn() },
+    student: { findFirst: vi.fn() },
     feeComponentDef: { findMany: vi.fn() },
     studentGuardian: { findFirst: vi.fn() },
     invoice: { findUnique: vi.fn(), update: vi.fn() },
@@ -116,7 +116,7 @@ describe("POST /api/invoices — auth", () => {
 
     const res = await POST(makeReq(validBody) as never);
     expect(res.status).toBe(403);
-    expect(prisma.studentEnrollment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.student.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns 403 for TEACHER role", async () => {
@@ -129,7 +129,7 @@ describe("POST /api/invoices — auth", () => {
 
     const res = await POST(makeReq(validBody) as never);
     expect(res.status).toBe(403);
-    expect(prisma.studentEnrollment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.student.findFirst).not.toHaveBeenCalled();
   });
 
 });
@@ -186,17 +186,23 @@ describe("POST /api/invoices — validation", () => {
 });
 
 describe("POST /api/invoices — business validation", () => {
-  it("returns 400 'tidak terdaftar aktif' when student has no active enrollment", async () => {
+  it("returns 400 when the student is missing, not ACTIVE, or in another tenant", async () => {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.student.findFirst).mockResolvedValue(null);
 
     const res = await POST(makeReq(validBody) as never);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/tidak terdaftar aktif/i);
+    expect(body.error).toMatch(/tidak ditemukan atau tidak aktif/i);
+    // Tenant + ACTIVE scoping lives in the where-clause.
+    expect(prisma.student.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "s-1", tenantId: "tnt-1", status: "ACTIVE" },
+      })
+    );
     // Must short-circuit before fee-component lookup or transaction.
     expect(prisma.feeComponentDef.findMany).not.toHaveBeenCalled();
   });
@@ -206,8 +212,8 @@ describe("POST /api/invoices — business validation", () => {
     const { prisma } = await import("@/lib/db");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
 
     // Body asks for fc-1 + fc-2; we return only fc-1 → simulates fc-2 being
@@ -232,8 +238,8 @@ describe("POST /api/invoices — happy path", () => {
     const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
@@ -291,6 +297,51 @@ describe("POST /api/invoices — happy path", () => {
   });
 });
 
+describe("POST /api/invoices — guardian lookup", () => {
+  it("excludes an INACTIVE primary guardian from the billing-parent lookup", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
+    } as never);
+    vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
+      { id: "fc-1", label: "SPP" },
+      { id: "fc-2", label: "Seragam" },
+    ] as never);
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue({
+      parentId: "p-1",
+    } as never);
+
+    wireHappyPath();
+
+    vi.mocked(createPaymentSessionForInvoice).mockResolvedValue({
+      paymentUrl: "https://checkout.xendit.co/web/inv-new",
+    });
+    vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv-new",
+      invoiceNumber: "INV-2026-0001",
+      totalDue: 150_000,
+      status: "SENT",
+      xenditPaymentUrl: "https://checkout.xendit.co/web/inv-new",
+      xenditSessionId: "xnd-sess-1",
+      paymentLinkError: null,
+      lines: [],
+    } as never);
+
+    await POST(makeReq(validBody) as never);
+
+    expect(prisma.studentGuardian.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isPrimary: true, status: "ACTIVE" }),
+      }),
+    );
+  });
+});
+
 describe("POST /api/invoices — Xendit failure paths", () => {
   it("helper throws → 201, status=PENDING_PAYMENT_LINK, paymentLinkError set, xenditError surfaced", async () => {
     const { getSession } = await import("@/lib/auth");
@@ -298,8 +349,8 @@ describe("POST /api/invoices — Xendit failure paths", () => {
     const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
@@ -348,8 +399,8 @@ describe("POST /api/invoices — Xendit failure paths", () => {
     const { createPaymentSessionForInvoice } = await import("@/lib/payments/session");
     vi.mocked(getSession).mockResolvedValue(adminSession());
 
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
@@ -403,8 +454,8 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
     );
 
     vi.mocked(getSession).mockResolvedValue(adminSession());
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },
@@ -457,8 +508,8 @@ describe("POST /api/invoices — P2002 retry loop (T2b)", () => {
     const { prisma } = await import("@/lib/db");
 
     vi.mocked(getSession).mockResolvedValue(adminSession());
-    vi.mocked(prisma.studentEnrollment.findFirst).mockResolvedValue({
-      studentId: "s-1",
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({
+      id: "s-1",
     } as never);
     vi.mocked(prisma.feeComponentDef.findMany).mockResolvedValue([
       { id: "fc-1", label: "SPP" },

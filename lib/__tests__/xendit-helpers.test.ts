@@ -240,6 +240,20 @@ describe("createPaymentSessionForInvoice — guardian contact passthrough", () =
     );
   });
 
+  it("queries only ACTIVE primary guardians, and customerEmail comes from that ACTIVE row", async () => {
+    const { prisma } = await import("@/lib/db");
+    const createSession = await runWith([
+      { parent: { name: "Bu Sari", email: "sari@example.test", whatsapp: "081234567890", phone: null } },
+    ]);
+
+    expect(vi.mocked(prisma.invoice.findUnique).mock.calls[0][0]).toMatchObject({
+      include: { student: { include: { guardians: { where: { isPrimary: true, status: "ACTIVE" } } } } },
+    });
+    expect(createSession.mock.calls[0][0]).toMatchObject({
+      customerEmail: "sari@example.test",
+    });
+  });
+
   it("warns with hasPrimaryGuardian:false and falls back to the student name when no primary guardian exists", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
