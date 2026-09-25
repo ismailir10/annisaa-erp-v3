@@ -68,8 +68,9 @@ export async function GET(req: NextRequest) {
  * doesn't fit.
  *
  * Flow:
- *   1. Verify caller is admin and student belongs to tenant with an active
- *      enrollment.
+ *   1. Verify caller is admin and student is ACTIVE in this tenant. No class
+ *      enrollment is required — SPMB applicants converted to Student are billed
+ *      (biaya daftar / uang pangkal) before the next year's classes exist.
  *   2. Verify every fee component belongs to tenant and is enabled.
  *   3. Inside one transaction: allocate next invoice number under advisory
  *      lock, create invoice with status `PENDING_PAYMENT_LINK`, create lines
@@ -105,17 +106,17 @@ export async function POST(req: NextRequest) {
   // which masked a P2002-from-FK incident on staging in 2026-05.
   try {
 
-  // Verify the student is enrolled and active in *this* tenant. We use the
-  // enrollment row as the source of truth because it carries tenant scoping
-  // via `classSection.tenantId` — the Student row's tenantId is denormalized
-  // and could lag in rare edge cases.
-  const enrollment = await prisma.studentEnrollment.findFirst({
-    where: { studentId, status: "ACTIVE", classSection: { tenantId } },
-    select: { studentId: true },
+  // Verify the student is ACTIVE in *this* tenant. Deliberately no class
+  // enrollment check: a newly converted SPMB applicant has no class until the
+  // next academic year's classes are set up, and still needs a registration
+  // invoice. Bulk billing runs remain class-scoped.
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, tenantId, status: "ACTIVE" },
+    select: { id: true },
   });
-  if (!enrollment) {
+  if (!student) {
     return NextResponse.json(
-      { error: "Siswa tidak terdaftar aktif" },
+      { error: "Siswa tidak ditemukan atau tidak aktif" },
       { status: 400 }
     );
   }
