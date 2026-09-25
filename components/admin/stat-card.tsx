@@ -30,8 +30,8 @@ export function StatCard({
   return (
     <Card className="transition-shadow hover:shadow-md" data-index={index}>
       <CardContent>
-        <div className="flex min-w-0 items-start justify-between gap-field">
-          <div className="min-w-0">
+        <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-field">
+          <div className="min-w-0 wrap-break-word">
             <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
               {label}
             </p>

@@ -63,6 +63,8 @@ User requested moving this ongoing work to cloud. This is a WIP transfer checkpo
 
 - Local E2E exposed two stale expectations: the parent overflow destination now retains its child query, and a legacy payment callback must not claim settlement for an unpaid invoice. The navigation test now asserts both the Rapor path and retained child. The payment regression owns its exact unpaid fixture, checks pending feedback despite `xenditStatus=paid`, records a real local API payment, verifies the authoritative PAID response, and then checks success after callback reload.
 
+- Responsive browser verification found shared StatCard labels overlapping their icons at 320 px (finance and payroll). The text column now permits long-word wrapping and the narrow-screen label/icon gap uses the smaller existing spacing utility. Full labels, values, icons, semantic tokens, and the design-system stat-card hierarchy are retained; no typography-size reduction or hidden text.
+
 ## Verification
 
 - Canonical visual reference: design-system plus approved standalone HTML. No production visual/functional pass claimed yet.
