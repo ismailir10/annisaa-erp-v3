@@ -3,27 +3,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
-import {
-  CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Trash2,
-  UserMinus,
-  Users,
-} from "lucide-react";
+import { Plus, Trash2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 
-import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
+import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
+import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
+import {
+  ClassSessionsCalendar,
+  SLOT_LABELS,
+  type SessionRow,
+} from "@/components/admin/class-sessions-calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -42,9 +40,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -85,20 +83,6 @@ type ClassDetail = {
   enrolledCount: number;
 };
 
-type SessionRow = {
-  id: string;
-  classSectionId: string;
-  semesterId: string;
-  date: string;
-  slot: string;
-  teacherId: string | null;
-  defaultTeacherId: string | null;
-  substituteReason: string | null;
-  isBackfilled: boolean;
-  teacher: { id: string; nama: string } | null;
-  defaultTeacher: { id: string; nama: string } | null;
-};
-
 type Employee = { id: string; nama: string; formalName?: string | null };
 
 type StudentOption = {
@@ -112,27 +96,25 @@ type HealthBadge = "Sehat" | "Perhatian" | "Kritis" | "Tidak Aktif" | "Libur";
 
 // ── Constants ────────────────────────────────────────────────────
 
-const SLOT_LABELS: Record<string, string> = {
-  FULL_DAY: "Sehari Penuh",
-  MORNING: "Pagi",
-  AFTERNOON: "Siang",
-};
-
 const ROLE_LABEL: Record<TeachingRole, string> = {
   HOMEROOM: "Wali Kelas",
   ASSISTANT: "Asisten",
 };
 
-const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-
 // Health-badge tone now comes from the shared `healthTone()` helper in
 // components/ui/status-badge.ts (single source for both list + detail pages).
 
-// ── Helpers ──────────────────────────────────────────────────────
+/**
+ * Section ids double as DOM anchor targets for `DossierNav` — English
+ * identifiers per the class-detail migration (copy stays Indonesian, ids
+ * stay English so they read as stable API-ish anchors, matching the T0
+ * English-slug pass elsewhere in this cycle).
+ */
+const SECTION_ROSTER = "roster";
+const SECTION_TEACHERS = "teachers";
+const SECTION_SESSIONS = "sessions";
 
-function ymd(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
+// ── Helpers ──────────────────────────────────────────────────────
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -150,6 +132,8 @@ export function ClassDetailClient({
   classId: string;
   canWrite: boolean;
 }) {
+  const isMobile = useIsMobile();
+
   // Detail data is the source of truth for header + roster + teachers.
   const [data, setData] = useState<ClassDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -246,6 +230,27 @@ export function ClassDetailClient({
   const [swapReason, setSwapReason] = useState("");
   const [savingSwap, setSavingSwap] = useState(false);
 
+  // ── Dossier section open/collapse state ──────────────────────────
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    [SECTION_ROSTER]: true,
+    [SECTION_TEACHERS]: true,
+    [SECTION_SESSIONS]: true,
+  });
+  const setSectionOpen = useCallback((sectionId: string, open: boolean) => {
+    setOpenSections((prev) => ({ ...prev, [sectionId]: open }));
+  }, []);
+
+  /** Nav click: expand first (a collapsed target is nothing to scroll to), then scroll. */
+  const jumpToSection = useCallback(
+    (sectionId: string) => {
+      setSectionOpen(sectionId, true);
+      requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [setSectionOpen],
+  );
+
   // ── Derived flags ───────────────────────────────────────────────
   const archived = data?.academicYear.status === "ARCHIVED";
   const writeAllowed = canWrite && !archived;
@@ -256,9 +261,10 @@ export function ClassDetailClient({
   // Health metric inputs — `attendance7dPct` + `todaySession` are not exposed
   // by the detail GET this cycle (list page enrichment lives on the index
   // route). Wires up when the detail endpoint adds health enrichment in a
-  // follow-up. For now we render dashes for the kehadiran + sesi cards and
-  // skip the Kondisi badge entirely (falls back to StatusBadge). Typed as the
-  // wide unions so the JSX branches are reachable when the placeholder lifts.
+  // follow-up. For now the rail's Kehadiran + Sesi tiles render dashes and
+  // the Ringkasan card falls back to StatusBadge instead of a Kondisi badge.
+  // Typed as the wide unions so the JSX branches are reachable when the
+  // placeholder lifts.
   const attendance7dPct = null as number | null;
   const todaySession = null as "Held" | "Missing" | "Holiday" | null;
 
@@ -625,16 +631,6 @@ export function ClassDetailClient({
   }
 
   // ── Calendar handlers (verbatim from class-sections client) ─────
-  const sessionsByDate = useMemo(() => {
-    const map = new Map<string, SessionRow[]>();
-    for (const s of sessions) {
-      const arr = map.get(s.date) ?? [];
-      arr.push(s);
-      map.set(s.date, arr);
-    }
-    return map;
-  }, [sessions]);
-
   function prevMonth() {
     if (month === 1) {
       setMonth(12);
@@ -651,17 +647,6 @@ export function ClassDetailClient({
       setMonth((m) => m + 1);
     }
   }
-
-  const monthLabel = new Date(year, month - 1).toLocaleDateString("id-ID", {
-    month: "long",
-    year: "numeric",
-  });
-
-  const firstDow = new Date(year, month - 1, 1).getDay();
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   function openSession(s: SessionRow) {
     setSelectedSession(s);
@@ -704,6 +689,24 @@ export function ClassDetailClient({
       setSavingSwap(false);
     }
   }
+
+  // ── Deep-linkable sections ────────────────────────────────────────
+  // `#roster`, `#teachers`, `#sessions` — every section id is already a DOM
+  // anchor, but the browser's own hash scroll fires before the section
+  // exists and lands on nothing. Honouring the hash ourselves (once the
+  // class has loaded) is what makes a link into the dossier actually work.
+  const hashHandled = useRef(false);
+  useEffect(() => {
+    if (loading || hashHandled.current) return;
+    const target = window.location.hash.replace(/^#/, "");
+    if (!target) {
+      hashHandled.current = true;
+      return;
+    }
+    if (!document.getElementById(target)) return;
+    hashHandled.current = true;
+    jumpToSection(target);
+  }, [loading, jumpToSection]);
 
   // ── Roster table columns ────────────────────────────────────────
   const rosterColumns: ColumnDef<ClassDetail["enrollments"][number]>[] =
@@ -844,22 +847,12 @@ export function ClassDetailClient({
 
   // ── Render guards ───────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="space-y-section">
-        <Skeleton className="h-16 w-full max-w-lg" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-card">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (loadError || !data) {
     return (
-      <PageHeader
+      <EmptyState
         title="Kelas tidak ditemukan"
         description="Kelas tidak ada atau Anda tidak memiliki akses."
       />
@@ -870,7 +863,7 @@ export function ClassDetailClient({
     ? ` · Wali Kelas: ${homeroomAssignment.employee.nama}`
     : "";
 
-  // Section labels for today's session card
+  // Section labels for the Sesi Hari Ini rail tile
   const sesiHariIniLabel =
     todaySession === "Held"
       ? "Berlangsung"
@@ -885,22 +878,64 @@ export function ClassDetailClient({
   // detail GET surfaces enrichment.
   const healthBadge = null as HealthBadge | null;
 
+  const navSections: DossierSectionDef[] = [
+    { id: SECTION_ROSTER, label: "Daftar Siswa" },
+    { id: SECTION_TEACHERS, label: "Guru Pengajar" },
+    { id: SECTION_SESSIONS, label: "Kalender Sesi" },
+  ];
+
+  const statTiles = [
+    { label: "Roster", value: `${enrolledCount}/${data.capacity}` },
+    {
+      label: "Kehadiran 7 Hari",
+      value:
+        attendance7dPct !== null ? `${attendance7dPct.toFixed(0)}%` : "—",
+    },
+    { label: "Sesi Hari Ini", value: sesiHariIniLabel },
+  ];
+
+  const summaryItems = [
+    {
+      label: "Kondisi",
+      value: healthBadge ? (
+        <Badge variant="outline" className={healthTone(healthBadge)}>
+          {healthBadge}
+        </Badge>
+      ) : (
+        <StatusBadge status={data.status} />
+      ),
+    },
+    { label: "Wali Kelas", value: homeroomAssignment?.employee.nama ?? "—" },
+    { label: "Program", value: data.program.name },
+    { label: "Tahun Ajaran", value: data.academicYear.name },
+    { label: "Kampus", value: data.campus.name },
+    {
+      label: "Pola Waktu",
+      value:
+        data.slotTemplate === "FULL_DAY" ? "Sehari Penuh" : "Pagi & Sore",
+    },
+    { label: "Kapasitas", value: String(data.capacity) },
+  ];
+
   return (
-    <div className="space-y-section">
-      {/* ── Section A — Page header ─────────────────────────────── */}
-      <PageHeader
+    <>
+      {/* ── Page header ──────────────────────────────────────────── */}
+      <DetailPageHeader
+        backHref="/admin/classes"
+        backLabel="Kembali ke Daftar Kelas"
         title={`${data.name} · ${data.academicYear.name}`}
         description={`${data.program.name}${homeroomLabel}`}
         badge={<Badge variant="outline">{data.campus.name}</Badge>}
         actions={
           writeAllowed ? (
             <>
-              <Button variant="outline" onClick={openEdit}>
+              <Button variant="outline" size="sm" onClick={openEdit}>
                 Ubah
               </Button>
               {data.status === "ACTIVE" ? (
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => setDeactivateOpen(true)}
                   className="text-destructive hover:text-destructive"
                 >
@@ -909,6 +944,7 @@ export function ClassDetailClient({
               ) : (
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => setReactivateOpen(true)}
                 >
                   Aktifkan
@@ -920,209 +956,125 @@ export function ClassDetailClient({
       />
 
       {archived && (
-        <div className="rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">
+        <div className="mb-section rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">
           Tahun ajaran ini sudah diarsipkan. Tampilan hanya baca.
         </div>
       )}
 
-      {/* ── Section B — Ringkasan ───────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-card">
-        <StatCard
-          label="Roster"
-          value={`${enrolledCount}/${data.capacity}`}
-          icon={Users}
-          color="primary"
-          index={0}
-        />
-        <StatCard
-          label="Kehadiran 7 hari"
-          value={
-            attendance7dPct !== null ? `${attendance7dPct.toFixed(0)}%` : "—"
-          }
-          icon={CheckCircle2}
-          color="success"
-          index={1}
-        />
-        <StatCard
-          label="Sesi hari ini"
-          value={sesiHariIniLabel}
-          icon={CalendarDays}
-          color="primary"
-          index={2}
-        />
-      </div>
+      {/* Mobile: the rail's numbers move above the sections so the first
+          viewport still answers "how is this class doing". */}
+      {isMobile && (
+        <div className="mb-4">
+          <RailStatTiles tiles={statTiles} />
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Kondisi kelas:</span>
-        {healthBadge ? (
-          <Badge variant="outline" className={healthTone(healthBadge)}>
-            {healthBadge}
-          </Badge>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <DossierNav sections={navSections} onJump={jumpToSection} />
+
+          {/* ── Daftar Siswa ─────────────────────────────────────── */}
+          <DossierSection
+            id={SECTION_ROSTER}
+            label="Daftar Siswa"
+            badge={
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {enrolledCount} siswa
+              </span>
+            }
+            open={openSections[SECTION_ROSTER] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_ROSTER, o)}
+            actions={
+              writeAllowed ? (
+                <Button size="sm" variant="ghost" onClick={openAddStudent}>
+                  <Plus size={12} className="mr-1" aria-hidden="true" /> Tambah Siswa
+                </Button>
+              ) : undefined
+            }
+          >
+            <p className="mb-3 text-small text-muted-foreground">
+              {enrolledCount} siswa aktif dari kapasitas {data.capacity}.
+            </p>
+            <DataTable
+              columns={rosterColumns}
+              data={data.enrollments}
+              emptyTitle="Belum ada siswa terdaftar di kelas ini."
+              emptyDescription="Siswa yang terdaftar di kelas ini akan tampil di sini."
+            />
+          </DossierSection>
+
+          {/* ── Guru Pengajar ────────────────────────────────────── */}
+          <DossierSection
+            id={SECTION_TEACHERS}
+            label="Guru Pengajar"
+            badge={
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {data.teachingAssignments.length} guru
+              </span>
+            }
+            open={openSections[SECTION_TEACHERS] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_TEACHERS, o)}
+            actions={
+              writeAllowed ? (
+                <Button size="sm" variant="ghost" onClick={openAddTeacher}>
+                  <Plus size={12} className="mr-1" aria-hidden="true" /> Tambah Guru Pengajar
+                </Button>
+              ) : undefined
+            }
+          >
+            <p className="mb-3 text-small text-muted-foreground">
+              Wali kelas + asisten.
+            </p>
+            <DataTable
+              columns={teacherColumns}
+              data={data.teachingAssignments}
+              emptyTitle="Belum ada guru ditugaskan."
+              emptyDescription="Guru yang ditugaskan mengajar kelas ini akan tampil di sini."
+            />
+          </DossierSection>
+
+          {/* ── Kalender Sesi (relocated verbatim from class-sections) ── */}
+          <DossierSection
+            id={SECTION_SESSIONS}
+            label="Kalender Sesi"
+            open={openSections[SECTION_SESSIONS] ?? true}
+            onOpenChange={(o) => setSectionOpen(SECTION_SESSIONS, o)}
+          >
+            <p className="mb-3 text-small text-muted-foreground">
+              Klik sesi untuk mengubah guru pengganti.
+            </p>
+            <ClassSessionsCalendar
+              year={year}
+              month={month}
+              onPrevMonth={prevMonth}
+              onNextMonth={nextMonth}
+              sessions={sessions}
+              loading={sessionsLoading}
+              error={sessionsError}
+              onRetry={fetchSessions}
+              onOpenSession={openSession}
+            />
+          </DossierSection>
+        </div>
+
+        {/* Desktop rail. On mobile the stat tiles already rendered above and
+            the Ringkasan card falls to the end of the document, after the
+            sections — same split as guardians/[id] and students/[id]. */}
+        {isMobile ? (
+          <div className="mt-2 flex flex-col gap-4">
+            <RailCard title="Ringkasan">
+              <RailKV items={summaryItems} />
+            </RailCard>
+          </div>
         ) : (
-          <StatusBadge status={data.status} />
+          <DetailRail>
+            <RailStatTiles tiles={statTiles} />
+            <RailCard title="Ringkasan">
+              <RailKV items={summaryItems} />
+            </RailCard>
+          </DetailRail>
         )}
       </div>
-
-      {/* ── Section C — Siswa ───────────────────────────────────── */}
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <CardTitle>Daftar Siswa</CardTitle>
-            <CardDescription>
-              {enrolledCount} siswa aktif dari kapasitas {data.capacity}.
-            </CardDescription>
-          </div>
-          {writeAllowed && (
-            <Button size="sm" onClick={openAddStudent} className="gap-2">
-              <Plus size={14} /> Tambah Siswa
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={rosterColumns}
-            data={data.enrollments}
-            emptyTitle="Belum ada siswa terdaftar di kelas ini."
-            emptyDescription="Siswa yang terdaftar di kelas ini akan tampil di sini."
-          />
-        </CardContent>
-      </Card>
-
-      {/* ── Section D — Guru Pengajar ───────────────────────────── */}
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <CardTitle>Guru Pengajar</CardTitle>
-            <CardDescription>Wali kelas + asisten.</CardDescription>
-          </div>
-          {writeAllowed && (
-            <Button size="sm" onClick={openAddTeacher} className="gap-2">
-              <Plus size={14} /> Tambah Guru Pengajar
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={teacherColumns}
-            data={data.teachingAssignments}
-            emptyTitle="Belum ada guru ditugaskan."
-            emptyDescription="Guru yang ditugaskan mengajar kelas ini akan tampil di sini."
-          />
-        </CardContent>
-      </Card>
-
-      {/* ── Section E — Kalender Sesi (relocated verbatim) ──────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Kalender Sesi</CardTitle>
-          <CardDescription>
-            Klik sesi untuk mengubah guru pengganti.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center justify-between">
-            <button
-              onClick={prevMonth}
-              aria-label="Bulan sebelumnya"
-              className="rounded-lg p-2 text-muted-foreground hover:bg-accent"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <h2 className="text-sm font-semibold capitalize">{monthLabel}</h2>
-            <button
-              onClick={nextMonth}
-              aria-label="Bulan berikutnya"
-              className="rounded-lg p-2 text-muted-foreground hover:bg-accent"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-
-          <div className="mb-1 grid grid-cols-7 gap-1">
-            {DAY_NAMES.map((d) => (
-              <div
-                key={d}
-                className="py-1 text-center text-xs font-semibold text-muted-foreground"
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {sessionsLoading ? (
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: 35 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square rounded-lg" />
-              ))}
-            </div>
-          ) : sessionsError ? (
-            <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">
-                Gagal memuat sesi kelas.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={fetchSessions}
-              >
-                Coba lagi
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((day, i) => {
-                  if (day === null) return <div key={i} />;
-                  const dateStr = ymd(year, month, day);
-                  const daySessions = sessionsByDate.get(dateStr) ?? [];
-                  return (
-                    <div
-                      key={i}
-                      className="flex aspect-square min-h-[64px] flex-col gap-0.5 overflow-hidden rounded-lg border border-border p-1"
-                    >
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {day}
-                      </span>
-                      {daySessions.map((s) => {
-                        const isSubstitute =
-                          s.teacherId !== s.defaultTeacherId;
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => openSession(s)}
-                            className="rounded-md bg-accent/60 px-1 py-0.5 text-left transition-colors hover:bg-accent"
-                          >
-                            <span className="block truncate text-caption font-medium text-foreground">
-                              {SLOT_LABELS[s.slot] ?? s.slot}
-                            </span>
-                            <span className="block truncate text-caption text-muted-foreground">
-                              {s.teacher?.nama ?? "Belum ada guru"}
-                            </span>
-                            {isSubstitute && (
-                              <Badge
-                                variant="outline"
-                                className="mt-0.5 px-1 py-0 text-caption leading-tight"
-                              >
-                                Pengganti
-                              </Badge>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-              {sessions.length === 0 && (
-                <p className="mt-4 text-center text-sm text-muted-foreground">
-                  Belum ada sesi kelas pada bulan ini.
-                </p>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
 
       {/* ── Edit dialog ─────────────────────────────────────────── */}
       <ResponsiveFormDialog
@@ -1595,6 +1547,6 @@ export function ClassDetailClient({
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </>
   );
 }

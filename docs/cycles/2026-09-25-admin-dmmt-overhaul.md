@@ -258,6 +258,15 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - README: the long line is trimmed to fit the 600-character budget.
   - CLAUDE.md: counts regenerated with `audit-docs --write`.
 
+- T6b: classes/[id] Dossier.
+  - Files: `app/admin/classes/[id]/{client,page}.tsx`, the new `components/admin/class-sessions-calendar.tsx` (the month grid, extracted), and `__tests__/client.test.tsx`.
+  - PageHeader and cards become DetailPageHeader plus DossierNav, with the sections `roster`, `teachers`, and `sessions`.
+  - The hand-rolled stat grid becomes a DetailRail with RailStatTiles and a Ringkasan RailKV.
+  - Not-found now uses EmptyState, and loading uses DetailPageSkeleton.
+  - Every handler and flow is preserved: the 409 age-override, HOMEROOM_EXISTS, the swap Sheet, and deactivate.
+  - Review: 1 finding, fixed. The stat tiles were duplicated on mobile; the rail is now desktop-only, as on students and guardians, and a regression test (Roster appears once at 375px) was verified to fail on the old code.
+  - Follow-up: the swap Sheet is gated on `canWrite` rather than `writeAllowed`. That predates this cycle and is out of scope.
+
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
 
