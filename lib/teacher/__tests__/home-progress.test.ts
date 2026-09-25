@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getJournalProgress, resolveTeacherDate, teacherSlotRank } from "../home-progress";
+import { getJournalProgress, resolveTeacherDate, teacherSlotRank, compareTeacherClasses } from "../home-progress";
 describe("teacher work summaries", () => {
   it("requires every active indicator for each active student, ignoring duplicate and retired ticks", () => {
     const input = {studentIds:["a","b"],indicatorIds:["i","j"],entries:[
@@ -21,4 +21,13 @@ describe("teacher work summaries", () => {
     expect(teacherSlotRank("AFTERNOON",14)).toBeLessThan(teacherSlotRank("MORNING",14));
     expect(teacherSlotRank("MORNING",8)).toBeLessThan(teacherSlotRank("AFTERNOON",8));
   });
+});
+
+it("defaults to homeroom when no class has a timetable, while preserving effective-session priority", () => {
+ const homeroom = {slot:null,isHomeroom:true};
+ const assistant = {slot:null,isHomeroom:false};
+ expect(compareTeacherClasses(homeroom,assistant,9)).toBeLessThan(0);
+ expect(compareTeacherClasses({...assistant,slot:"MORNING"},homeroom,9)).toBeLessThan(0);
+ expect(compareTeacherClasses({...assistant,slot:"AFTERNOON"},{...homeroom,slot:"MORNING"},14)).toBeLessThan(0);
+ expect(compareTeacherClasses({...homeroom,slot:"MORNING"},{...assistant,slot:"MORNING"},9)).toBeLessThan(0);
 });

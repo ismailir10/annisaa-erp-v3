@@ -56,7 +56,10 @@ test.describe("Parent — Perkembangan (C6)", () => {
 
     // Perkembangan is a weekly-cadence surface, so it sits in the overflow sheet
     // rather than owning a permanent slot in the 5-tab bar.
-    await expect(page.getByRole("link", { name: "Perkembangan" })).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", { name: "Navigasi utama orang tua" })
+        .getByRole("link", { name: "Perkembangan" }),
+    ).toHaveCount(0);
 
     await page
       .getByRole("navigation", { name: "Navigasi utama orang tua" })

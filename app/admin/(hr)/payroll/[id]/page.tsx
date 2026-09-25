@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
-import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -410,7 +409,7 @@ export default function PayrollDetailPage() {
       </Card>
 
       {/* Summary */}
-      <StatsCardsRow cols={4}>
+      <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Pendapatan</p><p className="font-currency text-2xl font-bold mt-1">{formatRupiah(totalGross)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Potongan</p><p className="font-currency text-2xl font-bold mt-1 text-destructive">{formatRupiah(totalDed)}</p></Card>
         <Card className="p-card"><p className="text-xs text-muted-foreground">Total Bersih</p><p className="font-currency text-2xl font-bold mt-1 text-primary">{formatRupiah(totalNet)}</p></Card>
@@ -418,7 +417,7 @@ export default function PayrollDetailPage() {
           <StatusBadge status={data.status} />
           {noBank.length > 0 && <p className="text-xs text-destructive mt-1">{noBank.length} tanpa rekening</p>}
         </Card>
-      </StatsCardsRow>
+      </div>
 
       {prevPeriod && (
         <p className="text-xs text-muted-foreground mb-4">

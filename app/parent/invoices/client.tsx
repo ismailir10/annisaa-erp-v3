@@ -409,8 +409,8 @@ export function InvoicesClient({
               card directly above, and printing it twice on one screen made the
               total and the list read as the same block. */}
           <SectionLabel>Rincian tagihan</SectionLabel>
-          <div aria-label="Tagihan belum dibayar">
-            <TaskList>
+          <TaskList>
+            <ul aria-label="Tagihan belum dibayar" className="divide-y divide-border/70">
             {due.map(({ inv, isOverdue }) => (
               <InvoiceRow
                 key={inv.id}
@@ -420,8 +420,8 @@ export function InvoicesClient({
                 isOverdue={isOverdue}
               />
             ))}
-            </TaskList>
-          </div>
+            </ul>
+          </TaskList>
         </section>
       )}
 
@@ -497,8 +497,8 @@ export function InvoicesClient({
               <ChevronRight aria-hidden="true" className={`size-4 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-3">
-              <div aria-label="Riwayat pembayaran">
-                <TaskList>
+              <TaskList>
+                <ul aria-label="Riwayat pembayaran" className="divide-y divide-border/70">
                   {paidVisible.map((inv) => (
                     <InvoiceRow
                       key={inv.id}
@@ -509,8 +509,8 @@ export function InvoicesClient({
                       highlight={recentlyPaidIds.has(inv.id)}
                     />
                   ))}
-                </TaskList>
-              </div>
+                </ul>
+              </TaskList>
               {paidHasMore ? (
                 <div className="mt-3 flex justify-center">
                   <Button variant="ghost" size="sm" onClick={() => setShowAllPaid((v) => !v)} aria-expanded={showAllPaid}>
@@ -564,6 +564,7 @@ function InvoiceRow({
       : `Dibayar${invoice.paidAt ? ` ${formatDate(getYmdInTimezone(new Date(invoice.paidAt), "Asia/Jakarta"), { day: "numeric", month: "short", year: "numeric" })}` : ""}`;
 
   return (
+    <li>
     <TaskRow
       onClick={onClick}
       title={formatInvoicePeriod(invoice.periodLabel)}
@@ -573,5 +574,6 @@ function InvoiceRow({
       tone={tone === "paid" ? "teal" : "warm"}
       className={highlight ? "ring-2 ring-status-present-text/40" : undefined}
     />
+    </li>
   );
 }

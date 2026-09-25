@@ -91,7 +91,7 @@ export default async function ParentInvoicesPage({
       <ContextStrip
         name={selected.studentName}
         detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Tagihan anak terpilih"}
-        className="rounded-lg border-x border-t"
+        className="mb-6 rounded-lg border-x border-t"
       />
       <InvoicesClient
         data={data}

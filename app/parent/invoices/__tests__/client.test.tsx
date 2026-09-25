@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InvoicesClient } from "../client";
 
@@ -123,6 +123,9 @@ describe("InvoicesClient (cycle-4)", () => {
       render(<InvoicesClient data={mockInvoices} />);
       expect(screen.getByText("Agustus 2024")).toBeInTheDocument();
       expect(screen.getByText("September 2024")).toBeInTheDocument();
+      const list = screen.getByRole("list", { name: "Tagihan belum dibayar" });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+      expect(within(list).getByRole("button", { name: /Agustus 2024/ })).toBeVisible();
     });
 
     it("keeps paid history behind an explicit disclosure after outstanding rows", async () => {
@@ -133,6 +136,7 @@ describe("InvoicesClient (cycle-4)", () => {
       expect(screen.queryByText("Juli 2024")).not.toBeInTheDocument();
       await user.click(history);
       expect(screen.getByText("Juli 2024")).toBeInTheDocument();
+      expect(within(screen.getByRole("list", { name: "Riwayat pembayaran" })).getAllByRole("listitem")).toHaveLength(1);
       expect(screen.getByText("Agustus 2024").compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });

@@ -34,15 +34,14 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     ]);
   });
 
-  test("walas home shows the Penilaian pekanan quick card", async ({ page }) => {
+  test("walas home exposes the explicit Buka penilaian destination", async ({ page }) => {
     await page.goto("/teacher");
-    await page.waitForURL("**/teacher", { timeout: 15_000 });
-    await expect(page.locator('[data-testid="home-weekly-card"]')).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(
-      page.locator('[data-testid="home-weekly-card"]'),
-    ).toContainText("Penilaian pekanan");
+    const assessment = page.getByRole("link", { name: /Buka penilaian/ });
+    await expect(assessment).toBeVisible();
+    await expect(assessment).toHaveAttribute("href", "/teacher/assessments/weekly");
+    await assessment.click();
+    await expect(page).toHaveURL(/\/teacher\/assessments\/weekly$/);
+    await expect(page.getByRole("heading", { name: "Penilaian pekanan", exact: true })).toBeVisible();
   });
 
   test("assessments hub shows walas Penilaian pekanan card + sentra grid (C5 replaces the placeholder)", async ({

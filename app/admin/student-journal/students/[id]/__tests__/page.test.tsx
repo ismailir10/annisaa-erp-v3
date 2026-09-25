@@ -117,7 +117,7 @@ function buildFetchStub({
     if (url.includes("/api/students/")) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ data: { name: "Aisyah Nuraini" } }),
+        json: async () => ({ name: "Aisyah Nuraini" }),
       } as Response);
     }
     if (url.includes("/api/student-journal/notes/read")) {
@@ -134,6 +134,19 @@ function buildFetchStub({
     return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
   });
 }
+
+describe("StudentJournalDetailPage — student identity", () => {
+  it("shows the student's full name from the raw student API response", async () => {
+    vi.stubGlobal("fetch", buildFetchStub());
+
+    render(
+      <StudentJournalDetailPage params={fulfilledParams({ id: "student-1" })} />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Aisyah Nuraini" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Detail Jurnal Siswa" })).not.toBeInTheDocument();
+  });
+});
 
 describe("StudentJournalDetailPage — note delete confirm copy (AC5)", () => {
   beforeEach(() => {

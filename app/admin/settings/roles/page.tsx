@@ -69,7 +69,7 @@ const SYSTEM_ROLES = [
 
 function SystemRoleCards() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
       {SYSTEM_ROLES.map((sr) => {
         const perms = getSystemRolePermissions(sr.role);
         return (
@@ -81,8 +81,8 @@ function SystemRoleCards() {
               <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
                 <sr.icon size={20} className={sr.color} />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-semibold">{sr.name}</h3>
                   <Badge variant="secondary" className="text-xs">
                     <Lock size={10} className="mr-1" />

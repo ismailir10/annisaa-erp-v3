@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { TeacherHomeClient } from "./home-client";
 import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
-import { getJournalProgress, teacherSlotRank, type TeacherClassSummary } from "@/lib/teacher/home-progress";
+import { getJournalProgress, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
 
 export default async function TeacherHome() {
   const session = await getSession();
@@ -41,13 +41,13 @@ export default async function TeacherHome() {
       countUnreadNotesByStudent({tenantId:session.tenantId!,studentIds,readerUserId:session.id,authorRole:"GUARDIAN"}),
     ]);
     const slots = sessions.filter(s=>s.classSectionId===section.id).sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
-    return {id:section.id,name:section.name,rosterCount:studentIds.length,slot:slots[0]?.slot ?? null,
+    return {id:section.id,name:section.name,rosterCount:studentIds.length,isHomeroom:assignment.role === "HOMEROOM",slot:slots[0]?.slot ?? null,
       attendanceRecorded:attendance.status==="fulfilled" ? classroomAttendanceByStudent(attendance.value, section.sessions.map(s=>s.id)).size : null,
       journal:journal.status==="fulfilled" && indicatorIds!==null ? getJournalProgress({studentIds,indicatorIds,entries:journal.value}) : null,
       replies:replies.status==="fulfilled" ? section.enrollments.filter(e=>(replies.value[e.studentId]??0)>0).map(e=>({studentId:e.studentId,studentName:e.student.nickname || e.student.name,count:replies.value[e.studentId]})) : null,
     };
   }));
-  classes.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour));
+  classes.sort((a,b)=>compareTeacherClasses(a,b,hour));
   const record = attendanceResult.status === "fulfilled" ? attendanceResult.value : null;
   return <TeacherHomeClient userName={session.name ?? "Guru"} today={today} greeting={greeting}
     todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null}:null}

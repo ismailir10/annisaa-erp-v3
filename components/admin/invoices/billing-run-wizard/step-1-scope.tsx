@@ -81,7 +81,7 @@ export function ScopeStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [years]);
 
-  const [classSections, setClassSections] = useState<ClassSection[]>([]);
+  const [classSections, setClassSections] = useState<(ClassSection & { academicYearId: string })[]>([]);
   const [classSectionIds, setClassSectionIds] = useState<string[]>([]);
   const [includeStudents, setIncludeStudents] = useState<Student[]>([]);
   const [excludeStudents, setExcludeStudents] = useState<Student[]>([]);
@@ -309,7 +309,12 @@ export function ScopeStep({
         <FieldLabel required htmlFor="wizard-scope-academic-year">Tahun Ajaran</FieldLabel>
         <Select
           value={form.academicYearId}
-          onValueChange={(v) => v && setForm((f) => ({ ...f, academicYearId: v }))}
+          onValueChange={(v) => {
+            if (!v || v === form.academicYearId) return;
+            setForm((f) => ({ ...f, academicYearId: v }));
+            setClassSectionIds([]);
+            setScopeError(null);
+          }}
         >
           <SelectTrigger id="wizard-scope-academic-year" aria-required="true">
             <SelectValue placeholder="Pilih tahun ajaran" />
@@ -329,7 +334,7 @@ export function ScopeStep({
         <FieldLabel htmlFor="wizard-scope-classes">Kelas</FieldLabel>
         <ClassSectionMultiPicker
           id="wizard-scope-classes"
-          sections={classSections}
+          sections={classSections.filter(section => section.academicYearId === form.academicYearId)}
           value={classSectionIds}
           onChange={(ids) => {
             setClassSectionIds(ids);
@@ -337,7 +342,7 @@ export function ScopeStep({
           }}
           placeholder="Pilih kelas..."
         />
-        <FieldDescription>Semua siswa aktif di kelas terpilih akan ditagih.</FieldDescription>
+        <FieldDescription>Kelas mengikuti tahun ajaran terpilih. Semua siswa aktif di kelas terpilih akan ditagih.</FieldDescription>
         {scopeError && <FieldError>{scopeError}</FieldError>}
       </Field>
 

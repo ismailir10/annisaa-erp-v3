@@ -27,13 +27,26 @@ test.describe("Teacher flows", () => {
     await page.waitForURL("**/teacher", { timeout: 15_000 });
   });
 
-  test("home page shows check-in button", async ({ page }) => {
+  test("home personal attendance matches the saved record and next action", async ({ page }) => {
     await expect(page.locator("text=Selamat")).toBeVisible();
-    // Use .first() to avoid strict mode violation — the clock button + nav label both match
-    const hasCheckIn = await page.getByRole("button", { name: /^Masuk$/ }).first().isVisible();
-    const hasCheckOut = await page.getByRole("button", { name: /^Pulang$/ }).first().isVisible();
-    const hasDone = await page.locator("text=Selesai").first().isVisible();
-    expect(hasCheckIn || hasCheckOut || hasDone).toBeTruthy();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const [year, month] = today.split("-");
+    const response = await page.request.get(`/api/attendance/my?year=${year}&month=${month}`);
+    expect(response.ok()).toBeTruthy();
+    const records = await response.json() as Array<{date:string;checkInTime:string|null;checkOutTime:string|null}>;
+    const saved = records.find(record => record.date === today);
+    const personal = page.locator('[aria-label="Kehadiran pribadi"]');
+    await expect(personal).toBeVisible();
+    if (saved?.checkOutTime) {
+      await expect(personal).toContainText(/Masuk \d{2}:\d{2} · pulang \d{2}:\d{2}/);
+      await expect(personal.getByRole("button")).toHaveCount(0);
+    } else if (saved?.checkInTime) {
+      await expect(personal).toContainText(/Masuk \d{2}:\d{2} · sudah tercatat/);
+      await expect(personal.getByRole("button", {name:"Catat pulang",exact:true})).toBeVisible();
+    } else {
+      await expect(personal).toContainText("Kehadiran pribadi belum dicatat");
+      await expect(personal.getByRole("button", {name:"Catat masuk",exact:true})).toBeVisible();
+    }
   });
 
   test("attendance calendar loads", async ({ page }) => {
@@ -108,18 +121,22 @@ test.describe("Teacher flows", () => {
     }
   });
 
-  // Today's-sessions card renders (academic-hierarchy-refactor Task 9). Light
-  // smoke — the card heading is always present; the body is either a list of
-  // session rows or the empty-state copy. Both are valid.
-  test("teacher dashboard renders the today's-sessions card", async ({ page }) => {
-    await expect(page.getByText("Sesi hari ini")).toBeVisible({ timeout: 15_000 });
-    // Either a session link or the empty-state card body must be present.
-    await expect(
-      page
-        .locator('a[href*="/teacher/sessions/"]')
-        .or(page.getByText("Belum ada sesi kelas terjadwal hari ini."))
-        .first(),
-    ).toBeVisible({ timeout: 10_000 });
+  test("pickup region exposes every authorized session separately from classroom attendance", async ({ page }) => {
+    const response = await page.request.get("/api/teacher/sessions");
+    expect(response.ok()).toBeTruthy();
+    const sessions = await response.json() as Array<{id:string;classSection:{name:string}}>;
+    const pickup = page.getByRole("region", {name:"Sesi & penjemputan"});
+    await expect(pickup).toBeVisible();
+    await expect(pickup).toContainText("disimpan terpisah dari absensi kelas");
+    const links = pickup.locator('a[href^="/teacher/sessions/"]');
+    await expect(links).toHaveCount(sessions.length);
+    for (const session of sessions) {
+      await expect(pickup.locator(`a[href="/teacher/sessions/${session.id}"]`)).toContainText(session.classSection.name);
+    }
+    if (sessions.length === 0) {
+      await expect(pickup.getByText("Belum ada sesi terjadwal hari ini", {exact:true})).toBeVisible();
+      await expect(pickup).toContainText("Absensi dan jurnal kelas tetap bisa diisi");
+    }
   });
 
   // Daily session flow (academic-hierarchy-refactor Task 9). The Part-A seed

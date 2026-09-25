@@ -49,7 +49,7 @@ export default async function ParentReportsPage({
       <ContextStrip
         name={selected.studentName}
         detail={[selected.className, selected.programName].filter(Boolean).join(" · ") || "Rapor anak terpilih"}
-        className="rounded-lg border-x border-t"
+        className="mb-6 rounded-lg border-x border-t"
       />
 
       <PageHeader title="Rapor" subtitle="Laporan perkembangan tiap triwulan" />

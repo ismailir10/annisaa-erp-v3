@@ -47,3 +47,10 @@ describe("KidCard", () => {
     expect(screen.getByText(/Belum ada catatan guru terbaru/)).toBeInTheDocument();
   });
 });
+
+it("labels conflicting classroom records explicitly and offers the child's attendance destination",()=>{
+ render(<KidCard id="child" name="Alya" className="Sekolah dan Daycare" todayStatus="MIXED" teacherNote={null} foot={{tone:"info",text:"Catatan berbeda antar kelas"}}/>);
+ expect(screen.getByText("Catatan berbeda",{exact:true})).toBeInTheDocument();
+ expect(screen.queryByText("Belum dicatat")).not.toBeInTheDocument();
+ expect(screen.getByRole("link",{name:"Lihat kehadiran"})).toHaveAttribute("href","/parent/attendance?child=child");
+});

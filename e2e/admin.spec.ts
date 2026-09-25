@@ -21,9 +21,11 @@ test.describe("Admin flows", () => {
   });
 
   test("dashboard loads with stats", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Dasbor" })).toBeVisible();
-    await expect(page.locator("text=TOTAL KARYAWAN")).toBeVisible();
-    await expect(page.locator("text=HADIR HARI INI")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Perlu ditangani" })).toBeVisible();
+    await expect(page.getByTestId("admin-work-queue")).toBeVisible();
+    const stats = page.getByTestId("dashboard-stat-grid");
+    await expect(stats.getByText("Total Karyawan")).toBeVisible();
+    await expect(stats.getByText("Hadir Hari Ini")).toBeVisible();
   });
 
   test("employee list loads", async ({ page }) => {
@@ -468,6 +470,8 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
       id: string;
       name: string;
       _count: { enrollments: number };
+      academicYearId: string;
+      academicYear: { name: string };
     }>;
     const targetClass = classSections
       .filter((c) => c._count?.enrollments > 0)
@@ -490,6 +494,10 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     // another test's or a prior leaked run's period.
     const period = `E2E Wizard ${Date.now()}`;
     await dialog.getByPlaceholder("April 2026").fill(period);
+    // Several active/planning years may coexist. Scope the billing year to
+    // the discovered class instead of assuming the default year owns it.
+    await dialog.getByRole("combobox", { name: "Tahun Ajaran" }).click();
+    await page.getByRole("option", { name: targetClass.academicYear.name, exact: true }).click();
 
     // Class multi-select (ClassSectionMultiPicker). Its Popover/Command list
     // portals to document.body — same as the manual-create combobox further

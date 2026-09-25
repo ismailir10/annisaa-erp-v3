@@ -1,3 +1,4 @@
+import { loadParentAttendanceSummary, PARENT_ATTENDANCE_LABELS, type ParentDayAttendance } from "@/lib/parent/attendance-summary";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Check, MessageCircle, Sparkles, Thermometer, CalendarClock } from "lucide-react";
@@ -27,7 +28,7 @@ export default async function ParentAttendancePage({
   searchParams: Promise<{ child?: string; week?: string }>;
 }) {
   const session = await getSession();
-  if (!session || session.role !== "GUARDIAN") redirect("/");
+  if (!session || session.role !== "GUARDIAN" || !session.tenantId) redirect("/");
 
   const { parent, children } = await getParentWithChildren(session);
   if (!parent || children.length === 0) redirect("/parent");
@@ -44,36 +45,26 @@ export default async function ParentAttendancePage({
   // Prev / next week links
 
   // Fetch attendance + notes for this kid + this week
-  const [attendanceRows, notesRows] = await Promise.all([
-    prisma.studentAttendance.findMany({
-      where: {
-        studentId: selected.studentId,
-        date: { in: days },
-        isVoided: false,
-        student: session.tenantId ? { tenantId: session.tenantId } : undefined,
-      },
-      select: { date: true, status: true, notes: true },
-    }),
+  const [attendanceSummary, notesRows] = await Promise.all([
+    loadParentAttendanceSummary(session.tenantId, [selected.studentId], days),
     session.tenantId
       ? prisma.studentJournalNote.findMany({
           where: {
             tenantId: session.tenantId,
             studentId: selected.studentId,
             status: "ACTIVE",
+            authorRole: "TEACHER",
             date: { gte: weekStart, lte: weekEnd },
           },
           orderBy: { date: "desc" },
-          select: { id: true, date: true, body: true, authorRole: true },
+          select: { id: true, date: true, body: true },
         })
-      : Promise.resolve([] as { id: string; date: string; body: string; authorRole: string }[]),
+      : Promise.resolve([] as { id: string; date: string; body: string }[]),
   ]);
 
-  const statusByDate = new Map<string, string>();
-  const noteByDate = new Map<string, string>();
-  for (const r of attendanceRows) statusByDate.set(r.date, r.status);
-  for (const r of attendanceRows) {
-    if (r.notes && r.notes.trim().length > 0) noteByDate.set(r.date, r.notes.trim());
-  }
+  const dayRecords = attendanceSummary.get(selected.studentId) ?? new Map<string, ParentDayAttendance>();
+  const statusByDate = new Map([...dayRecords].map(([date, record]) => [date, record.status]));
+  const mixedDays = days.filter(date => statusByDate.get(date) === "MIXED");
 
   // Aggregate counts for the summary card
   let hadir = 0, sakit = 0, alpa = 0, izin = 0, logged = 0;
@@ -86,7 +77,7 @@ export default async function ParentAttendancePage({
     else if (s === "ABSENT") alpa += 1;
     else if (s === "PERMISSION") izin += 1;
   }
-  const bannerState = attendanceBannerState({ hadir, sakit, alpa, izin, logged });
+  const bannerState = mixedDays.length > 0 ? null : attendanceBannerState({ hadir, sakit, alpa, izin, logged });
 
   const childTabsData = children.map((c) => ({
     studentId: c.studentId,
@@ -110,6 +101,17 @@ export default async function ParentAttendancePage({
       />
 
       <PageHeader title="Kehadiran" subtitle="Pantau kehadiran harian anak" />
+
+      {mixedDays.length > 0 ? <section className="rounded-xl border border-border bg-card p-4" aria-label="Catatan berbeda antar kelas">
+        <h2 className="text-sm font-semibold">Catatan berbeda</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Ada perbedaan catatan antar kelas. Lihat rincian di bawah; hubungi sekolah jika perlu diperiksa.</p>
+        <ul className="mt-3 space-y-3">
+          {mixedDays.map(date => <li key={date}>
+            <p className="text-sm font-medium">{formatDate(date, {weekday:"long",day:"numeric",month:"long"})}</p>
+            <ul className="mt-1 space-y-1 text-sm text-muted-foreground">{dayRecords.get(date)!.classes.map(record => <li key={record.id}>{record.name}: {PARENT_ATTENDANCE_LABELS[record.status]}</li>)}</ul>
+          </li>)}
+        </ul>
+      </section> : null}
 
       {/* Summary card — varies by week state */}
       {bannerState?.kind === "all-present" ? (
@@ -222,7 +224,9 @@ export default async function ParentAttendancePage({
                       className={`p-0 text-center align-middle ${isToday ? "bg-status-present-subtle border-b-2 border-primary" : ""}`}
                     >
                       <span className="inline-flex h-9 w-9 items-center justify-center">
-                        {status === "PRESENT" ? (
+                        {status === "MIXED" ? (
+                          <span className="text-xs font-semibold text-muted-foreground" aria-label="Catatan berbeda">≠</span>
+                        ) : status === "PRESENT" ? (
                           <Check size={16} strokeWidth={2.5} className="text-primary" />
                         ) : status === "SICK" ? (
                           <span className="text-xs font-bold text-status-late-text">S</span>
@@ -247,6 +251,7 @@ export default async function ParentAttendancePage({
             <span><b className="text-status-late-text">S</b> Sakit</span>
             <span><b className="text-status-absent-text">A</b> Alpa</span>
             <span><b className="text-status-leave-text">I</b> Izin</span>
+            {mixedDays.length > 0 ? <span>≠ Catatan berbeda</span> : null}
           </div>
         </div>
       )}
@@ -267,7 +272,7 @@ export default async function ParentAttendancePage({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-foreground line-clamp-3">{n.body}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {n.authorRole === "TEACHER" ? "Ustadzah" : "Anda"} ·{" "}
+                    Ustadzah ·{" "}
                     {formatDate(n.date, { day: "numeric", month: "long" })}
                   </p>
                 </div>

@@ -1,3 +1,4 @@
+import type { ParentAttendanceStatus } from "@/lib/parent/attendance-summary";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -14,7 +15,7 @@ export type KidCardProps = {
   id: string;
   name: string;
   className: string;
-  todayStatus: "PRESENT" | "ABSENT" | "SICK" | "PERMISSION" | null;
+  todayStatus: ParentAttendanceStatus | null;
   teacherNote: string | null;
   foot: KidCardFoot;
 };
@@ -27,7 +28,7 @@ export function KidCard({ id, name, className, todayStatus, teacherNote, foot }:
           <CardTitle className="text-foreground"><h3>{name}</h3></CardTitle>
           <p className="text-xs text-muted-foreground">{className}</p>
         </div>
-        <StatusBadge status={todayStatus ?? "UNKNOWN"} label={todayStatus ? undefined : "Belum dicatat"} />
+        <StatusBadge status={todayStatus === "MIXED" ? "UNKNOWN" : todayStatus ?? "UNKNOWN"} label={todayStatus === "MIXED" ? "Catatan berbeda" : todayStatus ? undefined : "Belum dicatat"} />
       </CardHeader>
 
       <CardContent className="space-y-3">
@@ -51,9 +52,9 @@ export function KidCard({ id, name, className, todayStatus, teacherNote, foot }:
           </Link>
         </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2" aria-label={`Informasi lain ${name}`}>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/parent/perkembangan/${id}`}>Perkembangan</Link>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/reports", id)}>Rapor</Link>
-          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/invoices", id)}>Tagihan</Link>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/parent/perkembangan/${id}`}>Perkembangan</Link>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/reports", id)}>Rapor</Link>
+          <Link className="inline-flex min-h-11 items-center text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={parentHref("/parent/invoices", id)}>Tagihan</Link>
         </nav>
       </CardContent>
     </Card>

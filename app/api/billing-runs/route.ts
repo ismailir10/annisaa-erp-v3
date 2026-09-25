@@ -116,10 +116,13 @@ export async function POST(req: NextRequest) {
   if (classSectionIds.length > 0) {
     const validClassSections = await prisma.classSection.findMany({
       where: { id: { in: classSectionIds }, tenantId },
-      select: { id: true },
+      select: { id: true, academicYearId: true },
     });
     if (validClassSections.length !== new Set(classSectionIds).size) {
       return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
+    }
+    if (validClassSections.some(section => section.academicYearId !== academicYearId)) {
+      return NextResponse.json({ error: "Kelas tidak sesuai tahun ajaran yang dipilih. Pilih ulang kelas atau ubah tahun ajaran." }, { status: 400 });
     }
   }
 

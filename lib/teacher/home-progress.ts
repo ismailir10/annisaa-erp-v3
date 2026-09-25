@@ -33,6 +33,7 @@ export type TeacherClassSummary = {
   id: string;
   name: string;
   rosterCount: number;
+  isHomeroom?: boolean;
   attendanceRecorded: number | null;
   journal: ReturnType<typeof getJournalProgress> | null;
   replies: { studentId: string; studentName: string; count: number }[] | null;
@@ -45,4 +46,15 @@ export type TeacherSessionSummary = { id: string; slot: string; className: strin
 export function teacherSlotRank(slot: string | null, hour: number) {
   const order = hour < 12 ? ['MORNING', 'FULL_DAY', 'AFTERNOON'] : ['AFTERNOON', 'FULL_DAY', 'MORNING'];
   return slot ? order.indexOf(slot) < 0 ? 3 : order.indexOf(slot) : 3;
+}
+
+/** A timetable match wins. With equal relevance, use the teacher's homeroom
+ * before an assistant assignment; alphabetical order remains the final tie. */
+export function compareTeacherClasses(
+  left: Pick<TeacherClassSummary, "slot" | "isHomeroom">,
+  right: Pick<TeacherClassSummary, "slot" | "isHomeroom">,
+  hour: number,
+) {
+  return teacherSlotRank(left.slot, hour) - teacherSlotRank(right.slot, hour)
+    || Number(right.isHomeroom ?? false) - Number(left.isHomeroom ?? false);
 }

@@ -67,11 +67,29 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     await expect(chartOrEmpty).toBeVisible();
   });
 
-  test("renders pending actions with leave + admissions rows", async ({ page }) => {
-    // Scope to the PendingActions card to avoid sidebar nav matches
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard.getByText("Pengajuan Cuti")).toBeVisible(); // SUPER_ADMIN has leave.view
-    await expect(pendingCard.getByText("Pendaftaran Baru")).toBeVisible(); // SUPER_ADMIN has admissions.view
+  test("renders actionable leave and admission records in the work queue", async ({ page }) => {
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    const [leaveResponse, enrollmentResponse] = await Promise.all([
+      page.request.get("/api/leave/requests?status=PENDING&pageSize=100"),
+      page.request.get("/api/enrollments?pageSize=100"),
+    ]);
+    expect(leaveResponse.ok()).toBeTruthy();
+    expect(enrollmentResponse.ok()).toBeTruthy();
+    const leaveBody = await leaveResponse.json() as { data: Array<{ id: string; employee: { nama: string } }>; capabilities: { approve: boolean } };
+    const enrollmentBody = await enrollmentResponse.json() as { data: Array<{ id: string; childName: string; studentId: string | null; status: string }> };
+    expect(leaveBody.capabilities.approve).toBe(true);
+
+    const pendingLeave = leaveBody.data[0];
+    if (pendingLeave) {
+      await queue.getByRole("textbox", { name: "Cari pekerjaan, nama, atau nomor…" }).fill(pendingLeave.employee.nama);
+      await expect(queue.locator(`a[href="/admin/leave-requests?requestId=${pendingLeave.id}"]`)).toBeVisible();
+    }
+    const pendingForm = enrollmentBody.data.find(row => !row.studentId && ["SUBMITTED", "UNDER_REVIEW"].includes(row.status));
+    if (pendingForm) {
+      await queue.getByRole("textbox", { name: "Cari pekerjaan, nama, atau nomor…" }).fill(pendingForm.childName);
+      await expect(queue.locator(`a[href="/admin/enrollments/${pendingForm.id}"]`)).toBeVisible();
+    }
   });
 
   test("renders activity feed (rows or empty state copy)", async ({ page }) => {
@@ -88,9 +106,9 @@ test.describe("admin dashboard rebuild — SUPER_ADMIN", () => {
     const quickActionsSection = page.getByTestId("quick-actions");
     await expect(quickActionsSection.getByText("Aksi Cepat")).toBeVisible();
     await expect(quickActionsSection.getByRole("link", { name: /Jalankan Penggajian/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Lihat Kehadiran/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Pengajuan Cuti/ })).toBeVisible();
-    await expect(quickActionsSection.getByRole("link", { name: /Tambah Karyawan/ })).toBeVisible();
+    await expect(quickActionsSection.getByRole("link", { name: /Lihat kehadiran/ })).toHaveAttribute("href", "/admin/employee-attendance");
+    await expect(quickActionsSection.getByRole("link", { name: /Pengajuan izin/ })).toHaveAttribute("href", "/admin/leave-requests");
+    await expect(quickActionsSection.getByRole("link", { name: /Tambah karyawan/ })).toHaveAttribute("href", "/admin/employees?create=1");
   });
 });
 
@@ -101,18 +119,20 @@ test.describe("admin dashboard rebuild — SCHOOL_ADMIN gating", () => {
     await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
   });
 
-  test("hides payroll row in pending actions", async ({ page }) => {
-    // Scope to the PendingActions card
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard).toBeVisible();
-    await expect(pendingCard.getByText("Penggajian Terakhir")).toHaveCount(0);
+  test("keeps payroll records out of the authorized work queue", async ({ page }) => {
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    expect((await page.request.get("/api/enrollments?pageSize=1")).status()).toBe(200);
+    await expect(queue.locator('a[href^="/admin/payroll/"]')).toHaveCount(0);
+    expect((await page.request.get("/api/payroll")).status()).toBe(403);
   });
 
-  test("hides leave row (SCHOOL_ADMIN lacks leave.view)", async ({ page }) => {
-    // Scope to the PendingActions card — sidebar nav may still have "Pengajuan Cuti"
-    const pendingCard = page.getByTestId("pending-actions");
-    await expect(pendingCard).toBeVisible();
-    await expect(pendingCard.getByText("Pengajuan Cuti")).toHaveCount(0);
+  test("keeps leave decisions out of the authorized work queue", async ({ page }) => {
+    const queue = page.getByTestId("admin-work-queue");
+    await expect(queue).toBeVisible();
+    expect((await page.request.get("/api/invoices?pageSize=1")).status()).toBe(200);
+    await expect(queue.locator('a[href^="/admin/leave-requests?requestId="]')).toHaveCount(0);
+    expect((await page.request.get("/api/leave/requests")).status()).toBe(403);
   });
 
   test("hides the Aksi Cepat section entirely", async ({ page }) => {

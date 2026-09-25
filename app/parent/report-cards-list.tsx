@@ -153,7 +153,7 @@ function ReportCardDetail({
                     className={
                       sec.levelKey
                         ? LEVEL_CHIP_CLASS_OFF[sec.levelKey]
-                        : "bg-primary/10 text-primary border-primary/20"
+                        : "bg-primary/10 text-primary-text border-primary/20"
                     }
                   >
                     {sec.level}

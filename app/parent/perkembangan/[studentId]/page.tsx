@@ -70,11 +70,11 @@ export default async function ParentPerkembanganDetailPage({
             className="space-y-2"
             aria-labelledby="perkembangan-elements-heading"
           >
-            <header className="flex items-center justify-between gap-2">
+            <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <SectionLabel as="h2" id="perkembangan-elements-heading" className="mb-0">
                 Capaian per elemen
               </SectionLabel>
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="min-w-0 break-words text-xs text-muted-foreground">
                 Semester {data.semester.number} · {data.semester.academicYear.name}
               </span>
             </header>

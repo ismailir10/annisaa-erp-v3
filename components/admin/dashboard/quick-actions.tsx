@@ -54,7 +54,7 @@ export function QuickActions({
                   <span className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                     <Icon size={18} />
                   </span>
-                  <span className="text-xs font-medium transition-colors group-hover:text-primary">
+                  <span className="text-xs font-medium transition-colors group-hover:text-primary-text">
                     {action.label}
                   </span>
                 </CardContent>

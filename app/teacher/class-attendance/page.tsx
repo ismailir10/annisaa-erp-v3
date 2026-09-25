@@ -221,12 +221,12 @@ export default function ClassAttendancePage() {
       <PageHeader title="Absensi kelas" />
 
       {/* Class + Date toolbar */}
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+      <div className="mb-4 grid grid-cols-1 gap-2">
         <label htmlFor="class-attendance-class" className="sr-only">
           Pilih kelas
         </label>
         <Select value={selectedClass} onValueChange={v => v && changeContext(v, date)} items={assignments.map(a => ({ label: `${a.classSection.name} — ${a.classSection.program.name}`, value: a.classSection.id }))}>
-        <SelectTrigger id="class-attendance-class" className="tap-target w-full sm:flex-1">
+        <SelectTrigger id="class-attendance-class" className="tap-target w-full min-w-0">
             <SelectValue placeholder="Pilih kelas">
               {(() => {
                 const a = assignments.find(a => a.classSection.id === selectedClass);
@@ -245,7 +245,7 @@ export default function ClassAttendancePage() {
         <label htmlFor="class-attendance-date" className="sr-only">
           Tanggal kehadiran
         </label>
-        <Input id="class-attendance-date" type="date" value={date} onChange={e => { const valid = resolveTeacherDate(e.target.value, ""); if (valid) changeContext(selectedClass, valid); }} className="tap-target w-full sm:w-36" />
+        <Input id="class-attendance-date" type="date" value={date} onChange={e => { const valid = resolveTeacherDate(e.target.value, ""); if (valid) changeContext(selectedClass, valid); }} className="tap-target w-full" />
       </div>
 
       {/*

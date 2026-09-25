@@ -39,19 +39,53 @@ test.describe("Parent flows", () => {
     await expect(page.locator("text=Tagihan").first()).toBeVisible();
   });
 
-  test("home signal surface visible on dashboard", async ({ page }) => {
-    // Parent home (cycle-4) is single-path: greeting + Anak Anda eyebrow with
-    // KidCard list + bottom focal card. The focal card is either the
-    // outstanding-tagihan card ("N tagihan belum dibayar") or the lunas
-    // celebration ("Lunas semua / Jazakumullahu khairan"). Either confirms
-    // the home signal surface rendered.
-    await expect(page.locator("text=Anak Anda")).toBeVisible({ timeout: 5_000 });
-    await expect(
-      page
-        .locator("text=Lunas semua")
-        .or(page.getByText(/tagihan belum dibayar/))
-        .first()
-    ).toBeVisible({ timeout: 5_000 });
+  test("home shows household actions and child-specific destinations", async ({ page }) => {
+    const childrenResponse = await page.request.get("/api/parent/children");
+    expect(childrenResponse.ok()).toBe(true);
+    const { data: children } = await childrenResponse.json() as {
+      data: Array<{ id: string; name: string }>;
+    };
+    expect(children.length).toBeGreaterThan(0);
+
+    await expect(page.getByRole("heading", { level: 1, name: "Kabar keluarga hari ini" })).toBeVisible();
+    const household = page.getByRole("region", { name: "Hari ini", exact: true });
+    await expect(household).toBeVisible();
+    await expect(household.getByText("Tagihan keluarga", { exact: true }).or(household.getByText("Lunas semua", { exact: true }))).toBeVisible();
+
+    // The immediate bill action must identify an authorized child and keep that
+    // child's context. Other children's bills can remain progressively disclosed.
+    if (await household.getByText("Tagihan keluarga", { exact: true }).isVisible()) {
+      const billAction = household.getByRole("link", { name: /^Tagihan / }).first();
+      await expect(billAction).toBeVisible();
+      const destination = new URL((await billAction.getAttribute("href"))!, page.url());
+      expect(destination.pathname).toBe("/parent/invoices");
+      const child = children.find((item) => item.id === destination.searchParams.get("child"));
+      expect(child).toBeDefined();
+      await expect(billAction).toContainText(`Tagihan ${child!.name}`);
+    }
+
+    await expect(page.getByText("Anak saya", { exact: true })).toBeVisible();
+    for (const child of children) {
+      const card = page.locator('[data-slot="card"]').filter({
+        has: page.getByRole("heading", { level: 3, name: child.name, exact: true }),
+      });
+      await expect(card).toBeVisible();
+      const destinations = [
+        ["Baca catatan", "/parent/student-journal"],
+        ["Lihat kehadiran", "/parent/attendance"],
+        ["Rapor", "/parent/reports"],
+        ["Tagihan", "/parent/invoices"],
+      ];
+      for (const [label, pathname] of destinations) {
+        const link = card.getByRole("link", { name: label, exact: true });
+        await expect(link).toBeVisible();
+        const destination = new URL((await link.getAttribute("href"))!, page.url());
+        expect(destination.pathname).toBe(pathname);
+        expect(destination.searchParams.get("child")).toBe(child.id);
+        if (label === "Baca catatan") expect(destination.searchParams.get("view")).toBe("notes");
+      }
+      await expect(card.getByRole("link", { name: "Perkembangan", exact: true })).toHaveAttribute("href", `/parent/perkembangan/${child.id}`);
+    }
   });
 
   test("invoices page loads", async ({ page }) => {

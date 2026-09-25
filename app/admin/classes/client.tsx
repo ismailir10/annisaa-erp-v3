@@ -383,13 +383,13 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
   };
 
   return (
-    <div className="space-y-section">
+    <div className="min-w-0 space-y-section">
       <PageHeader
         title="Kelas"
         description="Daftar kelas per tahun ajaran — buat, ubah kapasitas, kelola siswa dan wali kelas, dan pantau kondisi tiap kelas."
         actions={
           canWrite && !archivedMode ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setPromoteOpen(true)} className="gap-2">
                 <ArrowUpRight className="size-4" /> Naik Kelas Massal
               </Button>
@@ -401,6 +401,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
         }
       />
 
+      <div className="min-w-0 [&>div]:flex-wrap">
       <DataTableToolbar
         value={query}
         onValueChange={setQuery}
@@ -451,6 +452,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           },
         ]}
       />
+      </div>
 
       {archivedMode && (
         <div className="rounded-md border border-status-leave bg-status-leave-subtle px-4 py-3 text-sm text-status-leave-text">

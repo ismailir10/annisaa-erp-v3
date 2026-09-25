@@ -278,7 +278,7 @@ export default async function SlipDetailPage({
       )}
 
       {/* Take Home Pay — prominent brand highlight (matches teal netBox in PDF) */}
-      <div className="rounded-xl bg-primary p-card flex items-center gap-3">
+      <div className="rounded-xl bg-primary p-card flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-small font-semibold uppercase tracking-wide text-primary-foreground opacity-80">
             Take Home Pay
