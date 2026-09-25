@@ -27,7 +27,7 @@ const { state, dbFake } = vi.hoisted(() => {
   }
 
   const state = {
-    students: [] as Array<{ id: string; tenantId: string; name: string }>,
+    students: [] as Array<{ id: string; tenantId: string; name: string; status: string }>,
     parents: [] as Array<{
       id: string;
       tenantId: string;
@@ -232,7 +232,7 @@ const { state, dbFake } = vi.hoisted(() => {
 });
 
 function resetState() {
-  state.students = [{ id: "s1", tenantId: "t1", name: "Anak Testing" }];
+  state.students = [{ id: "s1", tenantId: "t1", name: "Anak Testing", status: "ACTIVE" }];
   state.parents = [];
   state.guardians = [];
   state.enrollments = [{ studentId: "s1", status: "ACTIVE", tenantId: "t1" }];
@@ -427,5 +427,45 @@ describe("guardian create -> manual invoice -> payment session (2026-09-23 chain
     // at all, exactly what stranded the parent in production.
     expect(createSession.mock.calls[0][0].customerEmail).toBeUndefined();
     expect(createSession.mock.calls[0][0].customerName).toBe("Anak Testing");
+  });
+});
+
+describe("manual invoice for a student with no class (SPMB applicant, 2026-09-25)", () => {
+  it("bills an ACTIVE student who has no enrollment and reaches the primary guardian", async () => {
+    // A converted applicant: Student + guardian exist, next year's classes don't.
+    state.enrollments = [];
+    const guardianRes = await postGuardianReq({
+      ...guardianCreatePayload({
+        ...EMPTY_GUARDIAN_FORM,
+        name: "Siti Aminah",
+        relationship: "IBU",
+        email: "siti@example.test",
+        phone: "081234567890",
+      }),
+      confirmNew: true,
+    });
+    expect(guardianRes.status).toBe(201);
+
+    const invoiceRes = await postInvoiceReq(invoiceBody);
+    expect(invoiceRes.status).toBe(201);
+    expect(state.invoices).toHaveLength(1);
+    expect(state.invoices[0].parentId).toBe(state.guardians[0].parentId);
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(createSession.mock.calls[0][0]).toMatchObject({ customerEmail: "siti@example.test" });
+  });
+
+  it("rejects a student who is not ACTIVE", async () => {
+    state.students[0].status = "WITHDRAWN";
+    const res = await postInvoiceReq(invoiceBody);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/tidak ditemukan atau tidak aktif/i);
+    expect(state.invoices).toHaveLength(0);
+  });
+
+  it("rejects a student from another tenant", async () => {
+    state.students[0].tenantId = "t2";
+    const res = await postInvoiceReq(invoiceBody);
+    expect(res.status).toBe(400);
+    expect(state.invoices).toHaveLength(0);
   });
 });
