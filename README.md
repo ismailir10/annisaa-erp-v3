@@ -62,6 +62,8 @@ All portals share the same chrome — An Nisaa' logo, "Talib" wordmark, "by An N
 
 ## Setup
 
+Use Node.js 24 for local checks; CI is pinned to 24.
+
 ```bash
 git clone https://github.com/ismailir10/annisaa-erp-v3.git
 cd annisaa-erp-v3
