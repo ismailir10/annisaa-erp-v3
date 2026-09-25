@@ -2,7 +2,7 @@
 
 ## Context
 
-The user approved a sequential queue of existing dependency PRs. This cycle covers PR #480 only, after refreshing its target context to `origin/staging` at `4302e47`. Its lockfile changes `@hono/node-server` from `1.19.13` to `2.1.1` and updates the `fsevents` dev metadata. The current local candidate is `c5ced484c2b35c22ce8ed659b067a2855889c7ca`.
+The user approved a sequential queue of existing dependency PRs. This cycle covers PR #480 only, initially against staging `4302e47`, then refreshed to `f5fef3d` after a concurrent merge. Its lockfile changes `@hono/node-server` from `1.19.13` to `2.1.1` and updates the `fsevents` dev metadata. Final verified source is local `73ec4a5`, equivalent GitHub commit `8cd00c98fa1263b9224f2f375c2cc8e1123e5fe1`.
 
 ## Spec
 
@@ -14,12 +14,12 @@ The user approved a sequential queue of existing dependency PRs. This cycle cove
 
 - [x] Refresh staging and update the lockfile candidate for `@hono/node-server` 2.1.1.
 - [x] Complete the build, Vitest, and upstream release/consumer review.
-- [ ] Complete renewed verification after staging integration and repair the ambiguous billing-test selector.
+- [x] Complete renewed verification after staging integration and repair the ambiguous billing-test selector.
 
 ## Implementation
 
 - Subagent plan: driver=`gpt-6`; dirty-work=`gpt-6-luna` traces dependency consumers and audits upstream release changes.
-- Changed `package-lock.json` only: `@hono/node-server` `1.19.13` → `2.1.1`; `fsevents` dev metadata was updated. The package manifest range already accepts the new version.
+- The dependency update changes only `package-lock.json`: `@hono/node-server` `1.19.13` → `2.1.1`; `fsevents` dev metadata was updated. The parent package range already accepts the new version. The test-selector repair is described below.
 - Consumer trace places the adapter in the MCP SDK's HTTP transport, reached through the shadcn development tool dependency. The shadcn CLI uses the separate stdio transport; application code imports only `shadcn/tailwind.css`, not the adapter.
 - Scope remains PR #480; no application or authentication code changed.
 - Staging moved to `f5fef3d` when another task merged #556. Integrated it and reran build, typecheck, lint, all unit tests (3311 passed), and the MCP handshake successfully.
@@ -40,7 +40,8 @@ The user approved a sequential queue of existing dependency PRs. This cycle cove
 - Documentation audit: 13 ok, 1 existing ADR-age warning, 0 fail. `git diff --check`: passed. Browser screenshots are unnecessary for this non-UI tooling change; the relevant consumer check is the MCP handshake.
 - All required CI must pass on the final published head before squash merge. The branch includes staging; head and base must be refreshed immediately before merge.
 - Renewed source before the selector repair: local `dff207aef369cb9f127c4163bd311725d785e483`, equivalent GitHub integration `4394e7787b335bcb38f3b45d22dcec96cdcf0aed`, tree `2b25639ede3025181a521b4744f8bb48b8f393de`. Build, typecheck, lint (0 errors/59 warnings), 3311 unit tests, and MCP HTTP smoke passed. Browser result was 144 passed/8 skipped/1 failed; the trace and local database query confirmed the wrong class ID rather than an application regression.
-- Focused billing test after the selector repair passed against the same contaminated fixture data. A complete browser run after resetting and seeding the guarded task-local database is pending; no failed test is being waived.
+- Focused billing test after the selector repair passed against the same contaminated fixture data. The final full browser run passed 145 tests with 8 existing skips (2.2 minutes) against newly created and seeded `schoolerp_pr480_v2` on the task-local PostgreSQL server. Prisma's destructive-reset guard was respected; no existing database was reset. Selector lint and TypeScript checks also passed.
+- Final tested tree: `37d1e00d887435925a6b281554dd753034864500` (local `73ec4a5`, GitHub equivalent `8cd00c98fa1263b9224f2f375c2cc8e1123e5fe1`). The final evidence-only commit changes this cycle document. Current-head CI is still required before merge.
 
 ## Ship Notes
 
