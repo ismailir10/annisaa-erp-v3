@@ -38,7 +38,7 @@ test.describe("Admin flows", () => {
     await expect(page.locator("text=karyawan terdaftar")).toBeVisible();
   });
 
-  test("employee detail loads with salary tab", async ({ page }) => {
+  test("employee detail loads with salary section", async ({ page }) => {
     // Navigate via API to avoid depending on employee name in the table
     const res = await page.request.get("/api/employees?pageSize=1");
     const json = await res.json();
@@ -46,9 +46,9 @@ test.describe("Admin flows", () => {
     if (!empId) return;
     await page.goto(`/admin/employees/${empId}`);
     await page.waitForURL(`**/admin/employees/${empId}`);
-    await expect(page.getByRole("tab", { name: "Profil" })).toBeVisible();
-    await page.getByRole("tab", { name: "Gaji" }).click();
-    await expect(page.locator("text=Gaji Pokok")).toBeVisible();
+    // Dossier layout (2026-09-26): single scroll, sections open by default.
+    await expect(page.locator("#profile")).toBeVisible();
+    await expect(page.locator("#salary").getByText("Gaji Pokok")).toBeVisible();
   });
 
   test("attendance page loads", async ({ page }) => {

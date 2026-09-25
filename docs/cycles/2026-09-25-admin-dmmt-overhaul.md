@@ -153,7 +153,7 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Monthly attendance moves to the table primitives; `AdminTabs` in student-journal.
   - Apply the PageHeader description rule.
   - *Accept:* grep finds no raw `<table`, no raw `Tabs` import, and no `space-y-4`/`space-y-6` page roots in `app/admin/**`.
-- [ ] **T6 — Dossier migration.**
+- [x] **T6 — Dossier migration.**
   - `guardians/[id]`, `classes/[id]` (its stat grid moves to `StatsCardsRow`), and `employees/[id]` move to the Dossier layout.
   - *Accept:* existing tests pass; the three pages leave the patterns.md 2b backlog.
 - [x] **T7 — Standards and README.**
@@ -266,6 +266,12 @@ Dependencies: T0 → T1 → (T2, T3 in parallel) → (T4, T5, T6 in parallel on 
   - Every handler and flow is preserved: the 409 age-override, HOMEROOM_EXISTS, the swap Sheet, and deactivate.
   - Review: 1 finding, fixed. The stat tiles were duplicated on mobile; the rail is now desktop-only, as on students and guardians, and a regression test (Roster appears once at 375px) was verified to fail on the old code.
   - Follow-up: the swap Sheet is gated on `canWrite` rather than `writeAllowed`. That predates this cycle and is out of scope.
+
+- T6c: employees/[id] Dossier.
+  - Files: `app/admin/(hr)/employees/[id]/page.tsx` and the new `__tests__/page.test.tsx`, plus `e2e/admin.spec.ts`, whose salary test now asserts `#salary` instead of clicking a tab.
+  - AdminTabs becomes DossierNav plus the sections `profile`, `employment`, `leave`, `salary`, and `attendance`. Salary is rendered only when `salaryValues !== null`, and attendance is lazy (closed by default). A new DetailRail shows leave tiles, employment, contact, and bank/BPJS; bank/BPJS stays gated.
+  - Review: 1 finding, fixed. The hash deep-link effect was missing; it's added and tested.
+  - The fetch effect was refactored to an async `useCallback`, matching students and guardians. This cleared a `react-hooks/set-state-in-effect` lint error, and behavior is identical.
 
 ## Verification
 - T0: vitest on the moved and edited suites passed 159/159 (14 files), and a broad sweep passed 1322/1322 (138 files, per the subagent). `verify-api-auth` reports 197/197 and `verify-rls-coverage` reports 42/42. Grep finds no remaining old path refs. The full build gate runs jointly with T3, because T3 was mid-edit in the same tree.
