@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
