@@ -102,6 +102,8 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5; T1 ∥ T2 parallel (disjoint files: data-table/admin-tabs/toolbar/admin-nav/dossier vs new ui primitives + pickers); then T3 → T5 → T6 → T4 → T7 → T8 → T9 → T10 sequential (they share list/page files). Each slice is implemented by a Sonnet subagent that may run targeted vitest + tsc but never `npm run build` or commits; the driver runs the between-task gate, reviews the diff (general-purpose Sonnet reviewer — `feature-dev:code-reviewer` is not installed in this harness), and commits.
+
 ## Verification
 
 ## Ship Notes
