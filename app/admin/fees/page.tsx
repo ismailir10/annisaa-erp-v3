@@ -212,7 +212,7 @@ export default function FeesPage() {
       <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
 
       <AdminTabs defaultValue={initialTab}>
-        <AdminTabsList className="h-auto w-full flex-wrap justify-start gap-1">
+        <AdminTabsList>
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
           <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
           <AdminTabsTrigger value="keringanan">Keringanan</AdminTabsTrigger>

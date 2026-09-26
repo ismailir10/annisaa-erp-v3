@@ -504,7 +504,14 @@ export default function EmployeeDetailPage() {
           </DossierSection>
         </div>
 
-        <DetailRail>
+        {/* Desktop rail only, below `lg` (T1, cycle 2026-09-26,
+            admin-ui-standard-c1). Unlike students/guardians/classes'[id],
+            every card here (Kepegawaian, Kontak, Rekening & BPJS, the leave
+            tiles) restates a fact the Profil/Kepegawaian/Saldo Cuti sections
+            already show — there is no unique quick-action or KPI worth
+            surfacing above the fold, so the mobile fallback is just to not
+            repeat the same list twice. */}
+        <DetailRail className="hidden lg:flex">
           <RailStatTiles
             tiles={[
               { label: "Cuti Tahunan", value: e.leaveBalanceAnnual ?? "—", hint: "hari" },

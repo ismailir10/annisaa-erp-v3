@@ -450,6 +450,15 @@ const SEGMENT_LABELS: Record<string, string> = {
   guardians: "Wali Murid",
   score: "Nilai",
   scores: "Nilai",
+  // Student Journal (Buku Penghubung) sub-routes: /admin/student-journal/classes/[id]
+  // and /admin/student-journal/students/[id] used to render "Detail › Detail"
+  // because neither "classes" nor "students" had a label of its own.
+  classes: "Kelas",
+  students: "Siswa",
+  // Semester detail sub-routes: /admin/semesters/[id]/{themes,objectives,import}.
+  themes: "Tema",
+  objectives: "Tujuan Pembelajaran",
+  import: "Impor PROMES",
 };
 
 function segmentLabel(segment: string): string {
@@ -457,11 +466,19 @@ function segmentLabel(segment: string): string {
 }
 
 function subTrail(pathname: string, baseHref: string): { label: string }[] {
-  return pathname
+  const crumbs = pathname
     .slice(baseHref.length + 1)
     .split("/")
     .filter(Boolean)
     .map((segment) => ({ label: segmentLabel(segment) }));
+
+  // Safety net: even with every known segment labelled, a still-unmapped
+  // dynamic id sitting right after another unmapped segment would render
+  // "Detail" twice in a row. Collapse consecutive repeats down to one rather
+  // than let a future nested route reintroduce the bug this fixes.
+  return crumbs.filter(
+    (crumb, i) => i === 0 || crumb.label !== "Detail" || crumbs[i - 1].label !== "Detail"
+  );
 }
 
 /** Build breadcrumb trail from pathname. */
