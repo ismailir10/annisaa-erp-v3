@@ -1,15 +1,15 @@
 "use client";
 
 import { flexRender } from "@tanstack/react-table";
-import type { RowData, SortingState } from "@tanstack/react-table";
+import type { CellData, RowData, SortingState, TableFeatures } from "@tanstack/react-table";
 import {
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useLegacyTable,
 } from "@tanstack/react-table/legacy";
-import type { LegacyColumnDef } from "@tanstack/react-table/legacy";
-import { useEffect, useState } from "react";
+import type { LegacyColumn, LegacyColumnDef } from "@tanstack/react-table/legacy";
+import { useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -18,10 +18,95 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { DataTablePagination } from "./data-table-pagination";
 import { EmptyState } from "./empty-state";
 import { Skeleton } from "./skeleton";
 import { Inbox } from "lucide-react";
+
+/**
+ * Mobile contract for every DataTable consumer (cycle 2026-09-26,
+ * admin-ui-standard-c1 T1).
+ *
+ * - `priority: "low"` marks a column secondary (created/updated-at, ids, …):
+ *   hidden below `md`, back on `md+`.
+ * - `sticky: "right"` pins a column to the right edge below `md` — the
+ *   row-actions column gets this automatically by `id === "actions"`, but a
+ *   column can opt in explicitly if a page names its actions column
+ *   differently.
+ */
+// The interface this augments lives in `@tanstack/table-core` (v9 split core
+// from `@tanstack/react-table`, which re-exports it via `export *`) — that is
+// the module TypeScript's declaration merging actually needs named here, not
+// the re-exporting package.
+declare module "@tanstack/table-core" {
+  interface ColumnMeta<
+    in out TFeatures extends TableFeatures,
+    in out TData extends RowData,
+    TValue extends CellData = CellData,
+  > {
+    priority?: "low";
+    sticky?: "right";
+  }
+}
+
+function isStickyRight<TData extends RowData>(column: LegacyColumn<TData>) {
+  return column.id === "actions" || column.columnDef.meta?.sticky === "right";
+}
+
+function isLowPriority<TData extends RowData>(column: LegacyColumn<TData>) {
+  return column.columnDef.meta?.priority === "low";
+}
+
+// Same left shadow on the header (`bg-muted` twin of the body's
+// `bg-background`) so the sticky action column reads as one opaque strip
+// instead of the header seam showing through under it while scrolled.
+const STICKY_RIGHT_CLASS =
+  "sticky right-0 z-[1] shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.12)] md:static md:shadow-none";
+
+/**
+ * Tracks whether the table's horizontal scroll container overflows to the
+ * right and hasn't been scrolled to the end yet — drives the edge-fade
+ * affordance below `md`. `Table` (components/ui/table.tsx) owns the actual
+ * scrolling div (`data-slot="table-container"`) and has other consumers, so
+ * this reaches it by selector off a ref on our own wrapper rather than
+ * asking `Table` for a new prop.
+ */
+function useEdgeFade(watch: unknown) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [showFade, setShowFade] = useState(false);
+
+  useEffect(() => {
+    const scrollEl = wrapperRef.current?.querySelector<HTMLElement>(
+      '[data-slot="table-container"]'
+    );
+    if (!scrollEl) return;
+
+    const update = () => {
+      const overflowing = scrollEl.scrollWidth - scrollEl.clientWidth > 1;
+      const atEnd =
+        scrollEl.scrollWidth - scrollEl.clientWidth - scrollEl.scrollLeft <= 1;
+      setShowFade(overflowing && !atEnd);
+    };
+
+    update();
+    scrollEl.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(scrollEl);
+    const tableEl = scrollEl.querySelector("table");
+    if (tableEl) observer.observe(tableEl);
+
+    return () => {
+      scrollEl.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+    // `watch` is deliberately the only dep — it's a cheap proxy ("loading" or
+    // a `data`/`columns` length key) for "the table's shape changed enough to
+    // re-measure"; `wrapperRef` is a stable ref and never needs to retrigger.
+  }, [watch]);
+
+  return { wrapperRef, showFade };
+}
 
 interface DataTableProps<TData extends RowData> {
   columns: LegacyColumnDef<TData>[];
@@ -109,14 +194,31 @@ export function DataTable<TData extends RowData>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sorting]);
 
+  const { wrapperRef, showFade: overflowsToTheRight } = useEdgeFade(
+    loading ? "loading" : `${data.length}-${columns.length}`
+  );
+  // A sticky-right column's own left shadow already signals "there's more
+  // this way" — stacking the edge-fade under it (it sits at the same right-0
+  // edge, opaque, with a higher z-index) would just hide the fade entirely.
+  // Show it only on tables with no sticky column to speak for them.
+  const hasStickyColumn = table.getVisibleLeafColumns().some(isStickyRight);
+  const showFade = overflowsToTheRight && !hasStickyColumn;
+
   if (loading) {
     return (
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div ref={wrapperRef} className="relative rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {columns.map((_, i) => (
-                <TableHead key={i}>
+              {columns.map((column, i) => (
+                <TableHead
+                  key={i}
+                  className={cn(
+                    column.meta?.priority === "low" && "hidden md:table-cell",
+                    (column.id === "actions" || column.meta?.sticky === "right") &&
+                      cn(STICKY_RIGHT_CLASS, "bg-muted md:bg-transparent")
+                  )}
+                >
                   <Skeleton className="h-4 w-20" />
                 </TableHead>
               ))}
@@ -124,9 +226,16 @@ export function DataTable<TData extends RowData>({
           </TableHeader>
           <TableBody>
             {[1, 2, 3, 4, 5].map((row) => (
-              <TableRow key={row}>
-                {columns.map((_, i) => (
-                  <TableCell key={i}>
+              <TableRow key={row} className="group/row">
+                {columns.map((column, i) => (
+                  <TableCell
+                    key={i}
+                    className={cn(
+                      column.meta?.priority === "low" && "hidden md:table-cell",
+                      (column.id === "actions" || column.meta?.sticky === "right") &&
+                        cn(STICKY_RIGHT_CLASS, "bg-background group-hover/row:bg-muted/50")
+                    )}
+                  >
                     <Skeleton className="h-4 w-full" />
                   </TableCell>
                 ))}
@@ -150,7 +259,7 @@ export function DataTable<TData extends RowData>({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div ref={wrapperRef} className="relative rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -158,7 +267,12 @@ export function DataTable<TData extends RowData>({
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="text-xs font-semibold text-muted-foreground tracking-wider"
+                    className={cn(
+                      "text-xs font-semibold text-muted-foreground tracking-wider",
+                      isLowPriority(header.column) && "hidden md:table-cell",
+                      isStickyRight(header.column) &&
+                        cn(STICKY_RIGHT_CLASS, "bg-muted md:bg-transparent")
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -175,10 +289,21 @@ export function DataTable<TData extends RowData>({
             {table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                className="hover:bg-muted/30 transition-colors"
+                className="group/row hover:bg-muted/30 transition-colors"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className="text-sm">
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      "text-sm",
+                      isLowPriority(cell.column) && "hidden md:table-cell",
+                      isStickyRight(cell.column) &&
+                        cn(
+                          STICKY_RIGHT_CLASS,
+                          "bg-background group-hover/row:bg-muted/30 transition-colors"
+                        )
+                    )}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
@@ -186,6 +311,14 @@ export function DataTable<TData extends RowData>({
             ))}
           </TableBody>
         </Table>
+        {/* Edge-fade affordance — hints there's more to the right below `md`,
+            where the table scrolls horizontally instead of wrapping. */}
+        {showFade && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent to-background md:hidden"
+          />
+        )}
       </div>
 
       {displayPagination && (
