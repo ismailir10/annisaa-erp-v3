@@ -48,7 +48,7 @@ The owner asked for a comprehensive admin UI/UX audit on "Don't Make Me Think" (
 - [ ] Komponen Biaya: "#" column replaced by a non-sortable "Urutan" shown muted after the name (or dropped from the table and kept in the form — see Assumption 4); deactivate goes through `ConfirmDialog` stating the consequence; "Tambah Komponen" lives in the toolbar `actions` slot; Kode and Urutan get `FieldDescription`.
 - [ ] Tarif per Program: program + year default to the active academic year and the first active program; rendered as a `DataTable` (Komponen · Kategori · Tipe · Tarif) with an inline `RupiahInput` per row, a total row, one "Simpan Tarif" action and a dirty-state indicator; components deactivated but still carrying a tarif show a muted "nonaktif" row instead of vanishing; empty state uses `EmptyState`.
 - [ ] Keringanan Siswa: raw `AlertDialog` → `ConfirmDialog`; every data column sortable-or-not by one rule (sortable where the API sorts); "Tambah Keringanan" in the toolbar `actions` slot; Nilai input is `RupiahInput` for nominal type.
-- [ ] Sidebar Keuangan group gains "Keringanan" → `/admin/fees?tab=keringanan` (permission-gated like the fees page); Komponen/Tarif stay under Settings.
+- [ ] All three tabs stay under the Settings hub (owner decision 2026-09-26 — no sidebar entry); the Settings-hub card description names Keringanan so it can be found.
 
 **Outliers**
 - [ ] `ConfirmDialog` replaces raw `AlertDialog` in raport-editor and billing-run line-editor (no raw `AlertDialog` import left outside `confirm-dialog.tsx` in `app/admin` + `components/admin`).
@@ -76,13 +76,13 @@ The owner asked for a comprehensive admin UI/UX audit on "Don't Make Me Think" (
 - Any schema change, migration, or API behaviour change. Deleting unused shadcn primitives other than `form-field.tsx`/`combobox.tsx`.
 - The employee-attendance "ALPA 27 on a non-school day" count (logic, not UI) — logged as a follow-up.
 
-### Assumptions (correct me)
+### Assumptions (owner-confirmed 2026-09-26: 1, 2 approved; 6 overridden — Keringanan stays in Settings)
 1. **Mobile tables = sticky actions + hidden low-priority columns**, not a card-list rewrite. Keeps one component and one mental model; card lists would be a second rendering path for every list.
 2. **"Name is the link" replaces "Lihat"** on list rows (guardians today has both). Fewer buttons, a bigger tap target, and it's how people already try to use the table. The `⋯` menu keeps edit/deactivate.
 3. **DatePicker goes native on touch** (you chose this) — the Calendar popover only on mouse/trackpad.
 4. **Komponen Biaya "Urutan"** leaves the table (it only orders invoice lines) and stays in the form with help text; the table sorts by it by default.
 5. **Admissions "Konversi ke Siswa"** is a genuine three-way decision (merge / new / cancel) — forcing it into `ConfirmDialog` would hide a choice. Documented as an exception instead.
-6. **Keringanan gets a sidebar entry** that deep-links the existing tab rather than a new route — no new page, no API change.
+6. ~~Keringanan gets a sidebar entry~~ — **owner decision: Keringanan stays in Settings**; only the tab is renamed and the hub card copy names it.
 7. Works on the session's designated branch `claude/serene-mendel-y846yr` (in `.worktrees/admin-ui-standard-c1`) rather than `feat/<slug>`; the PR still targets `staging`.
 
 ## Tasks
@@ -93,7 +93,7 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 - [ ] **T2 — Primitives: DatePicker, RupiahInput, AsyncCombobox**; rebase three pickers; delete `form-field.tsx`, `combobox.tsx`. *Accept:* unit tests per primitive; picker tests still green.
 - [ ] **T3 — Header/action rules.** `DetailPageHeader` ≤2 visible + overflow menu; apply to students/[id], classes/[id]; tab-scoped primary actions into toolbar `actions` (fees, academic-years). *Accept:* no detached action rows; students/[id] shows ≤2 buttons + `⋯`.
 - [ ] **T4 — Mark `priority: "low"` columns on every admin list** (mechanical; per-module subagents). *Accept:* Playwright 390px row-action visibility check passes on all list routes.
-- [ ] **T5 — Komponen Biaya redesign** (`app/admin/fees/page.tsx`, `components/admin/fees/*`, `config/admin-nav.ts`). *Accept:* all Komponen Biaya criteria; fees Vitest updated; e2e touching fees green.
+- [ ] **T5 — Komponen Biaya redesign** (`app/admin/fees/page.tsx`, `components/admin/fees/*`, Settings-hub card copy in `config/admin-nav.ts`). *Accept:* all Komponen Biaya criteria; fees Vitest updated; e2e touching fees green.
 - [ ] **T6 — Confirm/dialog outliers** (raport-editor, line-editor, journal forms, teacher-swap). *Accept:* grep finds no raw `AlertDialog`/form `Dialog` in admin outside the shared components + the documented admissions exception.
 - [ ] **T7 — List/row outliers** (campuses DataTable, name-is-the-link across lists, StatusBadge ternaries, payroll link button, file input, truncation). *Accept:* criteria above; campuses tests updated.
 - [ ] **T8 — Date and money input sweep** (20 date files, remaining money inputs, employee salary). *Accept:* `grep 'type="date"'` in `app/admin` + `components/admin` returns only `date-picker.tsx`.
