@@ -14,7 +14,10 @@ import { z } from "zod";
 const ymdRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 export const holidaySchema = z.object({
-  date: z.string().regex(ymdRegex, "Format tanggal harus YYYY-MM-DD"),
+  date: z
+    .string()
+    .min(1, "Tanggal wajib diisi")
+    .regex(ymdRegex, "Format tanggal harus YYYY-MM-DD"),
   name: z
     .string()
     .trim()

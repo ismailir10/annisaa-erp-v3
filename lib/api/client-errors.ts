@@ -18,11 +18,44 @@
  * user. `userMessage()` then passes that message through and falls back
  * to the caller-supplied copy for every other error shape.
  */
+export type ApiFieldError = { field: string; message: string };
+
 export class ApiError extends Error {
-  constructor(message: string) {
+  /** Per-field messages from a `validateBody` 400 (`errors[]`); empty otherwise. */
+  readonly fieldErrors: ApiFieldError[];
+  readonly status?: number;
+
+  constructor(message: string, options: { fieldErrors?: ApiFieldError[]; status?: number } = {}) {
     super(message);
     this.name = "ApiError";
+    this.fieldErrors = options.fieldErrors ?? [];
+    this.status = options.status;
   }
+}
+
+function isFieldError(value: unknown): value is ApiFieldError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as ApiFieldError).field === "string" &&
+    typeof (value as ApiFieldError).message === "string"
+  );
+}
+
+/**
+ * Build an `ApiError` from a failed response's standard envelope
+ * `{ error, errors?: [{ field, message }] }`. A body that is missing, not
+ * JSON, or has no `error` string falls back to `fallback`.
+ */
+export async function readApiError(res: Response, fallback: string): Promise<ApiError> {
+  const body: unknown = await res.json().catch(() => null);
+  const envelope = (typeof body === "object" && body !== null ? body : {}) as {
+    error?: unknown;
+    errors?: unknown;
+  };
+  const message = typeof envelope.error === "string" && envelope.error.trim() ? envelope.error : fallback;
+  const fieldErrors = Array.isArray(envelope.errors) ? envelope.errors.filter(isFieldError) : [];
+  return new ApiError(message, { fieldErrors, status: res.status });
 }
 
 /**

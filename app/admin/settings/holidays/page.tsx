@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
@@ -20,6 +20,10 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { holidaySchema } from "@/lib/validations/holiday";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Holiday = {
   id: string;
@@ -35,13 +39,15 @@ const TYPE_LABELS: Record<string, string> = {
   SCHOOL_CLOSURE: "Penutupan Sekolah",
 };
 
+const EMPTY_FORM = { date: "", name: "", type: "NATIONAL", isHalfDay: false };
+
 export default function HolidaysPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Holiday | null>(null);
-  const [form, setForm] = useState({ date: "", name: "", type: "NATIONAL", isHalfDay: false });
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(holidaySchema, { defaultValues: EMPTY_FORM });
   const [deleteTarget, setDeleteTarget] = useState<Holiday | null>(null);
   const [query, setQuery] = useState("");
 
@@ -56,36 +62,30 @@ export default function HolidaysPage() {
 
   function openNew() {
     setEditing(null);
-    setForm({ date: "", name: "", type: "NATIONAL", isHalfDay: false });
+    form.reset(EMPTY_FORM);
     setDialogOpen(true);
   }
 
   function openEdit(h: Holiday) {
     setEditing(h);
-    setForm({ date: h.date, name: h.name, type: h.type, isHalfDay: h.isHalfDay });
+    form.reset({ date: h.date, name: h.name, type: h.type, isHalfDay: h.isHalfDay });
     setDialogOpen(true);
   }
 
-  async function handleSave() {
-    if (!form.date || !form.name.trim()) { toast.error("Tanggal dan nama wajib diisi"); return; }
-    setSaving(true);
-    const url = editing ? `/api/config/holidays/${editing.id}` : "/api/config/holidays";
-    const method = editing ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+  const handleSave = form.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editing ? `/api/config/holidays/${editing.id}` : "/api/config/holidays",
+        { method: editing ? "PUT" : "POST", body: values },
+        "Gagal menyimpan",
+      );
       toast.success(editing ? "Hari libur diperbarui" : "Hari libur ditambahkan");
       setDialogOpen(false);
       fetchHolidays();
-    } else {
-      const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-    setSaving(false);
-  }
+  });
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -200,36 +200,63 @@ export default function HolidaysPage() {
         onOpenChange={setDialogOpen}
         title={editing ? "Edit Hari Libur" : "Tambah Hari Libur"}
         description="Hari libur mempengaruhi perhitungan hari kerja"
-        footer={<>
-          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
-          </Button>
-        </>}
+        footer={
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Hari Libur"}
+          />
+        }
       >
-            <Field>
-              <FieldLabel required htmlFor="holiday-date">Tanggal</FieldLabel>
-              <DatePicker id="holiday-date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} required />
-            </Field>
-            <Field>
-              <FieldLabel required htmlFor="holiday-name">Nama</FieldLabel>
-              <Input id="holiday-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Hari Raya Idul Fitri" required aria-required="true" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="holiday-type">Tipe</FieldLabel>
-              <Select value={form.type} onValueChange={(v) => v && setForm({ ...form, type: v })} items={{ NATIONAL: "Nasional", ISLAMIC: "Keagamaan", SCHOOL_CLOSURE: "Penutupan Sekolah" }}>
-                <SelectTrigger id="holiday-type"><SelectValue /></SelectTrigger>
+        <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="date"
+            label="Tanggal"
+            required
+            id="holiday-date"
+            render={({ field, controlProps }) => (
+              <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="name"
+            label="Nama"
+            required
+            id="holiday-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="Hari Raya Idul Fitri" />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="type"
+            label="Tipe"
+            id="holiday-type"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} items={TYPE_LABELS}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NATIONAL">Nasional</SelectItem>
                   <SelectItem value="ISLAMIC">Islam</SelectItem>
                   <SelectItem value="SCHOOL_CLOSURE">Penutupan Sekolah</SelectItem>
                 </SelectContent>
               </Select>
-            </Field>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={form.isHalfDay} onCheckedChange={(c) => setForm({ ...form, isHalfDay: !!c })} />
-              Setengah hari
-            </label>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="isHalfDay"
+            label="Setengah hari"
+            orientation="horizontal"
+            render={({ field, controlProps }) => (
+              <Checkbox {...controlProps} checked={!!field.value} onCheckedChange={(c) => field.onChange(!!c)} onBlur={field.onBlur} />
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
     </>
   );
