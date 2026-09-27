@@ -125,4 +125,6 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 - Task 6: same gate run as Task 5 (combined tree) — build exit 0; vitest 383 files / 3582 tests passed. New tests: line-editor delete confirm (cancel / success / failure keeps open), student-journal category dialog, teacher-swap hidden when archived, export dialog render/Escape, raport unpublish confirm. design-system: overlays follow §13 (ResponsiveFormDialog, ConfirmDialog).
 
+- CI `Playwright E2E` on `57b7506` failed 1/162: `e2e/admin-fees-keringanan.spec.ts:141` looked for the row menu by the old unlabelled name "Buka menu"; T5 now passes `rowLabel`, so the trigger is "Aksi untuk <siswa>". Selector widened to `/Aksi untuk|Buka menu/i` there and in `e2e/admin.spec.ts:366` (same pattern). Not a product regression.
+
 ## Ship Notes

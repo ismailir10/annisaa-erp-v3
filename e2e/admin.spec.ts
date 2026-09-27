@@ -363,7 +363,7 @@ test.describe("Admin flows", () => {
     // roll-forward action.
     const targetRow = page.getByRole("row").filter({ hasText: targetName });
     await expect(targetRow).toBeVisible({ timeout: 10_000 });
-    await targetRow.getByRole("button", { name: /Buka menu/i }).click();
+    await targetRow.getByRole("button", { name: /Aksi untuk|Buka menu/i }).click();
     await page.getByRole("menuitem", { name: /Salin Kelas ke Tahun Ini/i }).click();
 
     // Roll-forward dialog: pick the source year, submit.

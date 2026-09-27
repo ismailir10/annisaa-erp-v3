@@ -138,7 +138,7 @@ test.describe("Admin /admin/fees — Keringanan tab", () => {
     await expect(newRow.first()).toBeVisible({ timeout: 15_000 });
 
     // --- Deactivate via row action + confirm dialog -----------------------
-    await newRow.first().getByRole("button", { name: /Buka menu/i }).click();
+    await newRow.first().getByRole("button", { name: /Aksi untuk|Buka menu/i }).click();
     await page.getByRole("menuitem", { name: "Nonaktifkan" }).click();
     const confirmDialog = page.getByRole("alertdialog");
     await expect(confirmDialog).toBeVisible({ timeout: 10_000 });
