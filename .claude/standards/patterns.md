@@ -25,27 +25,39 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 **Layout skeleton:**
 
 ```tsx
-<SidebarInset>
-  <SiteHeader breadcrumbs={[{ label: "Siswa", href: "/admin/students" }]} />
-  <main className="flex flex-1 flex-col p-page-x py-page-y">
-    <PageHeader
-      title="Siswa"
-      subtitle="Kelola data siswa aktif dan riwayat"
-      actions={<Button>Tambah Siswa</Button>}
+// Breadcrumb + sidebar chrome come from app/admin/layout.tsx (AppSidebar +
+// AdminBreadcrumb) — a list page starts at PageHeader, no SiteHeader.
+<>
+  <PageHeader
+    title="Siswa"
+    subtitle="Kelola data siswa aktif dan riwayat"
+    actions={<Button>Tambah Siswa</Button>}
+  />
+  <section className="mt-section">
+    <DataTableToolbar
+      searchPlaceholder="Cari nama / NIS..."
+      value={search}
+      onValueChange={setSearch}
+      filters={[
+        {
+          key: "status",
+          label: "Status",
+          options: [
+            { value: "ALL", label: "Semua Status" },
+            { value: "ACTIVE", label: "Aktif" },
+            { value: "INACTIVE", label: "Tidak Aktif" },
+          ],
+          value: status,
+          onChange: setStatus,
+        },
+      ]}
     />
-    <section className="mt-section">
-      <DataTable
-        columns={columns}
-        data={rows}
-        searchPlaceholder="Cari nama / NIS..."
-        statusFilter={<StatusFilter value={s} onChange={setS} />}
-      />
-    </section>
-  </main>
-</SidebarInset>
+    <DataTable columns={columns} data={rows} pagination={pagination} />
+  </section>
+</>
 ```
 
-**Required pieces:** breadcrumb in SiteHeader · PageHeader with title + subtitle + primary CTA · DataTable with sort + search + status filter + pagination + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns (sortable, muted) · EmptyState via `DataTable`'s empty slot.
+**Required pieces:** breadcrumb comes free from `app/admin/layout.tsx`'s `AdminBreadcrumb` — a list page's own root starts at `PageHeader` · `PageHeader` with title + static subtitle + primary CTA in `actions` (unless the CTA is tab-scoped — then it goes in the toolbar's `actions`, see `ui.md` Primary-Action Placement) · `DataTableToolbar` with search + status `filters` entry (Aktif/Tidak Aktif at minimum) · `DataTable` with sort + pagination + a `DataTableLinkCell` identity column ("name is the link", see `ui.md`) + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns `meta: { priority: "low" }` (hidden below `md`, see `ui.md` DataTable mobile contract) · EmptyState via `DataTable`'s empty slot.
 
 **Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `p-page-x` / `py-page-y` from the spacing scale).
 

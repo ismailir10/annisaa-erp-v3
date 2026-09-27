@@ -8,7 +8,7 @@ Entities fall into **three categories**. Pick the right one before you build —
 
 ## Category A — Binary soft-delete entities (default)
 
-**Who:** User, Campus, Holiday, OrgConfig, Employee, Student, Guardian (StudentGuardian), StudentEnrollment, TeachingAssignment, Program, ClassSection, FeeComponentDef, ProgramFeeStructure, AcademicYear, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, SalaryComponentDef, LeaveRequest.
+**Who:** User, Campus, OrgConfig, Employee, Student, Guardian (StudentGuardian), StudentEnrollment, TeachingAssignment, Program, ClassSection, FeeComponentDef, ProgramFeeStructure, AcademicYear, AssessmentTemplate, AssessmentCategory, AssessmentIndicator, SalaryComponentDef, LeaveRequest.
 
 | Operation | UI Pattern | API Pattern |
 |-----------|-----------|-------------|
@@ -20,7 +20,9 @@ Entities fall into **three categories**. Pick the right one before you build —
 - **NEVER hard delete records.** Use `status` field with `ACTIVE` / `INACTIVE`.
 - All list queries default to `WHERE status IN ('ACTIVE')` unless filter says otherwise.
 - DataTable status filter always includes "Semua Status", "Aktif", "Tidak Aktif".
-- DataTable action column: `<DataTableRowActions>` with `onView` + `onEdit` + `onDeactivate`.
+- DataTable action column: `<DataTableRowActions>` with identity-cell link (see `ui.md` "Name is the link") + `onEdit` + `onDeactivate`.
+
+**Documented exception — Holiday.** Holiday has no `status` field and is intentionally hard-deleted (`app/api/config/holidays/[id]/route.ts` — `DELETE` calls `prisma.holiday.delete`, not a status update): it's a config entity naming a single calendar day, not a record with a lifecycle worth preserving, and deleting one must free that day back to a normal working day. Its list/dialog otherwise follows Category A (DataTable, `ResponsiveFormDialog` create/edit) — only the terminal action differs: `<ConfirmDialog destructive>` calling `DELETE`, not deactivate.
 
 ## Category B — State-machine entities (workflow)
 
@@ -34,8 +36,8 @@ Status is a state machine, not a binary flag — `Deactivate` doesn't apply. The
 | Invoice | `DRAFT → SENT → PARTIALLY_PAID → PAID` · `OVERDUE` · `CANCELLED` | Void | "Batalkan" | `POST /api/invoices/[id]/void` |
 | PayrollRun | `DRAFT → APPROVED → SLIPS_SENT` | (none — workflow-only) | — | `POST /api/payroll/[id]/{approve,send-slips,export/bsi}` |
 
-- Row action column: `<DataTableRowActions>` with `onView` + `onEdit` + `onCancel` **or** `onVoid` (domain-appropriate). Terminal action is **hidden or disabled** when the row is already in a terminal state (`CANCELLED` / `PAID` / `VOIDED`).
-- PayrollRun has no terminal "cancel" — its actions are workflow transitions handled on the detail page, not the list. Its list row exposes `onView` only; this is a **documented exception**.
+- Row identity cell links to the detail page (`DataTableLinkCell` — see `ui.md` "Name is the link"); action column: `<DataTableRowActions>` with `onEdit` + `onCancel` **or** `onVoid` (domain-appropriate). Terminal action is **hidden or disabled** when the row is already in a terminal state (`CANCELLED` / `PAID` / `VOIDED`).
+- PayrollRun has no terminal "cancel" — its actions are workflow transitions handled on the detail page, not the list. Its list row is link-cell-only (no `⋯` menu at all — no `onEdit`, no terminal action); this is a **documented exception**.
 - All mutation endpoints still require Zod validation and `canViewSalary(session.role)` where relevant.
 
 ## Category C — Event-log entities (no CRUD, event + void)
@@ -101,6 +103,8 @@ DetailPageHeader (title + description + StatusBadge + action buttons)
     ├── RailCard × N (contact, checklist, ...)
     └── quick-contact actions
 ```
+
+`DetailPageHeader`'s action buttons follow `ui.md`'s Detail Header Actions rule (≤2 visible `primaryActions`, everything else + every destructive action in `menuActions`) — see that file for the prop shape; not restated here.
 
 ## Edit Toggle Pattern (Detail Pages)
 
