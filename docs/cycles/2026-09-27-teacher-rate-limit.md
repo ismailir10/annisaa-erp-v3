@@ -25,9 +25,18 @@ The same IP-keyed pattern sits on the other teacher write paths: `/api/teacher/s
 - [x] **T1 — Per-user teacher write limits.** Budgets, four routes, regression test. *Accept:* new test fails on HEAD (tap 11 → 429) and passes after; gates green. *Depends on:* none.
 
 ## Implementation
+- Subagent plan: driver=claude-opus-5-5, no subagents — one task, five files; fan-out costs more than it saves.
 - Task 1: `lib/api/rate-limit-budgets.ts` gains `ATTENDANCE_TAP_BUDGET` (180/min) and `SESSION_ATTENDANCE_SAVE_BUDGET` (30/min) with the shared-Wi-Fi reasoning. `student-attendance/mark` and `teacher/sessions/[id]/attendance` now call `getSession()` first and key the bucket `…:${session.id}`; the two assessment-entry routes swap `getClientIp(req)` for `session.id`. New `app/api/__tests__/teacher-write-rate-limit.test.ts` uses the real in-memory limiter; on HEAD it fails with "bu-ani tap 11: expected 429 to be 200" — the reported bug.
 
 ## Verification
 - Task 1: `npm run build` exit 0; `npx vitest run` 412 files passed / 2 skipped, 3816 tests passed; eslint clean on touched files. Regression test red on HEAD route (tap 11 → 429), green after.
 
+- Playwright: local run deferred to CI (env cannot execute it — no local Postgres or Docker on this machine; `.env` points at hosted Supabase, which the e2e guard refuses).
+  Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+- `bash scripts/audit-docs.sh` 13 ok / 1 warn (pre-existing ADR window) / 0 fail after `--write` refreshed the counts block (new test file).
+- Soft-skip delta vs origin/staging: 0.
+
 ## Ship Notes
+- Behaviour change: teachers are throttled per account, not per school IP. Marking a whole class by tapping no longer hits "Terlalu banyak permintaan".
+- Rate-limit check moved after `getSession()` on the two attendance routes, so an unauthenticated request now 401s instead of 429ing; the limiter is no longer a pre-auth DoS shield there (auth is a cookie read; every other teacher route already works this way).
+- No schema, dependency or UI change.
