@@ -90,8 +90,13 @@ export function RupiahInput({
 
   React.useEffect(() => {
     if (value !== lastEmitted.current) {
+      // A parent that coerces a cleared field to 0 (`v ?? 0`) must not snap
+      // "0" back into the box mid-edit — the caret would land before it and
+      // the next keystrokes would build "7500000" from "750000". An empty
+      // box already reads as zero.
+      const clearedToZero = lastEmitted.current === null && value === 0
       lastEmitted.current = value
-      setDisplay(toDisplay(value))
+      if (!clearedToZero) setDisplay(toDisplay(value))
     }
   }, [value])
 

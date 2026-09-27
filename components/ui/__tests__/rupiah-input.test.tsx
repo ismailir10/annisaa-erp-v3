@@ -56,6 +56,21 @@ describe("RupiahInput", () => {
     expect(onValue).toHaveBeenLastCalledWith(null);
   });
 
+  it("stays empty (no snapped-back 0) when the parent coerces a cleared field to 0", async () => {
+    function ZeroCoercing() {
+      const [value, setValue] = useState<number>(500000);
+      return <RupiahInput aria-label="Tarif" value={value} onChange={(v) => setValue(v ?? 0)} />;
+    }
+    render(<ZeroCoercing />);
+    const input = screen.getByRole("textbox", { name: "Tarif" });
+
+    const user = userEvent.setup();
+    await user.clear(input);
+    expect(input).toHaveValue("");
+    await user.type(input, "750000");
+    expect(input).toHaveValue("750.000");
+  });
+
   it("strips a pasted 'Rp 2.000' down to digits and emits 2000", async () => {
     const onValue = vi.fn();
     render(<Harness onValue={onValue} />);
