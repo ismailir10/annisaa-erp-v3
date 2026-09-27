@@ -129,6 +129,121 @@ describe("Guardians: parentFormSchema (form) -> updateParentSchema (PUT /api/par
   });
 });
 
+// ── Student-detail guardian dialog — app/admin/students/[id]/page.tsx ─────
+// T3 (2026-09-27, admin-finish-standard): GuardianFormBody moved onto RHF;
+// its create/edit steps each run a form schema derived from the wire schema
+// they post to (lib/validations/guardian.ts). createNewParent/saveGuardian
+// send `values` (the parsed output) directly as the JSON body.
+describe("Student-detail guardian create: guardianCreateFormSchema (form) -> createGuardianSchema (POST .../guardians)", () => {
+  it("round-trips a full submission — address/childrenTotal/childOrder included (T3 data-loss fix)", async () => {
+    const { guardianCreateFormSchema, createGuardianSchema } = await import("../guardian");
+    const form = guardianCreateFormSchema.safeParse({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      phone: "081234567890",
+      whatsapp: "",
+      email: "siti@example.test",
+      parentNik: "",
+      education: "",
+      occupation: "",
+      incomeRange: "",
+      employer: "",
+      employerAddress: "",
+      employerCity: "",
+      address: "Jl. Merdeka No. 1",
+      childrenTotal: "2",
+      childOrder: "1",
+      isPrimary: false,
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.childrenTotal).toBe(2);
+    expect(form.data.childOrder).toBe(1);
+    // page.tsx's createNewParent sends `{ ...guardianCreatePayload(values), confirmNew }`;
+    // isPrimary is stripped here (Switch off), confirmNew added by the handler.
+    const body = wire({ ...form.data, isPrimary: undefined, confirmNew: true });
+    const route = createGuardianSchema.safeParse(body);
+    expect(route.success).toBe(true);
+    if (!route.success) return;
+    expect(route.data.address).toBe("Jl. Merdeka No. 1");
+    expect(route.data.childrenTotal).toBe(2);
+    expect(route.data.childOrder).toBe(1);
+  });
+
+  it("a blank childrenTotal collapses to explicit null (not 0 — lesson 3), a blank childOrder to undefined", async () => {
+    const { guardianCreateFormSchema, createGuardianSchema } = await import("../guardian");
+    const form = guardianCreateFormSchema.safeParse({
+      name: "Budi",
+      relationship: "AYAH",
+      childrenTotal: "",
+      childOrder: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    // childrenTotal: null (present key) so a PUT edit later can clear it
+    // (lesson 2) — see childrenTotalFormField's doc comment. childOrder
+    // keeps childOrderField's existing undefined-on-blank shape (shared,
+    // unchanged, with linkGuardianSchema/updateGuardianSchema).
+    expect(form.data.childrenTotal).toBeNull();
+    expect(form.data.childOrder).toBeUndefined();
+    expect(createGuardianSchema.safeParse(wire(form.data)).success).toBe(true);
+  });
+});
+
+describe("Student-detail guardian edit: guardianUpdateFormSchema (form) -> updateGuardianSchema (PUT .../guardians/[guardianId])", () => {
+  it("round-trips every field, including a cleared address/childrenTotal (lesson 2)", async () => {
+    const { guardianUpdateFormSchema, updateGuardianSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      phone: "081234567890",
+      whatsapp: "",
+      email: "",
+      parentNik: "",
+      education: "",
+      occupation: "",
+      incomeRange: "",
+      employer: "",
+      employerAddress: "",
+      employerCity: "",
+      address: "",
+      childrenTotal: "",
+      childOrder: "2",
+      isPrimary: true,
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.childrenTotal).toBeNull();
+    expect(form.data.childOrder).toBe(2);
+    // saveGuardian (page.tsx) sends `values` directly as the PUT body.
+    const route = updateGuardianSchema.safeParse(wire(form.data));
+    expect(route.success).toBe(true);
+    if (!route.success) return;
+    expect(route.data.address).toBe("");
+    expect(route.data.childrenTotal).toBeNull();
+  });
+
+  it("a cleared Anak ke- is sent as null (a clear), not dropped", async () => {
+    const { guardianUpdateFormSchema, updateGuardianSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({ name: "Siti", relationship: "IBU", childOrder: "" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire(form.data) as Record<string, unknown>;
+    expect("childOrder" in body).toBe(true);
+    expect(body.childOrder).toBeNull();
+    const route = updateGuardianSchema.safeParse(body);
+    expect(route.success && route.data.childOrder).toBeNull();
+  });
+
+  it("a cleared Nama is rejected client-side with an inline message, not silently sent", async () => {
+    const { guardianUpdateFormSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({ name: "", relationship: "IBU" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.path.join(".") === "name" && i.message.includes("wajib diisi"))).toBe(true);
+  });
+});
+
 // ── Payroll — app/admin/(hr)/payroll/[id]/page.tsx ──────────────────────────
 describe("Payroll variables: payrollVariablesSchema (form) -> payrollVariablesSchema (route, same object)", () => {
   it("a fully-blanked variables form collapses every field to 0 and round-trips", async () => {

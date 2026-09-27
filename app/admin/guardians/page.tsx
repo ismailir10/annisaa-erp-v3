@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { useWatch } from "react-hook-form";
+import type { Control } from "react-hook-form";
 import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -20,7 +20,7 @@ import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Users, UserCheck, UserX } from "lucide-react";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
 import { parentFormSchema } from "@/lib/validations/parent";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -144,37 +144,6 @@ export default function GuardiansPage() {
   const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
   const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
 
-  // `GuardianFormBody` (components/admin/guardian-edit-dialog.tsx) is shared
-  // with the Student-detail and Guardian-detail pages — both out of scope
-  // for this cycle — so its `form`/`setForm` contract stays as-is. Bridge
-  // react-hook-form state to it instead: `watched` mirrors the live values
-  // for display, `handleFormBodyChange` writes every keystroke back into
-  // the form. `relationship`/`childOrder`/`isPrimary` are T8 junction
-  // fields this page never renders (`showRelationship={false}`) and aren't
-  // part of `parentFormSchema` — they stay fixed at their EMPTY defaults.
-  const watched = useWatch({ control: editForm.control });
-  const bridgedForm: GuardianForm = {
-    ...EMPTY_GUARDIAN_FORM,
-    name: (watched.name as string | undefined) ?? "",
-    phone: (watched.phone as string | undefined) ?? "",
-    whatsapp: (watched.whatsapp as string | undefined) ?? "",
-    email: (watched.email as string | undefined) ?? "",
-    address: (watched.address as string | undefined) ?? "",
-    parentNik: (watched.parentNik as string | undefined) ?? "",
-    education: (watched.education as string | undefined) ?? "",
-    occupation: (watched.occupation as string | undefined) ?? "",
-    incomeRange: (watched.incomeRange as string | undefined) ?? "",
-    employer: (watched.employer as string | undefined) ?? "",
-    employerAddress: (watched.employerAddress as string | undefined) ?? "",
-    employerCity: (watched.employerCity as string | undefined) ?? "",
-    childrenTotal: (watched.childrenTotal as string | undefined) ?? "",
-  };
-  function handleFormBodyChange(next: GuardianForm) {
-    (Object.keys(EMPTY_PARENT_FORM) as (keyof ParentFormValues)[]).forEach((key) => {
-      editForm.setValue(key, next[key] as never, { shouldDirty: true });
-    });
-  }
-
   // Stats — re-fetched after any mutation (edit / status toggle) so the
   // cards don't go stale.
   const fetchStats = useCallback(() => {
@@ -259,25 +228,18 @@ export default function GuardiansPage() {
   // /admin/guardians is a Parent-list page despite its URL; mutations go to
   // /api/parents/[id]. The /api/guardians/[id] tree edits StudentGuardian
   // junction rows (used from the Student detail page).
-  const handleEditSave = editForm.handleSubmit(
-    async (values) => {
-      if (!editTarget) return;
-      try {
-        await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
-        toast.success("Data wali diperbarui");
-        setEditTarget(null);
-        fetchGuardians();
-        fetchStats();
-      } catch (err) {
-        applyServerErrors(editForm, err, "Gagal menyimpan");
-      }
-    },
-    // GuardianFormBody renders no inline error slot for `name` (it isn't a
-    // `FormField`), so a client-side validation failure needs a toast or it
-    // is a silent no-op click — `name` is the only field this schema can
-    // reject client-side (every other field is optional/permissive).
-    () => toast.error("Nama wajib diisi"),
-  );
+  const handleEditSave = editForm.handleSubmit(async (values) => {
+    if (!editTarget) return;
+    try {
+      await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Data wali diperbarui");
+      setEditTarget(null);
+      fetchGuardians();
+      fetchStats();
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal menyimpan");
+    }
+  });
 
   async function handleStatusToggle() {
     if (!deactivateTarget) return;
@@ -382,7 +344,15 @@ export default function GuardiansPage() {
       >
         <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
           <FormRootError formState={editForm.formState} />
-          <GuardianFormBody form={bridgedForm} setForm={handleFormBodyChange} showRelationship={false} />
+          {/* Boundary cast: `parentFormSchema`'s parsed values don't line up
+              1:1 with `GuardianFieldValues` field-by-field (e.g. its
+              preprocessed `email`/`childrenTotal` are typed `unknown`, not
+              optional), which RHF's `Control` can't unify generically —
+              see the identical cast inside GuardianFormBody itself. */}
+          <GuardianFormBody
+            control={editForm.control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>}
+            showRelationship={false}
+          />
         </form>
       </ResponsiveFormDialog>
 

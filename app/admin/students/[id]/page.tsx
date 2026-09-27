@@ -34,7 +34,15 @@ import {
 import { ParentPicker, type PickableParent } from "@/components/admin/parent-picker";
 import type { ParentCandidate } from "@/lib/parent/match";
 import { deriveSiblings } from "@/lib/parent/siblings";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, guardianCreatePayload, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import type { Control } from "react-hook-form";
+import {
+  GuardianFormBody,
+  EMPTY_GUARDIAN_FORM,
+  guardianCreatePayload,
+  type GuardianFieldValues,
+} from "@/components/admin/guardian-edit-dialog";
+import { guardianCreateFormSchema, guardianUpdateFormSchema } from "@/lib/validations/guardian";
+import { useZodForm } from "@/lib/forms/use-zod-form";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 import { StudentEnrollDialog } from "@/components/admin/student-enroll-dialog";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
@@ -153,7 +161,19 @@ export default function StudentDetailPage() {
   // Guardian dialog
   const [guardianDialog, setGuardianDialog] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<Guardian | null>(null);
-  const [guardianForm, setGuardianForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
+  // T3: create and edit each run their own RHF form on a schema derived from
+  // the route they post to (lib/validations/guardian.ts) — create's also
+  // carries `confirmNew` + `childOrder` (T3 data-loss fix). `as const` keeps
+  // `relationship`'s literal union type; without it `EMPTY_GUARDIAN_FORM`'s
+  // widened `string` wouldn't satisfy either schema's enum.
+  const createGuardianForm = useZodForm(guardianCreateFormSchema, {
+    defaultValues: { ...EMPTY_GUARDIAN_FORM, relationship: "WALI" as const },
+  });
+  const editGuardianForm = useZodForm(guardianUpdateFormSchema, {
+    defaultValues: { ...EMPTY_GUARDIAN_FORM, relationship: "WALI" as const },
+  });
+  // Still owns the link step's "Tautkan Wali" / candidates step's "Tetap
+  // Buat Baru" pending state — those two flows stay a plain fetch, not RHF.
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
   const [setPrimaryTarget, setSetPrimaryTarget] = useState<Guardian | null>(null);
@@ -615,7 +635,7 @@ export default function StudentDetailPage() {
   // --- Guardian CRUD ---
   function openAddGuardian() {
     setEditingGuardian(null);
-    setGuardianForm(EMPTY_GUARDIAN_FORM);
+    createGuardianForm.reset({ ...EMPTY_GUARDIAN_FORM, relationship: "WALI" as const });
     // Search-first: most "new" wali are a sibling's parent already on file.
     setGuardianStep("link");
     setPickedParent(null);
@@ -628,12 +648,18 @@ export default function StudentDetailPage() {
   // useCallback + a memoised card: the dossier renders a much bigger tree than
   // the old tab layout, so every page-level state change (typing a reason into
   // the enroll dialog, for instance) used to re-render every wali card. Stable
-  // handlers are what let React.memo actually skip that work.
+  // handlers are what let React.memo actually skip that work. `editGuardianForm`
+  // (react-hook-form's returned object) is referentially stable — omitted from
+  // deps the same way the enroll dialog omits `form` (see StudentEnrollDialog).
   const openEditGuardian = useCallback((g: Guardian) => {
     setEditingGuardian(g);
-    setGuardianForm({
+    editGuardianForm.reset({
       name: g.parent.name,
-      relationship: g.relationship,
+      // `Guardian`'s `relationship` is a plain `string` (it round-trips
+      // legacy values like "PARENT", see parent-options.ts) — narrower than
+      // the schema's enum. The Select can only ever set one of the four
+      // enum values, so this is a display-only widening, not new input.
+      relationship: g.relationship as "AYAH" | "IBU" | "WALI" | "OTHER",
       phone: g.parent.phone ?? "",
       whatsapp: g.parent.whatsapp ?? "",
       email: g.parent.email ?? "",
@@ -650,34 +676,24 @@ export default function StudentDetailPage() {
       isPrimary: g.isPrimary,
     });
     setGuardianDialog(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function saveGuardian() {
-    if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
-    setSavingGuardian(true);
-    const url = editingGuardian ? `/api/students/${id}/guardians/${editingGuardian.id}` : `/api/students/${id}/guardians`;
-    const method = editingGuardian ? "PUT" : "POST";
-    // childrenTotal is a string in the form (Input value) but the schema
-    // coerces — send "" as null so the schema's optional/nullable path fires
-    // rather than coercing the empty string to NaN.
-    // FIND-010: on CREATE, strip isPrimary unless the admin switched it on
-    // so the server's sibling-count default can fire (see helper doc
-    // comment). The EDIT (PUT) path sends isPrimary as-is — demoting via the
-    // Switch is legitimate there.
-    const payload: Record<string, unknown> = editingGuardian
-      ? { ...guardianForm }
-      : { ...guardianCreatePayload(guardianForm) };
-    if (payload.childrenTotal === "") payload.childrenTotal = null;
-    else payload.childrenTotal = Number(payload.childrenTotal);
-    // T8: same coercion for childOrder. Empty → null clears the column;
-    // non-empty → number for the z.coerce.number().int() schema.
-    if (payload.childOrder === "") payload.childOrder = null;
-    else payload.childOrder = Number(payload.childOrder);
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) { toast.success(editingGuardian ? "Data wali diperbarui" : "Wali ditambahkan"); setGuardianDialog(false); fetchStudent(); }
+  // `values` is guardianUpdateFormSchema's parsed OUTPUT — childrenTotal/
+  // childOrder already coerced to number|null by the schema, so (unlike the
+  // pre-RHF handler) no manual `Number(...)`/"" → null conversion is needed
+  // here. Sent as-is, including cleared fields (lesson 2) — isPrimary goes
+  // through unchanged too, since demoting via the Switch is legitimate here.
+  const saveGuardian = editGuardianForm.handleSubmit(async (values) => {
+    if (!editingGuardian) return;
+    const res = await fetch(`/api/students/${id}/guardians/${editingGuardian.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
+    if (res.ok) { toast.success("Data wali diperbarui"); setGuardianDialog(false); fetchStudent(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setSavingGuardian(false);
-  }
+  });
 
   // --- Tambah Wali: link an existing parent ---
   async function linkExistingParent(parentId: string) {
@@ -712,46 +728,44 @@ export default function StudentDetailPage() {
    * name / phone / NIK / email already matches a wali on file; that is not an
    * error to toast away but a decision to put in front of the admin, so it
    * switches the overlay to the candidates step. `confirmNew` is the
-   * "I looked, create anyway" escape.
+   * "I looked, create anyway" escape — resubmits the same (already-validated)
+   * form values, so this returns a fresh `handleSubmit`-wrapped function
+   * rather than running the submit itself.
    */
-  async function createNewParent(confirmNew: boolean) {
-    if (!guardianForm.name.trim()) { toast.error("Nama wali wajib diisi"); return; }
-    setSavingGuardian(true);
-    try {
-      // FIND-010: strip isPrimary unless switched on — see saveGuardian().
-      const payload: Record<string, unknown> = { ...guardianCreatePayload(guardianForm), confirmNew };
-      payload.childrenTotal = guardianForm.childrenTotal === "" ? null : Number(guardianForm.childrenTotal);
-      payload.childOrder = guardianForm.childOrder === "" ? null : Number(guardianForm.childOrder);
-
-      const res = await fetch(`/api/students/${id}/guardians`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        toast.success("Wali ditambahkan");
-        setGuardianDialog(false);
-        fetchStudent();
-        return;
+  function createNewParent(confirmNew: boolean) {
+    return createGuardianForm.handleSubmit(async (values) => {
+      try {
+        // FIND-010: strip isPrimary unless switched on — see the helper's doc
+        // comment in guardian-edit-dialog.tsx.
+        const payload = { ...guardianCreatePayload(values), confirmNew };
+        const res = await fetch(`/api/students/${id}/guardians`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          toast.success("Wali ditambahkan");
+          setGuardianDialog(false);
+          fetchStudent();
+          return;
+        }
+        const d = await res.json().catch(() => ({}));
+        if (res.status === 409 && d.code === "PARENT_CANDIDATES") {
+          setCandidates(d.candidates ?? []);
+          // Carry the relationship/urutan the admin already typed so choosing
+          // "Tautkan" here doesn't silently fall back to the link-step defaults.
+          setLinkRelationship(values.relationship || "IBU");
+          setLinkChildOrder(values.childOrder != null ? String(values.childOrder) : "");
+          // Focus moves to the advisory in the effect above, matching the enroll
+          // dialog's 409 handling.
+          setGuardianStep("candidates");
+          return;
+        }
+        toast.error(d.error || "Gagal menambahkan wali");
+      } catch {
+        toast.error("Terjadi kesalahan jaringan");
       }
-      const d = await res.json().catch(() => ({}));
-      if (res.status === 409 && d.code === "PARENT_CANDIDATES") {
-        setCandidates(d.candidates ?? []);
-        // Carry the relationship/urutan the admin already typed so choosing
-        // "Tautkan" here doesn't silently fall back to the link-step defaults.
-        setLinkRelationship(guardianForm.relationship || "IBU");
-        setLinkChildOrder(guardianForm.childOrder ?? "");
-        // Focus moves to the advisory in the effect above, matching the enroll
-        // dialog's 409 handling.
-        setGuardianStep("candidates");
-        return;
-      }
-      toast.error(d.error || "Gagal menambahkan wali");
-    } catch {
-      toast.error("Terjadi kesalahan jaringan");
-    } finally {
-      setSavingGuardian(false);
-    }
+    });
   }
 
   async function deactivateGuardian() {
@@ -1897,13 +1911,14 @@ export default function StudentDetailPage() {
             </>
           );
         } else if (addingGuardian && guardianStep === "candidates") {
+          const confirmingNew = createGuardianForm.formState.isSubmitting;
           guardianFooter = (
             <>
-              <Button variant="ghost" onClick={() => setGuardianStep("create")} disabled={savingGuardian}>
+              <Button variant="ghost" onClick={() => setGuardianStep("create")} disabled={confirmingNew}>
                 Kembali
               </Button>
-              <Button variant="outline" onClick={() => createNewParent(true)} disabled={savingGuardian}>
-                {savingGuardian ? "Memproses..." : "Tetap Buat Baru"}
+              <Button variant="outline" onClick={createNewParent(true)} disabled={confirmingNew}>
+                {confirmingNew ? "Memproses..." : "Tetap Buat Baru"}
               </Button>
             </>
           );
@@ -1944,21 +1959,38 @@ export default function StudentDetailPage() {
             </div>
           );
         } else {
-          guardianBody = <GuardianFormBody form={guardianForm} setForm={setGuardianForm} />;
+          const guardianPending = editingGuardian
+            ? editGuardianForm.formState.isSubmitting
+            : createGuardianForm.formState.isSubmitting;
+          // Boundary cast: the ternary unions two distinct RHF `Control`
+          // types (create/edit each parse a different schema), which
+          // `GuardianFormBody`'s single generic type parameter can't be
+          // inferred against — see the identical cast inside that component.
+          guardianBody = (
+            <GuardianFormBody
+              control={
+                (editingGuardian ? editGuardianForm.control : createGuardianForm.control) as unknown as Control<
+                  GuardianFieldValues,
+                  unknown,
+                  GuardianFieldValues
+                >
+              }
+            />
+          );
           guardianFooter = (
             <>
               <Button
                 variant="ghost"
                 onClick={() => (addingGuardian ? setGuardianStep("link") : setGuardianDialog(false))}
-                disabled={savingGuardian}
+                disabled={guardianPending}
               >
                 {addingGuardian ? "Kembali" : "Batal"}
               </Button>
               <Button
-                onClick={() => (addingGuardian ? createNewParent(false) : saveGuardian())}
-                disabled={savingGuardian}
+                onClick={addingGuardian ? createNewParent(false) : saveGuardian}
+                disabled={guardianPending}
               >
-                {savingGuardian ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}
+                {guardianPending ? "Menyimpan..." : editingGuardian ? "Simpan Perubahan" : "Tambah Wali"}
               </Button>
             </>
           );

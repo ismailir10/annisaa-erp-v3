@@ -98,7 +98,7 @@ dependency; teacher/parent portals.
   columns memo), tests incl. round-trip flip.
 - [x] **T2 classes/[id]** — swap/edit/add dialogs on RHF + split into `components/admin/classes/detail/*`;
   `lib/validations/class-session.ts`, class-sessions route; Kondisi StatusBadge on classes list.
-- [ ] **T3 GuardianFormBody on RHF** — `components/admin/guardian-edit-dialog.tsx`, guardians list +
+- [x] **T3 GuardianFormBody on RHF** — `components/admin/guardian-edit-dialog.tsx`, guardians list +
   detail pages, guardian create route persists address/childrenTotal/childOrder
   (`lib/validations/guardian.ts`), students/[id] caller minimally adapted.
 - [ ] **T4 students/[id] split + forms** (after T3) — `components/admin/students/detail/*`, page as
@@ -127,6 +127,8 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 7: lists & polish — columns memoised (student-attendance, employee-attendance, holidays, fees component columns — moved above the early loading return, keringanan) or module-level (dashboard work-queue) with `useCallback` handlers; the attendance-override test's 20-tick settle + 5-try click retry removed (the remounting columns were the real cause). `DataTable` `emptyAction` (passes through to `EmptyState`) + campuses empty state "Tambah Kampus" (hidden on the Nonaktif filter). Billing-run wizard shell → `ResponsiveFormDialog size="2xl"` (steps unchanged, `footer={null}`); driver follow-up: `ResponsiveFormDialog` skips the docked footer when `footer` is null instead of rendering an empty bar. Alpa: `computeAbsentCount` returns 0 on any weekend/holiday (past, today or future); "today" computed per render (Jakarta); no-record rows on such a day show "Libur". Weekend stays Sat/Sun as elsewhere in the module (not org working days). **Seed change reverted (Assumption 5 fallback):** demoting Semester 1 doesn't affect session generation, but the demo curriculum (themes/weeks/objectives) lives on Semester 1 and report cards, parent development and teacher assessments select ACTIVE semesters — demoting it would empty those demo flows. Moving the demo curriculum onto the semester that spans today is a seed redesign → follow-up.
 
+- Task 3: GuardianFormBody on RHF — `components/admin/guardian-edit-dialog.tsx` takes an RHF `control` and renders `FormField`s (same ids/labels/order; Email gets the "blank keeps the saved email — it links the parent to portal sign-in" description, Assumption 1); guardians list dialog (bridge removed, Nama error inline), guardians/[id] inline Data Wali edit (`useZodForm(parentFormSchema)` + `sendJson`), students/[id] guardian dialog create/edit (new `guardianCreateFormSchema` / `guardianUpdateFormSchema`; 409 PARENT_CANDIDATES flow kept). Data-loss fix: `createGuardianSchema` gains `childOrder`, and POST `/api/students/[id]/guardians` now persists Alamat + Jumlah Anak on the parent and Anak ke- on the junction; its two `safeParse`s → `validateBody` (auth/tenant/rate-limit, candidates 409 and employee-email checks unchanged). Driver fix on review: the edit dialog still couldn't clear "Anak ke-" (wire field maps "" → undefined → PUT keeps it) — `guardianUpdateFormSchema` now sends an explicit null, with a round-trip test.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
@@ -140,5 +142,7 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 - Build fix: the T2 commit carried the shared `form-api-roundtrip.test.ts` with T6's still-uncommitted sections (employee edit, invoice payment, objectives schemas), so the committed tree failed typecheck (Vercel build error on 01748b3). The committed copy now ends before those sections (they return with T6); verified with `tsc --noEmit` on a clean checkout of HEAD. Lesson for the parallel build: shared files are committed from a clean-HEAD check, not straight from the working tree.
 
 - Task 7: `vitest run` over employee-attendance, fees, campuses, holidays, student-attendance, dashboard, fees components, invoices components, components/ui — 181 tests passed; override-dialog test 10/10 plain + `flake-hunt.sh 10 8` 10/10 green; eslint 0 errors. design-system: campuses empty state uses the existing `EmptyState` action; wizard uses the shared dialog shell; "Libur" uses the existing HOLIDAY status token.
+
+- Task 3: `vitest run` guardian-edit-dialog, guardians list/detail, students/[id], guardians route, guardian-primary-billing-chain, form-api-roundtrip — 162 tests passed; eslint 0 errors; tsc clean on the staged tree. Security: the guardians POST keeps auth + tenant parent lookup before validation. design-system: fields keep the existing `Field` layout; one `FieldDescription` added.
 
 ## Ship Notes

@@ -13,22 +13,31 @@
  * DROPPED both fields even though the schema accepts them. This component is
  * the single source of truth for the field set + section layout.
  *
+ * T3 (2026-09-27, admin-finish-standard): moved off a `form`/`setForm` prop
+ * contract onto react-hook-form. `GuardianFormBody` now takes an RHF
+ * `control`, generic over whatever form-values type the caller's schema
+ * produces, and renders every field with `FormField` (inline errors, ids
+ * unchanged). All three callers pass their own `useZodForm(...).control`.
+ *
  * Responsibility split:
  *   - This component owns the form fields, the section break (Data Pekerjaan),
  *     and the canonical Select option sources.
  *   - The page owns the Dialog/Sheet shell, open/close state, save handler,
  *     and the desktop-vs-mobile shell switch via useIsMobile.
  *
- * Out of scope for T7: childOrder + isPrimary belong to the StudentGuardian
- * junction and are T8's responsibility — they are not part of this shared
- * body. Callsites that currently pass them through (e.g. student-detail) keep
- * their own handling outside this component.
+ * `showRelationship` toggles the StudentGuardian junction fields (Hubungan,
+ * Anak ke-, Wali Utama) — set only on the student-detail entry point, which
+ * owns the student↔guardian link. Parent-level entry points (guardians list,
+ * guardian detail) render `showRelationship={false}`: the same parent can
+ * hold a different relationship/position across siblings, so those fields
+ * belong to the link, not the Parent record this form body edits.
  */
 
+import type { Control, FieldValues } from "react-hook-form";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { FormField } from "@/components/ui/form";
 import {
   EDUCATION_OPTIONS,
   OCCUPATION_OPTIONS,
@@ -52,10 +61,10 @@ export type GuardianForm = {
   employerCity: string;
   childrenTotal: string;
   address: string;
-  // T8: per-StudentGuardian junction fields. Editable only on entry points
-  // that own the student↔guardian link (student detail). On Parent-level
-  // entry points (guardians list, guardian detail) these stay out of the
-  // form via `showRelationship={false}` which also hides the junction row.
+  // Per-StudentGuardian junction fields. Editable only on entry points that
+  // own the student↔guardian link (student detail). On Parent-level entry
+  // points (guardians list, guardian detail) these stay out of the form via
+  // `showRelationship={false}`, which also hides the junction row.
   childOrder: string;
   isPrimary: boolean;
 };
@@ -83,27 +92,65 @@ export const EMPTY_GUARDIAN_FORM: GuardianForm = {
  * FIND-010: the server only defaults isPrimary from the sibling count
  * (`resolvedIsPrimary = isPrimary ?? priorGuardianCount === 0` in
  * app/api/students/[id]/guardians/route.ts) when the key is absent from the
- * body. `EMPTY_GUARDIAN_FORM.isPrimary` starts `false` for the Switch's
- * display state, so sending the form straight through on CREATE always sent
+ * body. A CREATE form's `isPrimary` display state starts `false` for the
+ * Switch, so sending the parsed form straight through on CREATE always sent
  * an explicit `false` and defeated that default — a student's first guardian
  * landed non-primary. CREATE call sites must use this helper instead of
- * spreading the form directly; the EDIT (PUT) path is unaffected and keeps
- * sending isPrimary as-is since demoting via the Switch is legitimate there.
+ * spreading the parsed values directly; the EDIT (PUT) path is unaffected
+ * and keeps sending isPrimary as-is since demoting via the Switch is
+ * legitimate there.
+ *
+ * Generic over any object carrying `isPrimary?: boolean` — not just the
+ * legacy `GuardianForm` shape — so the RHF-parsed output of
+ * `guardianCreateFormSchema` (students/[id]'s create step) can reuse it too.
  */
-export function guardianCreatePayload(
-  form: GuardianForm,
-): Omit<GuardianForm, "isPrimary"> & { isPrimary?: true } {
+export function guardianCreatePayload<T extends { isPrimary?: boolean }>(
+  form: T,
+): Omit<T, "isPrimary"> & { isPrimary?: true } {
   const { isPrimary, ...rest } = form;
   return isPrimary ? { ...rest, isPrimary: true } : rest;
 }
 
-export function GuardianFormBody({
-  form,
-  setForm,
+/**
+ * The field set every caller's form-values type must carry (as optional —
+ * different schemas parse each into slightly different runtime types: a
+ * string while still un-submitted, a coerced number/null once parsed).
+ * `relationship`/`childOrder`/`isPrimary` are the StudentGuardian junction
+ * fields, only ever populated (and only ever rendered) when the caller's
+ * schema/control includes them and `showRelationship` is true.
+ */
+export type GuardianFieldValues = {
+  name?: string;
+  phone?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  address?: string | null;
+  parentNik?: string | null;
+  education?: string | null;
+  occupation?: string | null;
+  incomeRange?: string | null;
+  employer?: string | null;
+  employerAddress?: string | null;
+  employerCity?: string | null;
+  childrenTotal?: string | number | null;
+  relationship?: string;
+  childOrder?: string | number | null;
+  isPrimary?: boolean;
+};
+
+export function GuardianFormBody<
+  TValues extends GuardianFieldValues & FieldValues,
+  TTransformed extends FieldValues = TValues,
+>({
+  control,
   showRelationship = true,
 }: {
-  form: GuardianForm;
-  setForm: (next: GuardianForm) => void;
+  // Threaded the same way `FormField` (components/ui/form.tsx) declares its
+  // own `control` prop: `useZodForm`'s `Control` carries a real
+  // `TTransformedValues` (the schema's parsed output), and defaulting it away
+  // (as a bare `Control<TValues>` would) stops a caller's control type from
+  // structurally matching what this component hands to `FormField` below.
+  control: Control<TValues, unknown, TTransformed>;
   /**
    * Relationship belongs to the StudentGuardian junction, not the Parent. Set
    * to false on Parent-level entry points (guardians list, guardian detail)
@@ -111,145 +158,228 @@ export function GuardianFormBody({
    */
   showRelationship?: boolean;
 }) {
-  const patch = (p: Partial<GuardianForm>) => setForm({ ...form, ...p });
+  // One boundary cast: the generic constraint above guarantees every field
+  // referenced below exists on TValues, but react-hook-form's `Path<T>` (used
+  // by `FormField`'s `name` prop) can't be resolved against a naked type
+  // parameter — only a concrete type. Narrowing here means every `name="x"`
+  // below type-checks as a literal keyof set instead of an abstract generic.
+  const c = control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>;
 
   return (
     <div className="space-y-field">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="guardian-name">Nama</FieldLabel>
-          <Input id="guardian-name" required aria-required="true" value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Nama wali" />
-        </Field>
+        <FormField
+          control={c}
+          name="name"
+          label="Nama"
+          required
+          id="guardian-name"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Nama wali" />
+          )}
+        />
         {showRelationship ? (
-          <Field>
-            <FieldLabel htmlFor="guardian-relationship">Hubungan</FieldLabel>
-            <Select
-              value={form.relationship}
-              onValueChange={(v) => v && patch({ relationship: v })}
-              items={REL_LABELS}
-            >
-              <SelectTrigger id="guardian-relationship"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {RELATIONSHIP_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <FormField
+            control={c}
+            name="relationship"
+            label="Hubungan"
+            id="guardian-relationship"
+            render={({ field, controlProps }) => (
+              <Select value={field.value as string | undefined} onValueChange={(v) => v && field.onChange(v)} items={REL_LABELS}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {RELATIONSHIP_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         ) : (
-          <Field>
-            <FieldLabel htmlFor="guardian-nik">NIK</FieldLabel>
-            <Input id="guardian-nik" value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
-          </Field>
+          <FormField
+            control={c}
+            name="parentNik"
+            label="NIK"
+            id="guardian-nik"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="NIK orang tua" />
+            )}
+          />
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="guardian-phone">No. HP</FieldLabel>
-          <Input id="guardian-phone" value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="081234567890" />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="guardian-whatsapp">WhatsApp</FieldLabel>
-          <Input id="guardian-whatsapp" value={form.whatsapp} onChange={(e) => patch({ whatsapp: e.target.value })} placeholder="081234567890" />
-        </Field>
+        <FormField
+          control={c}
+          name="phone"
+          label="No. HP"
+          id="guardian-phone"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="081234567890" />
+          )}
+        />
+        <FormField
+          control={c}
+          name="whatsapp"
+          label="WhatsApp"
+          id="guardian-whatsapp"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="081234567890" />
+          )}
+        />
       </div>
-      <Field>
-        <FieldLabel htmlFor="guardian-email">Email</FieldLabel>
-        <Input id="guardian-email" type="email" value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="email@example.com" />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="guardian-address">Alamat</FieldLabel>
-        <Input id="guardian-address" value={form.address} onChange={(e) => patch({ address: e.target.value })} placeholder="Alamat tempat tinggal" />
-      </Field>
+      <FormField
+        control={c}
+        name="email"
+        label="Email"
+        id="guardian-email"
+        description="Kosongkan untuk mempertahankan email yang tersimpan — email menautkan wali ke akun masuk portal."
+        render={({ field, controlProps }) => (
+          <Input {...field} {...controlProps} type="email" value={(field.value as string | undefined) ?? ""} placeholder="email@example.com" />
+        )}
+      />
+      <FormField
+        control={c}
+        name="address"
+        label="Alamat"
+        id="guardian-address"
+        render={({ field, controlProps }) => (
+          <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Alamat tempat tinggal" />
+        )}
+      />
 
       <div className="pt-2 border-t">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Pekerjaan</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="guardian-education">Pendidikan</FieldLabel>
-          <Select value={form.education || undefined} onValueChange={(v) => v && patch({ education: v })}>
-            <SelectTrigger id="guardian-education"><SelectValue placeholder="Pilih" /></SelectTrigger>
-            <SelectContent>
-              {EDUCATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="guardian-occupation">Pekerjaan</FieldLabel>
-          <Select value={form.occupation || undefined} onValueChange={(v) => v && patch({ occupation: v })}>
-            <SelectTrigger id="guardian-occupation"><SelectValue placeholder="Pilih" /></SelectTrigger>
-            <SelectContent>
-              {OCCUPATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={c}
+          name="education"
+          label="Pendidikan"
+          id="guardian-education"
+          render={({ field, controlProps }) => (
+            <Select value={(field.value as string | undefined) || undefined} onValueChange={(v) => v && field.onChange(v)}>
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                {EDUCATION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={c}
+          name="occupation"
+          label="Pekerjaan"
+          id="guardian-occupation"
+          render={({ field, controlProps }) => (
+            <Select value={(field.value as string | undefined) || undefined} onValueChange={(v) => v && field.onChange(v)}>
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                {OCCUPATION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="guardian-income">Penghasilan</FieldLabel>
-          <Select value={form.incomeRange || undefined} onValueChange={(v) => v && patch({ incomeRange: v })}>
-            <SelectTrigger id="guardian-income"><SelectValue placeholder="Pilih" /></SelectTrigger>
-            <SelectContent>
-              {INCOME_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={c}
+          name="incomeRange"
+          label="Penghasilan"
+          id="guardian-income"
+          render={({ field, controlProps }) => (
+            <Select value={(field.value as string | undefined) || undefined} onValueChange={(v) => v && field.onChange(v)}>
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                {INCOME_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
         {showRelationship ? (
-          <Field>
-            <FieldLabel htmlFor="guardian-nik">NIK</FieldLabel>
-            <Input id="guardian-nik" value={form.parentNik} onChange={(e) => patch({ parentNik: e.target.value })} placeholder="NIK orang tua" />
-          </Field>
+          <FormField
+            control={c}
+            name="parentNik"
+            label="NIK"
+            id="guardian-nik"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="NIK orang tua" />
+            )}
+          />
         ) : (
-          <Field>
-            <FieldLabel htmlFor="guardian-children-total">Jumlah Anak</FieldLabel>
-            <Input
-              id="guardian-children-total"
-              type="number"
-              min={0}
-              value={form.childrenTotal}
-              onChange={(e) => patch({ childrenTotal: e.target.value })}
-              placeholder="0"
-            />
-          </Field>
+          <FormField
+            control={c}
+            name="childrenTotal"
+            label="Jumlah Anak"
+            id="guardian-children-total"
+            render={({ field, controlProps }) => (
+              <Input
+                {...field}
+                {...controlProps}
+                type="number"
+                min={0}
+                value={(field.value as string | number | undefined) ?? ""}
+                placeholder="0"
+              />
+            )}
+          />
         )}
       </div>
       {showRelationship && (
-        <Field>
-          <FieldLabel htmlFor="guardian-children-total">Jumlah Anak</FieldLabel>
-          <Input
-            id="guardian-children-total"
-            type="number"
-            min={0}
-            value={form.childrenTotal}
-            onChange={(e) => patch({ childrenTotal: e.target.value })}
-            placeholder="0"
-          />
-        </Field>
+        <FormField
+          control={c}
+          name="childrenTotal"
+          label="Jumlah Anak"
+          id="guardian-children-total"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              type="number"
+              min={0}
+              value={(field.value as string | number | undefined) ?? ""}
+              placeholder="0"
+            />
+          )}
+        />
       )}
-      <Field>
-        <FieldLabel htmlFor="guardian-employer">Tempat Kerja</FieldLabel>
-        <Input id="guardian-employer" value={form.employer} onChange={(e) => patch({ employer: e.target.value })} placeholder="Nama perusahaan / instansi" />
-      </Field>
+      <FormField
+        control={c}
+        name="employer"
+        label="Tempat Kerja"
+        id="guardian-employer"
+        render={({ field, controlProps }) => (
+          <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Nama perusahaan / instansi" />
+        )}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="guardian-employer-address">Alamat Kantor</FieldLabel>
-          <Input id="guardian-employer-address" value={form.employerAddress} onChange={(e) => patch({ employerAddress: e.target.value })} placeholder="Alamat kantor" />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="guardian-employer-city">Kota/Kab</FieldLabel>
-          <Input id="guardian-employer-city" value={form.employerCity} onChange={(e) => patch({ employerCity: e.target.value })} placeholder="Kota / Kabupaten" />
-        </Field>
+        <FormField
+          control={c}
+          name="employerAddress"
+          label="Alamat Kantor"
+          id="guardian-employer-address"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Alamat kantor" />
+          )}
+        />
+        <FormField
+          control={c}
+          name="employerCity"
+          label="Kota/Kab"
+          id="guardian-employer-city"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Kota / Kabupaten" />
+          )}
+        />
       </div>
 
-      {/* T8: Junction fields (childOrder + isPrimary) only render on entry
-          points that own the student↔guardian link. Server enforces the
+      {/* Junction fields (childOrder + isPrimary) only render on entry points
+          that own the student↔guardian link. Server enforces the
           single-primary invariant in a serializable transaction. */}
       {showRelationship && (
         <>
@@ -257,31 +387,41 @@ export function GuardianFormBody({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Data Anak</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel htmlFor="guardian-child-order">Anak ke-</FieldLabel>
-              <Input
-                id="guardian-child-order"
-                type="number"
-                min={1}
-                value={form.childOrder}
-                onChange={(e) => patch({ childOrder: e.target.value })}
-                placeholder="1"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="guardian-primary">Wali Utama</FieldLabel>
-              <div className="flex items-center gap-3 pt-2">
-                <Switch
-                  id="guardian-primary"
-                  checked={form.isPrimary}
-                  onCheckedChange={(checked) => patch({ isPrimary: checked === true })}
-                  aria-label="Tandai sebagai wali utama"
+            <FormField
+              control={c}
+              name="childOrder"
+              label="Anak ke-"
+              id="guardian-child-order"
+              render={({ field, controlProps }) => (
+                <Input
+                  {...field}
+                  {...controlProps}
+                  type="number"
+                  min={1}
+                  value={(field.value as string | number | undefined) ?? ""}
+                  placeholder="1"
                 />
-                <span className="text-sm text-muted-foreground">
-                  {form.isPrimary ? "Ya — wali utama" : "Bukan wali utama"}
-                </span>
-              </div>
-            </Field>
+              )}
+            />
+            <FormField
+              control={c}
+              name="isPrimary"
+              label="Wali Utama"
+              id="guardian-primary"
+              render={({ field, controlProps }) => (
+                <div className="flex items-center gap-3 pt-2">
+                  <Switch
+                    {...controlProps}
+                    checked={!!field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-label="Tandai sebagai wali utama"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {field.value ? "Ya — wali utama" : "Bukan wali utama"}
+                  </span>
+                </div>
+              )}
+            />
           </div>
         </>
       )}

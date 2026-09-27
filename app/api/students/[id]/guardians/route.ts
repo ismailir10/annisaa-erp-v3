@@ -3,6 +3,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { createGuardianSchema, linkGuardianSchema } from "@/lib/validations/guardian";
 import { findParentCandidates } from "@/lib/parent/match";
 
@@ -73,13 +74,8 @@ export async function POST(
   // Presence of parentId selects the link branch: no parent row is created or
   // updated, and any bio fields in the payload are ignored by the schema.
   if (typeof raw?.parentId === "string" && raw.parentId.trim()) {
-    const parsedLink = linkGuardianSchema.safeParse(raw);
-    if (!parsedLink.success) {
-      return NextResponse.json(
-        { error: parsedLink.error.issues[0]?.message ?? "Input tidak valid" },
-        { status: 400 }
-      );
-    }
+    const parsedLink = await validateBody(linkGuardianSchema, raw);
+    if (parsedLink.error) return parsedLink.error;
     const { parentId, relationship, isPrimary, childOrder } = parsedLink.data;
 
     // Tenant ownership on the parent, not just the student — without this an
@@ -150,19 +146,19 @@ export async function POST(
   }
 
   // ── Create a new parent ──────────────────────────────────────────────
-  const parsed = createGuardianSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
-      { status: 400 }
-    );
-  }
+  const parsed = await validateBody(createGuardianSchema, raw);
+  if (parsed.error) return parsed.error;
 
   const {
     name, email = null, phone = null, whatsapp = null,
     relationship, isPrimary, confirmNew = false,
     parentNik = null, education = null, occupation = null,
     employer = null, employerAddress = null, employerCity = null, incomeRange = null,
+    // T3 data-loss fix: both were parsed but never written — a wali added
+    // from "Tambah Wali Baru" silently lost its address and Jumlah Anak.
+    // childOrder has no default here (undefined vs explicit null both mean
+    // "no position yet"; the junction write below normalises it).
+    address = null, childrenTotal = null, childOrder,
   } = parsed.data;
 
   // Duplicate guard. A parent typed in fresh who already exists under another
@@ -199,12 +195,12 @@ export async function POST(
   if (email) {
     parent = await prisma.parent.upsert({
       where: { tenantId_email: { tenantId: session.tenantId, email } },
-      create: { tenantId: session.tenantId, name, email, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange },
-      update: { name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange },
+      create: { tenantId: session.tenantId, name, email, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
+      update: { name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
     });
   } else {
     parent = await prisma.parent.create({
-      data: { tenantId: session.tenantId, name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange },
+      data: { tenantId: session.tenantId, name, phone, whatsapp, nik: parentNik, education, occupation, employer, employerAddress, employerCity, incomeRange, address, childrenTotal },
     });
   }
 
@@ -227,6 +223,7 @@ export async function POST(
           parentId: parent.id,
           relationship,
           isPrimary: resolvedIsPrimary,
+          childOrder: childOrder ?? null,
         },
         include: { parent: true },
       })
