@@ -27,25 +27,23 @@ export const createFeeComponentSchema = z.object({
   label: z.string().trim().min(1, "Label wajib diisi").max(120),
   category: categorySchema.default("TUITION"),
   isRecurring: z.boolean().default(true),
-  // Explicit string→number transform (not `z.coerce.number()`) for two
-  // reasons: it keeps the field's declared input type a plain `string |
-  // undefined` — matching exactly what the admin form's native
-  // `<input type="number">` emits, so `FormField`'s
-  // `<Input {...field} {...controlProps} />` spread doesn't collapse to
-  // `unknown` — and it makes the default explicit rather than relying on
-  // the `Number("") === 0` coincidence `z.coerce.number()` would otherwise
-  // lean on silently. Omitted (API caller sends no `sortOrder` at all) and
-  // blank (the form's own field, cleared) both default to `0`, matching the
-  // pre-migration behaviour: the old `parseInt(form.sortOrder)` on a blank
-  // field produced `NaN`, which `JSON.stringify` turns into the literal
-  // `null`, which `z.coerce.number()` (the pre-migration type) then read as
-  // `0`.
+  sortOrder: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * Admin dialog schema. Only `sortOrder` differs from the wire schema: the
+ * number input holds a string, parsed here with an explicit blank → 0 (the
+ * old `parseInt("")` → NaN → null path landed on 0 too). The parsed output
+ * (a number) is what gets POSTed, so it must stay valid for
+ * `createFeeComponentSchema` — covered by a round-trip test.
+ */
+export const feeComponentFormSchema = createFeeComponentSchema.extend({
   sortOrder: z
     .string()
     .trim()
     .optional()
     .transform((s) => (s === undefined || s === "" ? 0 : Number(s)))
-    .pipe(z.number().int().min(0)),
+    .pipe(z.number({ message: "Urutan harus berupa angka" }).int("Urutan harus bilangan bulat").min(0, "Urutan tidak boleh negatif")),
 });
 
 export const updateFeeComponentSchema = z.object({

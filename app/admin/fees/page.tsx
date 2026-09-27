@@ -28,7 +28,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
-import { createFeeComponentSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
+import { feeComponentFormSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
 type Program = { id: string; code: string; name: string; status: string };
@@ -133,7 +133,7 @@ export default function FeesPage() {
   // touched). `updateFeeComponentSchema` (server-side, no `code`) stays the
   // API's own schema for PUT; the client posts the same body shape either
   // way, same as before this migration.
-  const componentForm = useZodForm(createFeeComponentSchema, {
+  const componentForm = useZodForm(feeComponentFormSchema, {
     defaultValues: { code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" },
   });
   const [confirmTarget, setConfirmTarget] = useState<FeeComponent | null>(null);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createFeeComponentSchema,
+  feeComponentFormSchema,
   updateFeeComponentSchema,
 } from "../fee-component";
 
@@ -36,6 +37,23 @@ describe("createFeeComponentSchema", () => {
     const r = createFeeComponentSchema.safeParse({ code: "c", label: "L", sortOrder: "3" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.sortOrder).toBe(3);
+  });
+});
+
+describe("feeComponentFormSchema", () => {
+  it("parses the dialog's string sortOrder, and its output still passes the POST schema (round trip)", () => {
+    const form = feeComponentFormSchema.safeParse({ code: "SPP", label: "SPP", category: "TUITION", isRecurring: true, sortOrder: "3" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.sortOrder).toBe(3);
+    // The dialog POSTs the parsed values; the route re-validates them.
+    const wire = createFeeComponentSchema.safeParse(JSON.parse(JSON.stringify(form.data)));
+    expect(wire.success).toBe(true);
+  });
+
+  it("treats a blank sortOrder as 0", () => {
+    const r = feeComponentFormSchema.safeParse({ code: "c", label: "L", sortOrder: "" });
+    expect(r.success && r.data.sortOrder).toBe(0);
   });
 });
 
