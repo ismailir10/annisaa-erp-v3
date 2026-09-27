@@ -13,8 +13,14 @@
  * (ordering: ACTIVE, then PLANNING, then ARCHIVED newest-first) lives, so
  * that's what's covered here.
  */
-import { describe, it, expect } from "vitest";
-import { groupClassSectionsByYear } from "../student-export-dialog";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { groupClassSectionsByYear, StudentExportDialog } from "../student-export-dialog";
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 const ACTIVE = { id: "y-2026", name: "2026/2027", status: "ACTIVE" };
 const PLANNING = { id: "y-2027", name: "2027/2028", status: "PLANNING" };
@@ -65,5 +71,57 @@ describe("groupClassSectionsByYear", () => {
 
   it("returns an empty array for an empty input", () => {
     expect(groupClassSectionsByYear([])).toEqual([]);
+  });
+});
+
+/**
+ * T6 — the export dialog's own useIsMobile + Dialog/Sheet branch was
+ * folded onto the shared ResponsiveFormDialog. These smoke-test the shell:
+ * it still opens on the same title/description, still exposes exactly one
+ * footer action (no Cancel — the shell's own close affordance is the only
+ * dismiss path, unchanged from before), and Escape still dismisses without
+ * downloading. Not exercising the Select popups themselves, per this
+ * file's own precedent above.
+ */
+function stubRefFetch() {
+  return vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+}
+
+describe("StudentExportDialog — ResponsiveFormDialog shell (T6)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens with the title, description and a single download action", async () => {
+    vi.stubGlobal("fetch", stubRefFetch());
+    render(<StudentExportDialog open onOpenChange={vi.fn()} />);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(screen.getByText("Unduh Data Siswa")).toBeInTheDocument();
+    expect(
+      screen.getByText("Pilih kriteria siswa dan kolom data, lalu unduh sebagai berkas CSV."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Unduh CSV/ })).toBeInTheDocument();
+    // No standalone "Batal" — the shell's own close (X / Escape) is the
+    // only dismiss affordance for this non-mutating download configurator.
+    expect(
+      screen.queryByRole("button", { name: "Batal" }),
+    ).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it("dismisses on Escape without downloading", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubRefFetch());
+    const onOpenChange = vi.fn();
+    render(<StudentExportDialog open onOpenChange={onOpenChange} />);
+
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    // Base UI's Dialog.Root calls onOpenChange with extra (event, reason)
+    // args beyond the boolean this component's own typed prop declares —
+    // assert on the first argument only.
+    await waitFor(() => expect(onOpenChange.mock.calls.at(-1)?.[0]).toBe(false));
   });
 });

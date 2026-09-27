@@ -2024,7 +2024,7 @@ export default function StudentDetailPage() {
       {/* Graduate Confirm */}
       <ConfirmDialog open={graduateOpen} onOpenChange={setGraduateOpen} title="Luluskan Siswa" description={`Luluskan ${student.name}? Status siswa akan berubah menjadi Lulus dan semua pendaftaran kelas aktif akan diakhiri.`} onConfirm={handleGraduate} confirmLabel={graduating ? "Memproses..." : "Luluskan"} />
 
-      {/* ---------- Withdraw (destructive AlertDialog — reason required in body) ---------- */}
+      {/* ---------- Withdraw (destructive ConfirmDialog — reason required in body) ---------- */}
       <ConfirmDialog
         open={withdrawDialog}
         onOpenChange={setWithdrawDialog}

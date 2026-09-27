@@ -32,17 +32,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatDate as formatDateLong } from "@/lib/format";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -1426,118 +1419,111 @@ export function ClassDetailClient({
         onConfirm={() => flipStatus("ACTIVE")}
       />
 
-      {/* ── Teacher-swap drawer (relocated verbatim) ────────────── */}
-      <Sheet
+      {/* ── Teacher-swap dialog ──────────────────────────────────── */}
+      <ResponsiveFormDialog
         open={selectedSession !== null}
         onOpenChange={(open) => {
           if (!open) closeSwap();
         }}
-      >
-        <SheetContent>
-          {selectedSession && (
+        title="Ubah Guru Sesi"
+        description={
+          selectedSession
+            ? `${formatDateLong(selectedSession.date, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })} · ${SLOT_LABELS[selectedSession.slot] ?? selectedSession.slot}`
+            : undefined
+        }
+        footer={
+          writeAllowed && selectedSession ? (
             <>
-              <SheetHeader>
-                <SheetTitle>Ubah Guru Sesi</SheetTitle>
-                <SheetDescription>
-                  {new Date(
-                    selectedSession.date + "T00:00:00",
-                  ).toLocaleDateString("id-ID", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}{" "}
-                  · {SLOT_LABELS[selectedSession.slot] ?? selectedSession.slot}
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="flex flex-col gap-4 px-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wali kelas</span>
-                  <span className="font-medium">
-                    {selectedSession.defaultTeacher?.nama ?? "Tidak ada"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Guru saat ini</span>
-                  <span className="font-medium">
-                    {selectedSession.teacher?.nama ?? "Belum ada guru"}
-                  </span>
-                </div>
-
-                {canWrite ? (
-                  <>
-                    <Field>
-                      <FieldLabel htmlFor="session-substitute-teacher">Guru pengganti</FieldLabel>
-                      <Select
-                        value={swapTeacherId}
-                        onValueChange={(v) =>
-                          setSwapTeacherId(String(v ?? ""))
-                        }
-                      >
-                        <SelectTrigger id="session-substitute-teacher">
-                          <SelectValue placeholder="Pilih guru" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employeeOptions.map((e) => (
-                            <SelectItem key={e.id} value={e.id}>
-                              {e.nama}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {employeesTruncated && (
-                        <p className="text-xs text-muted-foreground">
-                          Daftar guru dipotong pada 100 nama — jika guru yang
-                          dicari tidak muncul, hubungi admin.
-                        </p>
-                      )}
-                    </Field>
-
-                    <Field>
-                      <FieldLabel htmlFor="session-substitute-reason">Alasan pengganti</FieldLabel>
-                      <Textarea
-                        id="session-substitute-reason"
-                        value={swapReason}
-                        onChange={(e) => setSwapReason(e.target.value)}
-                        placeholder="Contoh: wali kelas sedang cuti"
-                        maxLength={300}
-                        rows={3}
-                      />
-                    </Field>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Anda tidak memiliki akses untuk mengubah guru sesi.
-                  </p>
-                )}
-              </div>
-
-              {canWrite && (
-                <SheetFooter>
-                  <Button
-                    onClick={() => submitSwap(swapTeacherId || null, swapReason)}
-                    disabled={savingSwap}
-                  >
-                    {savingSwap ? "Menyimpan..." : "Simpan"}
-                  </Button>
-                  {selectedSession.defaultTeacherId && (
-                    <Button
-                      variant="outline"
-                      disabled={savingSwap}
-                      onClick={() =>
-                        submitSwap(selectedSession.defaultTeacherId, "")
-                      }
-                    >
-                      Kembalikan ke wali kelas
-                    </Button>
-                  )}
-                </SheetFooter>
+              <Button
+                onClick={() => submitSwap(swapTeacherId || null, swapReason)}
+                disabled={savingSwap}
+              >
+                {savingSwap ? "Menyimpan..." : "Simpan"}
+              </Button>
+              {selectedSession.defaultTeacherId && (
+                <Button
+                  variant="outline"
+                  disabled={savingSwap}
+                  onClick={() =>
+                    submitSwap(selectedSession.defaultTeacherId, "")
+                  }
+                >
+                  Kembalikan ke wali kelas
+                </Button>
               )}
             </>
-          )}
-        </SheetContent>
-      </Sheet>
+          ) : null
+        }
+      >
+        {selectedSession && (
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Wali kelas</span>
+              <span className="font-medium">
+                {selectedSession.defaultTeacher?.nama ?? "Tidak ada"}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Guru saat ini</span>
+              <span className="font-medium">
+                {selectedSession.teacher?.nama ?? "Belum ada guru"}
+              </span>
+            </div>
+
+            {writeAllowed ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="session-substitute-teacher">Guru pengganti</FieldLabel>
+                  <Select
+                    value={swapTeacherId}
+                    onValueChange={(v) =>
+                      setSwapTeacherId(String(v ?? ""))
+                    }
+                  >
+                    <SelectTrigger id="session-substitute-teacher">
+                      <SelectValue placeholder="Pilih guru" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employeeOptions.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.nama}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {employeesTruncated && (
+                    <p className="text-xs text-muted-foreground">
+                      Daftar guru dipotong pada 100 nama — jika guru yang
+                      dicari tidak muncul, hubungi admin.
+                    </p>
+                  )}
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="session-substitute-reason">Alasan pengganti</FieldLabel>
+                  <Textarea
+                    id="session-substitute-reason"
+                    value={swapReason}
+                    onChange={(e) => setSwapReason(e.target.value)}
+                    placeholder="Contoh: wali kelas sedang cuti"
+                    maxLength={300}
+                    rows={3}
+                  />
+                </Field>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Anda tidak memiliki akses untuk mengubah guru sesi.
+              </p>
+            )}
+          </div>
+        )}
+      </ResponsiveFormDialog>
     </>
   );
 }

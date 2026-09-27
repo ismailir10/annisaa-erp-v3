@@ -10,16 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { templateFor } from "@/lib/raport/templates";
 import { toast } from "sonner";
 import { ArrowLeft, Download } from "lucide-react";
@@ -392,51 +383,25 @@ export function RaportEditor({
         </Button>
       </div>
 
-      <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
-        <AlertDialogContent className="p-card sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Keluar tanpa menyimpan?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Narasi, capaian, kehadiran, hafalan, atau data lain yang belum disimpan akan hilang.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setConfirmLeave(false);
-                onBack();
-              }}
-            >
-              Ya, Keluar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmLeave}
+        onOpenChange={setConfirmLeave}
+        title="Keluar tanpa menyimpan?"
+        description="Narasi, capaian, kehadiran, hafalan, atau data lain yang belum disimpan akan hilang."
+        confirmLabel="Ya, Keluar"
+        destructive
+        onConfirm={onBack}
+      />
 
-      <AlertDialog open={confirmUnpublish} onOpenChange={setConfirmUnpublish}>
-        <AlertDialogContent className="p-card sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Tarik penerbitan rapor?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                setConfirmUnpublish(false);
-                void setPublish(false);
-              }}
-            >
-              Ya, Tarik
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmUnpublish}
+        onOpenChange={setConfirmUnpublish}
+        title="Tarik penerbitan rapor?"
+        description="Rapor akan kembali menjadi draft dan tidak terlihat sebagai rapor terbit sampai diterbitkan ulang."
+        confirmLabel="Ya, Tarik"
+        destructive
+        onConfirm={() => setPublish(false)}
+      />
     </div>
   );
 }

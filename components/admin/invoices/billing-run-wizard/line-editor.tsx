@@ -11,16 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatRupiah } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { cn } from "@/lib/utils";
@@ -48,12 +39,12 @@ import type {
 //
 // better-accessibility: editing is a real form (label + input + submit),
 // not a click-to-edit cell — each row action is a labelled button that
-// opens a Dialog/Sheet (ResponsiveFormDialog) or AlertDialog; closing
+// opens a Dialog/Sheet (ResponsiveFormDialog) or ConfirmDialog; closing
 // either returns focus to its trigger, so focus lands somewhere sensible
 // after every save. Cross-checked design-system.html §07 Forms (Field +
 // FieldLabel + FieldDescription, errors under the field) and §13 Overlays
 // (Dialog on desktop / Sheet on mobile via ResponsiveFormDialog,
-// AlertDialog for the destructive remove confirm).
+// ConfirmDialog for the destructive remove confirm).
 
 const DEFAULT_ADJUSTMENT_NOTE_HELP =
   "Orang tua akan melihat catatan ini pada tagihan mereka — jangan tulis catatan internal di sini.";
@@ -544,11 +535,8 @@ function DeleteLineConfirm({
   onOpenChange: (open: boolean) => void;
   onRemoved: (lineId: string, totalDue: number) => void;
 }) {
-  const [deleting, setDeleting] = useState(false);
-
   async function handleConfirm() {
     if (!line) return;
-    setDeleting(true);
     try {
       const res = await fetch(
         `/api/billing-runs/${runId}/rows/${row.id}/lines/${line.id}`,
@@ -563,32 +551,24 @@ function DeleteLineConfirm({
       }
       const json = (await res.json()) as DeleteBillingRunLineResponse;
       onRemoved(line.id, json.totalDue);
-      onOpenChange(false);
     } catch (err) {
       toast.error(userMessage(err, "Gagal menghapus baris tagihan"));
-    } finally {
-      setDeleting(false);
+      // Re-throw so ConfirmDialog keeps the dialog open on failure instead
+      // of closing as if the delete had succeeded.
+      throw err;
     }
   }
 
   return (
-    <AlertDialog open={!!line} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <AlertDialogContent className="p-card sm:max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Hapus baris tagihan ini?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {line ? `"${line.labelSnapshot}"` : "Baris ini"} akan dihapus dari tagihan{" "}
-            {row.studentNameSnapshot}. Tindakan ini tidak bisa dibatalkan.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={handleConfirm} disabled={deleting}>
-            {deleting ? "Menghapus..." : "Ya, Hapus"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!line}
+      onOpenChange={(o) => !o && onOpenChange(false)}
+      title="Hapus baris tagihan ini?"
+      description={`${line ? `"${line.labelSnapshot}"` : "Baris ini"} akan dihapus dari tagihan ${row.studentNameSnapshot}. Tindakan ini tidak bisa dibatalkan.`}
+      confirmLabel="Ya, Hapus"
+      destructive
+      onConfirm={handleConfirm}
+    />
   );
 }
 

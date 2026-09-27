@@ -8,7 +8,19 @@ import { toast } from "sonner";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-function payload() {
+type SavedPayload = {
+  sectionLevels: Record<string, string>;
+  sectionNarratives: Record<string, string>;
+  permittedAbsenceDays: number;
+  sickDays: number;
+  unexcusedAbsenceDays: number;
+  totalSchoolDays: number;
+  memorizationNotes: string | null;
+  status: string;
+  publishedAt: string | null;
+} | null;
+
+function payload(saved: SavedPayload = null) {
   const sections: Record<string, { suggested: null; counts: Record<string, number> }> = {};
   for (const s of BUCKETED_SECTIONS) {
     sections[s] = {
@@ -22,7 +34,7 @@ function payload() {
       term: { id: "term-1", number: 1, semesterNumber: 1, academicYear: "2026/2027" },
       ageGroup: null,
       templates: null,
-      saved: null,
+      saved,
       measurement: null,
       draft: {
         sections,
@@ -37,6 +49,29 @@ function stubFetchOnce() {
     ok: true,
     json: async () => payload(),
   });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function publishedPayload() {
+  return payload({
+    sectionLevels: {},
+    sectionNarratives: {},
+    permittedAbsenceDays: 0,
+    sickDays: 0,
+    unexcusedAbsenceDays: 0,
+    totalSchoolDays: 0,
+    memorizationNotes: null,
+    status: "PUBLISHED",
+    publishedAt: "2026-01-01",
+  });
+}
+
+function stubFetchPublished() {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => publishedPayload() })
+    .mockResolvedValue({ ok: true, json: async () => ({}) });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -196,5 +231,44 @@ describe("RaportEditor unsaved-changes guard", () => {
 
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+  });
+});
+
+describe("RaportEditor unpublish confirm", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows the confirmation and keeps the rapor published when cancelled", async () => {
+    stubFetchPublished();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Tarik penerbitan" }));
+    expect(await screen.findByText("Tarik penerbitan rapor?")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Tarik penerbitan rapor?")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Tarik penerbitan" })).toBeInTheDocument();
+  });
+
+  it("confirms and pulls the rapor back to draft", async () => {
+    stubFetchPublished();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Tarik penerbitan" }));
+    await screen.findByText("Tarik penerbitan rapor?");
+
+    await user.click(screen.getByRole("button", { name: "Ya, Tarik" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Penerbitan ditarik."));
+    expect(await screen.findByRole("button", { name: "Simpan & Terbitkan" })).toBeInTheDocument();
   });
 });
