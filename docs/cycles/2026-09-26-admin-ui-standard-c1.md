@@ -115,6 +115,8 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 - Task 4/7 prep: new `components/ui/data-table-link-cell.tsx` (`DataTableLinkCell`: the row's identity cell is the link — `href` for detail pages, `onClick` for overlay views — replacing the separate "Lihat" row action; ≥44px tall on coarse pointers) + test. design-system: link uses foreground + underline-on-hover/focus, no new colour.
 
+- Task 9 (part): unsaved-changes guard — new `components/admin/unsaved-changes-provider.tsx` (`UnsavedChangesProvider` + `useUnsavedChangesGuard(dirty, message?)`, one shared ConfirmDialog "Keluar tanpa menyimpan?") mounted in `app/admin/layout.tsx`; new `components/admin/guarded-link.tsx` (string-href next/link wrapper; plain left-clicks intercepted while a guard is dirty, modifier/middle-click and `_blank` untouched) used by `components/admin/sidebar.tsx` and `components/admin/admin-breadcrumb.tsx`; `app/admin/report-cards/raport-editor.tsx` registers its dirty flag (beforeunload + in-editor back guard unchanged). Active-year check: AcademicYear cannot have two ACTIVE rows per tenant (`lib/academic-year/activate.ts` demotes others in a transaction on POST/PUT); Semester API is guarded the same way per academic year (`lib/curriculum/semester-activate.ts`), but `prisma/seed.ts:302-311,390-399` and `scripts/seed-demo-curriculum.ts:295-318` create two ACTIVE semesters in one year directly — seed-data follow-up, not a product path; no UI change this cycle. Review: object-href query loss on the confirm path → href typed string-only.
+
 ## Verification
 
 - Task 1 + Task 2: `npm run build` exit 0; `npx vitest run` (clean env) → 379 passed, 2 skipped files / 3555 tests passed. Note: running vitest with `DEMO_MODE`/`DATABASE_URL` exported in the shell fails 19 xendit/auth-rate-limit tests — an env leak from the build shell, not a regression; gates run with those unset. `tsc --noEmit` clean; eslint 0 errors. design-system: tabs keep the `bg-muted` pill variant, sticky column uses `bg-background`/`bg-muted` tokens only.
@@ -126,5 +128,7 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 - Task 6: same gate run as Task 5 (combined tree) — build exit 0; vitest 383 files / 3582 tests passed. New tests: line-editor delete confirm (cancel / success / failure keeps open), student-journal category dialog, teacher-swap hidden when archived, export dialog render/Escape, raport unpublish confirm. design-system: overlays follow §13 (ResponsiveFormDialog, ConfirmDialog).
 
 - CI `Playwright E2E` on `57b7506` failed 1/162: `e2e/admin-fees-keringanan.spec.ts:141` looked for the row menu by the old unlabelled name "Buka menu"; T5 now passes `rowLabel`, so the trigger is "Aksi untuk <siswa>". Selector widened to `/Aksi untuk|Buka menu/i` there and in `e2e/admin.spec.ts:366` (same pattern). Not a product regression.
+
+- Task 9 (part): combined-tree gate — build exit 0; vitest 392 files / 3607 tests passed; after the GuardedLink type fix `npx vitest run components/admin` 90/90, tsc clean. design-system: guard uses ConfirmDialog (§13 destructive confirm).
 
 ## Ship Notes

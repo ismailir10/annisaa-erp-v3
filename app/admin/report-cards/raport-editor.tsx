@@ -11,6 +11,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { templateFor } from "@/lib/raport/templates";
 import { toast } from "sonner";
 import { ArrowLeft, Download } from "lucide-react";
@@ -118,6 +119,15 @@ export function RaportEditor({
     const current: EditableSnapshot = { levels, narratives, att, hafalan, height, weight };
     return JSON.stringify(current) !== JSON.stringify(baseline);
   }, [baseline, levels, narratives, att, hafalan, height, weight]);
+
+  // Guards app-shell navigation (sidebar/breadcrumb clicks) via
+  // GuardedLink — independent of, and never in conflict with, this
+  // editor's own in-editor back-button guard (handleBack/confirmLeave
+  // below) or the beforeunload handler (reload/close) just below.
+  useUnsavedChangesGuard(
+    isDirty,
+    "Narasi, capaian, kehadiran, hafalan, atau data lain yang belum disimpan akan hilang.",
+  );
 
   useEffect(() => {
     if (!isDirty) return;

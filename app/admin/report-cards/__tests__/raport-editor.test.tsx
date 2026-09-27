@@ -5,8 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RaportEditor } from "../raport-editor";
 import { BUCKETED_SECTIONS } from "@/lib/raport/labels";
 import { toast } from "sonner";
+import { UnsavedChangesProvider } from "@/components/admin/unsaved-changes-provider";
+import { GuardedLink } from "@/components/admin/guarded-link";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+
+const routerPush = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush }),
+}));
 
 type SavedPayload = {
   sectionLevels: Record<string, string>;
@@ -270,5 +277,45 @@ describe("RaportEditor unpublish confirm", () => {
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Penerbitan ditarik."));
     expect(await screen.findByRole("button", { name: "Simpan & Terbitkan" })).toBeInTheDocument();
+  });
+});
+
+describe("RaportEditor app-shell unsaved-changes guard", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  // Simulates the admin app shell (app/admin/layout.tsx mounts
+  // UnsavedChangesProvider once; sidebar/breadcrumb links render as
+  // GuardedLink). Proves the editor's dirty flag is wired into
+  // useUnsavedChangesGuard so an app-shell navigation click is intercepted —
+  // not just the editor's own in-editor "Kembali ke daftar" back guard,
+  // which is covered separately above.
+  it("registers the guard once dirty, so an app-shell link click opens the shared confirm dialog instead of navigating", async () => {
+    stubFetchOnce();
+    const user = userEvent.setup();
+    render(
+      <UnsavedChangesProvider>
+        <GuardedLink href="/admin/report-cards">Rapor</GuardedLink>
+        <RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />
+      </UnsavedChangesProvider>,
+    );
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+
+    // Not dirty yet — the sidebar-style link is unguarded.
+    fireEvent.click(screen.getByRole("link", { name: "Rapor" }));
+    expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
+
+    await user.click(screen.getByRole("link", { name: "Rapor" }));
+    expect(await screen.findByText("Keluar tanpa menyimpan?")).toBeInTheDocument();
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
+    expect(routerPush).toHaveBeenCalledExactlyOnceWith("/admin/report-cards");
   });
 });

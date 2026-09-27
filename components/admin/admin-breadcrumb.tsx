@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Breadcrumb,
@@ -11,6 +10,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { getBreadcrumbs } from "@/config/admin-nav";
+import { GuardedLink } from "@/components/admin/guarded-link";
 import { Fragment } from "react";
 
 export function AdminBreadcrumb() {
@@ -27,7 +27,7 @@ export function AdminBreadcrumb() {
             {i > 0 && <BreadcrumbSeparator />}
             <BreadcrumbItem>
               {crumb.href ? (
-                <BreadcrumbLink render={<Link href={crumb.href} />}>
+                <BreadcrumbLink render={<GuardedLink href={crumb.href} />}>
                   {crumb.label}
                 </BreadcrumbLink>
               ) : (
