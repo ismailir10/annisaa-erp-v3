@@ -129,6 +129,121 @@ describe("Guardians: parentFormSchema (form) -> updateParentSchema (PUT /api/par
   });
 });
 
+// ── Student-detail guardian dialog — app/admin/students/[id]/page.tsx ─────
+// T3 (2026-09-27, admin-finish-standard): GuardianFormBody moved onto RHF;
+// its create/edit steps each run a form schema derived from the wire schema
+// they post to (lib/validations/guardian.ts). createNewParent/saveGuardian
+// send `values` (the parsed output) directly as the JSON body.
+describe("Student-detail guardian create: guardianCreateFormSchema (form) -> createGuardianSchema (POST .../guardians)", () => {
+  it("round-trips a full submission — address/childrenTotal/childOrder included (T3 data-loss fix)", async () => {
+    const { guardianCreateFormSchema, createGuardianSchema } = await import("../guardian");
+    const form = guardianCreateFormSchema.safeParse({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      phone: "081234567890",
+      whatsapp: "",
+      email: "siti@example.test",
+      parentNik: "",
+      education: "",
+      occupation: "",
+      incomeRange: "",
+      employer: "",
+      employerAddress: "",
+      employerCity: "",
+      address: "Jl. Merdeka No. 1",
+      childrenTotal: "2",
+      childOrder: "1",
+      isPrimary: false,
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.childrenTotal).toBe(2);
+    expect(form.data.childOrder).toBe(1);
+    // page.tsx's createNewParent sends `{ ...guardianCreatePayload(values), confirmNew }`;
+    // isPrimary is stripped here (Switch off), confirmNew added by the handler.
+    const body = wire({ ...form.data, isPrimary: undefined, confirmNew: true });
+    const route = createGuardianSchema.safeParse(body);
+    expect(route.success).toBe(true);
+    if (!route.success) return;
+    expect(route.data.address).toBe("Jl. Merdeka No. 1");
+    expect(route.data.childrenTotal).toBe(2);
+    expect(route.data.childOrder).toBe(1);
+  });
+
+  it("a blank childrenTotal collapses to explicit null (not 0 — lesson 3), a blank childOrder to undefined", async () => {
+    const { guardianCreateFormSchema, createGuardianSchema } = await import("../guardian");
+    const form = guardianCreateFormSchema.safeParse({
+      name: "Budi",
+      relationship: "AYAH",
+      childrenTotal: "",
+      childOrder: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    // childrenTotal: null (present key) so a PUT edit later can clear it
+    // (lesson 2) — see childrenTotalFormField's doc comment. childOrder
+    // keeps childOrderField's existing undefined-on-blank shape (shared,
+    // unchanged, with linkGuardianSchema/updateGuardianSchema).
+    expect(form.data.childrenTotal).toBeNull();
+    expect(form.data.childOrder).toBeUndefined();
+    expect(createGuardianSchema.safeParse(wire(form.data)).success).toBe(true);
+  });
+});
+
+describe("Student-detail guardian edit: guardianUpdateFormSchema (form) -> updateGuardianSchema (PUT .../guardians/[guardianId])", () => {
+  it("round-trips every field, including a cleared address/childrenTotal (lesson 2)", async () => {
+    const { guardianUpdateFormSchema, updateGuardianSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      phone: "081234567890",
+      whatsapp: "",
+      email: "",
+      parentNik: "",
+      education: "",
+      occupation: "",
+      incomeRange: "",
+      employer: "",
+      employerAddress: "",
+      employerCity: "",
+      address: "",
+      childrenTotal: "",
+      childOrder: "2",
+      isPrimary: true,
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.childrenTotal).toBeNull();
+    expect(form.data.childOrder).toBe(2);
+    // saveGuardian (page.tsx) sends `values` directly as the PUT body.
+    const route = updateGuardianSchema.safeParse(wire(form.data));
+    expect(route.success).toBe(true);
+    if (!route.success) return;
+    expect(route.data.address).toBe("");
+    expect(route.data.childrenTotal).toBeNull();
+  });
+
+  it("a cleared Anak ke- is sent as null (a clear), not dropped", async () => {
+    const { guardianUpdateFormSchema, updateGuardianSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({ name: "Siti", relationship: "IBU", childOrder: "" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire(form.data) as Record<string, unknown>;
+    expect("childOrder" in body).toBe(true);
+    expect(body.childOrder).toBeNull();
+    const route = updateGuardianSchema.safeParse(body);
+    expect(route.success && route.data.childOrder).toBeNull();
+  });
+
+  it("a cleared Nama is rejected client-side with an inline message, not silently sent", async () => {
+    const { guardianUpdateFormSchema } = await import("../guardian");
+    const form = guardianUpdateFormSchema.safeParse({ name: "", relationship: "IBU" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.path.join(".") === "name" && i.message.includes("wajib diisi"))).toBe(true);
+  });
+});
+
 // ── Payroll — app/admin/(hr)/payroll/[id]/page.tsx ──────────────────────────
 describe("Payroll variables: payrollVariablesSchema (form) -> payrollVariablesSchema (route, same object)", () => {
   it("a fully-blanked variables form collapses every field to 0 and round-trips", async () => {
@@ -199,26 +314,25 @@ describe("Salary components: salaryComponentFormSchema (form) -> createSalaryCom
     expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(true);
   });
 
-  it("DOCUMENTED GAP (not a regression — payroll.ts:31-37): the create Select always offers " +
-    "PCT_OF_BASE, but POST's schema only accepts FIXED/ATTENDANCE_BASED on create", async () => {
+  it("F-15 (was a documented gap): a create submission with calcType PCT_OF_BASE is now " +
+    "accepted by createSalaryComponentSchema — the ordering rule against `gaji_pokok` is " +
+    "enforced by the route (checkSalaryComponentOrdering), not by the zod schema", async () => {
     const { salaryComponentFormSchema, createSalaryComponentSchema } = await import("../payroll");
     const form = salaryComponentFormSchema.safeParse({
       code: "insentif",
       label: "Insentif",
       category: "INCOME",
       calcType: "PCT_OF_BASE",
-      sortOrder: "0",
+      sortOrder: "5",
     });
-    expect(form.success).toBe(true); // passes client-side validation...
+    expect(form.success).toBe(true);
     if (!form.success) return;
-    // ...but the create route 400s. applyServerErrors maps this back onto
-    // the field (page.tsx:102), so it is not a silent failure, but a user
-    // selecting this option on CREATE will always be rejected by the server.
-    expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(false);
+    expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(true);
   });
 
-  it("edit PUT is inline/unvalidated (salary-components/[id]/route.ts:19-38) and accepts the full form output, including the unused 'code' key", async () => {
-    const { salaryComponentFormSchema } = await import("../payroll");
+  it("edit PUT now validates with updateSalaryComponentSchema (salary-components/[id]/route.ts) " +
+    "and accepts the full form output, ignoring the unused 'code' key", async () => {
+    const { salaryComponentFormSchema, updateSalaryComponentSchema } = await import("../payroll");
     const form = salaryComponentFormSchema.safeParse({
       code: "spp", // present in the form's defaultValues even though the field is hidden on edit
       label: "SPP",
@@ -228,10 +342,21 @@ describe("Salary components: salaryComponentFormSchema (form) -> createSalaryCom
       sortOrder: "2",
     });
     expect(form.success).toBe(true);
-    // The PUT handler reads body.label/category/calcType/isProRated/sortOrder
-    // directly with no schema — an extra `code` key is simply ignored, not
-    // rejected (route.ts:19-39). Documented here so a future strict rewrite
-    // of that route doesn't quietly break the edit dialog's `code` leak.
+    if (!form.success) return;
+    const parsed = updateSalaryComponentSchema.safeParse(wire(form.data));
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    // `code` is not part of the PUT schema — zod strips it, matching the
+    // route's existing behaviour of never reading it from the body.
+    expect(parsed.data).not.toHaveProperty("code");
+  });
+
+  it("the { isEnabled }-only toggle body still round-trips through updateSalaryComponentSchema", async () => {
+    const { updateSalaryComponentSchema } = await import("../payroll");
+    const parsed = updateSalaryComponentSchema.safeParse(wire({ isEnabled: false }));
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toEqual({ isEnabled: false });
   });
 });
 
@@ -444,29 +569,89 @@ describe("Teaching assignments: teachingAssignmentAddSchema (form) -> teachingAs
   });
 });
 
-describe("Class-session swap: swapClassSessionTeacherSchema (route) vs the dialog's manual body build", () => {
-  // NOTE: client.tsx's "Simpan" button (line 1455) calls `submitSwap(...)`
-  // directly with `swapForm.watch(...)` values, NOT `swapForm.handleSubmit`
-  // (contrast with every other form on this page). `swapClassSessionTeacherFormSchema`
-  // is therefore never actually used to validate a submission — this test
-  // documents that the hand-written `teacherId || null` conversion the
-  // button performs (client.tsx:1455) still produces a body the route's
-  // real schema accepts, but the client-side zod validation for this
-  // particular dialog is effectively dead code.
-  it("an empty Select value ('') converts to null and round-trips", async () => {
-    const { swapClassSessionTeacherSchema } = await import("../class-session");
-    const teacherIdWatch = "";
-    const reasonWatch = "";
-    const body = wire({ teacherId: teacherIdWatch || null, substituteReason: reasonWatch.trim() || undefined });
+// ── Class-session swap — components/admin/classes/detail/swap-session-dialog.tsx ─
+describe("Class-session swap: swapClassSessionTeacherFormSchema (form) -> swapClassSessionTeacherSchema (route)", () => {
+  // T2 (2026-09-27 admin-finish-standard): Simpan now submits through
+  // `swapForm.handleSubmit`, so `swapClassSessionTeacherFormSchema`'s
+  // reason-required superRefine actually runs before the PATCH body is
+  // built (swap-session-dialog.tsx's `submitSwap`). `defaultTeacherId` is a
+  // hidden, form-only field never sent to the API.
+  it("a revert to homeroom (teacherId === defaultTeacherId) needs no reason and round-trips", async () => {
+    const { swapClassSessionTeacherFormSchema, swapClassSessionTeacherSchema } = await import(
+      "../class-session"
+    );
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-1",
+      substituteReason: "",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire({
+      teacherId: form.data.teacherId || null,
+      substituteReason: form.data.substituteReason || undefined,
+    }); // swap-session-dialog.tsx submitSwap
     expect(swapClassSessionTeacherSchema.safeParse(body).success).toBe(true);
   });
 
-  it("a chosen teacher + reason round-trips", async () => {
-    const { swapClassSessionTeacherSchema } = await import("../class-session");
-    const teacherIdWatch: string = "emp-2";
-    const reasonWatch: string = "Sakit";
-    const body = wire({ teacherId: teacherIdWatch || null, substituteReason: reasonWatch.trim() || undefined });
+  it("a genuine substitution with a reason round-trips", async () => {
+    const { swapClassSessionTeacherFormSchema, swapClassSessionTeacherSchema } = await import(
+      "../class-session"
+    );
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-2",
+      substituteReason: "Sakit",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire({
+      teacherId: form.data.teacherId || null,
+      substituteReason: form.data.substituteReason || undefined,
+    });
     expect(swapClassSessionTeacherSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a genuine substitution with no reason is rejected client-side before it ever reaches the wire", async () => {
+    const { swapClassSessionTeacherFormSchema } = await import("../class-session");
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-2",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(false);
+  });
+});
+
+// ── Ubah Kelas (class detail) — components/admin/classes/detail/edit-class-dialog.tsx ─
+describe("Class detail edit: classEditFormSchema (form) -> classUpdateSchema (route)", () => {
+  it("round-trips name/capacity/slotTemplate with capacity coerced from a string input", async () => {
+    const { classEditFormSchema, classUpdateSchema } = await import("../class");
+    const form = classEditFormSchema.safeParse({
+      name: "KB 1",
+      capacity: "25",
+      slotTemplate: "MORNING_AND_AFTERNOON",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.capacity).toBe(25);
+    const body = wire({
+      name: form.data.name,
+      capacity: form.data.capacity,
+      slotTemplate: form.data.slotTemplate,
+    }); // edit-class-dialog.tsx's `save`
+    expect(classUpdateSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blanked capacity fails client-side with a 'wajib diisi' message, not a silent 0", async () => {
+    const { classEditFormSchema } = await import("../class");
+    const form = classEditFormSchema.safeParse({
+      name: "KB 1",
+      capacity: "",
+      slotTemplate: "FULL_DAY",
+    });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.message.includes("wajib diisi"))).toBe(true);
   });
 });
 
@@ -800,5 +985,296 @@ describe("Leave review: leaveReviewFormSchema (form) -> inline (POST .../approve
     if (!rejectWithNote.success) return;
     const body = wire({ note: rejectWithNote.data.note }); // page.tsx:332
     expect(rejectLeaveRequestSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+// ── Payroll period edit — app/admin/(hr)/payroll/[id]/page.tsx:312-314 ──────
+describe("Payroll period edit: payrollEditFormSchema (form) -> updatePayrollRunSchema (PUT /api/payroll/[id])", () => {
+  it("round-trips all three fields (the card always sends a full body, never a patch)", async () => {
+    const { payrollEditFormSchema, updatePayrollRunSchema } = await import("../payroll");
+    const form = payrollEditFormSchema.safeParse({
+      periodStart: "2026-08-21",
+      periodEnd: "2026-09-20",
+      actualWorkDays: "22",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.actualWorkDays).toBe(22);
+    const body = wire(form.data); // page.tsx:314 sends `values` directly
+    expect(updatePayrollRunSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blank actualWorkDays is rejected client-side (not silently coerced to 0)", async () => {
+    const { payrollEditFormSchema } = await import("../payroll");
+    const form = payrollEditFormSchema.safeParse({
+      periodStart: "2026-08-21",
+      periodEnd: "2026-09-20",
+      actualWorkDays: "",
+    });
+    expect(form.success).toBe(false);
+  });
+});
+
+// ── Employee profile edit — app/admin/(hr)/employees/[id]/page.tsx:146-148 ──
+describe("Employee profile edit: employeeEditFormSchema (form) -> updateEmployeeSchema (PUT /api/employees/[id])", () => {
+  it("round-trips a full edit submission, `role` never appearing on the wire", async () => {
+    const { employeeEditFormSchema, updateEmployeeSchema } = await import("../employee");
+    const form = employeeEditFormSchema.safeParse({
+      nama: "Budi Santoso",
+      formalName: "",
+      email: "budi@example.com",
+      noHp: "",
+      jabatan: "Guru Kelas",
+      campusId: "campus-1",
+      hireDate: "2022-01-10",
+      bankName: "BCA",
+      bankAccountNo: "1234567890",
+      bpjsEnrolled: true,
+      leaveBalanceAnnual: "12",
+      leaveBalanceSick: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect("role" in form.data).toBe(false);
+    // page.tsx:148 sends `values` directly.
+    const body = wire(form.data);
+    expect("role" in (body as object)).toBe(false);
+    expect(updateEmployeeSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a bank name with no account number is rejected on the same field the wire schema flags", async () => {
+    const { employeeEditFormSchema } = await import("../employee");
+    const form = employeeEditFormSchema.safeParse({
+      nama: "Budi Santoso",
+      email: "budi@example.com",
+      jabatan: "Guru Kelas",
+      campusId: "campus-1",
+      hireDate: "2022-01-10",
+      bankName: "BCA",
+      bankAccountNo: "",
+    });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.path.join(".") === "bankAccountNo")).toBe(true);
+  });
+});
+
+// ── Invoice record payment — app/admin/invoices/[id]/page.tsx:148-150 ───────
+describe("Invoice record payment: invoicePaymentFormSchema (form) -> recordPaymentSchema (POST .../payments)", () => {
+  it("round-trips a filled RupiahInput amount", async () => {
+    const { invoicePaymentFormSchema, recordPaymentSchema } = await import("../invoice");
+    const form = invoicePaymentFormSchema.safeParse({
+      amount: 500000,
+      method: "CASH",
+      reference: "",
+      notes: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire(form.data); // page.tsx:150 sends `values` directly
+    expect(recordPaymentSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a not-yet-filled amount (null) is rejected client-side before it ever reaches the wire", async () => {
+    const { invoicePaymentFormSchema } = await import("../invoice");
+    const form = invoicePaymentFormSchema.safeParse({ amount: null, method: "CASH" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues[0]?.message).toBe("Jumlah pembayaran wajib diisi");
+  });
+});
+
+// ── Curriculum objectives — app/admin/semesters/[id]/objectives/client.tsx ──
+describe("TP edit: objectiveEditFormSchema (form) -> objectiveUpdateSchema (PUT .../objectives/[id])", () => {
+  it("round-trips both fields, trimmed", async () => {
+    const { objectiveEditFormSchema, objectiveUpdateSchema } = await import("../curriculum");
+    const form = objectiveEditFormSchema.safeParse({
+      competencyText: "  Anak mengenal konsep sains sederhana  ",
+      content: "Anak dapat mengamati perubahan benda",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.competencyText).toBe("Anak mengenal konsep sains sederhana");
+    const body = wire(form.data); // client.tsx:685 sends `values` directly
+    expect(objectiveUpdateSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+describe("Tambah IKTP: indicatorAddFormSchema (form) -> indicatorAdminCreateSchema (POST .../indicators)", () => {
+  it("round-trips with objectiveId spliced in and order coerced from a string", async () => {
+    const { indicatorAddFormSchema, indicatorAdminCreateSchema } = await import("../curriculum");
+    const form = indicatorAddFormSchema.safeParse({ content: "Anak mampu berhitung 1-10", order: "3" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.order).toBe(3);
+    // client.tsx:764 splices `objectiveId` (a prop, not a form field) into the body.
+    const body = wire({ ...form.data, objectiveId: "obj-1" });
+    expect(indicatorAdminCreateSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blank order is rejected client-side, not silently defaulted to 1", async () => {
+    const { indicatorAddFormSchema } = await import("../curriculum");
+    const form = indicatorAddFormSchema.safeParse({ content: "Anak mampu berhitung 1-10", order: "" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues[0]?.message).toBe("Urutan wajib diisi");
+  });
+});
+
+describe("Edit IKTP: indicatorEditFormSchema (form) -> indicatorUpdateSchema (PUT .../indicators/[id])", () => {
+  it("round-trips content + a coerced order", async () => {
+    const { indicatorEditFormSchema, indicatorUpdateSchema } = await import("../curriculum");
+    const form = indicatorEditFormSchema.safeParse({ content: "Anak mampu menyebutkan angka 1-10", order: "5" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.order).toBe(5);
+    const body = wire(form.data); // client.tsx:838 sends `values` directly
+    expect(indicatorUpdateSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+// =============================================================================
+// T4 (2026-09-27, admin-finish-standard) — students/[id] dossier split.
+// Appended at the end of the file per the cycle's parallel-editing brief:
+// touches nothing above this marker.
+// =============================================================================
+
+// ── Data Anak inline edit — components/admin/students/detail/
+//    data-anak-section.tsx, saveDataAnak in app/admin/students/[id]/page.tsx ─
+describe("Data Anak edit: studentDetailEditFormSchema (form) -> updateStudentSchema (PUT .../students/[id])", () => {
+  it("round-trips a no-gender student, sending gender: null (not \"\") — the bug this schema fixes", async () => {
+    const { studentDetailEditFormSchema, updateStudentSchema } = await import("../student");
+    const form = studentDetailEditFormSchema.safeParse({
+      name: "Ahmad",
+      nickname: "",
+      dateOfBirth: "",
+      gender: "",
+      address: "",
+      notes: "",
+      nis: "",
+      nisn: "",
+      birthPlace: "",
+      nik: "",
+      kkNumber: "",
+      livingWith: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.gender).toBeNull();
+    const body = wire(form.data); // page.tsx saveDataAnak sends `values` directly
+    expect(updateStudentSchema.safeParse(body).success).toBe(true);
+    // The pre-fix bug: sending the literal string "" instead of null is what
+    // `updateStudentSchema`'s `z.enum(["L","P"]).optional().nullable()` rejects.
+    expect(
+      updateStudentSchema.safeParse({ ...(body as Record<string, unknown>), gender: "" }).success,
+    ).toBe(false);
+  });
+
+  it("round-trips a filled-in edit, including an explicit-null clear of an official-id field", async () => {
+    const { studentDetailEditFormSchema, updateStudentSchema } = await import("../student");
+    const form = studentDetailEditFormSchema.safeParse({
+      name: "Ahmad",
+      nickname: null,
+      dateOfBirth: "2020-01-15",
+      gender: "L",
+      address: "Jl. Merdeka",
+      notes: null,
+      nis: "12345",
+      nisn: null,
+      birthPlace: "Bekasi",
+      nik: null,
+      kkNumber: null,
+      livingWith: null,
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire(form.data);
+    expect(updateStudentSchema.safeParse(body).success).toBe(true);
+    // No `status` key at all — the inline edit never shows that field.
+    expect("status" in (body as Record<string, unknown>)).toBe(false);
+  });
+});
+
+// ── Withdrawal reason inline edit — components/admin/students/detail/
+//    riwayat-status-section.tsx ────────────────────────────────────────────
+describe("Withdrawal reason edit: withdrawalReasonFormSchema (form) -> updateStudentSchema (PUT .../students/[id])", () => {
+  it("round-trips a trimmed reason", async () => {
+    const { withdrawalReasonFormSchema } = await import("../student");
+    const { updateStudentSchema } = await import("../student");
+    const form = withdrawalReasonFormSchema.safeParse({ withdrawalReason: "  Pindah domisili  " });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.withdrawalReason).toBe("Pindah domisili");
+    const body = wire(form.data); // riwayat-status-section.tsx sends `values` directly
+    expect(updateStudentSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+// ── Promote (Naik Kelas) — components/admin/students/detail/
+//    lifecycle-dialogs.tsx handlePromote posts `values` from
+//    `promoteStudentSchema` directly; form and wire schema are the same
+//    object (no divergence to round-trip), so this pins that the dialog's
+//    own default values (an empty, not-yet-picked class + blank notes) are
+//    rejected the way the API route requires. ──────────────────────────────
+describe("Promote: promoteStudentSchema used directly as both form and POST .../promote schema", () => {
+  it("accepts a picked class with optional notes", async () => {
+    const { promoteStudentSchema } = await import("../student");
+    const parsed = promoteStudentSchema.safeParse({ targetClassSectionId: "sec-1", notes: "" });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects the dialog's own not-yet-picked default", async () => {
+    const { promoteStudentSchema } = await import("../student");
+    const parsed = promoteStudentSchema.safeParse({ targetClassSectionId: "", notes: "" });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues[0]?.message).toBe("Kelas tujuan wajib dipilih");
+  });
+});
+
+// ── Withdraw (Keluarkan) — components/admin/students/detail/
+//    lifecycle-dialogs.tsx handleWithdraw posts `{ reason: values.reason }`
+//    from `withdrawStudentSchema` used directly. ────────────────────────────
+describe("Withdraw: withdrawStudentSchema used directly as both form and POST .../withdraw schema", () => {
+  it("round-trips a filled reason, dropping the unset optional effectiveDate", async () => {
+    const { withdrawStudentSchema } = await import("../student");
+    const form = withdrawStudentSchema.safeParse({ reason: "Pindah ke luar kota" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire({ reason: form.data.reason }); // lifecycle-dialogs.tsx sends only `reason`
+    expect(withdrawStudentSchema.safeParse(body).success).toBe(true);
+    expect("effectiveDate" in (body as Record<string, unknown>)).toBe(false);
+  });
+
+  it("rejects a blank reason with the Indonesian inline message", async () => {
+    const { withdrawStudentSchema } = await import("../student");
+    const parsed = withdrawStudentSchema.safeParse({ reason: "" });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues[0]?.message).toBe("Alasan pengunduran diri wajib diisi");
+  });
+});
+
+// ── Informasi Tambahan rows — components/admin/students/detail/
+//    informasi-tambahan-section.tsx. No wire schema counterpart: `PUT
+//    .../students/[id]` accepts `metadata` as an open `z.record(...)`
+//    (`createStudentSchema`); this pins the client-side shape that
+//    `buildStudentMetadata` (lib/student/metadata.ts) folds into that blob. ──
+describe("Informasi Tambahan: studentExtraMetadataFormSchema (form) -> buildStudentMetadata -> PUT { metadata }", () => {
+  it("round-trips distinct rows into the metadata object the PUT body carries", async () => {
+    const { studentExtraMetadataFormSchema } = await import("../student");
+    const { buildStudentMetadata } = await import("../../student/metadata");
+    const form = studentExtraMetadataFormSchema.safeParse({
+      rows: [{ key: "hobi", value: "Menggambar" }],
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const metadata = buildStudentMetadata({
+      known: {},
+      extra: form.data.rows,
+      system: { fromEnrollmentApplication: null, dcareAddon: false, priorFamilyAttendees: [] },
+    });
+    const body = wire({ metadata }); // informasi-tambahan-section.tsx's persistMetadata call
+    expect(body).toEqual({ metadata: { hobi: "Menggambar" } });
   });
 });

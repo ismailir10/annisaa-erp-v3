@@ -1,21 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import type { AcademicYear } from "./billing-defaults";
 import { StepIndicator, type StepIndicatorItem } from "./step-indicator";
 import { ScopeStep } from "./step-1-scope";
@@ -65,7 +51,6 @@ export function BillingRunWizard({
    *  invoice list (and its stats + draft banner) before the wizard closes. */
   onCommitted?: () => void;
 }) {
-  const isMobile = useIsMobile();
   const [step, setStep] = useState<WizardStep>(1);
   const [billingRunId, setBillingRunId] = useState<string | null>(null);
 
@@ -161,33 +146,23 @@ export function BillingRunWizard({
     </>
   );
 
-  if (isMobile) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Buat Tagihan (Wizard)</SheetTitle>
-            <SheetDescription>
-              Tentukan cakupan, tinjau baris tagihan, lalu komit.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-4">{body}</div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Buat Tagihan (Wizard)</DialogTitle>
-          <DialogDescription>
-            Tentukan cakupan, tinjau baris tagihan, lalu komit.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[65vh] overflow-y-auto pr-1">{body}</div>
-      </DialogContent>
-    </Dialog>
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Buat Tagihan (Wizard)"
+      description="Tentukan cakupan, tinjau baris tagihan, lalu komit."
+      size="2xl"
+      // Each step (ScopeStep/ReviewStep/CommitStep) renders its own inline
+      // Batal/Lanjutkan/Komit actions as part of its body — same as the
+      // pre-migration shell, which also had no separate footer region (both
+      // the old Dialog and Sheet branches scrolled the whole `body`,
+      // buttons included, in one region). There's nothing to lift into a
+      // dedicated footer slot without changing the steps themselves, which
+      // this task keeps unchanged — so `footer` is empty here on purpose.
+      footer={null}
+    >
+      {body}
+    </ResponsiveFormDialog>
   );
 }

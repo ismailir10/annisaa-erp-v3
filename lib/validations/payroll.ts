@@ -9,11 +9,12 @@ import { z } from "zod";
 export const salaryCategorySchema = z.enum(["INCOME", "DEDUCTION"], {
   message: "Kategori tidak valid",
 });
-// NOTE: POST has only ever accepted FIXED | ATTENDANCE_BASED, although the
-// engine (lib/payroll/engine.ts) and seed data also use PCT_OF_BASE and the
-// dialog offers it. Widening POST is out of scope for the forms cycle; see
-// `salaryComponentFormSchema` for how the dialog handles it.
-export const salaryCalcTypeSchema = z.enum(["FIXED", "ATTENDANCE_BASED"], {
+// F-15 (cycle 2026-09-27-admin-finish-standard): POST used to accept only
+// FIXED | ATTENDANCE_BASED even though the engine (lib/payroll/engine.ts),
+// PUT and seed data all use PCT_OF_BASE — a bug, not a scope boundary.
+// Widened here; the routes enforce the `gaji_pokok` sortOrder ordering rule
+// (F-15) so a PCT_OF_BASE component can never be miscalculated against 0.
+export const salaryCalcTypeSchema = z.enum(["FIXED", "PCT_OF_BASE", "ATTENDANCE_BASED"], {
   message: "Tipe kalkulasi tidak valid",
 });
 
@@ -23,28 +24,40 @@ export const createSalaryComponentSchema = z.object({
   category: salaryCategorySchema,
   calcType: salaryCalcTypeSchema,
   isProRated: z.boolean().optional(),
-  sortOrder: z.number().int().nonnegative().optional(),
+  sortOrder: z.number().int("Urutan harus bilangan bulat").nonnegative("Urutan tidak boleh negatif").optional(),
 });
 
 export type CreateSalaryComponentInput = z.infer<typeof createSalaryComponentSchema>;
 
 // Admin create/edit dialog form. Reused for both — `code` is hidden once
 // editing, seeded from the existing row via `reset` so it stays valid.
-// `calcType` accepts all three engine values: PUT /api/salary-components/[id]
-// has never restricted it and seeded rows already use PCT_OF_BASE, so the
-// create-only enum would make those rows un-editable. A PCT_OF_BASE *create*
-// is still rejected by POST exactly as before; that 400 maps back onto the
-// field via applyServerErrors. `sortOrder` is a string in the number input.
+// `calcType` no longer needs its own override: `createSalaryComponentSchema`
+// already accepts PCT_OF_BASE (see `salaryCalcTypeSchema` above). `sortOrder`
+// is still overridden because it arrives as a string from the number input.
 export const salaryComponentFormSchema = createSalaryComponentSchema.extend({
-  calcType: z.enum(["FIXED", "PCT_OF_BASE", "ATTENDANCE_BASED"], {
-    message: "Tipe kalkulasi tidak valid",
-  }),
   sortOrder: z.coerce
     .number({ message: "Urutan harus berupa angka" })
     .int("Urutan harus bilangan bulat")
     .nonnegative("Urutan tidak boleh negatif")
     .optional(),
 });
+
+// PUT /api/salary-components/[id] — every editable field is optional so the
+// existing `{ isEnabled }`-only toggle body keeps working (the route builds
+// its update `data` from whichever keys parsed non-undefined). A full edit
+// submission from the dialog sends every field; `code` is not editable and
+// is not part of this schema (an extra `code` key on the wire is ignored by
+// `validateBody`, which only reads the fields it declares).
+export const updateSalaryComponentSchema = z.object({
+  label: z.string().trim().min(1, "Label wajib diisi").optional(),
+  category: salaryCategorySchema.optional(),
+  calcType: salaryCalcTypeSchema.optional(),
+  isProRated: z.boolean().optional(),
+  sortOrder: z.number().int("Urutan harus bilangan bulat").nonnegative("Urutan tidak boleh negatif").optional(),
+  isEnabled: z.boolean().optional(),
+});
+
+export type UpdateSalaryComponentInput = z.infer<typeof updateSalaryComponentSchema>;
 
 // PayrollRun.periodStart / periodEnd are stored as String (YYYY-MM-DD) per
 // prisma schema — validate as ISO date-only strings, not coerced Date objects.
@@ -157,3 +170,33 @@ export const payrollVariablesSchema = z.object({
 });
 
 export type PayrollVariablesInput = z.infer<typeof payrollVariablesSchema>;
+
+// Client form schema for the payroll/[id] period-edit card (T6, 2026-09-27
+// admin-finish-standard cycle). The edit card always shows and always sends
+// all three fields (never a partial patch), so this narrows
+// `updatePayrollRunSchema`'s optionality to "always present": that alone
+// satisfies its "minimal satu field harus diisi" object-level refine (never
+// re-declared here — with every field required it can never fire), and lets
+// the periodStart<=periodEnd cross-check keep the same field path
+// (`periodStart`) the wire schema already uses. `actualWorkDays` used to
+// reach the route as `parseInt(...) || 0`, silently turning a cleared input
+// into a valid 0 — preprocessing blank to `undefined` first makes it fail
+// with "wajib diisi" instead (mirrors `classFormSchema.capacity`).
+export const payrollEditFormSchema = z
+  .object({
+    periodStart: isoDateString,
+    periodEnd: isoDateString,
+    actualWorkDays: z.preprocess(
+      (v) => (v === "" || v === null || v === undefined ? undefined : v),
+      z.coerce
+        .number({ message: "Hari kerja aktual wajib diisi" })
+        .int("Hari kerja aktual harus bilangan bulat")
+        .nonnegative("Hari kerja aktual tidak boleh negatif"),
+    ),
+  })
+  .refine((v) => v.periodStart <= v.periodEnd, {
+    message: "Tanggal mulai periode harus sebelum atau sama dengan tanggal selesai",
+    path: ["periodStart"],
+  });
+
+export type PayrollEditFormInput = z.infer<typeof payrollEditFormSchema>;

@@ -72,6 +72,20 @@ describe("ClassesClient — name is the link (T7)", () => {
   });
 });
 
+// T2 (2026-09-27 admin-finish-standard) — the Kondisi column renders
+// `<StatusBadge>` off the new STATUS_MAP health keys instead of a raw
+// `<Badge>` + the standalone `healthTone()` helper.
+describe("ClassesClient — Kondisi column (T2 StatusBadge migration)", () => {
+  it("renders the row's health value on the shared StatusBadge tone", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+
+    render(<ClassesClient canWrite={true} />);
+
+    const badge = await screen.findByText("Sehat");
+    expect(badge.className).toContain("status-present-subtle");
+  });
+});
+
 // T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah/Ubah Kelas migrated onto
 // useZodForm + FormField + classFormSchema.
 const campus = { id: "cp1", name: "Taman Aster", status: "ACTIVE" };

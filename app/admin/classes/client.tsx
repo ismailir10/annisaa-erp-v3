@@ -9,8 +9,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
-import { StatusBadge, healthTone } from "@/components/ui/status-badge";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -323,14 +322,7 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           <DataTableColumnHeader column={column} title="Kondisi" />
         ),
         meta: { priority: "low" },
-        cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={healthTone(row.original.health)}
-          >
-            {row.original.health}
-          </Badge>
-        ),
+        cell: ({ row }) => <StatusBadge status={row.original.health} />,
       },
       {
         id: "actions",

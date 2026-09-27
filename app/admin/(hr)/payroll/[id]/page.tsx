@@ -13,7 +13,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -27,7 +26,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
-import { adjustPayrollLineFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
+import { adjustPayrollLineFormSchema, payrollEditFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
@@ -82,8 +81,9 @@ export default function PayrollDetailPage() {
 
   // Edit toggle for summary card (Category B — Edit Toggle Pattern, DRAFT only)
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ periodStart: "", periodEnd: "", actualWorkDays: 0 });
-  const [editSaving, setEditSaving] = useState(false);
+  const periodForm = useZodForm(payrollEditFormSchema, {
+    defaultValues: { periodStart: "", periodEnd: "", actualWorkDays: undefined },
+  });
   const [comparison, setComparison] = useState<Record<string, number> | null>(null);
   const [prevPeriod, setPrevPeriod] = useState<string | null>(null);
 
@@ -139,117 +139,12 @@ export default function PayrollDetailPage() {
     });
   }, [payrollItems, employeeSearch, bankFilter]);
 
-  function openVars(item: PayrollItem) {
-    varsForm.reset({
-      overtimeHours: item.overtimeHours,
-      outdoorDays: item.outdoorDays,
-      holidayWorkedDays: item.holidayWorkedDays,
-      dcDays: item.dcDays,
-    });
-    setVarsModal(item);
-  }
-
-  const saveVars = varsForm.handleSubmit(async (values) => {
-    if (!varsModal) return;
-    try {
-      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Gagal menyimpan");
-      toast.success("Variabel diperbarui");
-      setVarsModal(null);
-      fetchData();
-    } catch (err) {
-      applyServerErrors(varsForm, err, "Gagal menyimpan");
-    }
-  });
-
-  function openLineAdj(item: PayrollItem, line: PayrollLine) {
-    // Blank (not "0") when there's no existing adjustment — matches the
-    // prior `String(line.adjustmentAmount || "")` display exactly;
-    // z.coerce.number() still turns a resubmitted blank back into 0.
-    adjForm.reset({
-      adjustmentAmount: line.adjustmentAmount ? String(line.adjustmentAmount) : "",
-      adjustmentNote: line.adjustmentNote ?? "",
-    });
-    setLineModal({ item, line });
-  }
-
-  const saveLineAdj = adjForm.handleSubmit(async (values) => {
-    if (!lineModal) return;
-    try {
-      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Gagal");
-      toast.success("Penyesuaian disimpan");
-      setLineModal(null);
-      fetchData();
-    } catch (err) {
-      applyServerErrors(adjForm, err, "Gagal");
-    }
-  });
-
-  async function handleApprove() {
-    setApproving(true);
-    try {
-      const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
-      if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
-      else {
-        toast.error("Gagal menyetujui");
-        // Re-thrown so ConfirmDialog keeps the modal open for retry instead
-        // of closing after a failed approve (it only closes when onConfirm
-        // resolves without throwing).
-        throw new Error("approve failed");
-      }
-    } finally {
-      setApproving(false);
-    }
-  }
-
-  async function handleExport() {
-    window.open(`/api/payroll/${id}/export/bsi`, "_blank");
-    setTimeout(fetchData, 1000);
-  }
-
-  function openEdit() {
-    if (!data) return;
-    setEditForm({
-      periodStart: data.periodStart,
-      periodEnd: data.periodEnd,
-      actualWorkDays: data.actualWorkDays,
-    });
-    setIsEditing(true);
-  }
-
-  function cancelEdit() {
-    setIsEditing(false);
-  }
-
-  async function saveEdit() {
-    if (!data) return;
-    setEditSaving(true);
-    const res = await fetch(`/api/payroll/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
-    if (res.ok) {
-      toast.success("Periode diperbarui");
-      setIsEditing(false);
-      fetchData();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menyimpan");
-    }
-    setEditSaving(false);
-  }
-
-  if (loading) return <DetailPageSkeleton />;
-  if (!data) return <EmptyState title="Data penggajian tidak ditemukan" description="Data penggajian tidak tersedia atau telah dihapus." actionLabel="Kembali ke daftar penggajian" actionHref="/admin/payroll" />;
-
-  const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
-  const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
-  const totalNet = data.items.reduce((s, i) => s + Number(i.netAmount), 0);
-  const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
-  const isDraft = data.status === "DRAFT";
-  const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
-
-  const columns: ColumnDef<PayrollItem>[] = [
+  // Memoised — rebuilding this array on every render (e.g. while the period
+  // edit form or either dialog's form state changes) would remount every row
+  // cell and close any open row-action menu (lesson from the Cycle 2
+  // reviews). Only `comparison` and `setDetailItem` are read inside; the
+  // latter is a stable `useState` setter.
+  const columns: ColumnDef<PayrollItem>[] = useMemo(() => [
     {
       id: "nama",
       accessorFn: (row) => row.employee.nama,
@@ -331,7 +226,109 @@ export default function PayrollDetailPage() {
         );
       },
     },
-  ];
+  ], [comparison]);
+
+  function openVars(item: PayrollItem) {
+    varsForm.reset({
+      overtimeHours: item.overtimeHours,
+      outdoorDays: item.outdoorDays,
+      holidayWorkedDays: item.holidayWorkedDays,
+      dcDays: item.dcDays,
+    });
+    setVarsModal(item);
+  }
+
+  const saveVars = varsForm.handleSubmit(async (values) => {
+    if (!varsModal) return;
+    try {
+      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Variabel diperbarui");
+      setVarsModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(varsForm, err, "Gagal menyimpan");
+    }
+  });
+
+  function openLineAdj(item: PayrollItem, line: PayrollLine) {
+    // Blank (not "0") when there's no existing adjustment — matches the
+    // prior `String(line.adjustmentAmount || "")` display exactly;
+    // z.coerce.number() still turns a resubmitted blank back into 0.
+    adjForm.reset({
+      adjustmentAmount: line.adjustmentAmount ? String(line.adjustmentAmount) : "",
+      adjustmentNote: line.adjustmentNote ?? "",
+    });
+    setLineModal({ item, line });
+  }
+
+  const saveLineAdj = adjForm.handleSubmit(async (values) => {
+    if (!lineModal) return;
+    try {
+      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Gagal");
+      toast.success("Penyesuaian disimpan");
+      setLineModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(adjForm, err, "Gagal");
+    }
+  });
+
+  async function handleApprove() {
+    setApproving(true);
+    try {
+      const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
+      if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
+      else {
+        toast.error("Gagal menyetujui");
+        // Re-thrown so ConfirmDialog keeps the modal open for retry instead
+        // of closing after a failed approve (it only closes when onConfirm
+        // resolves without throwing).
+        throw new Error("approve failed");
+      }
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  async function handleExport() {
+    window.open(`/api/payroll/${id}/export/bsi`, "_blank");
+    setTimeout(fetchData, 1000);
+  }
+
+  function openEdit() {
+    if (!data) return;
+    periodForm.reset({
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      actualWorkDays: data.actualWorkDays,
+    });
+    setIsEditing(true);
+  }
+
+  function cancelEdit() {
+    setIsEditing(false);
+  }
+
+  const savePeriod = periodForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(`/api/payroll/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Periode diperbarui");
+      setIsEditing(false);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(periodForm, err, "Gagal menyimpan");
+    }
+  });
+
+  if (loading) return <DetailPageSkeleton />;
+  if (!data) return <EmptyState title="Data penggajian tidak ditemukan" description="Data penggajian tidak tersedia atau telah dihapus." actionLabel="Kembali ke daftar penggajian" actionHref="/admin/payroll" />;
+
+  const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
+  const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
+  const totalNet = data.items.reduce((s, i) => s + Number(i.netAmount), 0);
+  const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
+  const isDraft = data.status === "DRAFT";
+  const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
 
   return (
     <>
@@ -364,11 +361,11 @@ export default function PayrollDetailPage() {
           </div>
           {isEditing && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={editSaving}>
+              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={periodForm.formState.isSubmitting}>
                 <X size={14} className="mr-1.5" /> Batal
               </Button>
-              <Button size="sm" onClick={saveEdit} disabled={editSaving} data-testid="payroll-edit-save">
-                {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
+              <Button size="sm" onClick={savePeriod} disabled={periodForm.formState.isSubmitting} data-testid="payroll-edit-save">
+                {periodForm.formState.isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -391,32 +388,34 @@ export default function PayrollDetailPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field>
-              <FieldLabel htmlFor="payroll-period-start">Periode Mulai</FieldLabel>
-              <DatePicker
-                id="payroll-period-start"
-                value={editForm.periodStart}
-                onChange={(v) => setEditForm({ ...editForm, periodStart: v })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="payroll-period-end">Periode Akhir</FieldLabel>
-              <DatePicker
-                id="payroll-period-end"
-                value={editForm.periodEnd}
-                onChange={(v) => setEditForm({ ...editForm, periodEnd: v })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="payroll-actual-work-days">Hari Kerja Aktual</FieldLabel>
-              <Input
-                id="payroll-actual-work-days"
-                type="number"
-                min={0}
-                value={editForm.actualWorkDays}
-                onChange={(e) => setEditForm({ ...editForm, actualWorkDays: parseInt(e.target.value) || 0 })}
-              />
-            </Field>
+            <FormRootError formState={periodForm.formState} className="md:col-span-3" />
+            <FormField
+              control={periodForm.control}
+              name="periodStart"
+              label="Periode Mulai"
+              id="payroll-period-start"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+              )}
+            />
+            <FormField
+              control={periodForm.control}
+              name="periodEnd"
+              label="Periode Akhir"
+              id="payroll-period-end"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+              )}
+            />
+            <FormField
+              control={periodForm.control}
+              name="actualWorkDays"
+              label="Hari Kerja Aktual"
+              id="payroll-actual-work-days"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} />
+              )}
+            />
           </div>
         )}
       </Card>

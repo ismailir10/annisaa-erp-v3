@@ -476,9 +476,10 @@ describe("ClassDetailClient — teacher-swap dialog (T6)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("opens on ResponsiveFormDialog with the session's fields and submits a swap", async () => {
+  it("opens on ResponsiveFormDialog with the session's fields and submits a swap once a reason is entered", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("fetch", stubFetchWithSession());
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
     render(<ClassDetailClient classId="class-1" canWrite />);
 
     await openSessionDialog(user);
@@ -487,11 +488,72 @@ describe("ClassDetailClient — teacher-swap dialog (T6)", () => {
     expect(screen.getByLabelText("Alasan pengganti")).toBeInTheDocument();
 
     await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    // T2 (2026-09-27 admin-finish-standard): Simpan now submits through
+    // `swapForm.handleSubmit`, whose schema requires a reason once the
+    // chosen teacher differs from the session's defaultTeacherId — the
+    // session fixture's default is "emp-1" and we just picked "emp-2".
+    await user.type(screen.getByLabelText("Alasan pengganti"), "Wali kelas sedang cuti");
     await user.click(screen.getByRole("button", { name: "Simpan" }));
 
     const { toast } = await import("sonner");
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru sesi diperbarui"));
     await waitFor(() => expect(screen.queryByText("Ubah Guru Sesi")).not.toBeInTheDocument());
+
+    const patchCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+    })!;
+    expect(JSON.parse((patchCall[1] as RequestInit).body as string)).toEqual({
+      teacherId: "emp-2",
+      substituteReason: "Wali kelas sedang cuti",
+    });
+  });
+
+  it("blocks Simpan with no reason for a genuine substitution, showing an inline error and firing no PATCH", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(
+      await screen.findByText("Alasan pengganti wajib diisi untuk pergantian guru."),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+      }),
+    ).toBe(false);
+  });
+
+  it("'Kembalikan ke wali kelas' bypasses the form entirely — no reason required", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Kembalikan ke wali kelas" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru sesi diperbarui"));
+
+    const patchCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+    })!;
+    expect(JSON.parse((patchCall[1] as RequestInit).body as string)).toEqual({
+      teacherId: "emp-1",
+    });
   });
 
   it("closes without saving when dismissed", async () => {

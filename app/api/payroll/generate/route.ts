@@ -7,6 +7,21 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { generatePayrollSchema } from "@/lib/validations/payroll";
 
+/**
+ * F-15: mirrors `assertGajiPokokSortOrder`'s selection (find the tenant's
+ * `gaji_pokok` by code among the already-`isEnabled: true`-filtered
+ * components) but names the offending component(s) for the 400 message,
+ * which the thrown Error alone does not carry.
+ */
+function describeMisorderedComponents(components: SalaryComponent[]): string {
+  const gajiPokok = components.find((c) => c.code === "gaji_pokok");
+  const misordered = gajiPokok
+    ? components.filter((c) => c.calcType === "PCT_OF_BASE" && c.sortOrder <= gajiPokok.sortOrder)
+    : [];
+  const names = misordered.length > 0 ? misordered.map((c) => c.label).join(", ") : "Komponen % Gaji Pokok";
+  return `Urutan komponen tidak valid: ${names} harus diurutkan setelah Gaji Pokok. Perbaiki Urutan di Komponen Gaji sebelum membuat penggajian.`;
+}
+
 export async function POST(req: NextRequest) {
   // Rate limit: 2 payroll generations per minute
   const { success } = rateLimit(`payroll:${getClientIp(req)}`, 2, 60_000);
@@ -125,19 +140,31 @@ export async function POST(req: NextRequest) {
   // Calculate payroll. F-14: propagate the org-level lemburCompliant flag so
   // tenants that opt in get UU 13/2003 §78(4) tiered overtime rates; everyone
   // else stays on the historical flat formula.
-  const results = calculatePayroll(
-    employees.map((e) => ({
-      id: e.id,
-      salaryValues: e.salaryValues.map((sv) => ({
-        componentDefId: sv.componentDefId,
-        value: Number(sv.value),
+  // F-15: a component misordered against `gaji_pokok` makes
+  // `calculatePayroll` throw (`assertGajiPokokSortOrder`) rather than
+  // silently compute PCT_OF_BASE against 0 — catch that specific error and
+  // return a 400 naming the offending component(s) instead of a 500.
+  let results;
+  try {
+    results = calculatePayroll(
+      employees.map((e) => ({
+        id: e.id,
+        salaryValues: e.salaryValues.map((sv) => ({
+          componentDefId: sv.componentDefId,
+          value: Number(sv.value),
+        })),
+        attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
       })),
-      attendanceRecords: e.attendanceRecords.map((r) => ({ status: r.status })),
-    })),
-    components,
-    actualWorkDays,
-    { lemburCompliant: orgConfig.lemburCompliant }
-  );
+      components,
+      actualWorkDays,
+      { lemburCompliant: orgConfig.lemburCompliant }
+    );
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("PCT_OF_BASE")) {
+      return NextResponse.json({ error: describeMisorderedComponents(components) }, { status: 400 });
+    }
+    throw e;
+  }
 
   // Pre-generate item IDs so PayrollItemLines can reference them without an
   // extra round trip. Replaces 1 + N + N×M individual INSERTs with 3 bulk

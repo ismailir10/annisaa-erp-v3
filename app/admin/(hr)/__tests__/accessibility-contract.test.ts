@@ -16,8 +16,8 @@ function source(path: string) {
 // `required` + `id` as `<FormField>` props instead. This locates the
 // `<FormField ... id="X" ...>` block for a given control id and asserts the
 // `required` prop is (or isn't) there, which is the part a page can still
-// get wrong (`employees/[id]/page.tsx` isn't migrated yet — Cycle 3 splits
-// that dossier — so its raw-JSX contract below is unchanged).
+// get wrong. `employees/[id]/page.tsx`'s edit card moved onto `<FormField>`
+// in Cycle 3 (2026-09-27 admin-finish-standard T6), so it uses the same check.
 function formFieldBlock(src: string, id: string): string {
   const idAttr = `id="${id}"`;
   const idIndex = src.indexOf(idAttr);
@@ -36,9 +36,11 @@ describe("HR form accessibility contract", () => {
     expect(formFieldBlock(createPage, "employee-nama")).toContain("required");
     expect(formFieldBlock(createPage, "employee-position")).toContain("required");
     expect(createPage).toContain('id="employee-bpjs"');
-    expect(detailPage).toContain('htmlFor="employee-detail-nama" required');
-    expect(detailPage).toContain('id="employee-detail-nama" required');
-    expect(detailPage).toContain('id="employee-detail-campus" aria-required="true"');
+    expect(formFieldBlock(detailPage, "employee-detail-nama")).toContain("required");
+    expect(formFieldBlock(detailPage, "employee-detail-email")).toContain("required");
+    expect(formFieldBlock(detailPage, "employee-detail-position")).toContain("required");
+    expect(formFieldBlock(detailPage, "employee-detail-campus")).toContain("required");
+    expect(formFieldBlock(detailPage, "employee-detail-phone")).not.toContain("required");
     expect(detailPage).toContain('aria-label={`Nilai ${sv.componentDef.label}`}');
   });
 

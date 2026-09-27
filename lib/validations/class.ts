@@ -80,9 +80,21 @@ export const classFormSchema = classCreateSchema.omit({ academicYearId: true }).
   ageGroup: z.enum(["A", "B"], { message: "Kelompok usia wajib dipilih" }),
 });
 
+// Client form schema for the class-detail "Ubah Kelas" dialog (T2, 2026-09-27
+// admin-finish-standard cycle). That dialog only edits name/capacity/
+// slotTemplate — no campus/program/ageGroup fields — so it picks the same
+// three keys off `classFormSchema` rather than redefining the capacity
+// blank-handling preprocessor a second time.
+export const classEditFormSchema = classFormSchema.pick({
+  name: true,
+  capacity: true,
+  slotTemplate: true,
+});
+
 export type ClassCreateInput = z.infer<typeof classCreateSchema>;
 export type ClassUpdateInput = z.infer<typeof classUpdateSchema>;
 export type ClassFormInput = z.infer<typeof classFormSchema>;
+export type ClassEditFormInput = z.infer<typeof classEditFormSchema>;
 export type EnrollmentAddInput = z.infer<typeof enrollmentAddSchema>;
 export type TeachingAssignmentAddInput = z.infer<
   typeof teachingAssignmentAddSchema

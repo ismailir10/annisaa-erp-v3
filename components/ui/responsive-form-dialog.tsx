@@ -78,7 +78,9 @@ export function ResponsiveFormDialog({
           <ScrollArea className={BODY_SCROLL_CLASS}>
             <div className="min-w-0 space-y-field px-4 py-2">{children}</div>
           </ScrollArea>
-          <SheetFooter className="shrink-0 sm:justify-end">{footer}</SheetFooter>
+          {footer != null ? (
+            <SheetFooter className="shrink-0 sm:justify-end">{footer}</SheetFooter>
+          ) : null}
         </SheetContent>
       </Sheet>
     );
@@ -95,7 +97,9 @@ export function ResponsiveFormDialog({
         <ScrollArea className={BODY_SCROLL_CLASS}>
           <div className="min-w-0 space-y-field py-2 pl-1 pr-3">{children}</div>
         </ScrollArea>
-        <DialogFooter className="shrink-0">{footer}</DialogFooter>
+        {/* Multi-step shells (billing-run wizard) render their own step
+            actions and pass `footer={null}` — no empty docked bar. */}
+        {footer != null ? <DialogFooter className="shrink-0">{footer}</DialogFooter> : null}
       </DialogContent>
     </Dialog>
   );

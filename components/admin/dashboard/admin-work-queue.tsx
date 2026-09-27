@@ -24,21 +24,27 @@ export function DashboardRetry({ label = "Coba lagi" }: { label?: string }) {
   return <Button variant="outline" onClick={() => startTransition(() => router.refresh())} disabled={pending} aria-busy={pending}><RefreshCw className="size-4" />{pending ? "Memuat ulang…" : label}</Button>;
 }
 
+// Module-level, not inside the component: the cells here read only `item`
+// (the table's own row data) and the module-level `kindLabels`/`stateLabels`
+// maps above — nothing from `AdminWorkQueue`'s props or state — so a fresh
+// array per render bought nothing but remounted every row cell and could
+// close an open row-action menu (Cycle 3 T7).
+const columns: LegacyColumnDef<AdminWorkItem>[] = [
+  {
+    accessorKey: "title",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Pekerjaan" />,
+    cell: ({ row: { original: item } }) => <div className="min-w-40 max-w-xl whitespace-normal break-words space-y-1"><p className="font-semibold">{item.title}</p><p className="text-small text-muted-foreground">{item.description}</p><p className="text-small text-muted-foreground">{kindLabels[item.kind]}</p>{item.timeLabel && <p className="text-small">{item.timeLabel}</p>}<StatusBadge status={item.state} label={stateLabels[item.state]} /></div>,
+  },
+  {
+    id: "actions", header: "Tindakan",
+    cell: ({ row: { original: item } }) => <Link href={item.href} aria-label={`${item.actionLabel}: ${item.title}`} className={buttonVariants({ variant: "outline", className: "h-auto min-h-11 max-w-36 whitespace-normal text-left" })}>{item.actionLabel}<ArrowRight className="size-4" /></Link>,
+  },
+];
+
 export function AdminWorkQueue({ items, unavailable, initialKind, totalCount }: { items: AdminWorkItem[]; unavailable: AdminWorkKind[]; initialKind?: AdminWorkKind; totalCount?: number }) {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<string>(initialKind ?? "all");
   const filtered = useMemo(() => items.filter(item => (kind === "all" || item.kind === kind) && `${item.title} ${item.description} ${item.recordId}`.toLocaleLowerCase("id").includes(search.toLocaleLowerCase("id"))), [items, search, kind]);
-  const columns: LegacyColumnDef<AdminWorkItem>[] = [
-    {
-      accessorKey: "title",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Pekerjaan" />,
-      cell: ({ row: { original: item } }) => <div className="min-w-40 max-w-xl whitespace-normal break-words space-y-1"><p className="font-semibold">{item.title}</p><p className="text-small text-muted-foreground">{item.description}</p><p className="text-small text-muted-foreground">{kindLabels[item.kind]}</p>{item.timeLabel && <p className="text-small">{item.timeLabel}</p>}<StatusBadge status={item.state} label={stateLabels[item.state]} /></div>,
-    },
-    {
-      id: "actions", header: "Tindakan",
-      cell: ({ row: { original: item } }) => <Link href={item.href} aria-label={`${item.actionLabel}: ${item.title}`} className={buttonVariants({ variant: "outline", className: "h-auto min-h-11 max-w-36 whitespace-normal text-left" })}>{item.actionLabel}<ArrowRight className="size-4" /></Link>,
-    },
-  ];
   return <Card className="min-w-0 gap-4" data-testid="admin-work-queue">
     <CardHeader className="gap-2">
       <CardTitle>Antrean pekerjaan</CardTitle>

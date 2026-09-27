@@ -121,6 +121,8 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 **Required pieces:** `DetailPageHeader` + `DetailPageSkeleton` for loading (`components/admin/`) · sticky `DossierNav` that expands a collapsed section before scrolling to it · one `DossierSection` per concern, `id` = DOM anchor = nav target, `keepMounted` only for sections whose fetch is worth surviving a collapse · `DetailRail` (`RailStatTiles` / `RailCard` / `RailKV` / `RailChecklist`) — collapses into normal document flow below `lg` · hash-addressable sections (`#akademik` etc.) · aggregate numbers distinguish "not loaded" (`Memuat…`) from a real zero (never a bare `0` while a fetch is pending) · lazy sections fetch only on first open; above-the-fold rail data fetches eagerly.
 
+**Split a big dossier page, don't let it grow into a monolith.** The route `page.tsx` stays a thin orchestrator — entity state, which sections are open, lazy-fetch latches, hash handling — and each section and its dialogs live in `components/admin/<entity>/detail/*`, one file per concern (`components/admin/classes/detail/{roster,teachers,sessions}-section.tsx` + its dialogs is the shipped example; `components/admin/students/detail/*` is the second).
+
 Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (`crud.md`) for inline section edits.
 
 ## Recipe 3 — Admin Form (Dialog or Sheet)
@@ -249,6 +251,7 @@ The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit butt
 - **Page-wrapper standard.** Every admin page root is a fragment starting with `PageHeader`. Multiple body blocks go in a single `<div className="space-y-section">` wrapper below it — never raw `space-y-4` / `space-y-6` at the page root.
 - **Never render nothing on empty.** Every conditional list MUST have an `<EmptyState>` branch (see `portal.md` — Empty State Contract).
 - **Loading is always `<Skeleton>`.** No `animate-pulse` divs.
+- **Every admin route has a route-level `loading.tsx`** (cycle `2026-09-27-admin-finish-standard` filled the gaps). List/table routes copy the shared list skeleton (stat-tile row + toolbar bar + one large card skeleton — see `app/admin/guardians/loading.tsx`); entity detail `[id]` routes (Recipe 2a and 2b alike) render `<DetailPageSkeleton />` (`components/admin/detail-page-skeleton.tsx` — see `app/admin/classes/[id]/loading.tsx`); everything else (settings hub, a wizard, a config/import page) renders the root skeleton shape (title + stat row + list rows — see `app/admin/settings/loading.tsx`).
 - **Errors via `toast.error()`.** Never `alert()`, never silent catch.
 - **Currency via `formatRupiah()`, dates via `formatDate()` / `formatDateShort()`.** Never inline `.toLocaleString()`.
 - **Spacing from tokens.** `p-page-x`, `py-page-y`, `gap-section`, `p-card`, `space-y-field` — never ad-hoc `p-4` / `p-8` for page chrome.

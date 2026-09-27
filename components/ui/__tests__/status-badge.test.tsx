@@ -100,4 +100,25 @@ describe("STATUS_MAP enum coverage", () => {
     render(<StatusBadge status="OVERDUE" />);
     expect(screen.queryByText(/Jatuh Tempo/i)).toBeNull();
   });
+
+  // Class health ("Kondisi", admin/classes list + detail) — ported from the
+  // standalone `healthTone()` helper onto STATUS_MAP (T2, 2026-09-27
+  // admin-finish-standard cycle). Keys are the raw Indonesian health values
+  // the classes module already carries (not an English enum).
+  it.each([
+    ["Sehat", "bg-status-present-subtle"],
+    ["Perhatian", "bg-status-late-subtle"],
+    ["Kritis", "bg-status-absent-subtle"],
+    ["Libur", "bg-status-leave-subtle"],
+  ])("maps class health %s to its canonical tone", (status, classFamily) => {
+    render(<StatusBadge status={status} />);
+    const badge = screen.getByText(status);
+    expect(badge).toHaveClass(classFamily);
+  });
+
+  it("falls back to a muted pill with the raw text for 'Tidak Aktif' (no explicit entry needed)", () => {
+    render(<StatusBadge status="Tidak Aktif" />);
+    const badge = screen.getByText("Tidak Aktif");
+    expect(badge).toHaveClass("bg-muted");
+  });
 });

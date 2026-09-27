@@ -7,6 +7,24 @@ import { countAttendanceDays } from "@/lib/payroll/working-days";
 import { validateBody } from "@/lib/api/validate";
 import { payrollVariablesSchema } from "@/lib/validations/payroll";
 
+/**
+ * F-15: unlike `calculatePayroll`, `calculateEmployeePayroll` (the
+ * per-employee function this route calls directly for a variables recalc)
+ * does not run `assertGajiPokokSortOrder` itself — so a misordered
+ * PCT_OF_BASE component here silently computed against 0 instead of
+ * failing loud. Mirrors that assertion's selection (find `gaji_pokok` by
+ * code among the already-`isEnabled: true`-filtered components) and names
+ * the offending component(s).
+ */
+function describeMisorderedComponents(components: SalaryComponent[]): string {
+  const gajiPokok = components.find((c) => c.code === "gaji_pokok");
+  const misordered = gajiPokok
+    ? components.filter((c) => c.calcType === "PCT_OF_BASE" && c.sortOrder <= gajiPokok.sortOrder)
+    : [];
+  const names = misordered.length > 0 ? misordered.map((c) => c.label).join(", ") : "Komponen % Gaji Pokok";
+  return `Urutan komponen tidak valid: ${names} harus diurutkan setelah Gaji Pokok. Perbaiki Urutan di Komponen Gaji sebelum menghitung ulang.`;
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
@@ -46,6 +64,14 @@ export async function PUT(
     calcType: c.calcType as "FIXED" | "PCT_OF_BASE" | "ATTENDANCE_BASED",
     isProRated: c.isProRated, sortOrder: c.sortOrder,
   }));
+
+  const gajiPokok = components.find((c) => c.code === "gaji_pokok");
+  const isMisordered = gajiPokok
+    ? components.some((c) => c.calcType === "PCT_OF_BASE" && c.sortOrder <= gajiPokok.sortOrder)
+    : false;
+  if (isMisordered) {
+    return NextResponse.json({ error: describeMisorderedComponents(components) }, { status: 400 });
+  }
 
   // Atomic: variables update + line rebuild + totals update must commit
   // together, else PayrollItem totals desync from its lines on any mid-

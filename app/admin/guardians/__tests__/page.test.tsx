@@ -140,7 +140,11 @@ describe("GuardiansPage — Edit Wali dialog (RHF)", () => {
     return screen.findByRole("dialog", { name: "Edit Wali" });
   }
 
-  it("blocks submit and shows a toast when Nama is cleared, without sending a request", async () => {
+  // T3 (2026-09-27, admin-finish-standard): the useWatch/setValue bridge is
+  // gone — `GuardianFormBody` now takes `control` directly and renders
+  // `name` with `FormField`, so a client-side validation failure has an
+  // inline error slot to land on instead of a toast.
+  it("blocks submit and shows an inline error when Nama is cleared, without sending a request", async () => {
     const user = userEvent.setup();
     const dialog = await openEditDialog(user);
 
@@ -152,7 +156,8 @@ describe("GuardiansPage — Edit Wali dialog (RHF)", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Nama wajib diisi"));
+    expect(await within(dialog).findByText("Nama wajib diisi")).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalledWith(
       expect.stringContaining("/api/parents/g1"),
       expect.objectContaining({ method: "PUT" }),

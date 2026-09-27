@@ -56,6 +56,13 @@ function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 400) {
 function fixture(overrides: { putStatus?: number; putBody?: unknown } = {}) {
   const { putStatus = 200, putBody = { ok: true } } = overrides;
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+    // Checked before the plain GET match below — the period-edit card PUTs
+    // to this exact same URL (PUT /api/payroll/[id]), so the method has to
+    // be checked first or every such PUT would silently read back as the
+    // GET fixture instead of the configured `putStatus`/`putBody`.
+    if (input === "/api/payroll/run-1" && init?.method === "PUT") {
+      return Promise.resolve(jsonResponse(putBody, putStatus < 400, putStatus));
+    }
     if (input === "/api/payroll/run-1") return Promise.resolve(jsonResponse(payrollRun));
     if (input.startsWith("/api/payroll/compare")) return Promise.resolve(jsonResponse({}));
     if (init?.method === "PUT") return Promise.resolve(jsonResponse(putBody, putStatus < 400, putStatus));
@@ -186,5 +193,59 @@ describe("PayrollDetailPage — Penyesuaian dialog", () => {
       adjustmentNote: "Bonus kinerja",
     });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Penyesuaian disimpan"));
+  });
+});
+
+describe("PayrollDetailPage — period edit card", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("blocks a cleared Hari Kerja Aktual with 'wajib diisi', firing no PUT", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<PayrollDetailPage />);
+
+    fireEvent.click(await screen.findByTestId("payroll-edit-btn"));
+    const workDaysInput = await screen.findByRole("spinbutton", { name: "Hari Kerja Aktual" });
+    await user.clear(workDaysInput);
+    fireEvent.click(screen.getByTestId("payroll-edit-save"));
+
+    expect(await screen.findByText("Hari kerja aktual wajib diisi")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) => url === "/api/payroll/run-1" && (init as RequestInit | undefined)?.method === "PUT",
+      ),
+    ).toBe(false);
+  });
+
+  it("submits the edited period as a PUT to /api/payroll/[id]", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<PayrollDetailPage />);
+
+    fireEvent.click(await screen.findByTestId("payroll-edit-btn"));
+    const workDaysInput = await screen.findByRole("spinbutton", { name: "Hari Kerja Aktual" });
+    await user.clear(workDaysInput);
+    await user.type(workDaysInput, "20");
+    fireEvent.click(screen.getByTestId("payroll-edit-save"));
+
+    await waitFor(() => {
+      const putCall = fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/payroll/run-1" && (init as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(putCall).toBeTruthy();
+    });
+    const [, putInit] = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/payroll/run-1" && (init as RequestInit | undefined)?.method === "PUT",
+    )!;
+    expect(JSON.parse((putInit as RequestInit).body as string)).toEqual({
+      periodStart: "2026-08-21",
+      periodEnd: "2026-09-20",
+      actualWorkDays: 20,
+    });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Periode diperbarui"));
   });
 });

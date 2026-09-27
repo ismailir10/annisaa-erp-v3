@@ -207,8 +207,11 @@ export default function FeesPage() {
 
   // Returns whether the toggle succeeded so the deactivate ConfirmDialog can
   // decide whether to keep itself open for a retry (same contract as
-  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`).
-  async function toggleComponent(c: FeeComponent): Promise<boolean> {
+  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`). `useCallback`
+  // with an empty dep array — needed so `feeComponentColumns` below can be
+  // memoised too; same "frozen at mount, calls only stable setters" contract
+  // the mount-time `fetchAll()` effect above already relies on.
+  const toggleComponent = useCallback(async (c: FeeComponent): Promise<boolean> => {
     const res = await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
@@ -218,7 +221,23 @@ export default function FeesPage() {
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchAll();
     return true;
-  }
+  }, []);
+
+  // Ditto — stabilises the "Ubah" row action for `feeComponentColumns`.
+  const openEditFee = useCallback(
+    (c: FeeComponent) => {
+      setEditingFee(c);
+      componentForm.reset({
+        code: c.code,
+        label: c.label,
+        category: c.category as CreateFeeComponentInput["category"],
+        isRecurring: c.isRecurring,
+        sortOrder: String(c.sortOrder),
+      });
+      setComponentDialog(true);
+    },
+    [componentForm],
+  );
 
   async function fetchStructure() {
     if (!selectedProgram || !selectedYear) return;
@@ -313,31 +332,17 @@ export default function FeesPage() {
     else setSelectedYear(pendingSelection.value);
   }
 
-  if (loading) return <Skeleton className="h-96 rounded-xl" />;
-
-  const filteredComponents = components.filter((c) => {
-    const q = componentSearch.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      [c.code, c.label, CATEGORY_LABELS[c.category] ?? c.category]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
-    const matchesStatus =
-      componentStatus === "all" ||
-      (componentStatus === "ACTIVE" && c.isEnabled) ||
-      (componentStatus === "INACTIVE" && !c.isEnabled);
-    const matchesCategory = componentCategory === "all" || c.category === componentCategory;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
-
   // "Urutan" (sortOrder) intentionally has no column here (Assumption 4,
   // cycle doc 2026-09-26-admin-ui-standard-c1) — it only orders invoice
   // lines, not a fact an admin scans a list for. `/api/fee-components`
   // already returns rows `orderBy: { sortOrder: "asc" }`, so the table's
   // natural (unsorted) row order IS the sortOrder order; the field itself
   // stays editable in the create/edit form below.
-  const feeComponentColumns: ColumnDef<FeeComponent>[] = [
+  //
+  // Memoised (Cycle 3 T7) — a fresh array every render would remount row
+  // cells and close any open row-action menu. Declared before the `loading`
+  // early return below so the hook always runs (rules-of-hooks).
+  const feeComponentColumns: ColumnDef<FeeComponent>[] = useMemo(() => [
     {
       accessorKey: "label",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen" />,
@@ -376,25 +381,32 @@ export default function FeesPage() {
       cell: ({ row }) => (
         <DataTableRowActions
           rowLabel={row.original.label}
-          onEdit={() => {
-            const c = row.original;
-            setEditingFee(c);
-            componentForm.reset({
-              code: c.code,
-              label: c.label,
-              category: c.category as CreateFeeComponentInput["category"],
-              isRecurring: c.isRecurring,
-              sortOrder: String(c.sortOrder),
-            });
-            setComponentDialog(true);
-          }}
+          onEdit={() => openEditFee(row.original)}
           onDeactivate={row.original.isEnabled ? () => setConfirmTarget(row.original) : undefined}
           onActivate={!row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
           isActive={row.original.isEnabled}
         />
       ),
     },
-  ];
+  ], [openEditFee, toggleComponent]);
+
+  if (loading) return <Skeleton className="h-96 rounded-xl" />;
+
+  const filteredComponents = components.filter((c) => {
+    const q = componentSearch.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      [c.code, c.label, CATEGORY_LABELS[c.category] ?? c.category]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    const matchesStatus =
+      componentStatus === "all" ||
+      (componentStatus === "ACTIVE" && c.isEnabled) ||
+      (componentStatus === "INACTIVE" && !c.isEnabled);
+    const matchesCategory = componentCategory === "all" || c.category === componentCategory;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
 
   return (

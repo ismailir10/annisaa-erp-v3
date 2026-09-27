@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { createSalaryComponentSchema } from "@/lib/validations/payroll";
+import { checkSalaryComponentOrdering } from "@/lib/payroll/salary-component-ordering";
 
 // Cache salary components for 1 hour (static data)
 export const revalidate = 3600;
@@ -35,29 +37,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
 
-  const parsed = createSalaryComponentSchema.safeParse(rawBody);
-  if (!parsed.success) {
+  const result = await validateBody(createSalaryComponentSchema, rawBody);
+  if (result.error) return result.error;
+  const { code, label, category, calcType, isProRated, sortOrder } = result.data;
+  const resultingSortOrder = sortOrder ?? 0;
+
+  const orderingError = await checkSalaryComponentOrdering(session.tenantId!, {
+    code: code.toLowerCase(),
+    calcType,
+    sortOrder: resultingSortOrder,
+  });
+  if (orderingError) {
     return NextResponse.json(
-      {
-        error: parsed.error.issues[0]?.message ?? "Validasi gagal",
-        issues: parsed.error.issues,
-      },
+      { error: "Validasi gagal", errors: [orderingError] },
       { status: 400 },
     );
   }
-  const { code, label, category, calcType, isProRated, sortOrder } = parsed.data;
 
-  const component = await prisma.salaryComponentDef.create({
-    data: {
-      tenantId: session.tenantId,
-      code: code.toLowerCase(),
-      label,
-      category,
-      calcType,
-      isProRated: isProRated ?? false,
-      sortOrder: sortOrder ?? 0,
-    },
-  });
-
-  return NextResponse.json(component, { status: 201 });
+  try {
+    const component = await prisma.salaryComponentDef.create({
+      data: {
+        tenantId: session.tenantId,
+        code: code.toLowerCase(),
+        label,
+        category,
+        calcType,
+        isProRated: isProRated ?? false,
+        sortOrder: resultingSortOrder,
+      },
+    });
+    return NextResponse.json(component, { status: 201 });
+  } catch (error) {
+    // @@unique([tenantId, code]) — a reused code was an unhandled 500. Report
+    // it on the Kode field so the dialog shows it inline.
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Kode sudah dipakai", errors: [{ field: "code", message: "Kode sudah dipakai" }] },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 }

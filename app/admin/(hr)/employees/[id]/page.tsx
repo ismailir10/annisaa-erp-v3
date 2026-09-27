@@ -19,9 +19,14 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { FormField, FormRootError } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
+import { employeeEditFormSchema } from "@/lib/validations/employee";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
@@ -57,13 +62,17 @@ export default function EmployeeDetailPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingSalary, setSavingSalary] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   // F-18: restore confirm dialog state. Symmetrical to deactivate.
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "", bankName: "", bankAccountNo: "", bpjsEnrolled: false, leaveBalanceAnnual: "", leaveBalanceSick: "" });
+  const editForm = useZodForm(employeeEditFormSchema, {
+    defaultValues: {
+      nama: "", formalName: "", email: "", noHp: "", jabatan: "", campusId: "", hireDate: "",
+      bankName: "", bankAccountNo: "", bpjsEnrolled: false, leaveBalanceAnnual: "", leaveBalanceSick: "",
+    },
+  });
 
   // --- Section open/collapse state ---
   // Kehadiran starts closed: it is the one section that costs a second
@@ -130,22 +139,21 @@ export default function EmployeeDetailPage() {
 
   function startEditing() {
     if (!employee) return;
-    setEditForm({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled ?? false, leaveBalanceAnnual: employee.leaveBalanceAnnual?.toString() ?? "", leaveBalanceSick: employee.leaveBalanceSick?.toString() ?? "" });
+    editForm.reset({ nama: employee.nama, formalName: employee.formalName ?? "", email: employee.email, noHp: employee.noHp ?? "", jabatan: employee.jabatan, campusId: employee.campusId, hireDate: employee.hireDate, bankName: employee.bankName ?? "", bankAccountNo: employee.bankAccountNo ?? "", bpjsEnrolled: employee.bpjsEnrolled ?? false, leaveBalanceAnnual: employee.leaveBalanceAnnual?.toString() ?? "", leaveBalanceSick: employee.leaveBalanceSick?.toString() ?? "" });
     setIsEditing(true);
   }
 
-  async function handleSave() {
-    setSaving(true);
-    const res = await fetch(`/api/employees/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
-    if (res.ok) { toast.success("Data karyawan disimpan"); setIsEditing(false); const updated = await fetch(`/api/employees/${id}`).then(r => r.json()); setEmployee(updated); }
-    else {
-      const d = await res.json().catch(() => ({}));
-      // Surface validateBody's first field-level message (F-10).
-      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
-      toast.error(fieldMessage || d.error || "Gagal menyimpan");
+  const handleSave = editForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(`/api/employees/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Data karyawan disimpan");
+      setIsEditing(false);
+      const updated = await fetch(`/api/employees/${id}`).then(r => r.json());
+      setEmployee(updated);
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal menyimpan");
     }
-    setSaving(false);
-  }
+  });
 
   async function handleSaveSalary() {
     setSavingSalary(true);
@@ -233,8 +241,8 @@ export default function EmployeeDetailPage() {
 
   const editActions = isEditing ? (
     <>
-      <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}><X size={14} className="mr-1" /> Batal</Button>
-      <Button size="sm" onClick={handleSave} disabled={saving}><Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Profil"}</Button>
+      <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={editForm.formState.isSubmitting}><X size={14} className="mr-1" /> Batal</Button>
+      <Button size="sm" onClick={handleSave} disabled={editForm.formState.isSubmitting}><Save size={14} className="mr-1" /> {editForm.formState.isSubmitting ? "Menyimpan..." : "Simpan Profil"}</Button>
     </>
   ) : undefined;
 
@@ -278,22 +286,49 @@ export default function EmployeeDetailPage() {
             {isEditing ? (
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="space-y-5">
+                <FormRootError formState={editForm.formState} />
                 <div>
                   <SectionHeading label="Identitas" />
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field><FieldLabel htmlFor="employee-detail-code">Kode</FieldLabel><Input id="employee-detail-code" value={e.kode} disabled /></Field>
-                    <Field><FieldLabel htmlFor="employee-detail-nama" required>Nama</FieldLabel><Input id="employee-detail-nama" required value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
+                    <FormField
+                      control={editForm.control}
+                      name="nama"
+                      label="Nama"
+                      required
+                      id="employee-detail-nama"
+                      render={({ field, controlProps }) => <Input {...field} {...controlProps} />}
+                    />
                   </div>
                   <div className="mt-3">
-                    <Field><FieldLabel htmlFor="employee-detail-formal-name">Nama Formal</FieldLabel><Input id="employee-detail-formal-name" value={editForm.formalName} onChange={ev => setEditForm({ ...editForm, formalName: ev.target.value })} /></Field>
+                    <FormField
+                      control={editForm.control}
+                      name="formalName"
+                      label="Nama Formal"
+                      id="employee-detail-formal-name"
+                      render={({ field, controlProps }) => <Input {...field} {...controlProps} value={field.value ?? ""} />}
+                    />
                   </div>
                 </div>
 
                 <div>
                   <SectionHeading label="Kontak" />
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field><FieldLabel htmlFor="employee-detail-email" required>Email</FieldLabel><Input id="employee-detail-email" required value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
-                    <Field><FieldLabel htmlFor="employee-detail-phone">No. HP</FieldLabel><Input id="employee-detail-phone" value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
+                    <FormField
+                      control={editForm.control}
+                      name="email"
+                      label="Email"
+                      required
+                      id="employee-detail-email"
+                      render={({ field, controlProps }) => <Input {...field} {...controlProps} />}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="noHp"
+                      label="No. HP"
+                      id="employee-detail-phone"
+                      render={({ field, controlProps }) => <Input {...field} {...controlProps} value={field.value ?? ""} />}
+                    />
                   </div>
                 </div>
               </div>
@@ -348,47 +383,94 @@ export default function EmployeeDetailPage() {
               <div className="space-y-5">
                 <div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-position" required>Jabatan</FieldLabel>
-                      <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
-                        <SelectTrigger id="employee-detail-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
-                        <SelectContent>
-                          {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                          {!positions.includes(editForm.jabatan) && editForm.jabatan && (
-                            <SelectItem value={editForm.jabatan}>{editForm.jabatan}</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-campus" required>Kampus</FieldLabel>
-                      <Select value={editForm.campusId} onValueChange={v => v && setEditForm({ ...editForm, campusId: v })} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
-                        <SelectTrigger id="employee-detail-campus" aria-required="true"><SelectValue /></SelectTrigger>
-                        <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </Field>
+                    <FormField
+                      control={editForm.control}
+                      name="jabatan"
+                      label="Jabatan"
+                      required
+                      id="employee-detail-position"
+                      render={({ field, controlProps }) => (
+                        <Select
+                          value={field.value}
+                          onValueChange={(v) => v && field.onChange(v)}
+                          items={{
+                            ...Object.fromEntries(positions.map((p) => [p, p])),
+                            ...(!positions.includes(field.value) && field.value ? { [field.value]: field.value } : {}),
+                          }}
+                        >
+                          <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+                          <SelectContent>
+                            {positions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            {!positions.includes(field.value) && field.value && (
+                              <SelectItem value={field.value}>{field.value}</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="campusId"
+                      label="Kampus"
+                      required
+                      id="employee-detail-campus"
+                      render={({ field, controlProps }) => (
+                        <Select value={field.value} onValueChange={(v) => v && field.onChange(v)} items={campuses.map(c => ({ label: c.name, value: c.id }))}>
+                          <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+                          <SelectContent>{campuses.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    />
                   </div>
                   <div className="mt-3">
-                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><DatePicker id="employee-detail-hire-date" value={editForm.hireDate} onChange={v => setEditForm({ ...editForm, hireDate: v })} max={new Date().toISOString().split("T")[0]} /></Field>
+                    <FormField
+                      control={editForm.control}
+                      name="hireDate"
+                      label="Tanggal Masuk"
+                      id="employee-detail-hire-date"
+                      render={({ field, controlProps }) => (
+                        <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={new Date().toISOString().split("T")[0]} />
+                      )}
+                    />
                   </div>
                 </div>
 
                 {hasPayrollFields && <div>
                   <SectionHeading label="Rekening & BPJS" />
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel htmlFor="employee-detail-bank">Bank</FieldLabel>
-                      <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
-                        <SelectTrigger id="employee-detail-bank"><SelectValue placeholder="Pilih bank" /></SelectTrigger>
-                        <SelectContent>
-                          {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field><FieldLabel htmlFor="employee-detail-bank-account">No. Rekening</FieldLabel><Input id="employee-detail-bank-account" value={editForm.bankAccountNo} onChange={ev => setEditForm({ ...editForm, bankAccountNo: ev.target.value })} /></Field>
+                    <FormField
+                      control={editForm.control}
+                      name="bankName"
+                      label="Bank"
+                      id="employee-detail-bank"
+                      render={({ field, controlProps }) => (
+                        <Select value={field.value ?? ""} onValueChange={(v) => v && field.onChange(v)}>
+                          <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih bank" /></SelectTrigger>
+                          <SelectContent>
+                            {INDONESIAN_BANKS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bankAccountNo"
+                      label="No. Rekening"
+                      id="employee-detail-bank-account"
+                      render={({ field, controlProps }) => <Input {...field} {...controlProps} value={field.value ?? ""} />}
+                    />
                   </div>
                   <div className="mt-3">
-                    <label htmlFor="employee-detail-bpjs" className="flex items-center gap-2 text-sm"><Checkbox id="employee-detail-bpjs" checked={editForm.bpjsEnrolled} onCheckedChange={c => setEditForm({ ...editForm, bpjsEnrolled: !!c })} /> BPJS Terdaftar</label>
+                    <FormField
+                      control={editForm.control}
+                      name="bpjsEnrolled"
+                      label="BPJS Terdaftar"
+                      orientation="horizontal"
+                      id="employee-detail-bpjs"
+                      render={({ field, controlProps }) => (
+                        <Checkbox {...controlProps} checked={!!field.value} onCheckedChange={(c) => field.onChange(!!c)} onBlur={field.onBlur} />
+                      )}
+                    />
                   </div>
                 </div>}
               </div>
@@ -444,8 +526,24 @@ export default function EmployeeDetailPage() {
             {isEditing ? (
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field><FieldLabel htmlFor="employee-detail-annual-leave">Cuti Tahunan</FieldLabel><Input id="employee-detail-annual-leave" type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
-                <Field><FieldLabel htmlFor="employee-detail-sick-leave">Cuti Sakit</FieldLabel><Input id="employee-detail-sick-leave" type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
+                <FormField
+                  control={editForm.control}
+                  name="leaveBalanceAnnual"
+                  label="Cuti Tahunan"
+                  id="employee-detail-annual-leave"
+                  render={({ field, controlProps }) => (
+                    <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} max={365} placeholder="12" />
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="leaveBalanceSick"
+                  label="Cuti Sakit"
+                  id="employee-detail-sick-leave"
+                  render={({ field, controlProps }) => (
+                    <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} max={365} placeholder="14" />
+                  )}
+                />
               </div>
             ) : (
               /* ── VIEW MODE ─────────────────────────────────── */

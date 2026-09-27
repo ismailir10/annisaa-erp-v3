@@ -1,6 +1,20 @@
 import { z } from "zod";
 import { optionalEmail } from "./optional-email";
 
+// Shared by createGuardianSchema, updateGuardianSchema and linkGuardianSchema:
+// an HTML number input sends "Anak ke-" as a string, and an empty field must
+// clear the column rather than coerce to 0. Preprocess so ""/null
+// short-circuit to undefined. Exported so the form-schema layer below (and
+// any other derived form schema) can reuse the exact same tolerance instead
+// of a divergent copy.
+export const childOrderField = z
+  .preprocess(
+    (v) => (v === null || v === "" || v === undefined ? undefined : v),
+    z.coerce.number().int().min(1).optional(),
+  )
+  .nullable()
+  .optional();
+
 export const createGuardianSchema = z.object({
   name: z.string().min(1, "Nama wali wajib diisi").max(200),
   phone: z.string().max(20).optional().nullable(),
@@ -22,22 +36,18 @@ export const createGuardianSchema = z.object({
   incomeRange: z.string().max(50).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   childrenTotal: z.coerce.number().int().min(0).optional().nullable(),
+  // T3 data-loss fix: the create branch of POST
+  // /api/students/[id]/guardians collected "Anak ke-" on the "Tambah Wali
+  // Baru" form but this key was never in the wire schema, so it was
+  // stripped before the route ever saw it. Same shape as
+  // linkGuardianSchema's — the junction row this ultimately writes to is
+  // the same column either way.
+  childOrder: childOrderField,
   // Set once the admin has seen the duplicate-candidate list and chose to
   // create a new parent anyway. Absent on the first submit, which is what
   // lets the route run the check exactly once per decision.
   confirmNew: z.boolean().optional(),
 });
-
-// Shared by updateGuardianSchema and linkGuardianSchema: an HTML number input
-// sends "Anak ke-" as a string, and an empty field must clear the column
-// rather than coerce to 0. Preprocess so ""/null short-circuit to undefined.
-const childOrderField = z
-  .preprocess(
-    (v) => (v === null || v === "" || v === undefined ? undefined : v),
-    z.coerce.number().int().min(1).optional(),
-  )
-  .nullable()
-  .optional();
 
 /**
  * Linking a parent who already exists. Deliberately carries no bio fields —
@@ -74,4 +84,49 @@ export const updateGuardianSchema = z.object({
 
 export const toggleGuardianStatusSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]),
+});
+
+// ---------------------------------------------------------------------------
+// Form schemas — students/[id] guardian dialog's create/edit steps (T3).
+//
+// Derived from the wire schemas above, not divergent copies (lesson 4): every
+// field keeps the wire schema's own validator except `childrenTotal`, whose
+// form value is a raw `<Input type="number">` string. A bare
+// `z.coerce.number()` turns "" into 0 (`Number("") === 0`), so it needs a
+// blank-tolerant preprocess — but unlike `childOrderField` (blank →
+// `undefined`, dropped by `JSON.stringify`), blank here must become an
+// explicit `null`: `guardianUpdateFormSchema` feeds the PUT edit dialog, and
+// a PUT that omits a key means "keep" (lesson 2) — the admin clearing
+// "Jumlah Anak" must still clear it. Same shape as `parentFormSchema`'s own
+// `childrenTotal` (lib/validations/parent.ts).
+// ---------------------------------------------------------------------------
+
+const childrenTotalFormField = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : v),
+  z.union([z.null(), z.coerce.number().int().min(0, "Jumlah anak tidak valid")]),
+);
+
+export const guardianCreateFormSchema = createGuardianSchema.extend({
+  childrenTotal: childrenTotalFormField,
+});
+
+// updateGuardianSchema's `name` is optional at the wire level (a PATCH-style
+// PUT: an absent key means "keep") and carries no message on its `.min(1)`,
+// which is correct for that route but wrong for a dialog where Nama is
+// always rendered and always required — an admin who clears it needs a
+// human message, not Zod's default English one (lesson: never let one reach
+// the UI). Same copy the pre-RHF handler used for both its create and edit
+// paths. Tightening a message, not what the API accepts.
+// Same reason for `childOrder` on edit: the wire field maps "" to undefined
+// (dropped → the PUT keeps the old value), so an admin could never clear
+// "Anak ke-". Blank → explicit null, which the route writes as a clear.
+const childOrderFormField = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : v),
+  z.union([z.null(), z.coerce.number().int().min(1, "Anak ke- minimal 1")]),
+);
+
+export const guardianUpdateFormSchema = updateGuardianSchema.extend({
+  name: z.string().min(1, "Nama wali wajib diisi").max(200),
+  childrenTotal: childrenTotalFormField,
+  childOrder: childOrderFormField,
 });

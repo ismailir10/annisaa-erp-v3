@@ -143,6 +143,20 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   CREATE: { label: "Dibuat", className: "bg-status-present-subtle text-status-present-text" },
   UPDATE: { label: "Diubah", className: "bg-status-leave-subtle text-status-leave-text" },
   DELETE: { label: "Dihapus", className: "bg-status-absent-subtle text-status-absent-text" },
+
+  // Class health ("Kondisi", admin/classes list + detail). Keys are the
+  // Indonesian health labels the classes module already carries as the
+  // `health` field's own values (not an English enum) — same convention as
+  // the "Leave"/"Payroll" groups above reusing their raw status string.
+  // Ported from the standalone `healthTone()` helper (finish-admin-standard
+  // cycle, T2) so classes stop hand-rolling a second colour table. Its fifth
+  // case, "Tidak Aktif", needs no entry here — the fallback below already
+  // renders the raw status text on a muted pill, identical to what
+  // `healthTone()`'s own default case produced.
+  Sehat: { label: "Sehat", className: "bg-status-present-subtle text-status-present-text" },
+  Perhatian: { label: "Perhatian", className: "bg-status-late-subtle text-status-late-text" },
+  Kritis: { label: "Kritis", className: "bg-status-absent-subtle text-status-absent-text" },
+  Libur: { label: "Libur", className: "bg-status-leave-subtle text-status-leave-text" },
 };
 
 /**
@@ -340,26 +354,4 @@ export function StatusBadge({
  */
 export function getStatusConfig(status: string): StatusConfig {
   return STATUS_MAP[status] ?? { label: status, className: "bg-muted text-muted-foreground" };
-}
-
-/**
- * Tone classes for health/severity pills (e.g. class-health Sehat/Perhatian/Kritis).
- * Single source so admin surfaces don't hand-roll `border-green-*` / `bg-amber-*`
- * palettes. Keys are the Indonesian health labels used by the classes module.
- * See .claude/standards/colors.md + design-system.html §Status palette.
- */
-export function healthTone(health: string): string {
-  switch (health) {
-    case "Sehat":
-      return "border-status-present bg-status-present-subtle text-status-present-text";
-    case "Perhatian":
-      return "border-status-late bg-status-late-subtle text-status-late-text";
-    case "Kritis":
-      return "border-status-absent bg-status-absent-subtle text-status-absent-text";
-    case "Libur":
-      return "border-status-leave bg-status-leave-subtle text-status-leave-text";
-    case "Tidak Aktif":
-    default:
-      return "border-border bg-muted text-muted-foreground";
-  }
 }
