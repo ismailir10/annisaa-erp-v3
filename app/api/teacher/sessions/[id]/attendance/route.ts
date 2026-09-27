@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
+import {
+  SESSION_ATTENDANCE_SAVE_BUDGET,
+  SESSION_ATTENDANCE_SAVE_WINDOW_MS,
+} from "@/lib/api/rate-limit-budgets";
 import { validateBody } from "@/lib/api/validate";
 import { sessionAttendanceSchema } from "@/lib/validations/student-attendance";
 
@@ -26,21 +30,21 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await getSession();
+  if (!session?.tenantId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Per user, not per IP — teachers on the school Wi-Fi share one IP.
   const { success } = rateLimit(
-    `session-attendance:${getClientIp(req)}`,
-    10,
-    60_000,
+    `session-attendance:${session.id}`,
+    SESSION_ATTENDANCE_SAVE_BUDGET,
+    SESSION_ATTENDANCE_SAVE_WINDOW_MS,
   );
   if (!success) {
     return NextResponse.json(
       { error: "Terlalu banyak permintaan" },
       { status: 429 },
     );
-  }
-
-  const session = await getSession();
-  if (!session?.tenantId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const isTeacher = session.role === "TEACHER";
   const isAdmin = isAdminRole(session.role);

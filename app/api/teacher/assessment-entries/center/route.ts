@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { validateBody } from "@/lib/api/validate";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { assessmentEntryCenterSessionSchema } from "@/lib/validations/assessment-entry";
 import { parseJakartaYmd } from "@/lib/validations/curriculum";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { session } = auth;
 
   const { success } = rateLimit(
-    `assessment-entries-center:${getClientIp(req)}`,
+    `assessment-entries-center:${session.id}`,
     PENILAIAN_WRITE_BUDGET,
     PENILAIAN_WRITE_WINDOW_MS,
   );
