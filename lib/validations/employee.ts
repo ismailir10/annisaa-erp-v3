@@ -36,7 +36,7 @@ function refineBankAccountPair<T extends { bankName?: string | null; bankAccount
 const employeeBaseObject = z.object({
   nama: z.string().min(1, "Nama wajib diisi"),
   formalName: z.string().optional().nullable(),
-  email: z.string().email("Email tidak valid"),
+  email: z.string().min(1, "Email wajib diisi").email("Email tidak valid"),
   noHp: z.string().optional().nullable(),
   jabatan: z.string().min(1, "Jabatan wajib diisi"),
   campusId: z.string().min(1, "Kampus wajib dipilih"),

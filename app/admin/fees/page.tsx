@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Coins, Plus, Save } from "lucide-react";
@@ -20,11 +20,15 @@ import { KeringananTab } from "@/components/admin/fees/keringanan-tab";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah } from "@/lib/format";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+import { feeComponentFormSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
 type Program = { id: string; code: string; name: string; status: string };
@@ -122,8 +126,16 @@ export default function FeesPage() {
   const [componentSearch, setComponentSearch] = useState("");
   const [componentStatus, setComponentStatus] = useState("ACTIVE");
   const [componentCategory, setComponentCategory] = useState("all");
-  const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
-  const [saving, setSaving] = useState(false);
+  const componentFormId = useId();
+  // Reused for both create and edit — createFeeComponentSchema's required
+  // `code` is always satisfied on edit too (defaultValues seed it from the
+  // existing row; the field itself is rendered disabled, so it's never
+  // touched). `updateFeeComponentSchema` (server-side, no `code`) stays the
+  // API's own schema for PUT; the client posts the same body shape either
+  // way, same as before this migration.
+  const componentForm = useZodForm(feeComponentFormSchema, {
+    defaultValues: { code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" },
+  });
   const [confirmTarget, setConfirmTarget] = useState<FeeComponent | null>(null);
 
   // Fee structure state
@@ -177,15 +189,21 @@ export default function FeesPage() {
     setSelectedYear((prev) => prev || (years.find((y) => y.status === "ACTIVE") ?? years[0]).id);
   }, [programs, years]);
 
-  async function saveComponent() {
-    setSaving(true);
-    const url = editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components";
-    const method = editingFee ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }) });
-    if (res.ok) { toast.success(editingFee ? "Komponen diperbarui" : "Komponen biaya ditambahkan"); setComponentDialog(false); setEditingFee(null); fetchAll(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setSaving(false);
-  }
+  const saveComponent = componentForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components",
+        { method: editingFee ? "PUT" : "POST", body: values },
+        "Gagal",
+      );
+      toast.success(editingFee ? "Komponen diperbarui" : "Komponen biaya ditambahkan");
+      setComponentDialog(false);
+      setEditingFee(null);
+      fetchAll();
+    } catch (err) {
+      applyServerErrors(componentForm, err, "Gagal");
+    }
+  });
 
   // Returns whether the toggle succeeded so the deactivate ConfirmDialog can
   // decide whether to keep itself open for a retry (same contract as
@@ -361,7 +379,13 @@ export default function FeesPage() {
           onEdit={() => {
             const c = row.original;
             setEditingFee(c);
-            setForm({ code: c.code, label: c.label, category: c.category, isRecurring: c.isRecurring, sortOrder: String(c.sortOrder) });
+            componentForm.reset({
+              code: c.code,
+              label: c.label,
+              category: c.category as CreateFeeComponentInput["category"],
+              isRecurring: c.isRecurring,
+              sortOrder: String(c.sortOrder),
+            });
             setComponentDialog(true);
           }}
           onDeactivate={row.original.isEnabled ? () => setConfirmTarget(row.original) : undefined}
@@ -422,7 +446,7 @@ export default function FeesPage() {
                 size="sm"
                 onClick={() => {
                   setEditingFee(null);
-                  setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) });
+                  componentForm.reset({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) });
                   setComponentDialog(true);
                 }}
               >
@@ -506,60 +530,88 @@ export default function FeesPage() {
         title={editingFee ? "Edit Komponen Biaya" : "Tambah Komponen Biaya"}
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setComponentDialog(false)} disabled={saving}>Batal</Button>
-            <Button onClick={saveComponent} disabled={saving}>{saving ? "Menyimpan..." : editingFee ? "Simpan Perubahan" : "Tambah Komponen Biaya"}</Button>
-          </>
+          <FormDialogFooter
+            formId={componentFormId}
+            pending={componentForm.formState.isSubmitting}
+            onCancel={() => setComponentDialog(false)}
+            submitLabel={editingFee ? "Simpan Perubahan" : "Tambah Komponen Biaya"}
+          />
         }
       >
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel required htmlFor="fee-code">Kode</FieldLabel>
-            <Input
-              id="fee-code"
+        <form id={componentFormId} onSubmit={saveComponent} noValidate className="space-y-field">
+          <FormRootError formState={componentForm.formState} />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={componentForm.control}
+              name="code"
+              label="Kode"
               required
-              aria-required="true"
-              disabled={!!editingFee}
-              value={form.code}
-              onChange={e => setForm({ ...form, code: e.target.value })}
-              placeholder="spp"
+              id="fee-code"
+              description="Pengenal unik, permanen setelah dibuat — dipakai untuk impor dan seed data, bukan yang tampil di tagihan (itu memakai Label)."
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} disabled={!!editingFee} placeholder="spp" />
+              )}
             />
-            <FieldDescription>
-              Pengenal unik, permanen setelah dibuat — dipakai untuk impor dan seed data, bukan yang tampil di tagihan (itu memakai Label).
-            </FieldDescription>
-          </Field>
-          <Field><FieldLabel required htmlFor="fee-label">Label</FieldLabel><Input id="fee-label" required aria-required="true" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
-        </div>
-        <Field>
-          <FieldLabel htmlFor="fee-category">Kategori</FieldLabel>
-          <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
-            <SelectTrigger id="fee-category"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="TUITION">SPP</SelectItem>
-              <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
-              <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
-              <SelectItem value="MATERIAL">Bahan</SelectItem>
-              <SelectItem value="OTHER">Lainnya</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="fee-sort-order">Urutan</FieldLabel>
-            <Input id="fee-sort-order" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} />
-            <FieldDescription>Menentukan urutan komponen ini pada baris tagihan — angka lebih kecil tampil lebih dulu.</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="fee-type">Tipe</FieldLabel>
-            <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
-              <SelectTrigger id="fee-type"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Bulanan (berulang)</SelectItem>
-                <SelectItem value="false">Sekali bayar</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+            <FormField
+              control={componentForm.control}
+              name="label"
+              label="Label"
+              required
+              id="fee-label"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} placeholder="SPP Bulanan" />
+              )}
+            />
+          </div>
+          <FormField
+            control={componentForm.control}
+            name="category"
+            label="Kategori"
+            id="fee-category"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TUITION">SPP</SelectItem>
+                  <SelectItem value="REGISTRATION">Pendaftaran</SelectItem>
+                  <SelectItem value="ACTIVITY">Kegiatan</SelectItem>
+                  <SelectItem value="MATERIAL">Bahan</SelectItem>
+                  <SelectItem value="OTHER">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={componentForm.control}
+              name="sortOrder"
+              label="Urutan"
+              id="fee-sort-order"
+              description="Menentukan urutan komponen ini pada baris tagihan — angka lebih kecil tampil lebih dulu."
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} type="number" />
+              )}
+            />
+            <FormField
+              control={componentForm.control}
+              name="isRecurring"
+              label="Tipe"
+              id="fee-type"
+              render={({ field, controlProps }) => (
+                <Select
+                  value={field.value ? "true" : "false"}
+                  onValueChange={(v) => v != null && field.onChange(v === "true")}
+                >
+                  <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Bulanan (berulang)</SelectItem>
+                    <SelectItem value="false">Sekali bayar</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Deactivate guard — activation stays single-click (non-destructive).

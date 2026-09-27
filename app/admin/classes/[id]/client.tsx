@@ -23,6 +23,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { FormField, FormRootError } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -36,6 +37,9 @@ import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatDate as formatDateLong } from "@/lib/format";
+import { enrollmentAddSchema, teachingAssignmentAddSchema } from "@/lib/validations/class";
+import { swapClassSessionTeacherFormSchema } from "@/lib/validations/class-session";
+import { useZodForm } from "@/lib/forms/use-zod-form";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -148,7 +152,7 @@ export function ClassDetailClient({
   // Add-student dialog
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [studentOptions, setStudentOptions] = useState<StudentOption[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const studentForm = useZodForm(enrollmentAddSchema, { defaultValues: { studentId: "" } });
   const [addingStudent, setAddingStudent] = useState(false);
   // Advisory age-band / dual-enrollment confirm step (T7) — populated from
   // the 409 the server returns; cleared whenever the dialog closes or the
@@ -189,8 +193,9 @@ export function ClassDetailClient({
   // Add-teacher dialog
   const [addTeacherOpen, setAddTeacherOpen] = useState(false);
   const [employeeOptions, setEmployeeOptions] = useState<Employee[]>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-  const [selectedRole, setSelectedRole] = useState<TeachingRole>("HOMEROOM");
+  const teacherForm = useZodForm(teachingAssignmentAddSchema, {
+    defaultValues: { employeeId: "", role: "HOMEROOM" },
+  });
   const [addingTeacher, setAddingTeacher] = useState(false);
 
   // Homeroom-replace confirm — appears on top of the Add Teacher dialog after
@@ -219,8 +224,11 @@ export function ClassDetailClient({
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(
     null,
   );
-  const [swapTeacherId, setSwapTeacherId] = useState<string>("");
-  const [swapReason, setSwapReason] = useState("");
+  const swapForm = useZodForm(swapClassSessionTeacherFormSchema, {
+    defaultValues: { teacherId: "", substituteReason: "" },
+  });
+  const swapTeacherIdWatch = swapForm.watch("teacherId");
+  const swapReasonWatch = swapForm.watch("substituteReason");
   const [savingSwap, setSavingSwap] = useState(false);
 
   // ── Dossier section open/collapse state ──────────────────────────
@@ -425,7 +433,7 @@ export function ClassDetailClient({
 
   // ── Roster mutations ────────────────────────────────────────────
   function openAddStudent() {
-    setSelectedStudentId("");
+    studentForm.reset({ studentId: "" });
     setEnrollBlock(null);
     setAgeOverrideReason("");
     setAddStudentOpen(true);
@@ -450,11 +458,7 @@ export function ClassDetailClient({
     setAgeOverrideReason("");
   }
 
-  async function submitAddStudent() {
-    if (!selectedStudentId) {
-      toast.error("Pilih siswa");
-      return;
-    }
+  const submitAddStudent = studentForm.handleSubmit(async (values) => {
     const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
     if (overridingAge && !ageOverrideReason.trim()) return; // confirm button is disabled for this too — defensive only
     setAddingStudent(true);
@@ -465,7 +469,7 @@ export function ClassDetailClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            studentId: selectedStudentId,
+            studentId: values.studentId,
             ...(overridingAge ? { ageOverrideReason: ageOverrideReason.trim() } : {}),
           }),
         },
@@ -494,7 +498,7 @@ export function ClassDetailClient({
     } finally {
       setAddingStudent(false);
     }
-  }
+  });
 
   async function removeStudent() {
     if (!removeStudentTarget) return;
@@ -515,16 +519,11 @@ export function ClassDetailClient({
 
   // ── Teaching-assignment mutations ───────────────────────────────
   function openAddTeacher() {
-    setSelectedEmployeeId("");
-    setSelectedRole("HOMEROOM");
+    teacherForm.reset({ employeeId: "", role: "HOMEROOM" });
     setAddTeacherOpen(true);
   }
 
-  async function submitAddTeacher() {
-    if (!selectedEmployeeId) {
-      toast.error("Pilih guru");
-      return;
-    }
+  const submitAddTeacher = teacherForm.handleSubmit(async (values) => {
     setAddingTeacher(true);
     try {
       const res = await fetch(
@@ -533,8 +532,8 @@ export function ClassDetailClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employeeId: selectedEmployeeId,
-            role: selectedRole,
+            employeeId: values.employeeId,
+            role: values.role,
           }),
         },
       );
@@ -551,13 +550,13 @@ export function ClassDetailClient({
         d?.existingEmployeeId
       ) {
         const newEmployeeName =
-          employeeOptions.find((e) => e.id === selectedEmployeeId)?.nama ??
+          employeeOptions.find((e) => e.id === values.employeeId)?.nama ??
           "guru ini";
         setReplaceHomeroom({
           existingAssignmentId: d.existingAssignmentId,
           existingEmployeeId: d.existingEmployeeId,
           existingEmployeeName: d.existingEmployeeName,
-          newEmployeeId: selectedEmployeeId,
+          newEmployeeId: values.employeeId,
           newEmployeeName,
         });
         return;
@@ -566,7 +565,7 @@ export function ClassDetailClient({
     } finally {
       setAddingTeacher(false);
     }
-  }
+  });
 
   async function confirmReplaceHomeroom() {
     if (!replaceHomeroom) return;
@@ -643,14 +642,12 @@ export function ClassDetailClient({
 
   function openSession(s: SessionRow) {
     setSelectedSession(s);
-    setSwapTeacherId(s.teacherId ?? "");
-    setSwapReason(s.substituteReason ?? "");
+    swapForm.reset({ teacherId: s.teacherId ?? "", substituteReason: s.substituteReason ?? "" });
   }
 
   function closeSwap() {
     setSelectedSession(null);
-    setSwapTeacherId("");
-    setSwapReason("");
+    swapForm.reset({ teacherId: "", substituteReason: "" });
   }
 
   async function submitSwap(teacherId: string | null, reason: string) {
@@ -1208,40 +1205,46 @@ export function ClassDetailClient({
           );
         } else {
           body = (
-            <Field>
-              <FieldLabel htmlFor="class-student" required>Siswa</FieldLabel>
-              <Select
-                value={selectedStudentId}
-                onValueChange={(v) => {
-                  setSelectedStudentId(v ?? "");
-                  setEnrollBlock(null);
-                  setAgeOverrideReason("");
-                }}
-              >
-                <SelectTrigger id="class-student" aria-required="true">
-                  <SelectValue placeholder="Pilih siswa..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {studentOptions.length === 0 ? (
-                    <SelectItem value="__empty" disabled>
-                      Tidak ada siswa tersedia
-                    </SelectItem>
-                  ) : (
-                    studentOptions.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                        {s.nis ? ` · ${s.nis}` : ""}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Hanya siswa berstatus aktif yang muncul. Batas usia program
-                dan kelas lain yang sudah diikuti siswa akan diperiksa saat
-                disimpan.
-              </p>
-            </Field>
+            <>
+              <FormRootError formState={studentForm.formState} />
+              <FormField
+                control={studentForm.control}
+                name="studentId"
+                label="Siswa"
+                required
+                id="class-student"
+                description="Hanya siswa berstatus aktif yang muncul. Batas usia program dan kelas lain yang sudah diikuti siswa akan diperiksa saat disimpan."
+                render={({ field, controlProps }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => {
+                      if (v == null) return;
+                      field.onChange(v);
+                      setEnrollBlock(null);
+                      setAgeOverrideReason("");
+                    }}
+                  >
+                    <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                      <SelectValue placeholder="Pilih siswa..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {studentOptions.length === 0 ? (
+                        <SelectItem value="__empty" disabled>
+                          Tidak ada siswa tersedia
+                        </SelectItem>
+                      ) : (
+                        studentOptions.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                            {s.nis ? ` · ${s.nis}` : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </>
           );
           footer = (
             <>
@@ -1320,53 +1323,58 @@ export function ClassDetailClient({
         }
       >
         <div className="space-y-field">
-          <Field>
-            <FieldLabel htmlFor="class-teacher" required>Guru</FieldLabel>
-            <Select
-              value={selectedEmployeeId}
-              onValueChange={(v) => setSelectedEmployeeId(v ?? "")}
-            >
-              <SelectTrigger id="class-teacher" aria-required="true">
-                <SelectValue placeholder="Pilih guru..." />
-              </SelectTrigger>
-              <SelectContent>
-                {employeeOptions.length === 0 ? (
-                  <SelectItem value="__empty" disabled>
-                    Tidak ada guru tersedia
-                  </SelectItem>
-                ) : (
-                  employeeOptions.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.nama}
+          <FormRootError formState={teacherForm.formState} />
+          <FormField
+            control={teacherForm.control}
+            name="employeeId"
+            label="Guru"
+            required
+            id="class-teacher"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue placeholder="Pilih guru..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {employeeOptions.length === 0 ? (
+                    <SelectItem value="__empty" disabled>
+                      Tidak ada guru tersedia
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            {employeesTruncated && (
-              <p className="text-xs text-muted-foreground">
-                Daftar guru dipotong pada 100 nama — jika guru yang dicari
-                tidak muncul, hubungi admin.
-              </p>
+                  ) : (
+                    employeeOptions.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.nama}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             )}
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="class-teaching-role" required>Peran</FieldLabel>
-            <Select
-              value={selectedRole}
-              onValueChange={(v) =>
-                setSelectedRole((v as TeachingRole) ?? "HOMEROOM")
-              }
-            >
-              <SelectTrigger id="class-teaching-role" aria-required="true">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="HOMEROOM">Wali Kelas</SelectItem>
-                <SelectItem value="ASSISTANT">Asisten</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
+          />
+          {employeesTruncated && (
+            <p className="text-xs text-muted-foreground">
+              Daftar guru dipotong pada 100 nama — jika guru yang dicari
+              tidak muncul, hubungi admin.
+            </p>
+          )}
+          <FormField
+            control={teacherForm.control}
+            name="role"
+            label="Peran"
+            required
+            id="class-teaching-role"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HOMEROOM">Wali Kelas</SelectItem>
+                  <SelectItem value="ASSISTANT">Asisten</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
       </ResponsiveFormDialog>
 
@@ -1444,13 +1452,14 @@ export function ClassDetailClient({
           writeAllowed && selectedSession ? (
             <>
               <Button
-                onClick={() => submitSwap(swapTeacherId || null, swapReason)}
+                onClick={() => submitSwap(swapTeacherIdWatch || null, swapReasonWatch ?? "")}
                 disabled={savingSwap}
               >
                 {savingSwap ? "Menyimpan..." : "Simpan"}
               </Button>
               {selectedSession.defaultTeacherId && (
                 <Button
+                  type="button"
                   variant="outline"
                   disabled={savingSwap}
                   onClick={() =>
@@ -1481,44 +1490,52 @@ export function ClassDetailClient({
 
             {writeAllowed ? (
               <>
-                <Field>
-                  <FieldLabel htmlFor="session-substitute-teacher">Guru pengganti</FieldLabel>
-                  <Select
-                    value={swapTeacherId}
-                    onValueChange={(v) =>
-                      setSwapTeacherId(String(v ?? ""))
-                    }
-                  >
-                    <SelectTrigger id="session-substitute-teacher">
-                      <SelectValue placeholder="Pilih guru" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employeeOptions.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.nama}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {employeesTruncated && (
-                    <p className="text-xs text-muted-foreground">
-                      Daftar guru dipotong pada 100 nama — jika guru yang
-                      dicari tidak muncul, hubungi admin.
-                    </p>
+                <FormField
+                  control={swapForm.control}
+                  name="teacherId"
+                  label="Guru pengganti"
+                  id="session-substitute-teacher"
+                  render={({ field, controlProps }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => v != null && field.onChange(v)}
+                    >
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                        <SelectValue placeholder="Pilih guru" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employeeOptions.map((e) => (
+                          <SelectItem key={e.id} value={e.id}>
+                            {e.nama}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
-                </Field>
+                />
+                {employeesTruncated && (
+                  <p className="text-xs text-muted-foreground">
+                    Daftar guru dipotong pada 100 nama — jika guru yang
+                    dicari tidak muncul, hubungi admin.
+                  </p>
+                )}
 
-                <Field>
-                  <FieldLabel htmlFor="session-substitute-reason">Alasan pengganti</FieldLabel>
-                  <Textarea
-                    id="session-substitute-reason"
-                    value={swapReason}
-                    onChange={(e) => setSwapReason(e.target.value)}
-                    placeholder="Contoh: wali kelas sedang cuti"
-                    maxLength={300}
-                    rows={3}
-                  />
-                </Field>
+                <FormField
+                  control={swapForm.control}
+                  name="substituteReason"
+                  label="Alasan pengganti"
+                  id="session-substitute-reason"
+                  render={({ field, controlProps }) => (
+                    <Textarea
+                      {...field}
+                      {...controlProps}
+                      value={field.value ?? ""}
+                      placeholder="Contoh: wali kelas sedang cuti"
+                      maxLength={300}
+                      rows={3}
+                    />
+                  )}
+                />
               </>
             ) : (
               <p className="text-sm text-muted-foreground">

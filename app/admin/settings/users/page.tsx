@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -9,7 +9,6 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
-import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
@@ -20,10 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { formatDateShort } from "@/lib/format";
 import { toast } from "sonner";
 import { getRoleLabel } from "./role-labels";
+import { userEditFormSchema } from "@/lib/validations/user";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
@@ -159,9 +162,10 @@ export default function UsersPage() {
   // Roles for the edit dialog
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [editTarget, setEditTarget] = useState<UserRow | null>(null);
-  const [editRoleId, setEditRoleId] = useState<string>("");
-  const [editStatus, setEditStatus] = useState<string>("ACTIVE");
-  const [saving, setSaving] = useState(false);
+  const editFormId = useId();
+  const editForm = useZodForm(userEditFormSchema, {
+    defaultValues: { customRoleId: "none", status: "ACTIVE" },
+  });
 
   // Fetch roles once
   useEffect(() => {
@@ -239,8 +243,11 @@ export default function UsersPage() {
   // Edit dialog
   const openEdit = useCallback((user: UserRow) => {
     setEditTarget(user);
-    setEditRoleId(user.customRoleId ?? "none");
-    setEditStatus(user.status);
+    editForm.reset({
+      customRoleId: user.customRoleId ?? "none",
+      status: user.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Deactivate/activate confirm — a bare dropdown click used to fire the PUT
@@ -290,32 +297,27 @@ export default function UsersPage() {
     setActivateTarget(null);
   }, [activateTarget, putStatus]);
 
-  const handleSaveEdit = useCallback(async () => {
+  const handleSaveEdit = editForm.handleSubmit(async (values) => {
     if (!editTarget) return;
-    setSaving(true);
     try {
-      const res = await fetch(`/api/users/${editTarget.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customRoleId: editRoleId === "none" ? null : editRoleId,
-          status: editStatus,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menyimpan");
-        return;
-      }
+      await sendJson(
+        `/api/users/${editTarget.id}`,
+        {
+          method: "PUT",
+          body: {
+            customRoleId: values.customRoleId === "none" ? null : values.customRoleId,
+            status: values.status,
+          },
+        },
+        "Gagal menyimpan",
+      );
       toast.success("Pengguna diperbarui");
       setEditTarget(null);
       fetchUsers();
-    } catch {
-      toast.error("Terjadi kesalahan");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal menyimpan");
     }
-  }, [editTarget, editRoleId, editStatus, fetchUsers]);
+  });
 
   const columns = useMemo(
     () => buildColumns(openEdit, setDeactivateTarget, setActivateTarget),
@@ -374,24 +376,36 @@ export default function UsersPage() {
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
         title="Edit Pengguna"
-        footer={<>
-          <Button variant="ghost" onClick={() => setEditTarget(null)}>Batal</Button>
-          <Button onClick={handleSaveEdit} disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan Perubahan"}
-          </Button>
-        </>}
+        footer={
+          <FormDialogFooter
+            formId={editFormId}
+            pending={editForm.formState.isSubmitting}
+            onCancel={() => setEditTarget(null)}
+            submitLabel="Simpan Perubahan"
+          />
+        }
       >
-            <div>
-              <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
-              <p className="text-xs text-muted-foreground">
-                {editTarget?.email}
-              </p>
-            </div>
+        <form id={editFormId} onSubmit={handleSaveEdit} noValidate className="space-y-field">
+          <FormRootError formState={editForm.formState} />
+          <div>
+            <p className="text-sm font-medium">{editTarget?.name ?? "—"}</p>
+            <p className="text-xs text-muted-foreground">
+              {editTarget?.email}
+            </p>
+          </div>
 
-            <Field>
-              <FieldLabel htmlFor="user-role">Peran Kustom</FieldLabel>
-              <Select value={editRoleId} onValueChange={(v) => v && setEditRoleId(v)} items={[{ label: "Tanpa peran kustom", value: "none" }, ...roles.map((r) => ({ label: r.name, value: r.id }))]}>
-                <SelectTrigger id="user-role">
+          <FormField
+            control={editForm.control}
+            name="customRoleId"
+            label="Peran Kustom"
+            id="user-role"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+                items={[{ label: "Tanpa peran kustom", value: "none" }, ...roles.map((r) => ({ label: r.name, value: r.id }))]}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                   <SelectValue placeholder="Pilih peran" />
                 </SelectTrigger>
                 <SelectContent>
@@ -403,12 +417,17 @@ export default function UsersPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
+            )}
+          />
 
-            <Field>
-              <FieldLabel htmlFor="user-status">Status</FieldLabel>
-              <Select value={editStatus} onValueChange={(v) => v && setEditStatus(v)}>
-                <SelectTrigger id="user-status">
+          <FormField
+            control={editForm.control}
+            name="status"
+            label="Status"
+            id="user-status"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -416,7 +435,9 @@ export default function UsersPage() {
                   <SelectItem value="INACTIVE">Tidak Aktif</SelectItem>
                 </SelectContent>
               </Select>
-            </Field>
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog

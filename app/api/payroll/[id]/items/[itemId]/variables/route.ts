@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { calculateEmployeePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { countAttendanceDays } from "@/lib/payroll/working-days";
+import { validateBody } from "@/lib/api/validate";
+import { payrollVariablesSchema } from "@/lib/validations/payroll";
 
 export async function PUT(
   req: NextRequest,
@@ -28,7 +30,9 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const result = await validateBody(payrollVariablesSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   // Reads that can safely live outside the tx (no mutation, no ordering risk).
   const componentDefs = await prisma.salaryComponentDef.findMany({

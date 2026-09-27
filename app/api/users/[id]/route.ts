@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
+import { updateUserSchema } from "@/lib/validations/user";
 
 export async function GET(
   _req: NextRequest,
@@ -48,32 +50,34 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const result = await validateBody(updateUserSchema, await req.json());
+  if (result.error) return result.error;
+  const { customRoleId, status } = result.data;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = {};
 
   // Assign custom role
-  if ("customRoleId" in body) {
-    if (body.customRoleId) {
+  if (customRoleId !== undefined) {
+    if (customRoleId) {
       // Verify role belongs to tenant
-      const role = await prisma.role.findUnique({ where: { id: body.customRoleId } });
+      const role = await prisma.role.findUnique({ where: { id: customRoleId } });
       if (!role || role.tenantId !== session.tenantId) {
         return NextResponse.json({ error: "Peran tidak ditemukan" }, { status: 400 });
       }
-      data.customRoleId = body.customRoleId;
+      data.customRoleId = customRoleId;
     } else {
       data.customRoleId = null;
     }
   }
 
   // Update status
-  if ("status" in body && (body.status === "ACTIVE" || body.status === "INACTIVE")) {
+  if (status !== undefined) {
     // Prevent deactivating self
-    if (body.status === "INACTIVE" && id === session.id) {
+    if (status === "INACTIVE" && id === session.id) {
       return NextResponse.json({ error: "Tidak bisa menonaktifkan akun sendiri" }, { status: 400 });
     }
-    data.status = body.status;
+    data.status = status;
   }
 
   const user = await prisma.user.update({

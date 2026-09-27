@@ -135,6 +135,17 @@ The wrapper owns the viewport-height limit, shadcn `ScrollArea` body, internal f
 
 ```tsx
 const formId = useId();
+const form = useZodForm(createStudentFormSchema, { defaultValues: EMPTY });
+
+const onSubmit = form.handleSubmit(async (values) => {
+  try {
+    await sendJson("/api/students", { method: "POST", body: values }, "Gagal menyimpan");
+    toast.success("Siswa ditambahkan");
+    setOpen(false);
+  } catch (err) {
+    applyServerErrors(form, err, "Gagal menyimpan");
+  }
+});
 
 <ResponsiveFormDialog
   open={open}
@@ -143,30 +154,32 @@ const formId = useId();
   description="Isi data siswa baru."
   size="lg"
   footer={
-    <>
-      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-        Batal
-      </Button>
-      <Button type="submit" form={formId} disabled={isPending}>
-        {isPending ? "Menyimpan..." : "Tambah Siswa"}
-      </Button>
-    </>
+    <FormDialogFooter
+      formId={formId}
+      pending={form.formState.isSubmitting}
+      onCancel={() => setOpen(false)}
+      submitLabel="Tambah Siswa"
+    />
   }
 >
-  <form id={formId} className="space-y-field" onSubmit={onSubmit}>
-    <Field>
-      <FieldLabel required htmlFor={`${formId}-name`}>Nama Lengkap</FieldLabel>
-      <Input id={`${formId}-name`} required {...register("name")} />
-      <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
-    </Field>
+  <form id={formId} className="space-y-field" onSubmit={onSubmit} noValidate>
+    <FormRootError formState={form.formState} />
+    <FormField
+      control={form.control}
+      name="name"
+      label="Nama Lengkap"
+      required
+      description="Sesuai akta kelahiran."
+      render={({ field, controlProps }) => <Input {...field} {...controlProps} />}
+    />
     {/* ...more fields */}
   </form>
 </ResponsiveFormDialog>
 ```
 
-The footer sits outside the form's DOM subtree; its submit button must use the matching `form` attribute. For existing click-driven submissions, keep the submit handler on the footer button.
+The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit button carries the matching `form` attribute.
 
-**Required pieces:** `<Field>` + `<FieldLabel>` + `<FieldDescription>` (never raw `<Label>` + `<Input>`) · Zod schema + React Hook Form · submit button shows loading state · ghost-Cancel on the left, solid-Submit on the right.
+**Required pieces:** `useZodForm` with the route's schema (or one derived from it) · `FormField` for every control · `FormRootError` · `FormDialogFooter` (loading state, ghost-Cancel left, solid-Submit right) · `sendJson` + `applyServerErrors`. Full rules and the three pitfalls: `ui.md` → Forms.
 
 ## Recipe 4 — Portal Dashboard
 

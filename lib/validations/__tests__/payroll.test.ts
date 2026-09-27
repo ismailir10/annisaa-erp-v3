@@ -100,3 +100,85 @@ describe("adjustPayrollLineSchema", () => {
     expect(adjustPayrollLineSchema.safeParse({ adjustmentAmount: Infinity, adjustmentNote: "x" }).success).toBe(false);
   });
 });
+
+import { adjustPayrollLineFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
+
+describe("adjustPayrollLineFormSchema", () => {
+  it("coerces a string amount from <Input type=number>", () => {
+    const r = adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "50000", adjustmentNote: "Lembur" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.adjustmentAmount).toBe(50000);
+  });
+
+  it("coerces a blank amount to 0, matching the prior parseFloat(...) || 0 fallback", () => {
+    const r = adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "", adjustmentNote: "Reset" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.adjustmentAmount).toBe(0);
+  });
+
+  it("still requires a non-blank note", () => {
+    expect(adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "1000", adjustmentNote: "" }).success).toBe(false);
+  });
+
+  it("rejects a non-numeric amount with an Indonesian message", () => {
+    const r = adjustPayrollLineFormSchema.safeParse({ adjustmentAmount: "abc", adjustmentNote: "x" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.message === "Jumlah penyesuaian harus berupa angka")).toBe(true);
+    }
+  });
+});
+
+describe("payrollVariablesSchema", () => {
+  const valid = { overtimeHours: "2.5", outdoorDays: "1", holidayWorkedDays: "0", dcDays: "0" };
+
+  it("coerces string inputs to numbers", () => {
+    const r = payrollVariablesSchema.safeParse(valid);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toEqual({ overtimeHours: 2.5, outdoorDays: 1, holidayWorkedDays: 0, dcDays: 0 });
+    }
+  });
+
+  it("coerces blank inputs to 0 (default-with-no-asterisk fields)", () => {
+    const r = payrollVariablesSchema.safeParse({ overtimeHours: "", outdoorDays: "", holidayWorkedDays: "", dcDays: "" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toEqual({ overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
+    }
+  });
+
+  it("defaults a missing field to 0, matching the route's own `?? 0` and partial-body callers", () => {
+    const r = payrollVariablesSchema.safeParse({ overtimeHours: 5 });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).toEqual({ overtimeHours: 5, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
+    }
+  });
+
+  it("rejects a negative value with an Indonesian message", () => {
+    const r = payrollVariablesSchema.safeParse({ ...valid, outdoorDays: "-1" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.path.includes("outdoorDays") && i.message === "Hari outdoor tidak boleh negatif")).toBe(true);
+    }
+  });
+
+  it("rejects a non-integer day count", () => {
+    const r = payrollVariablesSchema.safeParse({ ...valid, dcDays: "1.5" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects overtimeHours above the Decimal(5,2) column bound", () => {
+    const r = payrollVariablesSchema.safeParse({ ...valid, overtimeHours: "1000" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a non-numeric value with an Indonesian message, not a default Zod one", () => {
+    const r = payrollVariablesSchema.safeParse({ ...valid, dcDays: "abc" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.message === "Hari DC harus berupa angka")).toBe(true);
+    }
+  });
+});

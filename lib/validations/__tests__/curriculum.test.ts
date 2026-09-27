@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   semesterCreateSchema,
+  semesterFormSchema,
   semesterUpdateSchema,
   themeCreateSchema,
   themeUpdateSchema,
@@ -80,6 +81,48 @@ describe("semesterUpdateSchema", () => {
   it("accepts startDate-only without endDate (skip cross-field check)", () => {
     const r = semesterUpdateSchema.safeParse({ startDate: "2026-07-14" });
     expect(r.success).toBe(true);
+  });
+});
+
+describe("semesterFormSchema", () => {
+  const valid = {
+    academicYearId: "ay1",
+    number: "1" as const,
+    startDate: "2026-07-14",
+    endDate: "2026-12-19",
+  };
+
+  it("coerces the Select's string number to the literal 1|2", () => {
+    const r = semesterFormSchema.safeParse(valid);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.number).toBe(1);
+
+    const r2 = semesterFormSchema.safeParse({ ...valid, number: "2" });
+    expect(r2.success).toBe(true);
+    if (r2.success) expect(r2.data.number).toBe(2);
+  });
+
+  it("still accepts a real number too", () => {
+    const r = semesterFormSchema.safeParse({ ...valid, number: 2 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.number).toBe(2);
+  });
+
+  it("rejects an unfilled number with an Indonesian message", () => {
+    const r = semesterFormSchema.safeParse({ ...valid, number: "" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("Nomor semester wajib dipilih");
+  });
+
+  it("still rejects endDate <= startDate", () => {
+    const r = semesterFormSchema.safeParse({ ...valid, endDate: valid.startDate });
+    expect(r.success).toBe(false);
+  });
+
+  it("still requires academicYearId", () => {
+    const { academicYearId: _drop, ...rest } = valid;
+    void _drop;
+    expect(semesterFormSchema.safeParse(rest).success).toBe(false);
   });
 });
 

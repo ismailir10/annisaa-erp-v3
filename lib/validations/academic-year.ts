@@ -41,3 +41,22 @@ export const updateAcademicYearSchema = z.object({
 
 export type CreateAcademicYearInput = z.infer<typeof createAcademicYearSchema>;
 export type UpdateAcademicYearInput = z.infer<typeof updateAcademicYearSchema>;
+
+// Client form schema (T3, 2026-09-27 admin-forms-rhf cycle). The admin
+// dialog already cross-links the two DatePickers (start's `max` = the
+// current end value, end's `min` = the current start value) so a user can't
+// pick an inverted range through the UI — this refine is the defense-in-depth
+// match for that, giving a real inline error instead of relying solely on
+// the picker's min/max. It is a form-only addition: `createAcademicYearSchema`
+// itself is unchanged, so the API still accepts exactly what it did before.
+export const academicYearFormSchema = createAcademicYearSchema.superRefine(
+  (v, ctx) => {
+    if (v.startDate && v.endDate && v.endDate < v.startDate) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "Tanggal selesai harus sama dengan atau setelah tanggal mulai",
+      });
+    }
+  },
+);

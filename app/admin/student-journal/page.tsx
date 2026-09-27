@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import {
   AdminTabsTrigger,
 } from "@/components/admin/admin-tabs";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -26,6 +26,10 @@ import {
   type CategoryDTO,
   type IndicatorDTO,
 } from "@/components/student-journal/category-accordion";
+import { categoryFormSchema, indicatorFormSchema } from "@/lib/validations/student-journal";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Scope = "SCHOOL" | "HOME";
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
@@ -35,20 +39,15 @@ const SCOPE_LABEL: Record<Scope, string> = {
   HOME: "Rumah",
 };
 
-type CategoryFormState = {
-  mode: "create" | "edit";
-  id?: string;
-  name: string;
-  scope: Scope;
-};
+const CATEGORY_EMPTY_FORM = { name: "", scope: "SCHOOL" as Scope };
+const INDICATOR_EMPTY_FORM = { label: "" };
 
-type IndicatorFormState = {
-  mode: "create" | "edit";
-  id?: string;
-  categoryId: string;
-  categoryName: string;
-  label: string;
-};
+// The indicator dialog never shows `categoryId` as a field — it's fixed by
+// which category's "+" button opened the dialog — so it's tracked here
+// alongside the create/edit target instead of in the RHF form.
+type IndicatorTarget =
+  | { mode: "create"; categoryId: string; categoryName: string }
+  | { mode: "edit"; id: string; categoryId: string; categoryName: string };
 
 export default function StudentJournalAdminPage() {
   const [scope, setScope] = useState<Scope>("SCHOOL");
@@ -56,14 +55,15 @@ export default function StudentJournalAdminPage() {
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [categoryForm, setCategoryForm] = useState<CategoryFormState | null>(null);
-  const [indicatorForm, setIndicatorForm] = useState<IndicatorFormState | null>(null);
-  const [saving, setSaving] = useState(false);
-  // Empty-name validation is toast-only by default (voice.md), but the offending
-  // field also needs a persistent inline error + aria-invalid so the failure
-  // isn't only announced by a toast that auto-dismisses.
-  const [categoryNameError, setCategoryNameError] = useState(false);
-  const [indicatorLabelError, setIndicatorLabelError] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryDTO | null>(null);
+  const categoryFormId = useId();
+  const categoryForm = useZodForm(categoryFormSchema, { defaultValues: CATEGORY_EMPTY_FORM });
+
+  const [indicatorDialogOpen, setIndicatorDialogOpen] = useState(false);
+  const [indicatorTarget, setIndicatorTarget] = useState<IndicatorTarget | null>(null);
+  const indicatorFormId = useId();
+  const indicatorForm = useZodForm(indicatorFormSchema, { defaultValues: INDICATOR_EMPTY_FORM });
 
   const load = useCallback(async (s: Scope, st: StatusFilter) => {
     setLoading(true);
@@ -91,129 +91,83 @@ export default function StudentJournalAdminPage() {
   // ------- Category form -------
 
   function openCreateCategory() {
-    setCategoryNameError(false);
-    setCategoryForm({ mode: "create", name: "", scope });
+    setEditingCategory(null);
+    categoryForm.reset({ name: "", scope });
+    setCategoryDialogOpen(true);
   }
 
   function openEditCategory(cat: CategoryDTO) {
-    setCategoryNameError(false);
-    setCategoryForm({ mode: "edit", id: cat.id, name: cat.name, scope: cat.scope });
+    setEditingCategory(cat);
+    categoryForm.reset({ name: cat.name, scope: cat.scope });
+    setCategoryDialogOpen(true);
   }
 
-  async function saveCategory() {
-    if (!categoryForm) return;
-    const trimmed = categoryForm.name.trim();
-    if (!trimmed) {
-      setCategoryNameError(true);
-      toast.error("Nama kategori wajib diisi");
-      return;
-    }
-    setCategoryNameError(false);
-    setSaving(true);
+  const saveCategory = categoryForm.handleSubmit(async (values) => {
     try {
-      const url =
-        categoryForm.mode === "create"
-          ? "/api/student-journal/categories"
-          : `/api/student-journal/categories/${categoryForm.id}`;
-      const method = categoryForm.mode === "create" ? "POST" : "PUT";
-      const body =
-        categoryForm.mode === "create"
-          ? { name: trimmed, scope: categoryForm.scope, order: categories.length }
-          : { name: trimmed, scope: categoryForm.scope };
+      const url = editingCategory
+        ? `/api/student-journal/categories/${editingCategory.id}`
+        : "/api/student-journal/categories";
+      const method = editingCategory ? "PUT" : "POST";
+      const body = editingCategory
+        ? { name: values.name, scope: values.scope }
+        : { name: values.name, scope: values.scope, order: categories.length };
 
-      const res = await fetch(url, {
-        method,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Gagal menyimpan kategori");
-        return;
-      }
-      toast.success(
-        categoryForm.mode === "create" ? "Kategori ditambahkan" : "Kategori diperbarui",
-      );
-      setCategoryForm(null);
-      // If the scope changed in edit mode, load may not show it — but we stay on current tab.
-      if (categoryForm.mode === "create" && categoryForm.scope !== scope) {
-        setScope(categoryForm.scope);
+      await sendJson(url, { method, body }, "Gagal menyimpan kategori");
+      toast.success(editingCategory ? "Kategori diperbarui" : "Kategori ditambahkan");
+      setCategoryDialogOpen(false);
+      // If the scope changed in create mode, load may not show it — but we stay on current tab.
+      if (!editingCategory && values.scope !== scope) {
+        setScope(values.scope);
       } else {
         await load(scope, status);
       }
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      applyServerErrors(categoryForm, err, "Gagal menyimpan kategori");
     }
-  }
+  });
 
   // ------- Indicator form -------
 
   function openCreateIndicator(cat: CategoryDTO) {
-    setIndicatorLabelError(false);
-    setIndicatorForm({
-      mode: "create",
-      categoryId: cat.id,
-      categoryName: cat.name,
-      label: "",
-    });
+    setIndicatorTarget({ mode: "create", categoryId: cat.id, categoryName: cat.name });
+    indicatorForm.reset({ label: "" });
+    setIndicatorDialogOpen(true);
   }
 
   function openEditIndicator(ind: IndicatorDTO, cat: CategoryDTO) {
-    setIndicatorLabelError(false);
-    setIndicatorForm({
-      mode: "edit",
-      id: ind.id,
-      categoryId: cat.id,
-      categoryName: cat.name,
-      label: ind.label,
-    });
+    setIndicatorTarget({ mode: "edit", id: ind.id, categoryId: cat.id, categoryName: cat.name });
+    indicatorForm.reset({ label: ind.label });
+    setIndicatorDialogOpen(true);
   }
 
-  async function saveIndicator() {
-    if (!indicatorForm) return;
-    const trimmed = indicatorForm.label.trim();
-    if (!trimmed) {
-      setIndicatorLabelError(true);
-      toast.error("Label indikator wajib diisi");
-      return;
-    }
-    setIndicatorLabelError(false);
-    setSaving(true);
+  const saveIndicator = indicatorForm.handleSubmit(async (values) => {
+    if (!indicatorTarget) return;
     try {
       const url =
-        indicatorForm.mode === "create"
+        indicatorTarget.mode === "create"
           ? "/api/student-journal/indicators"
-          : `/api/student-journal/indicators/${indicatorForm.id}`;
-      const method = indicatorForm.mode === "create" ? "POST" : "PUT";
+          : `/api/student-journal/indicators/${indicatorTarget.id}`;
+      const method = indicatorTarget.mode === "create" ? "POST" : "PUT";
 
       // Pick an order slot at the end of the category's current indicators.
-      const parent = categories.find((c) => c.id === indicatorForm.categoryId);
+      const parent = categories.find((c) => c.id === indicatorTarget.categoryId);
       const nextOrder = parent ? parent.indicators.length : 0;
 
       const body =
-        indicatorForm.mode === "create"
-          ? { categoryId: indicatorForm.categoryId, label: trimmed, order: nextOrder }
-          : { label: trimmed };
+        indicatorTarget.mode === "create"
+          ? { categoryId: indicatorTarget.categoryId, label: values.label, order: nextOrder }
+          : { label: values.label };
 
-      const res = await fetch(url, {
-        method,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error ?? "Gagal menyimpan indikator");
-        return;
-      }
+      await sendJson(url, { method, body }, "Gagal menyimpan indikator");
       toast.success(
-        indicatorForm.mode === "create" ? "Indikator ditambahkan" : "Indikator diperbarui",
+        indicatorTarget.mode === "create" ? "Indikator ditambahkan" : "Indikator diperbarui",
       );
-      setIndicatorForm(null);
+      setIndicatorDialogOpen(false);
       await load(scope, status);
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      applyServerErrors(indicatorForm, err, "Gagal menyimpan indikator");
     }
-  }
+  });
 
   return (
     <div className="space-y-section">
@@ -271,54 +225,43 @@ export default function StudentJournalAdminPage() {
 
       {/* Category create/edit dialog */}
       <ResponsiveFormDialog
-        open={categoryForm !== null}
-        onOpenChange={(o) => { if (!o) setCategoryForm(null); }}
-        title={categoryForm?.mode === "create" ? "Tambah Kategori" : "Edit Kategori"}
+        open={categoryDialogOpen}
+        onOpenChange={setCategoryDialogOpen}
+        title={editingCategory ? "Edit Kategori" : "Tambah Kategori"}
         footer={
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setCategoryForm(null)}
-              disabled={saving}
-            >
-              Batal
-            </Button>
-            <Button onClick={saveCategory} disabled={saving}>
-              {saving ? "Menyimpan..." : categoryForm?.mode === "create" ? "Tambah Kategori" : "Simpan Perubahan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={categoryFormId}
+            pending={categoryForm.formState.isSubmitting}
+            onCancel={() => setCategoryDialogOpen(false)}
+            submitLabel={editingCategory ? "Simpan Perubahan" : "Tambah Kategori"}
+          />
         }
       >
-        {categoryForm && (
-          <>
-            <Field data-invalid={categoryNameError || undefined}>
-              <FieldLabel htmlFor="journal-category-name" required>Nama Kategori</FieldLabel>
-              <Input
-                id="journal-category-name"
-                required
-                aria-invalid={categoryNameError}
-                value={categoryForm.name}
-                onChange={(e) => {
-                  setCategoryNameError(false);
-                  setCategoryForm({ ...categoryForm, name: e.target.value });
-                }}
-                placeholder="Contoh: Ibadah"
-                autoFocus
-              />
-              {categoryNameError && (
-                <FieldError>Nama kategori wajib diisi</FieldError>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="journal-category-scope" required>Lingkup</FieldLabel>
+        <form id={categoryFormId} onSubmit={saveCategory} noValidate className="space-y-field">
+          <FormRootError formState={categoryForm.formState} />
+          <FormField
+            control={categoryForm.control}
+            name="name"
+            label="Nama Kategori"
+            required
+            id="journal-category-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="Contoh: Ibadah" autoFocus />
+            )}
+          />
+          <FormField
+            control={categoryForm.control}
+            name="scope"
+            label="Lingkup"
+            required
+            id="journal-category-scope"
+            render={({ field, controlProps }) => (
               <Select
-                value={categoryForm.scope}
-                onValueChange={(v) =>
-                  setCategoryForm({ ...categoryForm, scope: v as Scope })
-                }
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
                 items={{ SCHOOL: SCOPE_LABEL.SCHOOL, HOME: SCOPE_LABEL.HOME }}
               >
-                <SelectTrigger id="journal-category-scope" aria-required="true">
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,55 +269,42 @@ export default function StudentJournalAdminPage() {
                   <SelectItem value="HOME">{SCOPE_LABEL.HOME}</SelectItem>
                 </SelectContent>
               </Select>
-            </Field>
-          </>
-        )}
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Indicator create/edit dialog */}
       <ResponsiveFormDialog
-        open={indicatorForm !== null}
-        onOpenChange={(o) => { if (!o) setIndicatorForm(null); }}
+        open={indicatorDialogOpen}
+        onOpenChange={setIndicatorDialogOpen}
         title={
-          indicatorForm?.mode === "create"
-            ? `Tambah Indikator — ${indicatorForm.categoryName}`
+          indicatorTarget?.mode === "create"
+            ? `Tambah Indikator — ${indicatorTarget.categoryName}`
             : "Edit Indikator"
         }
         footer={
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setIndicatorForm(null)}
-              disabled={saving}
-            >
-              Batal
-            </Button>
-            <Button onClick={saveIndicator} disabled={saving}>
-              {saving ? "Menyimpan..." : indicatorForm?.mode === "create" ? "Tambah Indikator" : "Simpan Perubahan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={indicatorFormId}
+            pending={indicatorForm.formState.isSubmitting}
+            onCancel={() => setIndicatorDialogOpen(false)}
+            submitLabel={indicatorTarget?.mode === "create" ? "Tambah Indikator" : "Simpan Perubahan"}
+          />
         }
       >
-        {indicatorForm && (
-          <Field data-invalid={indicatorLabelError || undefined}>
-            <FieldLabel htmlFor="journal-indicator-label" required>Label Indikator</FieldLabel>
-            <Input
-              id="journal-indicator-label"
-              required
-              aria-invalid={indicatorLabelError}
-              value={indicatorForm.label}
-              onChange={(e) => {
-                setIndicatorLabelError(false);
-                setIndicatorForm({ ...indicatorForm, label: e.target.value });
-              }}
-              placeholder="Contoh: Tahfizul Qur'an"
-              autoFocus
-            />
-            {indicatorLabelError && (
-              <FieldError>Label indikator wajib diisi</FieldError>
+        <form id={indicatorFormId} onSubmit={saveIndicator} noValidate className="space-y-field">
+          <FormRootError formState={indicatorForm.formState} />
+          <FormField
+            control={indicatorForm.control}
+            name="label"
+            label="Label Indikator"
+            required
+            id="journal-indicator-label"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="Contoh: Tahfizul Qur'an" autoFocus />
             )}
-          </Field>
-        )}
+          />
+        </form>
       </ResponsiveFormDialog>
     </div>
   );

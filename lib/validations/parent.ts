@@ -28,3 +28,30 @@ export const updateParentSchema = z.object({
 export const toggleParentStatusSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]),
 });
+
+/**
+ * Form schema for the "Edit Wali" dialog on `/admin/guardians`
+ * (react-hook-form + zodResolver). The dialog reuses the shared
+ * `GuardianFormBody` (components/admin/guardian-edit-dialog.tsx), which
+ * pre-dates this migration and keeps its own `form`/`setForm` prop contract
+ * — it also renders inside the Student-detail and Guardian-detail pages,
+ * which are out of scope for this cycle, so its signature is left alone.
+ * This page bridges react-hook-form state to that contract instead of
+ * changing it (see docs/cycles/2026-09-27-admin-forms-rhf.md).
+ *
+ * Derived from `updateParentSchema`, not a divergent copy: every field
+ * keeps that schema's validator except `childrenTotal`, whose form value is
+ * the `GuardianForm`'s string ("" when unset) rather than a coerced number —
+ * `z.coerce.number()` alone turns `""` into `0`, not the "clear the field"
+ * `null` the previous handler produced with `payload.childrenTotal === ""
+ * ? null : Number(...)`. The preprocess below reproduces that exactly.
+ * `nik` is omitted — `GuardianForm` only ever carries the unified
+ * `parentNik` key (never the legacy `nik` alias), so keeping it would leave
+ * an unindexable field on the bridged form-values type.
+ */
+export const parentFormSchema = updateParentSchema.omit({ childrenTotal: true, nik: true }).extend({
+  childrenTotal: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.union([z.null(), z.coerce.number().int().min(0, "Jumlah anak tidak valid")]),
+  ),
+});

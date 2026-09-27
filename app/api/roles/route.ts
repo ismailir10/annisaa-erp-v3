@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { validateBody } from "@/lib/api/validate";
+import { createRoleSchema } from "@/lib/validations/role";
 
 // Cache roles for 1 hour (static data)
 export const revalidate = 3600;
@@ -32,24 +34,13 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-
-  // Validate required fields
-  if (!body.name?.trim() || !body.code?.trim()) {
-    return NextResponse.json({ error: "Nama dan kode wajib diisi" }, { status: 400 });
-  }
-
-  // Validate code format (uppercase, alphanumeric + underscore)
-  const codeRegex = /^[A-Z][A-Z0-9_]{1,30}$/;
-  if (!codeRegex.test(body.code.trim())) {
-    return NextResponse.json(
-      { error: "Kode harus huruf kapital, angka, atau underscore (contoh: FINANCE_ADMIN)" },
-      { status: 400 }
-    );
-  }
+  const result = await validateBody(createRoleSchema, body);
+  if (result.error) return result.error;
+  const { name, code, description } = result.data;
 
   // Check code uniqueness per tenant
   const existing = await prisma.role.findUnique({
-    where: { tenantId_code: { tenantId: session.tenantId, code: body.code.trim() } },
+    where: { tenantId_code: { tenantId: session.tenantId, code } },
   });
   if (existing) {
     return NextResponse.json({ error: "Kode peran sudah digunakan" }, { status: 409 });
@@ -68,9 +59,9 @@ export async function POST(req: NextRequest) {
   const role = await prisma.role.create({
     data: {
       tenantId: session.tenantId,
-      name: body.name.trim(),
-      code: body.code.trim(),
-      description: body.description?.trim() || null,
+      name,
+      code,
+      description: description?.trim() || null,
       isSystem: false,
       permissions: JSON.stringify(permissions),
     },

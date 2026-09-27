@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { validateBody } from "@/lib/api/validate";
+import { updateRoleSchema } from "@/lib/validations/role";
 
 export async function GET(
   _req: NextRequest,
@@ -50,12 +52,15 @@ export async function PUT(
   }
 
   const body = await req.json();
+  const result = await validateBody(updateRoleSchema, body);
+  if (result.error) return result.error;
+  const { name, description } = result.data;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = {};
 
-  if (body.name?.trim()) data.name = body.name.trim();
-  if (body.description !== undefined) data.description = body.description?.trim() || null;
+  if (name?.trim()) data.name = name.trim();
+  if (description !== undefined) data.description = description?.trim() || null;
 
   if (Array.isArray(body.permissions)) {
     const invalidPerms = body.permissions.filter((p: string) => !ALL_PERMISSIONS.includes(p));

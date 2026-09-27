@@ -7,8 +7,8 @@
  * "Kelola…" navigations moved into the ⋯ menu's `extraActions`, and
  * "Lihat" is gone.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SemestersClient } from "@/app/admin/semesters/client";
@@ -33,8 +33,29 @@ const semester = {
   _count: { themes: 3 },
 };
 
+// DatePicker renders a plain `<input type="date">` on a coarse (touch)
+// pointer and a Button+Calendar popover on a fine pointer; force coarse so
+// `fireEvent.change` on a labelled native input is enough to drive it,
+// matching the holidays page test (the worked example for this pattern).
+function mockCoarsePointer() {
+  return vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: query.includes("coarse"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }) as unknown as MediaQueryList,
+  );
+}
+
 function stubFetch() {
-  return vi.fn((input: RequestInfo | URL) => {
+  return vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+    void _init;
     const url = typeof input === "string" ? input : input.toString();
     if (url.includes("/api/admin/curriculum/semesters")) {
       return Promise.resolve({ ok: true, json: async () => ({ data: [semester] }) } as Response);
@@ -71,5 +92,85 @@ describe("SemestersClient — name is the link (T7)", () => {
     expect(await screen.findByRole("menuitem", { name: "Kelola tema" })).toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "Kelola tema" }));
     expect(pushMock).toHaveBeenCalledWith("/admin/semesters/sem1/themes");
+  });
+});
+
+// T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah/Ubah Semester migrated
+// onto useZodForm + FormField + semesterFormSchema.
+describe("SemestersClient — Tambah Semester dialog (T3 rhf migration)", () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    vi.stubGlobal("fetch", stubFetch());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("blocks submit with empty required fields, showing inline errors and firing no POST", async () => {
+    mockCoarsePointer();
+    const fetchMock = stubFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<SemestersClient canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Semester" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Semester" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Semester" }));
+
+    expect(await within(dialog).findByText("Tahun ajaran wajib dipilih")).toBeInTheDocument();
+    // Both dates are empty, so the per-field YYYY-MM-DD format check fails
+    // before the cross-field "start < end" refine ever runs.
+    expect(within(dialog).getAllByText("Format tanggal harus YYYY-MM-DD").length).toBeGreaterThan(0);
+
+    expect(
+      fetchMock.mock.calls.some(([url, init]) => {
+        const u = typeof url === "string" ? url : url.toString();
+        return u.includes("/api/admin/curriculum/semesters") && (init as RequestInit | undefined)?.method === "POST";
+      }),
+    ).toBe(false);
+  });
+
+  it("submits the filled form as POST /api/admin/curriculum/semesters with the expected body", async () => {
+    mockCoarsePointer();
+    const fetchMock = stubFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<SemestersClient canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Semester" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Semester" });
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Tahun ajaran/ }));
+    await user.click(await screen.findByRole("option", { name: "2026/2027" }));
+
+    fireEvent.change(within(dialog).getByLabelText("Tanggal mulai", { exact: false }), {
+      target: { value: "2026-07-14" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Tanggal selesai", { exact: false }), {
+      target: { value: "2026-12-19" },
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Semester" }));
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(([url, init]) => {
+        const u = typeof url === "string" ? url : url.toString();
+        return u.includes("/api/admin/curriculum/semesters") && (init as RequestInit | undefined)?.method === "POST";
+      });
+      expect(postCall).toBeTruthy();
+    });
+
+    const [, postInit] = fetchMock.mock.calls.find(([url, init]) => {
+      const u = typeof url === "string" ? url : url.toString();
+      return u.includes("/api/admin/curriculum/semesters") && (init as RequestInit | undefined)?.method === "POST";
+    })!;
+    expect(JSON.parse((postInit as RequestInit).body as string)).toEqual({
+      academicYearId: "ay1",
+      number: 1,
+      startDate: "2026-07-14",
+      endDate: "2026-12-19",
+    });
   });
 });

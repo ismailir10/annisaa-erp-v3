@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
@@ -23,9 +23,14 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
+import { adjustPayrollLineFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type PayrollLine = {
   id: string; labelSnapshot: string; categorySnapshot: string;
@@ -61,13 +66,17 @@ export default function PayrollDetailPage() {
   const [approveModal, setApproveModal] = useState(false);
 
   // Vars form
-  const [varsForm, setVarsForm] = useState({ overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
-  const [varsSaving, setVarsSaving] = useState(false);
+  const varsFormId = useId();
+  const varsForm = useZodForm(payrollVariablesSchema, {
+    defaultValues: { overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 },
+  });
 
   // Line adjustment form
-  const [adjAmount, setAdjAmount] = useState("");
-  const [adjNote, setAdjNote] = useState("");
-  const [adjSaving, setAdjSaving] = useState(false);
+  const adjFormId = useId();
+  const adjForm = useZodForm(adjustPayrollLineFormSchema, {
+    defaultValues: { adjustmentAmount: "", adjustmentNote: "" },
+  });
+  const liveAdjustmentAmount = Number(adjForm.watch("adjustmentAmount")) || 0;
 
   const [approving, setApproving] = useState(false);
 
@@ -131,7 +140,7 @@ export default function PayrollDetailPage() {
   }, [payrollItems, employeeSearch, bankFilter]);
 
   function openVars(item: PayrollItem) {
-    setVarsForm({
+    varsForm.reset({
       overtimeHours: item.overtimeHours,
       outdoorDays: item.outdoorDays,
       holidayWorkedDays: item.holidayWorkedDays,
@@ -140,37 +149,40 @@ export default function PayrollDetailPage() {
     setVarsModal(item);
   }
 
-  async function saveVars() {
+  const saveVars = varsForm.handleSubmit(async (values) => {
     if (!varsModal) return;
-    setVarsSaving(true);
-    const res = await fetch(`/api/payroll/${id}/items/${varsModal.id}/variables`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(varsForm),
-    });
-    if (res.ok) { toast.success("Variabel diperbarui"); setVarsModal(null); fetchData(); }
-    else toast.error("Gagal menyimpan");
-    setVarsSaving(false);
-  }
+    try {
+      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Variabel diperbarui");
+      setVarsModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(varsForm, err, "Gagal menyimpan");
+    }
+  });
 
   function openLineAdj(item: PayrollItem, line: PayrollLine) {
-    setAdjAmount(String(line.adjustmentAmount || ""));
-    setAdjNote(line.adjustmentNote ?? "");
+    // Blank (not "0") when there's no existing adjustment — matches the
+    // prior `String(line.adjustmentAmount || "")` display exactly;
+    // z.coerce.number() still turns a resubmitted blank back into 0.
+    adjForm.reset({
+      adjustmentAmount: line.adjustmentAmount ? String(line.adjustmentAmount) : "",
+      adjustmentNote: line.adjustmentNote ?? "",
+    });
     setLineModal({ item, line });
   }
 
-  async function saveLineAdj() {
+  const saveLineAdj = adjForm.handleSubmit(async (values) => {
     if (!lineModal) return;
-    setAdjSaving(true);
-    const res = await fetch(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adjustmentAmount: parseFloat(adjAmount) || 0, adjustmentNote: adjNote }),
-    });
-    if (res.ok) { toast.success("Penyesuaian disimpan"); setLineModal(null); fetchData(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setAdjSaving(false);
-  }
+    try {
+      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Gagal");
+      toast.success("Penyesuaian disimpan");
+      setLineModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(adjForm, err, "Gagal");
+    }
+  });
 
   async function handleApprove() {
     setApproving(true);
@@ -525,16 +537,53 @@ export default function PayrollDetailPage() {
         description={varsModal?.employee.nama}
         size="2xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setVarsModal(null)} disabled={varsSaving}>Batal</Button>
-            <Button onClick={saveVars} disabled={varsSaving}>{varsSaving ? "Menyimpan..." : "Simpan & Hitung Ulang"}</Button>
-          </>
+          <FormDialogFooter
+            formId={varsFormId}
+            pending={varsForm.formState.isSubmitting}
+            onCancel={() => setVarsModal(null)}
+            submitLabel="Simpan & Hitung Ulang"
+          />
         }
       >
-        <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
+        <form id={varsFormId} onSubmit={saveVars} noValidate className="space-y-field">
+          <FormRootError formState={varsForm.formState} />
+          <FormField
+            control={varsForm.control}
+            name="overtimeHours"
+            label="Jam Lembur"
+            id="payroll-vars-overtime-hours"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" step="0.5" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="outdoorDays"
+            label="Hari Outdoor"
+            id="payroll-vars-outdoor-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="holidayWorkedDays"
+            label="Hari Libur Kerja"
+            id="payroll-vars-holiday-worked-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="dcDays"
+            label="Hari DC"
+            id="payroll-vars-dc-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Line Adjustment Modal */}
@@ -545,16 +594,38 @@ export default function PayrollDetailPage() {
         description={lineModal ? `${lineModal.line.labelSnapshot} — ${lineModal.item.employee.nama}` : undefined}
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setLineModal(null)} disabled={adjSaving}>Batal</Button>
-            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-          </>
+          <FormDialogFooter
+            formId={adjFormId}
+            pending={adjForm.formState.isSubmitting}
+            onCancel={() => setLineModal(null)}
+            submitLabel="Simpan Perubahan"
+          />
         }
       >
-        <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-        <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-        <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
-        <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+        <form id={adjFormId} onSubmit={saveLineAdj} noValidate className="space-y-field">
+          <FormRootError formState={adjForm.formState} />
+          <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
+          <FormField
+            control={adjForm.control}
+            name="adjustmentAmount"
+            label="Penyesuaian (+ atau -)"
+            id="payroll-line-adjustment-amount"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" placeholder="0" className="font-currency" />
+            )}
+          />
+          <FormField
+            control={adjForm.control}
+            name="adjustmentNote"
+            label="Catatan"
+            required
+            id="payroll-line-adjustment-note"
+            render={({ field, controlProps }) => (
+              <Textarea {...field} {...controlProps} placeholder="Alasan penyesuaian..." rows={2} />
+            )}
+          />
+          <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + liveAdjustmentAmount)}</span></p>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Approve — irreversible (locks attendance) */}

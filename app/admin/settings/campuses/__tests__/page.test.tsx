@@ -47,6 +47,30 @@ describe("CampusesPage mobile form", () => {
   });
 });
 
+describe("CampusesPage create dialog validation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("blocks submit with an empty Nama, showing an inline error and firing no POST", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<CampusesPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Kampus" }));
+    const sheet = screen.getByRole("dialog", { name: "Tambah Kampus" });
+
+    await user.click(within(sheet).getByRole("button", { name: "Tambah Kampus" }));
+
+    expect(await within(sheet).findByText("Nama wajib diisi")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST"),
+    ).toBe(false);
+  });
+});
+
 describe("CampusesPage list", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

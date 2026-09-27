@@ -86,3 +86,14 @@ describe("StudentAttendancePage — attendance filter accessible names (AC10)", 
     expect(dateTo).toHaveAttribute("type", "date");
   });
 });
+
+// T4 (2026-09-27, admin-forms-rhf) — "Timpa Kehadiran"'s dialog is now
+// react-hook-form + zodResolver. Its own test lives in
+// `override-dialog.test.tsx` — a separate file, not another `describe` here.
+// Rendering this page a second time in the same file (this file's own test
+// above already does one `render()` + unmount) makes the row's Base UI
+// `DropdownMenu` unreliable: the trigger's `open` toggle fires but the
+// popup doesn't always mount. A fresh test *file* gives it a clean module
+// registry — reproduced by hand (10 back-to-back runs: 100% pass in its own
+// file, ~25% pass appended here) — so the fix is isolation, not a bigger
+// settle/retry hack in this file.

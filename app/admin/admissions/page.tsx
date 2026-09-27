@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
+import { useWatch, type Control } from "react-hook-form";
+import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -26,9 +28,9 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Users2 } from "lucide-react";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
@@ -40,6 +42,10 @@ import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { canConvertAdmissionToStudent } from "./conversion";
 import { formatAgeFromDob } from "@/lib/admission/age";
+import { createAdmissionSchema } from "@/lib/validations/admission";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Sibling-detect edit-form banner (cycle 1.2)
@@ -147,274 +153,342 @@ const TERMINAL_STATUSES = new Set(["CANCELLED"]);
 // Form body (shared between Dialog on desktop and Sheet on mobile)
 // ------------------------------------------------------------------
 
-type AdmissionForm = {
-  childName: string;
-  dateOfBirth: string; // YYYY-MM-DD — age is auto-derived from this
-  childGender: string;
-  parentName: string;
-  parentPhone: string;
-  parentWhatsapp: string;
-  parentEmail: string;
-  parentEducation: string;
-  parentOccupation: string;
-  parentIncome: string;
-  parentRelationship: string;
-  programId: string;
-  campusPreference: string;
-  source: string;
-  notes: string;
-  followUpDate: string;
+type AdmissionFormValues = z4.input<typeof createAdmissionSchema>;
+type AdmissionFormOutput = z4.output<typeof createAdmissionSchema>;
+
+const EMPTY_ADMISSION_FORM: AdmissionFormValues = {
+  childName: "",
+  dateOfBirth: "",
+  childGender: "",
+  parentName: "",
+  parentPhone: "",
+  parentWhatsapp: "",
+  parentEmail: "",
+  parentEducation: "",
+  parentOccupation: "",
+  parentIncome: "",
+  parentRelationship: "",
+  programId: "",
+  campusPreference: "",
+  source: "WHATSAPP",
+  notes: "",
+  followUpDate: "",
 };
 
 type AdmissionFormBodyProps = {
-  form: AdmissionForm;
-  setForm: React.Dispatch<React.SetStateAction<AdmissionForm>>;
+  control: Control<AdmissionFormValues, unknown, AdmissionFormOutput>;
   programs: Program[];
   campuses: Campus[];
 };
 
-function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormBodyProps) {
+function AdmissionFormBody({ control, programs, campuses }: AdmissionFormBodyProps) {
+  const dateOfBirth = useWatch({ control, name: "dateOfBirth" }) as string | undefined;
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-childName">Nama Anak</FieldLabel>
-          <Input
-            id="admission-childName"
-            required
-            aria-required="true"
-            value={form.childName}
-            onChange={(e) => setForm({ ...form, childName: e.target.value })}
-            placeholder="Aisyah"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-dateOfBirth">Tanggal Lahir</FieldLabel>
-          <DatePicker
-            id="admission-dateOfBirth"
-            value={form.dateOfBirth}
-            onChange={(v) => setForm({ ...form, dateOfBirth: v })}
-          />
-          {form.dateOfBirth && (
-            <span className="text-xs text-muted-foreground">
-              Usia: {formatAgeFromDob(form.dateOfBirth) ?? "—"}
-            </span>
+        <FormField
+          control={control}
+          name="childName"
+          label="Nama Anak"
+          required
+          id="admission-childName"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} placeholder="Aisyah" />
           )}
-        </Field>
+        />
+        <FormField
+          control={control}
+          name="dateOfBirth"
+          label="Tanggal Lahir"
+          id="admission-dateOfBirth"
+          description={dateOfBirth ? `Usia: ${formatAgeFromDob(dateOfBirth) ?? "—"}` : undefined}
+          render={({ field, controlProps }) => (
+            <DatePicker
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              onChange={field.onChange}
+            />
+          )}
+        />
       </div>
-      <Field>
-          <FieldLabel htmlFor="admission-childGender">Jenis Kelamin</FieldLabel>
-        <Select
-          value={form.childGender}
-          onValueChange={(v) => v && setForm({ ...form, childGender: v })}
-          items={{ L: "Laki-laki", P: "Perempuan" }}
-        >
-          <SelectTrigger id="admission-childGender">
-            <SelectValue placeholder="Pilih" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="L">Laki-laki</SelectItem>
-            <SelectItem value="P">Perempuan</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
+      <FormField
+        control={control}
+        name="childGender"
+        label="Jenis Kelamin"
+        id="admission-childGender"
+        render={({ field, controlProps }) => (
+          <Select
+            value={(field.value as string | undefined) ?? ""}
+            onValueChange={(v) => v != null && field.onChange(v)}
+            items={{ L: "Laki-laki", P: "Perempuan" }}
+          >
+            <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+              <SelectValue placeholder="Pilih" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="L">Laki-laki</SelectItem>
+              <SelectItem value="P">Perempuan</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      />
       <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-parentName">Nama Orang Tua</FieldLabel>
-          <Input
-            id="admission-parentName"
-            required
-            aria-required="true"
-            value={form.parentName}
-            onChange={(e) => setForm({ ...form, parentName: e.target.value })}
-            placeholder="Ibu Fatimah"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentWhatsapp">WhatsApp</FieldLabel>
-          <Input
-            id="admission-parentWhatsapp"
-            value={form.parentWhatsapp}
-            onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
-            placeholder="081234567890"
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="parentName"
+          label="Nama Orang Tua"
+          required
+          id="admission-parentName"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} placeholder="Ibu Fatimah" />
+          )}
+        />
+        <FormField
+          control={control}
+          name="parentWhatsapp"
+          label="WhatsApp"
+          id="admission-parentWhatsapp"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="081234567890"
+            />
+          )}
+        />
       </div>
-      <Field>
-        <FieldLabel htmlFor="admission-parentRelationship">Hubungan dengan Anak</FieldLabel>
-        <Select
-          value={form.parentRelationship}
-          onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
-          items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
-        >
-          <SelectTrigger id="admission-parentRelationship">
-            <SelectValue placeholder="Pilih" />
-          </SelectTrigger>
-          <SelectContent>
-            {RELATIONSHIP_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <FormField
+        control={control}
+        name="parentRelationship"
+        label="Hubungan dengan Anak"
+        id="admission-parentRelationship"
+        render={({ field, controlProps }) => (
+          <Select
+            value={(field.value as string | undefined) ?? ""}
+            onValueChange={(v) => v != null && field.onChange(v)}
+            items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
+          >
+            <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+              <SelectValue placeholder="Pilih" />
+            </SelectTrigger>
+            <SelectContent>
+              {RELATIONSHIP_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-parentEmail">Email</FieldLabel>
-          <Input
-            id="admission-parentEmail"
-            type="email"
-            value={form.parentEmail}
-            onChange={(e) => setForm({ ...form, parentEmail: e.target.value })}
-            placeholder="email@contoh.com"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentPhone">No. HP</FieldLabel>
-          <Input
-            id="admission-parentPhone"
-            value={form.parentPhone}
-            onChange={(e) => setForm({ ...form, parentPhone: e.target.value })}
-            placeholder="081234567890"
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="parentEmail"
+          label="Email"
+          id="admission-parentEmail"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              type="email"
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="email@contoh.com"
+            />
+          )}
+        />
+        <FormField
+          control={control}
+          name="parentPhone"
+          label="No. HP"
+          id="admission-parentPhone"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="081234567890"
+            />
+          )}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-parentEducation">Pendidikan Orang Tua</FieldLabel>
-          <Select
-            value={form.parentEducation}
-            onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
-            items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentEducation">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {EDUCATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentOccupation">Pekerjaan</FieldLabel>
-          <Select
-            value={form.parentOccupation}
-            onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
-            items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentOccupation">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {OCCUPATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentIncome">Penghasilan</FieldLabel>
-          <Select
-            value={form.parentIncome}
-            onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
-            items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentIncome">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {INCOME_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={control}
+          name="parentEducation"
+          label="Pendidikan Orang Tua"
+          id="admission-parentEducation"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue placeholder="Pilih" />
+              </SelectTrigger>
+              <SelectContent>
+                {EDUCATION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={control}
+          name="parentOccupation"
+          label="Pekerjaan"
+          id="admission-parentOccupation"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue placeholder="Pilih" />
+              </SelectTrigger>
+              <SelectContent>
+                {OCCUPATION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={control}
+          name="parentIncome"
+          label="Penghasilan"
+          id="admission-parentIncome"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue placeholder="Pilih" />
+              </SelectTrigger>
+              <SelectContent>
+                {INCOME_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-programId">Program Diminati</FieldLabel>
-          <Select
-            value={form.programId}
-            onValueChange={(v) => v && setForm({ ...form, programId: v })}
-            items={programs.map((p) => ({ label: p.name, value: p.id }))}
-          >
-            <SelectTrigger id="admission-programId">
-              <SelectValue placeholder="Pilih program" />
-            </SelectTrigger>
-            <SelectContent>
-              {programs.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-campusPreference">Preferensi Kampus</FieldLabel>
-          <Select
-            value={form.campusPreference}
-            onValueChange={(v) => v && setForm({ ...form, campusPreference: v })}
-            items={campuses.map((c) => ({ label: c.name, value: c.id }))}
-          >
-            <SelectTrigger id="admission-campusPreference">
-              <SelectValue placeholder="Pilih kampus" />
-            </SelectTrigger>
-            <SelectContent>
-              {campuses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={control}
+          name="programId"
+          label="Program Diminati"
+          id="admission-programId"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={programs.map((p) => ({ label: p.name, value: p.id }))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue placeholder="Pilih program" />
+              </SelectTrigger>
+              <SelectContent>
+                {programs.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={control}
+          name="campusPreference"
+          label="Preferensi Kampus"
+          id="admission-campusPreference"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={campuses.map((c) => ({ label: c.name, value: c.id }))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue placeholder="Pilih kampus" />
+              </SelectTrigger>
+              <SelectContent>
+                {campuses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-source">Sumber</FieldLabel>
-          <Select
-            value={form.source}
-            onValueChange={(v) => v && setForm({ ...form, source: v })}
-            items={{
-              WHATSAPP: "WhatsApp",
-              WALK_IN: "Datang Langsung",
-              WEBSITE: "Website",
-              REFERRAL: "Referensi",
-              OTHER: "Lainnya",
-            }}
-          >
-            <SelectTrigger id="admission-source" aria-required="true">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-              <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
-              <SelectItem value="WEBSITE">Website</SelectItem>
-              <SelectItem value="REFERRAL">Referensi</SelectItem>
-              <SelectItem value="OTHER">Lainnya</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-followUpDate">Tanggal Tindak Lanjut</FieldLabel>
-          <DatePicker
-            id="admission-followUpDate"
-            value={form.followUpDate}
-            onChange={(v) => setForm({ ...form, followUpDate: v })}
-          />
-        </Field>
-      </div>
-      <Field>
-        <FieldLabel htmlFor="admission-notes">Catatan</FieldLabel>
-        <Input
-          id="admission-notes"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          placeholder="Catatan tambahan..."
+        <FormField
+          control={control}
+          name="source"
+          label="Sumber"
+          required
+          id="admission-source"
+          render={({ field, controlProps }) => (
+            <Select
+              value={field.value as string}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={{
+                WHATSAPP: "WhatsApp",
+                WALK_IN: "Datang Langsung",
+                WEBSITE: "Website",
+                REFERRAL: "Referensi",
+                OTHER: "Lainnya",
+              }}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
+                <SelectItem value="WEBSITE">Website</SelectItem>
+                <SelectItem value="REFERRAL">Referensi</SelectItem>
+                <SelectItem value="OTHER">Lainnya</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         />
-      </Field>
+        <FormField
+          control={control}
+          name="followUpDate"
+          label="Tanggal Tindak Lanjut"
+          id="admission-followUpDate"
+          render={({ field, controlProps }) => (
+            <DatePicker
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              onChange={field.onChange}
+            />
+          )}
+        />
+      </div>
+      <FormField
+        control={control}
+        name="notes"
+        label="Catatan"
+        id="admission-notes"
+        render={({ field, controlProps }) => (
+          <Input
+            {...field}
+            {...controlProps}
+            value={(field.value as string | undefined) ?? ""}
+            placeholder="Catatan tambahan..."
+          />
+        )}
+      />
     </>
   );
 }
@@ -473,25 +547,8 @@ export default function AdmissionsPage() {
     message: string;
     conflictingParentName: string | null;
   } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    childName: "",
-    dateOfBirth: "",
-    childGender: "",
-    parentName: "",
-    parentPhone: "",
-    parentWhatsapp: "",
-    parentEmail: "",
-    parentEducation: "",
-    parentOccupation: "",
-    parentIncome: "",
-    parentRelationship: "",
-    programId: "",
-    campusPreference: "",
-    source: "WHATSAPP",
-    notes: "",
-    followUpDate: "",
-  });
+  const admissionFormId = useId();
+  const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
 
   // Fetch programs + campuses once. Campuses cached for 1 h server-side
   // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
@@ -636,30 +693,19 @@ export default function AdmissionsPage() {
     void runConvert(a.id, true);
   }
 
-  async function handleSubmit() {
-    if (!form.childName.trim() || !form.parentName.trim()) {
-      toast.error("Nama anak dan orang tua wajib diisi");
-      return;
-    }
-    setSaving(true);
+  const handleSubmit = form.handleSubmit(async (values) => {
     const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
     const method = editingAdmission ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+    try {
+      await sendJson(url, { method, body: values }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       setDialogOpen(false);
       setEditingAdmission(null);
       fetchAdmissions(); fetchStats();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
     }
-    setSaving(false);
-  }
+  });
 
   async function advanceStatus(a: Admission) {
     const next = NEXT_STATUS[a.status];
@@ -691,24 +737,7 @@ export default function AdmissionsPage() {
 
   function openDialog() {
     setEditingAdmission(null);
-    setForm({
-      childName: "",
-      dateOfBirth: "",
-      childGender: "",
-      parentName: "",
-      parentPhone: "",
-      parentWhatsapp: "",
-      parentEmail: "",
-      parentEducation: "",
-      parentOccupation: "",
-      parentIncome: "",
-      parentRelationship: "",
-      programId: "",
-      campusPreference: "",
-      source: "WHATSAPP",
-      notes: "",
-      followUpDate: "",
-    });
+    form.reset(EMPTY_ADMISSION_FORM);
     setDialogOpen(true);
   }
 
@@ -874,7 +903,7 @@ export default function AdmissionsPage() {
           <DataTableRowActions
             onEdit={() => {
               setEditingAdmission(a);
-              setForm({
+              form.reset({
                 childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
                 parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
                 parentEmail: a.parentEmail ?? "", parentEducation: a.parentEducation ?? "",
@@ -883,7 +912,7 @@ export default function AdmissionsPage() {
                 parentRelationship: a.parentRelationship ?? "",
                 programId: a.programId ?? "",
                 campusPreference: a.campusPreference ?? "",
-                source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+                source: a.source as AdmissionFormValues["source"], notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
               });
               setDialogOpen(true);
             }}
@@ -960,24 +989,25 @@ export default function AdmissionsPage() {
       {/* Add/Edit Admission — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
       <ResponsiveFormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => { if (!form.formState.isSubmitting) setDialogOpen(open); }}
         title={editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}
         size="xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={admissionFormId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
+          />
         }
       >
-        {editingAdmission?.detectedParent && (
-          <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
-        )}
-        <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
+        <form id={admissionFormId} onSubmit={handleSubmit} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          {editingAdmission?.detectedParent && (
+            <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
+          )}
+          <AdmissionFormBody control={form.control} programs={programs} campuses={campuses} />
+        </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog

@@ -47,7 +47,7 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Operational-list metrics | `<StatsCardsRow cols={2..6}>` | hand-rolled stat grid divs, or any StatsCardsRow on a config list |
 | Empty list | `<EmptyState>` | Plain `<p>` |
 | Confirm, destructive or not | `<ConfirmDialog>` (`destructive` prop for delete/void/cancel) | raw `<AlertDialog>` import, `window.confirm()` |
-| Form field | `<Field>` + `<FieldLabel>` + `<FieldDescription>` | Raw `<Label>` + `<Input>` or custom `<FormField>` |
+| Form field | `<FormField>` (`components/ui/form.tsx`, binds react-hook-form onto `Field` / `FieldLabel` / `FieldDescription` / `FieldError`) | Raw `<Label>` + `<Input>`, hand-wired `htmlFor`/`aria-invalid`, a `useState` form object |
 | Loading | `<Skeleton>` | `animate-pulse` divs |
 | Progress | `<Progress>` | Custom progress bars |
 | Accordion | `<Accordion>` | Custom expand/collapse |
@@ -99,6 +99,23 @@ The submit and cancel slots of every admin form Dialog / Sheet use the labels in
 For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
 
 `<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the reusable default for create/edit forms. It owns the bounded shadcn `ScrollArea`, dynamic viewport-height limit, internal focus-ring padding, and docked header/footer in both modes. Supply fields as children, actions through `footer`, and width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. Migrate legacy inline forms when changing their layout. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute.
+
+## Forms — react-hook-form + zod
+
+Every admin create/edit form is built the same way (cycle `2026-09-27-admin-forms-rhf`; worked example `app/admin/settings/holidays/page.tsx`):
+
+- `const form = useZodForm(schema, { defaultValues })` (`lib/forms/use-zod-form.ts`) — validates `onTouched`, focuses the first invalid field on submit.
+- `schema` is the API route's own schema from `lib/validations/**`, or a form schema **derived** from it in the same file (`.extend` / `.pick` / `.omit` / `.superRefine`). Never a divergent copy. Messages are Indonesian; a required string fails with "… wajib diisi" before any format rule.
+- Each control is a `<FormField control name label required render={({ field, controlProps }) => …} />`. Spread `field` + `controlProps` on `Input`/`Textarea`; map `value`/`onChange` for `Select`, `Checkbox`, `DatePicker`, `RupiahInput`, pickers. Never pass a `ref` — `FormField` registers its own focus target.
+- Submit: `form.handleSubmit(async (values) => { try { await sendJson(url, { method, body }, fallback); … } catch (err) { applyServerErrors(form, err, fallback) } })` — `sendJson` in `lib/api/send-json.ts`, `applyServerErrors` in `lib/forms/server-errors.ts` maps a `validateBody` 400 onto fields and anything else to `<FormRootError>` + toast.
+- Dialog: `<form id={formId} onSubmit={…} noValidate>` with `<FormRootError formState={form.formState} />` first, and `footer={<FormDialogFooter formId pending={form.formState.isSubmitting} onCancel submitLabel />}`. Page-level forms add `useUnsavedChangesGuard(form.formState.isDirty)` and `form.reset(saved)` after saving.
+
+**Three rules learned the hard way:**
+1. **Every issue the schema can raise must land on a rendered field.** A refine at an object path, an array path (`lines`), or on a field hidden in the current mode blocks submit with nothing on screen. Point `superRefine` issues at a visible field, render array-level errors with `<FieldError>`, and give edit dialogs a schema that only validates what they show.
+2. **Edit bodies must still carry cleared fields.** `optionalTrimmed` turns `""` into `undefined`, which `JSON.stringify` drops; many PUT routes read a missing key as "keep". If the route clears on `""`/`null`, the form schema must emit that value (see `studentFormSchema`).
+3. **Blank numbers are not zero.** `z.coerce.number()` turns `""` into `0`. Preprocess `""` → `undefined`/`null` and give a required number its own "wajib diisi" message, unless the old behaviour genuinely defaulted to 0.
+
+**Named exceptions** (grid/wizard editors, not field forms — stay hand-rolled): billing-run wizard + line editor, raport editor, report-card narrative templates, assessments score grid, Tarif per Program table, themes/subtema/pekan hierarchy, bulk-promote mapping, filter bars. `students/[id]` sub-dialogs and the shared `GuardianFormBody` migrate in Cycle 3.
 
 ## Required-field indicator
 

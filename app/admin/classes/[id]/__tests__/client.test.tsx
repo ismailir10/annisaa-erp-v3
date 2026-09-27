@@ -300,6 +300,28 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     expect(screen.getByRole("button", { name: "Pilih Siswa Lain" })).toBeInTheDocument();
   });
 
+  // T3 (cycle 2026-09-27, admin-forms-rhf) — the picker step now validates
+  // `studentId` via useZodForm(enrollmentAddSchema) + FormField instead of
+  // the old `if (!selectedStudentId) toast.error(...)` check.
+  it("blocks submit with no student selected, showing an inline error and firing no POST", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch([]);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Siswa" }));
+    await screen.findByLabelText(/^Siswa\*?$/);
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(await screen.findByText("Siswa wajib dipilih")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.includes("/enrollments") && init?.method === "POST";
+      }),
+    ).toBe(false);
+  });
+
   it("resets the override state when the dialog is closed and reopened", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
@@ -322,6 +344,82 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     expect(await screen.findByLabelText(/^Siswa\*?$/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Alasan\*?$/)).not.toBeInTheDocument();
     expect(screen.queryByText(AGE_MESSAGE)).not.toBeInTheDocument();
+  });
+});
+
+// T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah Guru migrated onto
+// useZodForm(teachingAssignmentAddSchema) + FormField.
+function stubFetchForAddTeacher(teachingAssignmentResponse: { status: number; body: Record<string, unknown> }) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/api/admin/classes/class-1/teaching-assignments") && method === "POST") {
+      return Promise.resolve({
+        ok: teachingAssignmentResponse.status < 300,
+        status: teachingAssignmentResponse.status,
+        json: async () => teachingAssignmentResponse.body,
+      } as Response);
+    }
+    if (url.includes("/api/employees?status=ACTIVE")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }], total: 1 }),
+      } as Response);
+    }
+    if (url === "/api/admin/classes/class-1") {
+      return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
+describe("ClassDetailClient — Tambah Guru dialog (T3 rhf migration)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("blocks submit with no guru selected, showing an inline error and firing no POST", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchForAddTeacher({ status: 201, body: { id: "ta-1" } });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    await screen.findByLabelText(/^Guru\*?$/);
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(await screen.findByText("Guru wajib dipilih")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.includes("/teaching-assignments") && init?.method === "POST";
+      }),
+    ).toBe(false);
+  });
+
+  it("submits the filled form as POST .../teaching-assignments with the expected body", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchForAddTeacher({ status: 201, body: { id: "ta-1" } });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    await screen.findByLabelText(/^Guru\*?$/);
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru ditambahkan"));
+
+    const postCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.includes("/teaching-assignments") && init?.method === "POST";
+    })!;
+    expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
+      employeeId: "emp-2",
+      role: "HOMEROOM",
+    });
   });
 });
 

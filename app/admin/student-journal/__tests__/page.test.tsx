@@ -85,6 +85,32 @@ function stubFetch() {
   });
 }
 
+// One seeded category (no indicators yet) — for the indicator dialog tests,
+// which need something to click "Tambah Indikator" on.
+const oneCategory = {
+  data: [
+    { id: "cat-1", name: "Ibadah", scope: "SCHOOL", order: 0, status: "ACTIVE", indicators: [] },
+  ],
+};
+
+function stubFetchWithCategory() {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const method = init?.method ?? "GET";
+
+    if (url.startsWith("/api/student-journal/categories") && method === "GET") {
+      return Promise.resolve({ ok: true, json: async () => oneCategory } as Response);
+    }
+    if (url === "/api/student-journal/indicators" && method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ id: "ind-1", categoryId: "cat-1", label: "Tahfizul Qur'an", order: 0, status: "ACTIVE" }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
 describe("StudentJournalAdminPage — category dialog (T6)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -147,5 +173,69 @@ describe("StudentJournalAdminPage — category dialog (T6)", () => {
     expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(
       false,
     );
+  });
+});
+
+// T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah Indikator migrated onto
+// useZodForm(indicatorFormSchema) + FormField.
+describe("StudentJournalAdminPage — indicator dialog (T3 rhf migration)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function openAddIndicatorDialog(user: ReturnType<typeof userEvent.setup>) {
+    // The accordion header also renders "Naikkan/Turunkan kategori Ibadah"
+    // reorder buttons, so target the trigger by its own text and walk up to
+    // the nearest <button> instead of matching by accessible name.
+    const trigger = (await screen.findByText("Ibadah")).closest("button");
+    if (!trigger) throw new Error("category accordion trigger not found");
+    await user.click(trigger);
+    await user.click(await screen.findByRole("button", { name: "Tambah Indikator" }));
+  }
+
+  it("blocks submit with an empty label, showing an inline error and firing no POST", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithCategory();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<StudentJournalAdminPage />);
+
+    await openAddIndicatorDialog(user);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: /Tambah Indikator/ })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Indikator" }));
+
+    expect(await within(dialog).findByText("Label indikator wajib diisi")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      ),
+    ).toBe(false);
+  });
+
+  it("submits the filled form as POST /api/student-journal/indicators with the expected body", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithCategory();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<StudentJournalAdminPage />);
+
+    await openAddIndicatorDialog(user);
+    const dialog = await screen.findByRole("dialog");
+
+    await user.type(within(dialog).getByLabelText(/^Label Indikator\*?$/), "Tahfizul Qur'an");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Indikator" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Indikator ditambahkan"));
+
+    const createCall = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/student-journal/indicators" && (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse((createCall![1] as RequestInit).body as string)).toEqual({
+      categoryId: "cat-1",
+      label: "Tahfizul Qur'an",
+      order: 0,
+    });
   });
 });

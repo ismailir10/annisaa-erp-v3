@@ -23,7 +23,7 @@ const ymd = z
   }, "Tanggal tidak valid");
 
 export const createCategorySchema = z.object({
-  name: z.string().min(1, "Nama kategori wajib diisi"),
+  name: z.string().trim().min(1, "Nama kategori wajib diisi"),
   scope: scopeSchema,
   order: z.number().int().nonnegative().default(0),
 });
@@ -33,12 +33,25 @@ export const updateCategorySchema = createCategorySchema.partial().extend({
 
 export const createIndicatorSchema = z.object({
   categoryId: z.string().min(1),
-  label: z.string().min(1, "Label indikator wajib diisi"),
+  label: z.string().trim().min(1, "Label indikator wajib diisi"),
   order: z.number().int().nonnegative().default(0),
 });
 export const updateIndicatorSchema = createIndicatorSchema.partial().extend({
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
+
+// Client form schemas (T3, 2026-09-27 admin-forms-rhf cycle). `order` is
+// never a user-editable field in either dialog — the admin page computes it
+// itself (`categories.length` / the parent category's current indicator
+// count) and splices it into the request body at submit time — so both
+// forms omit it. The indicator dialog also never shows `categoryId` as a
+// field: it is fixed by which category's "+" button opened the dialog and
+// carried in component state, not RHF.
+export const categoryFormSchema = createCategorySchema.omit({ order: true });
+export const indicatorFormSchema = createIndicatorSchema.pick({ label: true });
+
+export type CategoryFormInput = z.infer<typeof categoryFormSchema>;
+export type IndicatorFormInput = z.infer<typeof indicatorFormSchema>;
 
 export const entryBatchSchema = z.object({
   classSectionId: z.string().min(1),

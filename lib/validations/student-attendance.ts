@@ -9,7 +9,7 @@ export const studentAttendanceStatusEnum = z.enum([
 
 export const updateStudentAttendanceSchema = z.object({
   status: studentAttendanceStatusEnum,
-  notes: z.string().max(500).optional().nullable(),
+  notes: z.string().max(500, "Catatan maksimal 500 karakter").optional().nullable(),
 });
 
 // Pickup-relation enum — who collected the student at checkout. App-side rule:
