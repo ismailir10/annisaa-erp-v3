@@ -7,7 +7,12 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/admin/page-header", () => ({ PageHeader: ({ title }: { title: string }) => <h1>{title}</h1> }));
-vi.mock("@/components/ui/data-table", () => ({ DataTable: () => <div data-testid="payroll-table" /> }));
+vi.mock("@/components/ui/data-table", async () => {
+  const actual = await vi.importActual<typeof import("@/components/ui/data-table")>(
+    "@/components/ui/data-table",
+  );
+  return actual;
+});
 vi.mock("@/components/ui/data-table-toolbar", () => ({ DataTableToolbar: () => null }));
 vi.mock("@/components/admin/stats-cards-row", () => ({ StatsCardsRow: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/components/admin/stat-card", () => ({ StatCard: ({ label, value }: { label: string; value: string | number }) => <p>{label}: {value}</p> }));
@@ -39,5 +44,43 @@ describe("payroll summary states", () => {
     fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
     await waitFor(() => expect(screen.getByText("Total Penggajian: 0")).toBeInTheDocument());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("makes the period the link into the run detail page, with no separate Lihat action", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        if (input === "/api/payroll/stats") {
+          return { ok: true, json: async () => ({ total: 1, draft: 1, approved: 0, slipsSent: 0 }) };
+        }
+        if (input.startsWith("/api/payroll?")) {
+          return {
+            ok: true,
+            json: async () => ({
+              data: [
+                {
+                  id: "run-1",
+                  periodStart: "2026-08-21",
+                  periodEnd: "2026-09-20",
+                  actualWorkDays: 22,
+                  status: "DRAFT",
+                  approvedAt: null,
+                  _count: { items: 5 },
+                },
+              ],
+              pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+            }),
+          };
+        }
+        return { ok: true, json: async () => ({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } }) };
+      }),
+    );
+
+    render(<PayrollListPage />);
+
+    const link = await screen.findByRole("link", { name: /2026-08-21/ });
+    expect(link).toHaveAttribute("href", "/admin/payroll/run-1");
+    expect(screen.queryByRole("button", { name: /Lihat/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
   });
 });

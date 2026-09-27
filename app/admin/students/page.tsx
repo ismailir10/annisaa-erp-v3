@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -302,37 +303,34 @@ const columns: ColumnDef<Student>[] = [
     cell: ({ row }) => {
       const s = row.original;
       return (
-        <Link
-          href={`/admin/students/${s.id}`}
-          className="flex items-center gap-3 group"
-        >
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-            {s.photoUrl ? (
-              // Auth-proxied — never a public filesystem path. Lazy-load to
-              // keep large lists snappy on mid-range Android.
-              <img
-                src={`/api/students/${s.id}/photo`}
-                alt={`Foto ${s.name}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <span className="text-primary text-xs font-bold">
-                {s.name[0]}
-              </span>
-            )}
-          </div>
-          <div>
-            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-              {s.name}
+        <DataTableLinkCell href={`/admin/students/${s.id}`} className="gap-3">
+          <span className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+              {s.photoUrl ? (
+                // Auth-proxied — never a public filesystem path. Lazy-load to
+                // keep large lists snappy on mid-range Android.
+                <img
+                  src={`/api/students/${s.id}/photo`}
+                  alt={`Foto ${s.name}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <span className="text-primary text-xs font-bold">
+                  {s.name[0]}
+                </span>
+              )}
             </span>
-            {s.nickname && (
-              <span className="text-xs text-muted-foreground ml-1.5">
-                ({s.nickname})
-              </span>
-            )}
-          </div>
-        </Link>
+            <span>
+              {s.name}
+              {s.nickname && (
+                <span className="text-xs text-muted-foreground ml-1.5">
+                  ({s.nickname})
+                </span>
+              )}
+            </span>
+          </span>
+        </DataTableLinkCell>
       );
     },
   },
@@ -376,6 +374,7 @@ const columns: ColumnDef<Student>[] = [
   {
     id: "guardian",
     header: "Wali",
+    meta: { priority: "low" },
     cell: ({ row }) => {
       // The API returns the primary guardian, or the first active one when no
       // primary is flagged. There is no row-level click handler on this table
@@ -403,6 +402,7 @@ const columns: ColumnDef<Student>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Terdaftar" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
         {formatDateShort(row.original.createdAt.split("T")[0])}
@@ -667,7 +667,7 @@ export default function StudentsPage() {
           const isInactive = s.status === "INACTIVE";
           return (
             <DataTableRowActions
-              onView={() => router.push(`/admin/students/${s.id}`)}
+              rowLabel={s.name}
               onEdit={() => openEdit(s)}
               onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
               onActivate={isInactive ? () => setDeactivateTarget(s) : undefined}
@@ -677,7 +677,7 @@ export default function StudentsPage() {
         },
       },
     ],
-    [router],
+    [],
   );
 
   return (

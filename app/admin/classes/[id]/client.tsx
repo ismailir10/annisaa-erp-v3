@@ -726,6 +726,7 @@ export function ClassDetailClient({
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title="NIS" />
           ),
+          meta: { priority: "low" },
           cell: ({ row }) =>
             row.original.student.nis ? (
               <span className="font-currency text-sm">
@@ -748,6 +749,7 @@ export function ClassDetailClient({
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title="Tgl Masuk" />
           ),
+          meta: { priority: "low" },
           cell: ({ row }) => (
             <span className="text-sm text-muted-foreground">
               {formatDate(row.original.enrollDate)}
@@ -764,9 +766,10 @@ export function ClassDetailClient({
                   variant="ghost"
                   className="h-8 px-2 text-destructive hover:text-destructive"
                   onClick={() => setRemoveStudentTarget(row.original)}
+                  aria-label={`Keluarkan ${row.original.student.name} dari Kelas Ini`}
                 >
                   <UserMinus size={14} className="mr-1" />
-                  <span className="text-xs">Keluarkan dari Kelas Ini</span>
+                  <span className="text-xs">Keluarkan</span>
                 </Button>
               )}
             </div>
@@ -810,6 +813,7 @@ export function ClassDetailClient({
           header: ({ column }) => (
             <DataTableColumnHeader column={column} title="Tgl Ditugaskan" />
           ),
+          meta: { priority: "low" },
           cell: ({ row }) => (
             <span className="text-sm text-muted-foreground">
               {formatDate(row.original.createdAt)}

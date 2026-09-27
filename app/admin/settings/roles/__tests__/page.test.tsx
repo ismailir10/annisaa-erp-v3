@@ -101,4 +101,31 @@ describe("RolesPage delete confirmation", () => {
       { method: "DELETE" },
     );
   });
+
+  it("renders the role name as plain text with no Lihat action (no detail page)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "role-1",
+            name: "Admin Keuangan",
+            code: "FINANCE_ADMIN",
+            description: null,
+            isSystem: false,
+            permissions: "[]",
+            _count: { users: 0 },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<RolesPage />);
+
+    const name = await screen.findByText("Admin Keuangan");
+    expect(name.closest("a")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Lihat/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
+  });
 });

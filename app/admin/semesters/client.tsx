@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -25,7 +25,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { BookMarked, CalendarRange, Layers, Plus } from "lucide-react";
+import { BookMarked, CalendarRange, Layers, Plus, Target } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 
@@ -116,7 +116,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     setCreateOpen(true);
   }
 
-  function openEdit(row: Semester) {
+  const openEdit = useCallback((row: Semester) => {
     setEditing(row);
     setForm({
       academicYearId: row.academicYearId,
@@ -125,7 +125,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
       endDate: toJakartaYmd(row.endDate),
     });
     setCreateOpen(true);
-  }
+  }, []);
 
   async function save() {
     if (!form.academicYearId) {
@@ -181,20 +181,23 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  const columns: ColumnDef<Semester>[] = [
+  const columns = useMemo<ColumnDef<Semester>[]>(() => [
     {
       accessorKey: "academicYear",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
-      cell: ({ row }) => <span className="text-sm font-medium">{row.original.academicYear.name}</span>,
-    },
-    {
-      accessorKey: "number",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Nomor" />,
-      cell: ({ row }) => <span className="text-sm">{NUMBER_LABEL[row.original.number]}</span>,
+      cell: ({ row }) => (
+        <DataTableLinkCell
+          href={`/admin/semesters/${row.original.id}/themes`}
+          description={NUMBER_LABEL[row.original.number]}
+        >
+          {row.original.academicYear.name}
+        </DataTableLinkCell>
+      ),
     },
     {
       accessorKey: "startDate",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm">
           {formatDateShort(toJakartaYmd(row.original.startDate))} – {formatDateShort(toJakartaYmd(row.original.endDate))}
@@ -215,44 +218,35 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            render={<Link href={`/admin/semesters/${row.original.id}/themes`} />}
-          >
-            Kelola tema
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            render={
-              <Link
-                href={`/admin/semesters/${row.original.id}/objectives`}
-              />
-            }
-          >
-            Kelola Tujuan Pembelajaran
-          </Button>
-          <DataTableRowActions
-            onView={() => router.push(`/admin/semesters/${row.original.id}/themes`)}
-            onEdit={canWrite ? () => openEdit(row.original) : undefined}
-            onDeactivate={
-              canWrite && row.original.status === "ACTIVE"
-                ? () => setDeactivateTarget(row.original)
-                : undefined
-            }
-            onActivate={
-              canWrite && row.original.status === "INACTIVE"
-                ? () => setReactivateTarget(row.original)
-                : undefined
-            }
-            isActive={row.original.status === "ACTIVE"}
-          />
-        </div>
+        <DataTableRowActions
+          onEdit={canWrite ? () => openEdit(row.original) : undefined}
+          onDeactivate={
+            canWrite && row.original.status === "ACTIVE"
+              ? () => setDeactivateTarget(row.original)
+              : undefined
+          }
+          onActivate={
+            canWrite && row.original.status === "INACTIVE"
+              ? () => setReactivateTarget(row.original)
+              : undefined
+          }
+          isActive={row.original.status === "ACTIVE"}
+          extraActions={[
+            {
+              label: "Kelola tema",
+              icon: <Layers size={14} />,
+              onClick: () => router.push(`/admin/semesters/${row.original.id}/themes`),
+            },
+            {
+              label: "Kelola Tujuan Pembelajaran",
+              icon: <Target size={14} />,
+              onClick: () => router.push(`/admin/semesters/${row.original.id}/objectives`),
+            },
+          ]}
+        />
       ),
     },
-  ];
+  ], [canWrite, openEdit, router]);
 
   const filteredRows = useMemo(() => {
     const needle = query.trim().toLowerCase();

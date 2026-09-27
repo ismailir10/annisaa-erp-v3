@@ -46,3 +46,38 @@ describe("CampusesPage mobile form", () => {
     }));
   });
 });
+
+describe("CampusesPage list", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("renders campuses as a DataTable row — plain name, StatusBadge, no Lihat", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          id: "campus-1",
+          name: "Taman Aster",
+          address: "Jl. Contoh No.1",
+          lat: null,
+          lng: null,
+          status: "ACTIVE",
+          _count: { employees: 3 },
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<CampusesPage />);
+
+    const name = await screen.findByText("Taman Aster");
+    expect(name.closest("a")).toBeNull();
+    const row = name.closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText("Aktif")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Lihat/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
+  });
+});

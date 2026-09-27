@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/admin/page-header";
@@ -10,7 +9,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { formatDate, formatDateShort } from "@/lib/format";
@@ -81,7 +80,6 @@ function CompletionBar({ pct }: { pct: number }) {
 // ------------------------------------------------------------------
 
 export default function MonitoringPage() {
-  const router = useRouter();
   const [ws, setWs] = useState<string>(currentMonday);
   const [data, setData] = useState<ClassRow[]>([]);
   const [activeStudentCount, setActiveStudentCount] = useState(0);
@@ -140,12 +138,12 @@ export default function MonitoringPage() {
           <DataTableColumnHeader column={column} title="Kelas" />
         ),
         cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-medium">{row.original.className}</p>
-            <p className="text-xs text-muted-foreground">
-              {row.original.programName}
-            </p>
-          </div>
+          <DataTableLinkCell
+            href={`/admin/student-journal/classes/${row.original.classSectionId}?weekStart=${ws}`}
+            description={row.original.programName}
+          >
+            {row.original.className}
+          </DataTableLinkCell>
         ),
       },
       {
@@ -173,6 +171,7 @@ export default function MonitoringPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Terakhir diisi" />
         ),
+        meta: { priority: "low" },
         cell: ({ row }) =>
           row.original.lastFilledAt ? (
             <span className="text-xs text-muted-foreground">
@@ -182,21 +181,8 @@ export default function MonitoringPage() {
             <span className="text-xs text-muted-foreground italic">—</span>
           ),
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() =>
-              router.push(
-                `/admin/student-journal/classes/${row.original.classSectionId}?weekStart=${ws}`,
-              )
-            }
-          />
-        ),
-      },
     ],
-    [router, ws],
+    [ws],
   );
 
   const filteredRows = useMemo(() => {

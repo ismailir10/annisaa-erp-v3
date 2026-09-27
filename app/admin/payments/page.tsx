@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
@@ -9,7 +8,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +56,6 @@ function formatJakartaDateTime(iso: string): string {
 }
 
 export default function PaymentsLedgerPage() {
-  const router = useRouter();
   const today = getTodayInTimezone("Asia/Jakarta");
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
@@ -159,18 +157,19 @@ export default function PaymentsLedgerPage() {
         id: "student",
         accessorFn: (row) => row.studentName,
         header: "Siswa",
-        cell: ({ row }) => <span className="text-sm font-medium">{row.original.studentName}</span>,
-      },
-      {
-        accessorKey: "invoiceNumber",
-        header: "No. Tagihan",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">{row.original.invoiceNumber}</span>
+          <DataTableLinkCell
+            href={`/admin/invoices/${row.original.invoiceId}`}
+            description={row.original.invoiceNumber}
+          >
+            {row.original.studentName}
+          </DataTableLinkCell>
         ),
       },
       {
         accessorKey: "methodLabel",
         header: "Metode",
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <Badge variant="outline" className="text-xs">{row.original.methodLabel}</Badge>
         ),
@@ -178,6 +177,7 @@ export default function PaymentsLedgerPage() {
       {
         accessorKey: "reference",
         header: "Referensi",
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">{row.original.reference ?? "—"}</span>
         ),
@@ -189,17 +189,8 @@ export default function PaymentsLedgerPage() {
           <span className="text-sm font-medium tabular-nums">{formatRupiah(row.original.amount)}</span>
         ),
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/invoices/${row.original.invoiceId}`)}
-          />
-        ),
-      },
     ],
-    [router],
+    [],
   );
 
   return (

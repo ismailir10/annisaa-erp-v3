@@ -130,6 +130,7 @@ export default function HolidaysPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tipe" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <StatusBadge
           status={row.original.type}

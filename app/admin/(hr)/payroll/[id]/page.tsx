@@ -8,7 +8,7 @@ import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -250,10 +250,12 @@ export default function PayrollDetailPage() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{item.employee.nama}</p>
-              <p className="text-xs text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
-            </div>
+            <DataTableLinkCell
+              onClick={() => setDetailItem(item)}
+              description={`${item.employee.kode} · ${item.employee.jabatan}`}
+            >
+              {item.employee.nama}
+            </DataTableLinkCell>
           </div>
         );
       },
@@ -264,6 +266,7 @@ export default function PayrollDetailPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Pendapatan" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-sm">{formatRupiah(row.original.grossAmount)}</span>
       ),
@@ -274,6 +277,7 @@ export default function PayrollDetailPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Potongan" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-sm text-destructive">{formatRupiah(row.original.deductions)}</span>
       ),
@@ -302,6 +306,7 @@ export default function PayrollDetailPage() {
     {
       id: "bank",
       header: "Rekening",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         if (!row.original.employee.bankAccountNo) {
           return <StatusBadge status="UNFILLED" />;
@@ -312,13 +317,6 @@ export default function PayrollDetailPage() {
           </span>
         );
       },
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <DataTableRowActions onView={() => setDetailItem(row.original)} />
-      ),
     },
   ];
 
@@ -472,9 +470,9 @@ export default function PayrollDetailPage() {
               <div className="mt-6 space-y-4">
                 {/* Variables button */}
                 {isDraft && (
-                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary-text flex items-center gap-1 hover:underline">
+                  <Button variant="link" size="sm" onClick={() => openVars(detailItem)} className="gap-1.5">
                     <Settings2 size={12} /> Edit Variabel Kehadiran
-                  </button>
+                  </Button>
                 )}
 
                 {/* Component lines */}

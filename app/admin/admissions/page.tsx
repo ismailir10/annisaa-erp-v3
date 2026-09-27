@@ -762,6 +762,7 @@ export default function AdmissionsPage() {
     {
       id: "source",
       header: "Sumber",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <div className="text-xs">
           <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
@@ -776,6 +777,7 @@ export default function AdmissionsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tanggal" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateShort(row.original.createdAt.split("T")[0])}
@@ -798,6 +800,7 @@ export default function AdmissionsPage() {
     {
       id: "sibling",
       header: "Saudara",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const dp = row.original.detectedParent;
         if (!dp) return <span className="text-xs text-muted-foreground">—</span>;

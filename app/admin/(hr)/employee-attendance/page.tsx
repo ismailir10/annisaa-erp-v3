@@ -10,6 +10,7 @@ import { AttendanceTrendChart, type WeeklyTrend } from "@/components/admin/dashb
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,12 +140,12 @@ export default function AttendancePage() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{ea.employee.nama}</p>
-              <p className="text-xs text-muted-foreground">
-                {ea.employee.kode} · {ea.employee.campusName}
-              </p>
-            </div>
+            <DataTableLinkCell
+              href={`/admin/employees/${ea.employee.id}`}
+              description={`${ea.employee.kode} · ${ea.employee.campusName}`}
+            >
+              {ea.employee.nama}
+            </DataTableLinkCell>
           </div>
         );
       },
@@ -165,6 +166,7 @@ export default function AttendancePage() {
       id: "checkOut",
       accessorFn: (row) => row.attendance?.checkOutTime,
       header: "Pulang",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-xs text-muted-foreground">
           {formatTime(row.original.attendance?.checkOutTime ?? null)}

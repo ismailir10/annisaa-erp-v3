@@ -177,7 +177,7 @@ export default function AcademicPage() {
 
   // --- Column definitions ---
 
-  const programColumns: ColumnDef<Program>[] = [
+  const programColumns = useMemo<ColumnDef<Program>[]>(() => [
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
@@ -197,11 +197,13 @@ export default function AcademicPage() {
     {
       accessorKey: "type",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tipe" />,
+      meta: { priority: "low" },
       cell: ({ row }) => <span className="text-sm">{TYPE_LABELS[row.original.type] ?? row.original.type}</span>,
     },
     {
       id: "age",
       header: "Usia",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const p = row.original;
         if (p.ageMin == null) return <span className="text-xs text-muted-foreground">—</span>;
@@ -235,7 +237,7 @@ export default function AcademicPage() {
         />
       ),
     },
-  ];
+  ], []);
 
   const filteredPrograms = useMemo(() => {
     const needle = programQuery.trim().toLowerCase();
@@ -255,7 +257,7 @@ export default function AcademicPage() {
     totalPages: programTotalPages,
   };
 
-  const yearColumns: ColumnDef<AcademicYear>[] = [
+  const yearColumns = useMemo<ColumnDef<AcademicYear>[]>(() => [
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
@@ -264,6 +266,7 @@ export default function AcademicPage() {
     {
       accessorKey: "startDate",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const y = row.original;
         return (
@@ -317,7 +320,7 @@ export default function AcademicPage() {
         />
       ),
     },
-  ];
+  ], []);
 
   const filteredYears = useMemo(() => {
     const needle = yearQuery.trim().toLowerCase();

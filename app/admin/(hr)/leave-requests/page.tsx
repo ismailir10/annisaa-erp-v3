@@ -8,6 +8,7 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
@@ -345,17 +346,15 @@ export default function AdminLeavePage() {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{r.employee.nama}</span>
-              <span className="font-currency text-xs text-muted-foreground">
-                {r.employee.kode}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {r.employee.jabatan} · {r.employee.campus.name}
-            </p>
-          </div>
+          <DataTableLinkCell
+            onClick={() => openReview(r, "view")}
+            description={`${r.employee.jabatan} · ${r.employee.campus.name}`}
+          >
+            {r.employee.nama}{" "}
+            <span className="font-currency text-xs text-muted-foreground">
+              {r.employee.kode}
+            </span>
+          </DataTableLinkCell>
         );
       },
     },
@@ -380,6 +379,7 @@ export default function AdminLeavePage() {
     {
       id: "reason",
       header: "Alasan",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <div className="max-w-[200px]">
           <p className="text-xs truncate">{row.original.reason}</p>
@@ -396,6 +396,7 @@ export default function AdminLeavePage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Dibuat" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateShort(row.original.createdAt)}
@@ -417,7 +418,7 @@ export default function AdminLeavePage() {
         const isPending = canApprove && r.status === "PENDING";
         return (
           <DataTableRowActions
-            onView={() => openReview(r, "view")}
+            rowLabel={r.employee.nama}
             extraActions={
               isPending
                 ? [

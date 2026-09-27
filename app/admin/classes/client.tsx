@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { pickDefaultYear } from "./pick-default-year";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -9,6 +8,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge, healthTone } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,7 +65,6 @@ type AcademicYear = {
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
 
 export function ClassesClient({ canWrite }: { canWrite: boolean }) {
-  const router = useRouter();
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -271,107 +270,116 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  const columns: ColumnDef<ClassRow>[] = [
-    {
-      accessorKey: "name",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Nama" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm font-medium">{row.original.name}</span>
-      ),
-    },
-    {
-      id: "campus",
-      accessorFn: (r) => r.campus.name,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Kampus" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.campus.name}</span>
-      ),
-    },
-    {
-      id: "program",
-      accessorFn: (r) => r.program.name,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Program" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.program.name}</span>
-      ),
-    },
-    {
-      id: "homeroom",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Wali Kelas" />
-      ),
-      cell: ({ row }) => {
-        const h = row.original.teachingAssignments[0]?.employee?.nama;
-        return h ? (
-          <span className="text-sm">{h}</span>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        );
+  const columns: ColumnDef<ClassRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Nama" />
+        ),
+        cell: ({ row }) => (
+          <DataTableLinkCell href={`/admin/classes/${row.original.id}`}>
+            {row.original.name}
+          </DataTableLinkCell>
+        ),
       },
-    },
-    {
-      id: "roster",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Siswa" />
-      ),
-      cell: ({ row }) => (
-        <span className="font-currency text-sm">
-          {row.original.enrolledCount}/{row.original.capacity}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-    {
-      id: "health",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Kondisi" />
-      ),
-      cell: ({ row }) => (
-        <Badge
-          variant="outline"
-          className={healthTone(row.original.health)}
-        >
-          {row.original.health}
-        </Badge>
-      ),
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end">
-          <DataTableRowActions
-            onView={() => router.push(`/admin/classes/${row.original.id}`)}
-            onEdit={
-              canWrite && !archivedMode ? () => openEdit(row.original) : undefined
-            }
-            onDeactivate={
-              canWrite && !archivedMode && row.original.status === "ACTIVE"
-                ? () => setDeactivateTarget(row.original)
-                : undefined
-            }
-            onActivate={
-              canWrite && !archivedMode && row.original.status === "INACTIVE"
-                ? () => setReactivateTarget(row.original)
-                : undefined
-            }
-            isActive={row.original.status === "ACTIVE"}
-          />
-        </div>
-      ),
-    },
-  ];
+      {
+        id: "campus",
+        accessorFn: (r) => r.campus.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Kampus" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.campus.name}</span>
+        ),
+      },
+      {
+        id: "program",
+        accessorFn: (r) => r.program.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Program" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.program.name}</span>
+        ),
+      },
+      {
+        id: "homeroom",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Wali Kelas" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => {
+          const h = row.original.teachingAssignments[0]?.employee?.nama;
+          return h ? (
+            <span className="text-sm">{h}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          );
+        },
+      },
+      {
+        id: "roster",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Siswa" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-currency text-sm">
+            {row.original.enrolledCount}/{row.original.capacity}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Status" />
+        ),
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "health",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Kondisi" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <Badge
+            variant="outline"
+            className={healthTone(row.original.health)}
+          >
+            {row.original.health}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end">
+            <DataTableRowActions
+              rowLabel={row.original.name}
+              onEdit={
+                canWrite && !archivedMode ? () => openEdit(row.original) : undefined
+              }
+              onDeactivate={
+                canWrite && !archivedMode && row.original.status === "ACTIVE"
+                  ? () => setDeactivateTarget(row.original)
+                  : undefined
+              }
+              onActivate={
+                canWrite && !archivedMode && row.original.status === "INACTIVE"
+                  ? () => setReactivateTarget(row.original)
+                  : undefined
+              }
+              isActive={row.original.status === "ACTIVE"}
+            />
+          </div>
+        ),
+      },
+    ],
+    [canWrite, archivedMode],
+  );
 
   const tableTotalPages = Math.max(1, Math.ceil(rows.length / tablePageSize));
   const safeTablePage = Math.min(tablePage, tableTotalPages);

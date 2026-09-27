@@ -165,3 +165,55 @@ describe("employee dossier — hash-addressable sections", () => {
     expect(trigger).toHaveAttribute("data-panel-open");
   });
 });
+
+describe("Gaji section — calcType-aware value input", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // PCT_OF_BASE is a percentage of gaji_pokok (lib/payroll/engine.ts:
+  // `amount = gajiPokokAmount * (baseValue / 100)`), not a rupiah amount —
+  // RupiahInput would strip "2.5" down to digits-only and stamp a "Rp"
+  // prefix on it, which is what the review caught.
+  const mixedSalaryValues = [
+    {
+      id: "sv1",
+      value: 5000000,
+      componentDefId: "comp1",
+      componentDef: { code: "GAPOK", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", sortOrder: 1 },
+    },
+    {
+      id: "sv2",
+      value: 2.5,
+      componentDefId: "comp2",
+      componentDef: { code: "TUNJ_JABATAN", label: "Tunjangan Jabatan", category: "INCOME", calcType: "PCT_OF_BASE", sortOrder: 2 },
+    },
+  ];
+
+  it("keeps a PCT_OF_BASE value as a decimal percentage with no Rp addon", async () => {
+    const { fn } = stubFetch({ salary: mixedSalaryValues });
+    vi.stubGlobal("fetch", fn);
+    render(<EmployeeDetailPage />);
+
+    const pctInput = await screen.findByRole("spinbutton", { name: "Nilai Tunjangan Jabatan" });
+    expect(pctInput).toHaveValue(2.5);
+    expect(pctInput).toHaveAttribute("type", "number");
+    // Its own group shows "%", not "Rp".
+    const pctGroup = pctInput.closest('[data-slot="input-group"]');
+    expect(pctGroup).not.toBeNull();
+    expect(pctGroup).toHaveTextContent("%");
+    expect(pctGroup).not.toHaveTextContent("Rp");
+  });
+
+  it("uses RupiahInput (Rp addon, thousands-grouped) for a FIXED value", async () => {
+    const { fn } = stubFetch({ salary: mixedSalaryValues });
+    vi.stubGlobal("fetch", fn);
+    render(<EmployeeDetailPage />);
+
+    const fixedInput = await screen.findByRole("textbox", { name: "Nilai Gaji Pokok" });
+    expect(fixedInput).toHaveValue("5.000.000");
+    const fixedGroup = fixedInput.closest('[data-slot="input-group"]');
+    expect(fixedGroup).not.toBeNull();
+    expect(fixedGroup).toHaveTextContent("Rp");
+  });
+});

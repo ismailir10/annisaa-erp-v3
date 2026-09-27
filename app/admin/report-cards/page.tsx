@@ -12,8 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -219,25 +219,18 @@ export default function AdminRaportPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
         cell: ({ row }) => (
-          <div>
-            <p className="font-medium">{row.original.name}</p>
-            {row.original.nickname ? (
-              <p className="text-xs text-muted-foreground">{row.original.nickname}</p>
-            ) : null}
-          </div>
+          <DataTableLinkCell
+            onClick={() => setSelected(row.original)}
+            description={row.original.nickname ?? undefined}
+          >
+            {row.original.name}
+          </DataTableLinkCell>
         ),
       },
       {
         accessorKey: "status",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
         cell: ({ row }) => <StatusBadge status={row.original.status} label={row.original.status === "NONE" ? "Belum dibuat" : undefined} />,
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions onView={() => setSelected(row.original)} />
-        ),
       },
     ],
     [],

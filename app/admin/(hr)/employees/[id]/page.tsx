@@ -8,8 +8,9 @@ import { DossierNav, DossierSection, type DossierSectionDef } from "@/components
 import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { RupiahInput } from "@/components/ui/rupiah-input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -19,7 +20,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { toast } from "sonner";
 import { Save, Pencil, X, User, Mail, Phone, Briefcase, MapPin, Calendar, CreditCard, Shield, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDateShort, formatMonthLabel, formatTime, formatRupiah } from "@/lib/format";
+import { formatDateShort, formatMonthLabel, formatTime } from "@/lib/format";
 
 type Employee = {
   id: string; kode: string; nama: string; formalName: string | null; email: string;
@@ -278,7 +279,7 @@ export default function EmployeeDetailPage() {
               <div className="space-y-5">
                 <div>
                   <SectionHeading label="Identitas" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field><FieldLabel htmlFor="employee-detail-code">Kode</FieldLabel><Input id="employee-detail-code" value={e.kode} disabled /></Field>
                     <Field><FieldLabel htmlFor="employee-detail-nama" required>Nama</FieldLabel><Input id="employee-detail-nama" required value={editForm.nama} onChange={ev => setEditForm({ ...editForm, nama: ev.target.value })} /></Field>
                   </div>
@@ -289,7 +290,7 @@ export default function EmployeeDetailPage() {
 
                 <div>
                   <SectionHeading label="Kontak" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field><FieldLabel htmlFor="employee-detail-email" required>Email</FieldLabel><Input id="employee-detail-email" required value={editForm.email} onChange={ev => setEditForm({ ...editForm, email: ev.target.value })} /></Field>
                     <Field><FieldLabel htmlFor="employee-detail-phone">No. HP</FieldLabel><Input id="employee-detail-phone" value={editForm.noHp} onChange={ev => setEditForm({ ...editForm, noHp: ev.target.value })} /></Field>
                   </div>
@@ -301,7 +302,7 @@ export default function EmployeeDetailPage() {
                 {/* Identitas */}
                 <div>
                   <SectionHeading label="Identitas" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3">
                       <User size={16} className="text-muted-foreground shrink-0" />
                       <div><p className="text-xs text-muted-foreground">Kode</p><p className="text-sm font-medium font-currency">{e.kode}</p></div>
@@ -345,7 +346,7 @@ export default function EmployeeDetailPage() {
               /* ── EDIT MODE ─────────────────────────────────── */
               <div className="space-y-5">
                 <div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="employee-detail-position" required>Jabatan</FieldLabel>
                       <Select value={editForm.jabatan} onValueChange={v => v && setEditForm({ ...editForm, jabatan: v })} items={{ ...Object.fromEntries(positions.map(p => [p, p])), ...(!positions.includes(editForm.jabatan) && editForm.jabatan ? { [editForm.jabatan]: editForm.jabatan } : {}) }}>
@@ -373,7 +374,7 @@ export default function EmployeeDetailPage() {
 
                 {hasPayrollFields && <div>
                   <SectionHeading label="Rekening & BPJS" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="employee-detail-bank">Bank</FieldLabel>
                       <Select value={editForm.bankName} onValueChange={v => v && setEditForm({ ...editForm, bankName: v })}>
@@ -394,7 +395,7 @@ export default function EmployeeDetailPage() {
               /* ── VIEW MODE ─────────────────────────────────── */
               <div className="space-y-section">
                 <div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3">
                       <Briefcase size={16} className="text-muted-foreground shrink-0" />
                       <div><p className="text-xs text-muted-foreground">Jabatan</p><p className="text-sm font-medium">{e.jabatan}</p></div>
@@ -413,7 +414,7 @@ export default function EmployeeDetailPage() {
                 {/* Rekening & BPJS — hidden when server stripped fields (SCHOOL_ADMIN) */}
                 {hasPayrollFields && <div>
                   <SectionHeading label="Rekening & BPJS" />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex items-center gap-3">
                       <CreditCard size={16} className="text-muted-foreground shrink-0" />
                       <div><p className="text-xs text-muted-foreground">Bank</p><p className="text-sm">{e.bankName || "—"}</p></div>
@@ -441,13 +442,13 @@ export default function EmployeeDetailPage() {
           >
             {isEditing ? (
               /* ── EDIT MODE ─────────────────────────────────── */
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field><FieldLabel htmlFor="employee-detail-annual-leave">Cuti Tahunan</FieldLabel><Input id="employee-detail-annual-leave" type="number" min={0} max={365} value={editForm.leaveBalanceAnnual} onChange={ev => setEditForm({ ...editForm, leaveBalanceAnnual: ev.target.value })} placeholder="12" /></Field>
                 <Field><FieldLabel htmlFor="employee-detail-sick-leave">Cuti Sakit</FieldLabel><Input id="employee-detail-sick-leave" type="number" min={0} max={365} value={editForm.leaveBalanceSick} onChange={ev => setEditForm({ ...editForm, leaveBalanceSick: ev.target.value })} placeholder="14" /></Field>
               </div>
             ) : (
               /* ── VIEW MODE ─────────────────────────────────── */
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex items-center gap-3">
                   <Calendar size={16} className="text-muted-foreground shrink-0" />
                   <div><p className="text-xs text-muted-foreground">Cuti Tahunan</p><p className="text-sm">{e.leaveBalanceAnnual ?? "—"} hari</p></div>
@@ -477,16 +478,37 @@ export default function EmployeeDetailPage() {
                       <div className="flex-1">
                         <p className="text-sm font-medium">{sv.componentDef.label}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="secondary" className={`text-xs ${sv.componentDef.category === "INCOME" ? "bg-status-present-subtle text-status-present-text" : "bg-status-absent-subtle text-status-absent-text"}`}>
-                            {sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
-                          </Badge>
+                          <StatusBadge
+                            status={sv.componentDef.category}
+                            label={sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
+                          />
                           <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
                         </div>
                       </div>
                       <div className="w-40">
-                        <Input aria-label={`Nilai ${sv.componentDef.label}`} type="number" value={sv.value} onChange={ev => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))} className="font-currency text-right" />
-                        {sv.value > 0 && (
-                          <p className="mt-1 text-right text-xs text-muted-foreground font-currency">{formatRupiah(sv.value)}</p>
+                        {sv.componentDef.calcType === "PCT_OF_BASE" ? (
+                          // PCT_OF_BASE is a percentage of gaji_pokok (lib/payroll/engine.ts
+                          // `amount = gajiPokokAmount * (baseValue / 100)`), not a rupiah
+                          // amount — RupiahInput would strip "2.5" down to "25"/"2" and
+                          // stamp an incorrect "Rp" prefix on it.
+                          <InputGroup>
+                            <InputGroupInput
+                              aria-label={`Nilai ${sv.componentDef.label}`}
+                              type="number"
+                              inputMode="decimal"
+                              step="any"
+                              value={sv.value}
+                              onChange={(ev) => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))}
+                              className="text-right tabular-nums"
+                            />
+                            <InputGroupAddon align="inline-end">%</InputGroupAddon>
+                          </InputGroup>
+                        ) : (
+                          <RupiahInput
+                            aria-label={`Nilai ${sv.componentDef.label}`}
+                            value={sv.value}
+                            onChange={(v) => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: v ?? 0 } : s))}
+                          />
                         )}
                       </div>
                     </div>

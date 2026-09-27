@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -346,18 +347,16 @@ export default function StudentAttendancePage() {
       cell: ({ row }) => {
         const s = row.original.student;
         return (
-          <div>
-            <p className="text-sm font-medium">{s.name}</p>
-            {s.nickname && (
-              <p className="text-xs text-muted-foreground">{s.nickname}</p>
-            )}
-          </div>
+          <DataTableLinkCell href={`/admin/students/${s.id}`} description={s.nickname}>
+            {s.name}
+          </DataTableLinkCell>
         );
       },
     },
     {
       id: "class",
       header: "Kelas",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.classSection.name}
@@ -372,6 +371,7 @@ export default function StudentAttendancePage() {
     {
       id: "notes",
       header: "Catatan",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground max-w-[200px] truncate block">
           {row.original.notes ?? "—"}
@@ -588,17 +588,18 @@ const recapColumns: ColumnDef<RecapRow>[] = [
     accessorKey: "name",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
     cell: ({ row }) => (
-      <div>
-        <p className="text-sm font-medium">{row.original.name}</p>
-        {row.original.nis && (
-          <p className="text-xs text-muted-foreground">NIS {row.original.nis}</p>
-        )}
-      </div>
+      <DataTableLinkCell
+        href={`/admin/students/${row.original.studentId}`}
+        description={row.original.nis ? `NIS ${row.original.nis}` : undefined}
+      >
+        {row.original.name}
+      </DataTableLinkCell>
     ),
   },
   {
     accessorKey: "className",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.className}</span>
     ),

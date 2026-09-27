@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -72,28 +71,24 @@ const columns: ColumnDef<Invoice>[] = [
     cell: ({ row }) => {
       const inv = row.original;
       return (
-        <Link
-          href={`/admin/invoices/${inv.id}`}
-          className="flex items-center gap-3 group"
-        >
+        <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <FileText size={14} className="text-primary" />
           </div>
-          <div>
-            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-              {inv.student.name}
-            </span>
-            <p className="font-currency text-xs text-muted-foreground">
-              {inv.invoiceNumber}
-            </p>
-          </div>
-        </Link>
+          <DataTableLinkCell
+            href={`/admin/invoices/${inv.id}`}
+            description={<span className="font-currency">{inv.invoiceNumber}</span>}
+          >
+            {inv.student.name}
+          </DataTableLinkCell>
+        </div>
       );
     },
   },
   {
     accessorKey: "periodLabel",
     header: "Periode",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <div>
         <span className="text-sm">{row.original.periodLabel}</span>
@@ -133,6 +128,7 @@ const columns: ColumnDef<Invoice>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Dibuat" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
         {formatDateShort(row.original.createdAt)}
@@ -153,7 +149,6 @@ const columns: ColumnDef<Invoice>[] = [
 // ------------------------------------------------------------------
 
 export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit" | "doku"; capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities }) {
-  const router = useRouter();
   const [data, setData] = useState<Invoice[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -501,7 +496,6 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           const isRetryingThisRow = retryingRowId === inv.id;
           return (
             <DataTableRowActions
-              onView={() => router.push(`/admin/invoices/${inv.id}`)}
               onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
               extraActions={
                 isRetryRow
@@ -524,7 +518,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
     // handleRowRetry is stable across renders for the purposes of this effect
     // (closes over fetchInvoices/fetchStats which are useCallback-stable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, retryingRowId, capabilities],
+    [retryingRowId, capabilities],
   );
 
   // Billing Run wizard (Cycle B1, Task T9) — fired once step 3's commit loop

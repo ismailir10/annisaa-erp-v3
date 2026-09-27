@@ -104,6 +104,7 @@ function buildColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Login Terakhir" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const d = row.original.lastLoginAt;
         if (!d) return <span className="text-xs text-muted-foreground">—</span>;

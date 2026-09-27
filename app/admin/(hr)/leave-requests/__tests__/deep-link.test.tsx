@@ -45,4 +45,17 @@ describe("leave record deep link", () => {
     expect(screen.queryByRole("button", { name: "Tolak" })).not.toBeInTheDocument();
     record.status = original;
   });
+  it("opens the review dialog by clicking the employee name — no separate Lihat action", async () => {
+    navigation.search = "";
+    const pendingRecord = { ...record, status: "PENDING" };
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.includes("/stats")) return { ok: true, json: async () => ({ total: 0, pending: 0, approved: 0, rejected: 0 }) };
+      return { ok: true, json: async () => ({ data: [pendingRecord], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 }, capabilities: { approve: true } }) };
+    }));
+    render(<AdminLeavePage />);
+    const nameButton = await screen.findByRole("button", { name: /^Alya/ });
+    expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
+    fireEvent.click(nameButton);
+    expect(await screen.findByRole("dialog", { name: "Detail Cuti" })).toBeVisible();
+  });
 });

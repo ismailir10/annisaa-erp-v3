@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
@@ -56,20 +55,16 @@ const columns: ColumnDef<PayrollRun>[] = [
     cell: ({ row }) => {
       const run = row.original;
       return (
-        <Link
-          href={`/admin/payroll/${run.id}`}
-          className="group"
-        >
-          <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-            {run.periodStart} — {run.periodEnd}
-          </span>
-        </Link>
+        <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
+          {run.periodStart} — {run.periodEnd}
+        </DataTableLinkCell>
       );
     },
   },
   {
     id: "employees",
     header: "Karyawan",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm">{row.original._count.items} orang</span>
     ),
@@ -77,6 +72,7 @@ const columns: ColumnDef<PayrollRun>[] = [
   {
     accessorKey: "actualWorkDays",
     header: "Hari Kerja",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm tabular-nums">{row.original.actualWorkDays} hari</span>
     ),
@@ -234,22 +230,6 @@ export default function PayrollListPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  const columnsWithActions = useMemo<ColumnDef<PayrollRun>[]>(
-    () => [
-      ...columns,
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/payroll/${row.original.id}`)}
-          />
-        ),
-      },
-    ],
-    [router],
-  );
-
   return (
     <>
       <PageHeader
@@ -297,7 +277,7 @@ export default function PayrollListPage() {
       />
 
       <DataTable
-        columns={columnsWithActions}
+        columns={columns}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}

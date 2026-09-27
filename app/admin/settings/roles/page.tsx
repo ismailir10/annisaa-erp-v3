@@ -203,6 +203,7 @@ function buildColumns(
     {
       accessorKey: "code",
       header: "Kode",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <Badge variant="outline" className="text-xs font-mono">
           {row.original.code}
@@ -212,6 +213,7 @@ function buildColumns(
     {
       id: "permCount",
       header: "Jumlah Izin",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const perms = safeParsePermissions(row.original.permissions);
         return <span className="text-sm">{perms.length}</span>;

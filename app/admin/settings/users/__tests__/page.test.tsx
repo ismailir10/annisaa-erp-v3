@@ -153,4 +153,32 @@ describe("UsersPage deactivate/activate confirmation", () => {
       expect(toastSuccess).toHaveBeenCalledWith("Pengguna diaktifkan");
     });
   });
+
+  it("renders the user name as plain text with no Lihat action (no detail page)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce(
+        usersListResponse([
+          {
+            id: "user-3",
+            name: "Dewi Anggraini",
+            email: "dewi@example.com",
+            role: "TEACHER",
+            status: "ACTIVE",
+            lastLoginAt: null,
+            customRoleId: null,
+            customRole: null,
+          },
+        ]),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UsersPage />);
+
+    const name = await screen.findByText("Dewi Anggraini");
+    expect(name.closest("a")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Lihat/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
+  });
 });
