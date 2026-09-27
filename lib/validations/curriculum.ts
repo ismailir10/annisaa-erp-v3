@@ -36,6 +36,26 @@ export const semesterCreateSchema = semesterShape.refine(
   { message: "Tanggal mulai harus sebelum tanggal selesai", path: ["endDate"] },
 );
 
+// Client form schema (T3, 2026-09-27 admin-forms-rhf cycle). The Tambah/Ubah
+// Semester dialog's "Nomor semester" Select holds its RHF value as the
+// string "1"/"2" (native Select value shape) — the API's `number` field is
+// the literal `1 | 2`, so this coerces the string form before it reaches
+// `semesterShape`'s union. `academicYearId` stays required in both create
+// and edit: the dialog disables (never omits) that Select on edit and keeps
+// the row's existing value, so it is always present in the submitted body.
+export const semesterFormSchema = semesterShape
+  .extend({
+    number: z
+      .union([z.literal(1), z.literal(2), z.literal("1"), z.literal("2")], {
+        message: "Nomor semester wajib dipilih",
+      })
+      .transform((v) => Number(v) as 1 | 2),
+  })
+  .refine((v) => v.startDate < v.endDate, {
+    message: "Tanggal mulai harus sebelum tanggal selesai",
+    path: ["endDate"],
+  });
+
 export const semesterUpdateSchema = z
   .object({
     number: z.union([z.literal(1), z.literal(2)]).optional(),
@@ -104,6 +124,7 @@ export const weekUpdateSchema = z
 
 export type SemesterCreateInput = z.infer<typeof semesterCreateSchema>;
 export type SemesterUpdateInput = z.infer<typeof semesterUpdateSchema>;
+export type SemesterFormInput = z.input<typeof semesterFormSchema>;
 export type ThemeCreateInput = z.infer<typeof themeCreateSchema>;
 export type ThemeUpdateInput = z.infer<typeof themeUpdateSchema>;
 export type SubThemeCreateInput = z.infer<typeof subThemeCreateSchema>;

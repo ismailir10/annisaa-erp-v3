@@ -20,3 +20,17 @@ export const swapClassSessionTeacherSchema = z.object({
 export type SwapClassSessionTeacherInput = z.infer<
   typeof swapClassSessionTeacherSchema
 >;
+
+// Client form schema for the "Ubah Guru Sesi" dialog (T3, 2026-09-27
+// admin-forms-rhf cycle). The Select's "no substitute chosen" state is the
+// empty string (base-ui Select has no null value), while the API's
+// `teacherId` is `string | null` — the form keeps `""` and the submit
+// handler converts it to `null` (`values.teacherId || null`), matching the
+// previous `submitSwap(swapTeacherId || null, swapReason)` call exactly.
+export const swapClassSessionTeacherFormSchema = swapClassSessionTeacherSchema
+  .omit({ teacherId: true })
+  .extend({ teacherId: z.string() });
+
+export type SwapClassSessionTeacherFormInput = z.infer<
+  typeof swapClassSessionTeacherFormSchema
+>;

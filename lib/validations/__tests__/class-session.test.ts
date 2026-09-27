@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swapClassSessionTeacherSchema } from "../class-session";
+import { swapClassSessionTeacherFormSchema, swapClassSessionTeacherSchema } from "../class-session";
 
 describe("swapClassSessionTeacherSchema", () => {
   it("accepts a non-null teacherId with a substituteReason", () => {
@@ -50,6 +50,29 @@ describe("swapClassSessionTeacherSchema", () => {
     const result = swapClassSessionTeacherSchema.safeParse({
       teacherId: "emp1",
       substituteReason: 123,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("swapClassSessionTeacherFormSchema", () => {
+  it("accepts the Select's empty-string 'no substitute' sentinel — unlike the API schema", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({ teacherId: "" });
+    expect(result.success).toBe(true);
+  });
+
+  it("still accepts a real teacherId plus a reason", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp1",
+      substituteReason: "wali kelas sedang cuti",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still rejects a substituteReason over 300 chars", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "",
+      substituteReason: "x".repeat(301),
     });
     expect(result.success).toBe(false);
   });

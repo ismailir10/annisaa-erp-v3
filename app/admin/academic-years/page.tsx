@@ -4,7 +4,7 @@
 // (ResponsiveFormDialog overlay, Select, Button states). This page is a
 // single "use client" component — no server wrapper to host the note.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -20,13 +20,19 @@ import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Plus, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { academicYearFormSchema } from "@/lib/validations/academic-year";
+import { programFormSchema } from "@/lib/validations/program";
+import { rollForwardSchema } from "@/lib/validations/roll-forward";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
@@ -37,6 +43,10 @@ const TYPE_LABELS: Record<string, string> = {
   SESSION: "Per Sesi",
 };
 
+const EMPTY_YEAR_FORM = { name: "", startDate: "", endDate: "" };
+const EMPTY_PROGRAM_FORM = { code: "", name: "", description: "", type: "SEMESTER" as const, ageMin: "", ageMax: "" };
+const EMPTY_ROLL_FORWARD_FORM = { sourceYearId: "" };
+
 export default function AcademicPage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -45,9 +55,13 @@ export default function AcademicPage() {
   // Dialogs
   const [yearDialog, setYearDialog] = useState(false);
   const [programDialog, setProgramDialog] = useState(false);
-  const [yearForm, setYearForm] = useState({ name: "", startDate: "", endDate: "" });
-  const [programForm, setProgramForm] = useState({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" });
-  const [saving, setSaving] = useState(false);
+  const yearFormId = useId();
+  const programFormId = useId();
+  const rollForwardFormId = useId();
+  const yearForm = useZodForm(academicYearFormSchema, { defaultValues: EMPTY_YEAR_FORM });
+  const programForm = useZodForm(programFormSchema, { defaultValues: EMPTY_PROGRAM_FORM });
+  const yearStartDate = yearForm.watch("startDate");
+  const yearEndDate = yearForm.watch("endDate");
   const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
@@ -63,8 +77,7 @@ export default function AcademicPage() {
 
   // Roll forward — clone a source year's active class sections into a target year
   const [rollForwardTarget, setRollForwardTarget] = useState<AcademicYear | null>(null);
-  const [rollForwardSourceId, setRollForwardSourceId] = useState("");
-  const [rollingForward, setRollingForward] = useState(false);
+  const rollForwardForm = useZodForm(rollForwardSchema, { defaultValues: EMPTY_ROLL_FORWARD_FORM });
 
   async function fetchAll() {
     const [y, p] = await Promise.all([
@@ -88,25 +101,37 @@ export default function AcademicPage() {
     setYearPage(1);
   }, [yearStatusFilter, yearQuery]);
 
-  async function saveYear() {
-    setSaving(true);
-    const url = editingYear ? `/api/academic-years/${editingYear.id}` : "/api/academic-years";
-    const method = editingYear ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(yearForm) });
-    if (res.ok) { toast.success(editingYear ? "Tahun ajaran diperbarui" : "Tahun ajaran ditambahkan"); setYearDialog(false); setEditingYear(null); fetchAll(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setSaving(false);
-  }
+  const saveYear = yearForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editingYear ? `/api/academic-years/${editingYear.id}` : "/api/academic-years",
+        { method: editingYear ? "PUT" : "POST", body: values },
+        "Gagal menyimpan",
+      );
+      toast.success(editingYear ? "Tahun ajaran diperbarui" : "Tahun ajaran ditambahkan");
+      setYearDialog(false);
+      setEditingYear(null);
+      fetchAll();
+    } catch (err) {
+      applyServerErrors(yearForm, err, "Gagal menyimpan");
+    }
+  });
 
-  async function saveProgram() {
-    setSaving(true);
-    const url = editingProgram ? `/api/programs/${editingProgram.id}` : "/api/programs";
-    const method = editingProgram ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...programForm, ageMin: programForm.ageMin ? parseInt(programForm.ageMin) : null, ageMax: programForm.ageMax ? parseInt(programForm.ageMax) : null }) });
-    if (res.ok) { toast.success(editingProgram ? "Program diperbarui" : "Program ditambahkan"); setProgramDialog(false); setEditingProgram(null); fetchAll(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setSaving(false);
-  }
+  const saveProgram = programForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editingProgram ? `/api/programs/${editingProgram.id}` : "/api/programs",
+        { method: editingProgram ? "PUT" : "POST", body: values },
+        "Gagal menyimpan",
+      );
+      toast.success(editingProgram ? "Program diperbarui" : "Program ditambahkan");
+      setProgramDialog(false);
+      setEditingProgram(null);
+      fetchAll();
+    } catch (err) {
+      applyServerErrors(programForm, err, "Gagal menyimpan");
+    }
+  });
 
   async function handleDeactivate() {
     if (!deactivateTarget) return;
@@ -138,22 +163,18 @@ export default function AcademicPage() {
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
   }
 
-  async function handleRollForward() {
-    if (!rollForwardTarget || !rollForwardSourceId) {
-      toast.error("Pilih tahun ajaran sumber");
-      return;
-    }
-    setRollingForward(true);
-    const res = await fetch(
-      `/api/admin/academic-years/${rollForwardTarget.id}/roll-forward`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceYearId: rollForwardSourceId, trackIds: [] }),
-      },
-    );
-    if (res.ok) {
-      const d = await res.json();
+  const handleRollForward = rollForwardForm.handleSubmit(async (values) => {
+    if (!rollForwardTarget) return;
+    try {
+      const d = await sendJson<{
+        sectionsCreated: number;
+        tracksSkippedAlreadyRolled: number;
+        truncated: boolean;
+      }>(
+        `/api/admin/academic-years/${rollForwardTarget.id}/roll-forward`,
+        { method: "POST", body: { sourceYearId: values.sourceYearId, trackIds: [] } },
+        "Gagal menggulir kelas",
+      );
       if (d.sectionsCreated === 0 && d.tracksSkippedAlreadyRolled === 0) {
         toast.info("Tidak ada kelas aktif yang bisa digulir dari tahun ajaran sumber");
       } else {
@@ -167,14 +188,11 @@ export default function AcademicPage() {
         }
       }
       setRollForwardTarget(null);
-      setRollForwardSourceId("");
       fetchAll();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal menggulir kelas");
+    } catch (err) {
+      applyServerErrors(rollForwardForm, err, "Gagal menggulir kelas");
     }
-    setRollingForward(false);
-  }
+  });
 
   // --- Column definitions ---
 
@@ -229,7 +247,7 @@ export default function AcademicPage() {
           onEdit={() => {
             const p = row.original;
             setEditingProgram(p);
-            setProgramForm({ code: p.code, name: p.name, description: p.description ?? "", type: p.type, ageMin: p.ageMin ? String(p.ageMin) : "", ageMax: p.ageMax ? String(p.ageMax) : "" });
+            programForm.reset({ code: p.code, name: p.name, description: p.description ?? "", type: p.type as "SEMESTER" | "YEAR_ROUND" | "SESSION", ageMin: p.ageMin ? String(p.ageMin) : "", ageMax: p.ageMax ? String(p.ageMax) : "" });
             setProgramDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "program", id: row.original.id, name: row.original.name })}
@@ -238,7 +256,7 @@ export default function AcademicPage() {
         />
       ),
     },
-  ], []);
+  ], [programForm]);
 
   const filteredPrograms = useMemo(() => {
     const needle = programQuery.trim().toLowerCase();
@@ -304,7 +322,7 @@ export default function AcademicPage() {
           onEdit={() => {
             const y = row.original;
             setEditingYear(y);
-            setYearForm({ name: y.name, startDate: y.startDate, endDate: y.endDate });
+            yearForm.reset({ name: y.name, startDate: y.startDate, endDate: y.endDate });
             setYearDialog(true);
           }}
           onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
@@ -315,13 +333,13 @@ export default function AcademicPage() {
             icon: <ArrowRightCircle size={14} />,
             onClick: () => {
               setRollForwardTarget(row.original);
-              setRollForwardSourceId("");
+              rollForwardForm.reset(EMPTY_ROLL_FORWARD_FORM);
             },
           }]}
         />
       ),
     },
-  ], []);
+  ], [yearForm, rollForwardForm]);
 
   const filteredYears = useMemo(() => {
     const needle = yearQuery.trim().toLowerCase();
@@ -367,7 +385,7 @@ export default function AcademicPage() {
             },
           ]}
           actions={
-            <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+            <Button size="sm" onClick={() => { setEditingProgram(null); programForm.reset(EMPTY_PROGRAM_FORM); setProgramDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Program
             </Button>
           }
@@ -406,7 +424,7 @@ export default function AcademicPage() {
             },
           ]}
           actions={
-            <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
+            <Button size="sm" onClick={() => { setEditingYear(null); yearForm.reset(EMPTY_YEAR_FORM); setYearDialog(true); }}>
               <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
             </Button>
           }
@@ -429,17 +447,49 @@ export default function AcademicPage() {
         title={editingYear ? "Edit Tahun Ajaran" : "Tambah Tahun Ajaran"}
         size="xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setYearDialog(false)} disabled={saving}>Batal</Button>
-            <Button onClick={saveYear} disabled={saving}>{saving ? "Menyimpan..." : editingYear ? "Simpan Perubahan" : "Tambah Tahun Ajaran"}</Button>
-          </>
+          <FormDialogFooter
+            formId={yearFormId}
+            pending={yearForm.formState.isSubmitting}
+            onCancel={() => setYearDialog(false)}
+            submitLabel={editingYear ? "Simpan Perubahan" : "Tambah Tahun Ajaran"}
+          />
         }
       >
-        <Field><FieldLabel required htmlFor="year-name">Nama</FieldLabel><Input id="year-name" required aria-required="true" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><DatePicker id="year-startDate" required value={yearForm.startDate} max={yearForm.endDate || undefined} onChange={v => setYearForm({ ...yearForm, startDate: v })} /></Field>
-          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><DatePicker id="year-endDate" required value={yearForm.endDate} min={yearForm.startDate || undefined} onChange={v => setYearForm({ ...yearForm, endDate: v })} /></Field>
-        </div>
+        <form id={yearFormId} onSubmit={saveYear} noValidate className="space-y-field">
+          <FormRootError formState={yearForm.formState} />
+          <FormField
+            control={yearForm.control}
+            name="name"
+            label="Nama"
+            required
+            id="year-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="2025/2026" />
+            )}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={yearForm.control}
+              name="startDate"
+              label="Mulai"
+              required
+              id="year-startDate"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={yearEndDate || undefined} required />
+              )}
+            />
+            <FormField
+              control={yearForm.control}
+              name="endDate"
+              label="Selesai"
+              required
+              id="year-endDate"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} min={yearStartDate || undefined} required />
+              )}
+            />
+          </div>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Add Program Dialog */}
@@ -449,69 +499,131 @@ export default function AcademicPage() {
         title={editingProgram ? "Edit Program" : "Tambah Program"}
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setProgramDialog(false)} disabled={saving}>Batal</Button>
-            <Button onClick={saveProgram} disabled={saving}>{saving ? "Menyimpan..." : editingProgram ? "Simpan Perubahan" : "Tambah Program"}</Button>
-          </>
+          <FormDialogFooter
+            formId={programFormId}
+            pending={programForm.formState.isSubmitting}
+            onCancel={() => setProgramDialog(false)}
+            submitLabel={editingProgram ? "Simpan Perubahan" : "Tambah Program"}
+          />
         }
       >
-        <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required htmlFor="program-code">Kode</FieldLabel><Input id="program-code" required aria-required="true" value={programForm.code} onChange={e => setProgramForm({ ...programForm, code: e.target.value })} placeholder="TKIT" /></Field>
-          <Field><FieldLabel required htmlFor="program-name">Nama</FieldLabel><Input id="program-name" required aria-required="true" value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })} placeholder="TK Islam Terpadu" /></Field>
-        </div>
-        <Field><FieldLabel htmlFor="program-description">Deskripsi</FieldLabel><Input id="program-description" value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} /></Field>
-        <Field>
-          <FieldLabel htmlFor="program-type">Tipe</FieldLabel>
-          <Select value={programForm.type} onValueChange={v => v && setProgramForm({ ...programForm, type: v })} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
-            <SelectTrigger id="program-type"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="SEMESTER">Semester</SelectItem>
-              <SelectItem value="YEAR_ROUND">Sepanjang Tahun</SelectItem>
-              <SelectItem value="SESSION">Per Sesi</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel htmlFor="program-ageMin">Usia Min (bulan)</FieldLabel><Input id="program-ageMin" type="number" value={programForm.ageMin} onChange={e => setProgramForm({ ...programForm, ageMin: e.target.value })} /></Field>
-          <Field><FieldLabel htmlFor="program-ageMax">Usia Max (bulan)</FieldLabel><Input id="program-ageMax" type="number" value={programForm.ageMax} onChange={e => setProgramForm({ ...programForm, ageMax: e.target.value })} /></Field>
-        </div>
+        <form id={programFormId} onSubmit={saveProgram} noValidate className="space-y-field">
+          <FormRootError formState={programForm.formState} />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={programForm.control}
+              name="code"
+              label="Kode"
+              required
+              id="program-code"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} placeholder="TKIT" />
+              )}
+            />
+            <FormField
+              control={programForm.control}
+              name="name"
+              label="Nama"
+              required
+              id="program-name"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} placeholder="TK Islam Terpadu" />
+              )}
+            />
+          </div>
+          <FormField
+            control={programForm.control}
+            name="description"
+            label="Deskripsi"
+            id="program-description"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={field.value ?? ""} />
+            )}
+          />
+          <FormField
+            control={programForm.control}
+            name="type"
+            label="Tipe"
+            id="program-type"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)} items={{ SEMESTER: "Semester", YEAR_ROUND: "Sepanjang Tahun", SESSION: "Per Sesi" }}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SEMESTER">Semester</SelectItem>
+                  <SelectItem value="YEAR_ROUND">Sepanjang Tahun</SelectItem>
+                  <SelectItem value="SESSION">Per Sesi</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={programForm.control}
+              name="ageMin"
+              label="Usia Min (bulan)"
+              id="program-ageMin"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={field.value ?? ""} type="number" />
+              )}
+            />
+            <FormField
+              control={programForm.control}
+              name="ageMax"
+              label="Usia Max (bulan)"
+              id="program-ageMax"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={field.value ?? ""} type="number" />
+              )}
+            />
+          </div>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Roll Forward Dialog */}
       <ResponsiveFormDialog
         open={!!rollForwardTarget}
-        onOpenChange={(o) => { if (!o) { setRollForwardTarget(null); setRollForwardSourceId(""); } }}
+        onOpenChange={(o) => { if (!o) setRollForwardTarget(null); }}
         title="Salin Kelas ke Tahun Ajaran"
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => { setRollForwardTarget(null); setRollForwardSourceId(""); }} disabled={rollingForward}>Batal</Button>
-            <Button onClick={handleRollForward} disabled={rollingForward || !rollForwardSourceId}>
-              {rollingForward ? "Menyalin..." : "Salin Kelas"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={rollForwardFormId}
+            pending={rollForwardForm.formState.isSubmitting}
+            onCancel={() => setRollForwardTarget(null)}
+            submitLabel="Salin Kelas"
+            pendingLabel="Menyalin..."
+          />
         }
       >
-        <p className="text-sm text-muted-foreground">
-          Menyalin semua kelas aktif dari tahun ajaran sumber ke{" "}
-          <span className="font-medium text-foreground">{rollForwardTarget?.name}</span>.
-          Kelas yang sudah ada di tahun ini akan dilewati.
-        </p>
-        <Field>
-          <FieldLabel required htmlFor="rollforward-sourceYear">Tahun Ajaran Sumber</FieldLabel>
-          <Select
-            value={rollForwardSourceId}
-            onValueChange={(v) => v && setRollForwardSourceId(v)}
-            items={years.filter(y => y.id !== rollForwardTarget?.id).map(y => ({ label: y.name, value: y.id }))}
-          >
-            <SelectTrigger id="rollforward-sourceYear" aria-required="true"><SelectValue placeholder="Pilih tahun ajaran sumber" /></SelectTrigger>
-            <SelectContent>
-              {years.filter(y => y.id !== rollForwardTarget?.id).map(y => (
-                <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <form id={rollForwardFormId} onSubmit={handleRollForward} noValidate className="space-y-field">
+          <FormRootError formState={rollForwardForm.formState} />
+          <p className="text-sm text-muted-foreground">
+            Menyalin semua kelas aktif dari tahun ajaran sumber ke{" "}
+            <span className="font-medium text-foreground">{rollForwardTarget?.name}</span>.
+            Kelas yang sudah ada di tahun ini akan dilewati.
+          </p>
+          <FormField
+            control={rollForwardForm.control}
+            name="sourceYearId"
+            label="Tahun Ajaran Sumber"
+            required
+            id="rollforward-sourceYear"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+                items={years.filter(y => y.id !== rollForwardTarget?.id).map(y => ({ label: y.name, value: y.id }))}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih tahun ajaran sumber" /></SelectTrigger>
+                <SelectContent>
+                  {years.filter(y => y.id !== rollForwardTarget?.id).map(y => (
+                    <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Deactivate Confirm */}

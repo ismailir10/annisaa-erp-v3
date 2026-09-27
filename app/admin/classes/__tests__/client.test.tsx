@@ -4,8 +4,9 @@
  * `⋯` menu (edit / deactivate) stays via `DataTableRowActions`, but the
  * separate "Lihat" button is gone.
  */
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { ClassesClient } from "@/app/admin/classes/client";
 
@@ -67,6 +68,102 @@ describe("ClassesClient — name is the link (T7)", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Aksi untuk TKIT A/ })).toBeInTheDocument();
+    });
+  });
+});
+
+// T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah/Ubah Kelas migrated onto
+// useZodForm + FormField + classFormSchema.
+const campus = { id: "cp1", name: "Taman Aster", status: "ACTIVE" };
+const program = { id: "p1", code: "TK", name: "Taman Kanak-kanak", status: "ACTIVE" };
+
+function stubFetchWithDialog(overrides: { post?: unknown; postOk?: boolean } = {}) {
+  const { post = { id: "c-2" }, postOk = true } = overrides;
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/api/config/campuses")) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [campus] }) } as Response);
+    }
+    if (url.includes("/api/programs")) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [program] }) } as Response);
+    }
+    if (url.includes("/api/academic-years")) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [year] }) } as Response);
+    }
+    if (url.includes("/api/admin/classes") && init?.method === "POST") {
+      return Promise.resolve({ ok: postOk, status: postOk ? 201 : 400, json: async () => post } as Response);
+    }
+    if (url.includes("/api/admin/classes")) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [classRow] }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function findPostCall(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.find(([input, init]) => {
+    const url = typeof input === "string" ? input : (input as { toString(): string }).toString();
+    return url.includes("/api/admin/classes") && (init as RequestInit | undefined)?.method === "POST";
+  });
+}
+
+describe("ClassesClient — Tambah Kelas dialog (T3 rhf migration)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("blocks submit with empty required fields, showing inline errors and firing no POST", async () => {
+    const fetchMock = stubFetchWithDialog();
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Kelas" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Kelas" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Kelas" }));
+
+    expect(await within(dialog).findByText("Kampus wajib dipilih")).toBeInTheDocument();
+    expect(within(dialog).getByText("Program wajib dipilih")).toBeInTheDocument();
+    expect(within(dialog).getByText("Nama kelas wajib diisi")).toBeInTheDocument();
+    expect(within(dialog).getByText("Kelompok usia wajib dipilih")).toBeInTheDocument();
+
+    expect(findPostCall(fetchMock)).toBeUndefined();
+  });
+
+  it("submits the filled form as POST /api/admin/classes with the expected body", async () => {
+    const fetchMock = stubFetchWithDialog();
+    const user = userEvent.setup();
+    render(<ClassesClient canWrite={true} />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Kelas" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Kelas" });
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Kampus/ }));
+    await user.click(await screen.findByRole("option", { name: "Taman Aster" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Program/ }));
+    await user.click(await screen.findByRole("option", { name: /Taman Kanak-kanak/ }));
+
+    await user.type(within(dialog).getByPlaceholderText("mis. TKIT A"), "TKIT Baru");
+
+    await user.click(within(dialog).getByRole("combobox", { name: /Kelompok usia/ }));
+    await user.click(await screen.findByRole("option", { name: /TK A/ }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Kelas" }));
+
+    await waitFor(() => expect(findPostCall(fetchMock)).toBeTruthy());
+
+    const [, postInit] = findPostCall(fetchMock)!;
+    expect(JSON.parse((postInit as RequestInit).body as string)).toEqual({
+      campusId: "cp1",
+      programId: "p1",
+      academicYearId: "y1",
+      name: "TKIT Baru",
+      capacity: 20,
+      slotTemplate: "FULL_DAY",
+      ageGroup: "A",
     });
   });
 });
