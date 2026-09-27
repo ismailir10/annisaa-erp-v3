@@ -117,4 +117,18 @@ describe("POST /api/salary-components", () => {
     expect(body.errors.some((e: { field: string }) => e.field === "calcType")).toBe(true);
     expect(db.salaryComponentDef.create).not.toHaveBeenCalled();
   });
+
+  it("reports a reused code on the Kode field (409) instead of a 500", async () => {
+    db.salaryComponentDef.create.mockRejectedValueOnce(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+    );
+
+    const res = await POST(
+      req({ code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED" })
+    );
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.errors).toEqual([{ field: "code", message: "Kode sudah dipakai" }]);
+  });
 });

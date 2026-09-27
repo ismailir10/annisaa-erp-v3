@@ -54,17 +54,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const component = await prisma.salaryComponentDef.create({
-    data: {
-      tenantId: session.tenantId,
-      code: code.toLowerCase(),
-      label,
-      category,
-      calcType,
-      isProRated: isProRated ?? false,
-      sortOrder: resultingSortOrder,
-    },
-  });
-
-  return NextResponse.json(component, { status: 201 });
+  try {
+    const component = await prisma.salaryComponentDef.create({
+      data: {
+        tenantId: session.tenantId,
+        code: code.toLowerCase(),
+        label,
+        category,
+        calcType,
+        isProRated: isProRated ?? false,
+        sortOrder: resultingSortOrder,
+      },
+    });
+    return NextResponse.json(component, { status: 201 });
+  } catch (error) {
+    // @@unique([tenantId, code]) — a reused code was an unhandled 500. Report
+    // it on the Kode field so the dialog shows it inline.
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Kode sudah dipakai", errors: [{ field: "code", message: "Kode sudah dipakai" }] },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 }
