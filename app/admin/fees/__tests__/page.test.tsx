@@ -128,6 +128,32 @@ describe("FeesPage", () => {
     expect(screen.getByRole("textbox", { name: "Tarif SPP Bulanan" })).toHaveValue("500.000");
   });
 
+  it("Tarif per Program: inactive status comes from the component list, not the stale nested structure snapshot", async () => {
+    // Just-deactivated: /api/fee-components already says disabled, but the
+    // previously fetched structure still embeds the pre-toggle status.
+    const staleStructures = [
+      STRUCTURES[0],
+      { ...STRUCTURES[1], feeComponent: { ...COMPONENTS[1], isEnabled: true } },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        if (input.startsWith("/api/fee-components")) return { ok: true, json: async () => COMPONENTS };
+        if (input.startsWith("/api/programs")) return { ok: true, json: async () => PROGRAMS };
+        if (input.startsWith("/api/academic-years")) return { ok: true, json: async () => YEARS };
+        if (input.startsWith("/api/fee-structure")) return { ok: true, json: async () => staleStructures };
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+    render(<FeesPage />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Tarif per Program" }));
+
+    expect(await screen.findByText("Uang Pangkal")).toBeInTheDocument();
+    expect(screen.getByText("Nonaktif")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Tarif Uang Pangkal" })).not.toBeInTheDocument();
+  });
+
   it("Tarif per Program: Simpan Tarif stays disabled until a tarif changes, then shows the unsaved-changes indicator", async () => {
     fixture();
     const user = userEvent.setup();

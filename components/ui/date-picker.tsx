@@ -161,7 +161,15 @@ export function DatePicker({
           selected={selectedDate}
           defaultMonth={selectedDate ?? minDate ?? maxDate ?? new Date()}
           onSelect={(date) => {
-            if (!date) return
+            // Clicking the selected day again deselects it; honour that as
+            // "clear" on optional fields, like emptying the native input.
+            if (!date) {
+              if (!required) {
+                onChange("")
+                setOpen(false)
+              }
+              return
+            }
             onChange(formatLocalDate(date))
             setOpen(false)
           }}
@@ -171,6 +179,20 @@ export function DatePicker({
           startMonth={rangeStart}
           endMonth={rangeEnd}
         />
+        {selectedDate && !required && (
+          <div className="border-t p-2">
+            <button
+              type="button"
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-full")}
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+            >
+              Hapus tanggal
+            </button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

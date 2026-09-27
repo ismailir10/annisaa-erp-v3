@@ -96,6 +96,22 @@ describe("DatePicker", () => {
       expect(screen.getByRole("button", { name: /Dari tanggal/ })).toHaveAttribute("data-testid", "from");
     });
 
+    it("clears an optional date via 'Hapus tanggal' (and hides it when required)", async () => {
+      mockPointer(false);
+      const onChange = vi.fn();
+      const { unmount } = render(<DatePicker value="2026-03-01" onChange={onChange} />);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button"));
+      await user.click(await screen.findByRole("button", { name: "Hapus tanggal" }));
+      expect(onChange).toHaveBeenCalledWith("");
+      unmount();
+
+      render(<DatePicker value="2026-03-01" onChange={onChange} required />);
+      await user.click(screen.getByRole("button"));
+      await screen.findByRole("button", { name: /, 1 Maret 2026/ });
+      expect(screen.queryByRole("button", { name: "Hapus tanggal" })).not.toBeInTheDocument();
+    });
+
     it("shows the placeholder when value is empty", () => {
       mockPointer(false);
       render(<DatePicker value="" onChange={vi.fn()} />);

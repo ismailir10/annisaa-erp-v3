@@ -125,6 +125,8 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 - Ship fix: `components/ui/rupiah-input.tsx` — clearing a field whose parent coerces `null → 0` (Tarif per Program, employee salary) snapped "0" back into the box with the caret in front of it, so typing 750000 produced 7.500.000 (found in the local browser walk). The resync now leaves an emptied box empty when the value comes back as 0; regression test added.
 
+- Codex review on `dca0d2d` (2 × P2, both real): (1) `components/ui/date-picker.tsx` — on a fine pointer an optional date could be set but never cleared (the native input it replaced could be emptied): deselecting the chosen day now emits `""` and optional pickers get a "Hapus tanggal" action; required pickers keep neither. (2) `app/admin/fees/page.tsx` — Tarif per Program derived inactive rows from the nested `structures[].feeComponent` snapshot, which is stale right after a toggle, so a just-deactivated component vanished until the structure refetched; inactive status now comes from `components`. Tests added for both.
+
 ## Verification
 
 - Task 1 + Task 2: `npm run build` exit 0; `npx vitest run` (clean env) → 379 passed, 2 skipped files / 3555 tests passed. Note: running vitest with `DEMO_MODE`/`DATABASE_URL` exported in the shell fails 19 xendit/auth-rate-limit tests — an env leak from the build shell, not a regression; gates run with those unset. `tsc --noEmit` clean; eslint 0 errors. design-system: tabs keep the `bg-muted` pill variant, sticky column uses `bg-background`/`bg-muted` tokens only.
@@ -154,6 +156,8 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
   - Source SHA `e72c26c`, flows: (1) 390px list pages — students, guardians, classes, invoices, employees, leave-requests, campuses, users, fees, semesters: last (action) cell right edge 365px ≤ 390, no page horizontal scroll, 0 "Lihat" buttons, identity link present where the entity has a detail route; (2) fees tab strip on 390px stays one row (32px high); (3) desktop Komponen Biaya: row ⋯ → Nonaktifkan opens the ConfirmDialog; Tarif per Program: clear + type 750000 → "750.000", input keeps focus, "Ada perubahan belum disimpan" shown; (4) student detail (active enrolment): Edit + Daftarkan ke Kelas visible, ⋯ → Naik Kelas | Luluskan | Keluarkan (destructive last); (5) holiday form DatePicker: calendar offers next year; (6) Kampus renders as a DataTable (2 rows); (7) journal class page breadcrumb "Harian › Buku Penghubung › …" with no repeated "Detail".
   - Blockers: 1 found and fixed (RupiahInput clear→0 caret, `e72c26c`). Console errors: only `/_vercel/insights` + `/_vercel/speed-insights` script 404s (Vercel-hosted assets absent locally; not this cycle). No 5xx.
   - Screenshots (local, not committed): scratchpad `verify/` — `m_admin_*.png`, `d_fees_confirm.png`, `d_fees_tarif.png`, `d_student_active.png`, `d_datepicker.png`, `d_campuses.png`.
+
+- Codex fixes: build exit 0; vitest 392 files / 3614 tests passed; local browser: deactivating "Seragam" then opening Tarif per Program shows it immediately as a muted "Nonaktif" row (Rp 450.000, read-only); data restored after.
 
 ## Ship Notes
 

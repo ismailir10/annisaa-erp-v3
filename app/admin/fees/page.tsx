@@ -228,7 +228,7 @@ export default function FeesPage() {
   async function saveStructure() {
     setStructureSaving(true);
     // Unchanged payload shape — inactive components are read-only in the UI
-    // (see `inactiveStoredIds` below) and are deliberately never sent here,
+    // (see `storedIds` below) and are deliberately never sent here,
     // so their previously-saved amount is left untouched by this PUT.
     const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
     const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
@@ -241,13 +241,17 @@ export default function FeesPage() {
   // amount for this program/year — shown as a muted, read-only row instead
   // of silently vanishing (Context finding 5). A component with no stored
   // row simply isn't billed and isn't shown here even if inactive.
-  const inactiveStoredIds = useMemo(
-    () => new Set(structures.filter((s) => !s.feeComponent.isEnabled).map((s) => s.feeComponentId)),
+  // Active/inactive comes from `components` (refetched after every toggle),
+  // never from the nested `structures[].feeComponent` snapshot — that one
+  // is only refreshed with the structure, so a just-deactivated component
+  // would otherwise vanish from this tab until the next structure fetch.
+  const storedIds = useMemo(
+    () => new Set(structures.map((s) => s.feeComponentId)),
     [structures],
   );
   const structureRows = useMemo(
-    () => components.filter((c) => c.isEnabled || inactiveStoredIds.has(c.id)),
-    [components, inactiveStoredIds],
+    () => components.filter((c) => c.isEnabled || storedIds.has(c.id)),
+    [components, storedIds],
   );
   // Only active components are ever billed (materializeBillingRun filters
   // `feeComponent: { isEnabled: true }` — lib/finance/materialize-billing-run.ts:85),
