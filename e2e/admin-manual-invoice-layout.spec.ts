@@ -45,7 +45,7 @@ async function forceCoarsePointer(page: Page) {
  * so locate by that instead.
  */
 function amountInputs(dialog: Locator) {
-  return dialog.getByLabel(/^Jumlah \d+$/);
+  return dialog.getByLabel(/^Jumlah \d+/);
 }
 
 async function openLongInvoiceForm(page: Page) {

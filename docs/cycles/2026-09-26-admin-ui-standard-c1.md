@@ -143,4 +143,6 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 - Task 8: build exit 0; `env -u DEMO_MODE -u DATABASE_URL npx vitest run` → 3611 tests passed; `grep 'type="date"' app/admin components/admin` → only a test file's assertion on the native branch. design-system: DatePicker uses outline Button + Calendar tokens; RupiahInput right-aligned tabular-nums.
 
+- CI `Playwright E2E` on `6c043c1`: 147 passed, 7 failed — all selectors this cycle changed: `e2e/admin-manual-invoice-layout.spec.ts` matched the amount labels with an anchored `/^Jumlah \d+$/` that the required-asterisk suffix breaks (now `/^Jumlah \d+/`), and `e2e/admin-payments.spec.ts` looked for the old `aria-label` "Tanggal mulai" (the filter now has a visible `<label>` "Dari").
+
 ## Ship Notes
