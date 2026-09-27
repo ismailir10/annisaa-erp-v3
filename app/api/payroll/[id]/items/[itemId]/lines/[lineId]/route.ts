@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { requirePermission } from "@/lib/auth-guards";
+import { validateBody } from "@/lib/api/validate";
 import { adjustPayrollLineSchema } from "@/lib/validations/payroll";
 
 export async function PUT(
@@ -23,14 +24,9 @@ export async function PUT(
     return NextResponse.json({ error: "Hanya draft yang bisa diedit" }, { status: 400 });
   }
 
-  const parsed = adjustPayrollLineSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Input tidak valid" },
-      { status: 400 }
-    );
-  }
-  const { adjustmentAmount, adjustmentNote } = parsed.data;
+  const result = await validateBody(adjustPayrollLineSchema, await req.json());
+  if (result.error) return result.error;
+  const { adjustmentAmount, adjustmentNote } = result.data;
 
   // Ownership chain: the tenant check above covers only the run — the item must
   // belong to that run and the line to that item, or mismatched ids could write

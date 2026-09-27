@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { Control } from "react-hook-form";
+import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -19,12 +21,16 @@ import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, UserCheck, UserX } from "lucide-react";
 import { formatDateShort } from "@/lib/format";
+import { createEmployeeSchema } from "@/lib/validations/employee";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
@@ -173,14 +179,15 @@ export default function EmployeesPage() {
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
+  const formId = useId();
+  const form = useZodForm(createEmployeeSchema, { defaultValues: EMPTY_CREATE_FORM });
   const [customPosition, setCustomPosition] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const openCreate = useCallback(() => {
-    setCreateForm(EMPTY_CREATE_FORM);
+    form.reset(EMPTY_CREATE_FORM);
     setCustomPosition(false);
     setCreateOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-open dialog when arriving via ?create=1 (from dashboard quick-action).
@@ -191,32 +198,20 @@ export default function EmployeesPage() {
     }
   }, [searchParams, openCreate, router]);
 
-  async function handleCreate() {
-    if (!createForm.nama || !createForm.email || !createForm.jabatan || !createForm.campusId || !createForm.hireDate) {
-      toast.error("Mohon lengkapi: Nama, Email, Jabatan, Kampus, dan Tanggal Masuk");
-      return;
-    }
-    setSaving(true);
-    const res = await fetch("/api/employees", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(createForm),
-    });
-    if (res.ok) {
-      const emp = await res.json();
+  const handleCreate = form.handleSubmit(async (values) => {
+    try {
+      const emp = await sendJson<{ id: string; kode: string }>(
+        "/api/employees",
+        { method: "POST", body: values },
+        "Gagal menambahkan",
+      );
       toast.success(`Karyawan ditambahkan (Kode: ${emp.kode})`);
       setCreateOpen(false);
       router.push(`/admin/employees/${emp.id}`);
-    } else {
-      const d = await res.json().catch(() => ({}));
-      // Surface the first field-level message from validateBody's `errors`
-      // array so users see "No. Rekening wajib diisi jika bank dipilih"
-      // instead of the generic "Validasi gagal" wrapper (F-10).
-      const fieldMessage = Array.isArray(d.errors) && d.errors[0]?.message;
-      toast.error(fieldMessage || d.error || "Gagal menambahkan");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menambahkan");
     }
-    setSaving(false);
-  }
+  });
 
   // Fetch campuses + positions + stats once
   useEffect(() => {
@@ -450,44 +445,45 @@ export default function EmployeesPage() {
       {/* Create Employee */}
       <ResponsiveFormDialog
         open={createOpen}
-        onOpenChange={(o) => { setCreateOpen(o); if (!o) { setCreateForm(EMPTY_CREATE_FORM); setCustomPosition(false); } }}
+        onOpenChange={(o) => { setCreateOpen(o); if (!o) { form.reset(EMPTY_CREATE_FORM); setCustomPosition(false); } }}
         title="Tambah Karyawan"
         description="Kode karyawan akan digenerate otomatis."
         size="2xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={saving}>Batal</Button>
-            <Button onClick={handleCreate} disabled={saving}>
-              {saving ? "Menyimpan..." : "Tambah Karyawan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setCreateOpen(false)}
+            submitLabel="Tambah Karyawan"
+          />
         }
       >
-        <CreateEmployeeFormBody
-          form={createForm}
-          setForm={setCreateForm}
-          positions={positions}
-          campuses={campuses}
-          customPosition={customPosition}
-          setCustomPosition={setCustomPosition}
-        />
+        <form id={formId} onSubmit={handleCreate} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <CreateEmployeeFormBody
+            control={form.control}
+            positions={positions}
+            campuses={campuses}
+            customPosition={customPosition}
+            setCustomPosition={setCustomPosition}
+          />
+        </form>
       </ResponsiveFormDialog>
     </>
   );
 }
 
-type CreateEmployeeForm = typeof EMPTY_CREATE_FORM;
+type CreateEmployeeFormValues = z4.input<typeof createEmployeeSchema>;
+type CreateEmployeeFormOutput = z4.output<typeof createEmployeeSchema>;
 
 function CreateEmployeeFormBody({
-  form,
-  setForm,
+  control,
   positions,
   campuses,
   customPosition,
   setCustomPosition,
 }: {
-  form: CreateEmployeeForm;
-  setForm: (f: CreateEmployeeForm) => void;
+  control: Control<CreateEmployeeFormValues, unknown, CreateEmployeeFormOutput>;
   positions: string[];
   campuses: Campus[];
   customPosition: boolean;
@@ -496,87 +492,179 @@ function CreateEmployeeFormBody({
   return (
     <>
       <div className="grid grid-cols-2 gap-field">
-        <Field className="col-span-2 sm:col-span-1"><FieldLabel htmlFor="employee-nama" required>Nama</FieldLabel><Input id="employee-nama" required value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></Field>
-        <Field className="col-span-2 sm:col-span-1"><FieldLabel htmlFor="employee-formal-name">Nama Formal</FieldLabel><Input id="employee-formal-name" value={form.formalName} onChange={(e) => setForm({ ...form, formalName: e.target.value })} /></Field>
+        <FormField
+          control={control}
+          name="nama"
+          label="Nama"
+          required
+          id="employee-nama"
+          className="col-span-2 sm:col-span-1"
+          render={({ field, controlProps }) => <Input {...field} {...controlProps} />}
+        />
+        <FormField
+          control={control}
+          name="formalName"
+          label="Nama Formal"
+          id="employee-formal-name"
+          className="col-span-2 sm:col-span-1"
+          render={({ field, controlProps }) => <Input {...field} {...controlProps} value={field.value ?? ""} />}
+        />
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel htmlFor="employee-email" required>Email</FieldLabel><Input id="employee-email" required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-        <Field><FieldLabel htmlFor="employee-phone">No. HP</FieldLabel><Input id="employee-phone" value={form.noHp} onChange={(e) => setForm({ ...form, noHp: e.target.value })} placeholder="081234567890" /></Field>
+        <FormField
+          control={control}
+          name="email"
+          label="Email"
+          required
+          id="employee-email"
+          render={({ field, controlProps }) => <Input {...field} {...controlProps} type="email" />}
+        />
+        <FormField
+          control={control}
+          name="noHp"
+          label="No. HP"
+          id="employee-phone"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={field.value ?? ""} placeholder="081234567890" />
+          )}
+        />
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="employee-position" required>Jabatan</FieldLabel>
-          {customPosition ? (
-            <div className="flex gap-2">
-              <Input id="employee-position" required value={form.jabatan} onChange={(e) => setForm({ ...form, jabatan: e.target.value })} placeholder="Jabatan baru..." autoFocus />
-              <Button variant="outline" size="sm" onClick={() => setCustomPosition(false)} className="shrink-0">Batal</Button>
-            </div>
-          ) : (
-            <Select value={form.jabatan} onValueChange={(v) => {
-              if (v === "__custom__") { setCustomPosition(true); setForm({ ...form, jabatan: "" }); }
-              else if (v) setForm({ ...form, jabatan: v });
-            }} items={{ ...Object.fromEntries(positions.map((p) => [p, p])), __custom__: "+ Tambah jabatan baru" }}>
-              <SelectTrigger id="employee-position" aria-required="true"><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+        <FormField
+          control={control}
+          name="jabatan"
+          label="Jabatan"
+          required
+          id="employee-position"
+          render={({ field, controlProps }) =>
+            customPosition ? (
+              <div className="flex gap-2">
+                <Input {...field} {...controlProps} placeholder="Jabatan baru..." autoFocus />
+                <Button type="button" variant="outline" size="sm" onClick={() => setCustomPosition(false)} className="shrink-0">Batal</Button>
+              </div>
+            ) : (
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  if (v === "__custom__") { setCustomPosition(true); field.onChange(""); }
+                  else if (v != null) field.onChange(v);
+                }}
+                items={{ ...Object.fromEntries(positions.map((p) => [p, p])), __custom__: "+ Tambah jabatan baru" }}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih jabatan" /></SelectTrigger>
+                <SelectContent>
+                  {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  <SelectItem value="__custom__">+ Tambah jabatan baru</SelectItem>
+                </SelectContent>
+              </Select>
+            )
+          }
+        />
+        <FormField
+          control={control}
+          name="campusId"
+          label="Kampus"
+          required
+          id="employee-campus"
+          render={({ field, controlProps }) => (
+            <Select
+              value={field.value}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={campuses.map((c) => ({ label: c.name, value: c.id }))}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
               <SelectContent>
-                {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                <SelectItem value="__custom__">+ Tambah jabatan baru</SelectItem>
+                {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="employee-campus" required>Kampus</FieldLabel>
-          <Select value={form.campusId} onValueChange={(v) => v && setForm({ ...form, campusId: v })} items={campuses.map((c) => ({ label: c.name, value: c.id }))}>
-            <SelectTrigger id="employee-campus" aria-required="true"><SelectValue placeholder="Pilih kampus" /></SelectTrigger>
-            <SelectContent>
-              {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
+        />
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><DatePicker id="employee-hire-date" required value={form.hireDate} onChange={(v) => setForm({ ...form, hireDate: v })} max={new Date().toISOString().split("T")[0]} /></Field>
-        <Field>
-          <FieldLabel htmlFor="employee-role" required>Peran Akun</FieldLabel>
-          <Select
-            value={form.role}
-            onValueChange={(v) => v && setForm({ ...form, role: v as "TEACHER" | "SCHOOL_ADMIN" })}
-            items={{ TEACHER: "Guru", SCHOOL_ADMIN: "Admin Sekolah" }}
-          >
-            <SelectTrigger id="employee-role" aria-required="true"><SelectValue placeholder="Pilih peran" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="TEACHER">Guru</SelectItem>
-              <SelectItem value="SCHOOL_ADMIN">Admin Sekolah</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={control}
+          name="hireDate"
+          label="Tanggal Masuk"
+          required
+          id="employee-hire-date"
+          render={({ field, controlProps }) => (
+            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} required max={new Date().toISOString().split("T")[0]} />
+          )}
+        />
+        <FormField
+          control={control}
+          name="role"
+          label="Peran Akun"
+          required
+          id="employee-role"
+          render={({ field, controlProps }) => (
+            <Select
+              value={field.value}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={{ TEACHER: "Guru", SCHOOL_ADMIN: "Admin Sekolah" }}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih peran" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TEACHER">Guru</SelectItem>
+                <SelectItem value="SCHOOL_ADMIN">Admin Sekolah</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="employee-bank">Bank</FieldLabel>
-          <Select value={form.bankName} onValueChange={(v) => v && setForm({ ...form, bankName: v })}>
-            <SelectTrigger id="employee-bank"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {INDONESIAN_BANKS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={control}
+          name="bankName"
+          label="Bank"
+          id="employee-bank"
+          render={({ field, controlProps }) => (
+            <Select value={field.value ?? ""} onValueChange={(v) => v != null && field.onChange(v)}>
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INDONESIAN_BANKS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
-      <Field><FieldLabel htmlFor="employee-bank-account">No. Rekening</FieldLabel><Input id="employee-bank-account" value={form.bankAccountNo} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></Field>
+      <FormField
+        control={control}
+        name="bankAccountNo"
+        label="No. Rekening"
+        id="employee-bank-account"
+        render={({ field, controlProps }) => <Input {...field} {...controlProps} value={field.value ?? ""} />}
+      />
       <div className="grid grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="employee-annual-leave">Saldo Cuti Tahunan</FieldLabel>
-          <Input id="employee-annual-leave" type="number" min={0} max={365} value={form.leaveBalanceAnnual} onChange={(e) => setForm({ ...form, leaveBalanceAnnual: e.target.value })} placeholder="12" />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="employee-sick-leave">Saldo Cuti Sakit</FieldLabel>
-          <Input id="employee-sick-leave" type="number" min={0} max={365} value={form.leaveBalanceSick} onChange={(e) => setForm({ ...form, leaveBalanceSick: e.target.value })} placeholder="14" />
-        </Field>
+        <FormField
+          control={control}
+          name="leaveBalanceAnnual"
+          label="Saldo Cuti Tahunan"
+          id="employee-annual-leave"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} max={365} placeholder="12" />
+          )}
+        />
+        <FormField
+          control={control}
+          name="leaveBalanceSick"
+          label="Saldo Cuti Sakit"
+          id="employee-sick-leave"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} max={365} placeholder="14" />
+          )}
+        />
       </div>
-      <label htmlFor="employee-bpjs" className="flex items-center gap-2 text-sm">
-        <Checkbox id="employee-bpjs" checked={form.bpjsEnrolled} onCheckedChange={(c) => setForm({ ...form, bpjsEnrolled: !!c })} />
-        BPJS Terdaftar
-      </label>
+      <FormField
+        control={control}
+        name="bpjsEnrolled"
+        label="BPJS Terdaftar"
+        orientation="horizontal"
+        id="employee-bpjs"
+        render={({ field, controlProps }) => (
+          <Checkbox {...controlProps} checked={!!field.value} onCheckedChange={(c) => field.onChange(!!c)} onBlur={field.onBlur} />
+        )}
+      />
     </>
   );
 }

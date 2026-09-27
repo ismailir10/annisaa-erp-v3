@@ -8,15 +8,34 @@ function source(path: string) {
   return readFileSync(resolve(hrRoot, path), "utf8");
 }
 
+// T6 migrated `employees/page.tsx` and `salary-components/page.tsx` onto the
+// shared `<FormField>` (components/ui/form.tsx): label ↔ control pairing,
+// `aria-required`/`aria-describedby` wiring, and the required asterisk all
+// live in that one component now, so a page's source no longer spells out
+// `htmlFor="x" required` / `id="x" aria-required="true"` by hand — it passes
+// `required` + `id` as `<FormField>` props instead. This locates the
+// `<FormField ... id="X" ...>` block for a given control id and asserts the
+// `required` prop is (or isn't) there, which is the part a page can still
+// get wrong (`employees/[id]/page.tsx` isn't migrated yet — Cycle 3 splits
+// that dossier — so its raw-JSX contract below is unchanged).
+function formFieldBlock(src: string, id: string): string {
+  const idAttr = `id="${id}"`;
+  const idIndex = src.indexOf(idAttr);
+  expect(idIndex, `expected to find ${idAttr} in source`).toBeGreaterThan(-1);
+  const start = src.lastIndexOf("<FormField", idIndex);
+  expect(start, `expected a <FormField> before ${idAttr}`).toBeGreaterThan(-1);
+  const end = src.indexOf("render={", idIndex);
+  return src.slice(start, end === -1 ? undefined : end);
+}
+
 describe("HR form accessibility contract", () => {
   it("pairs employee form labels with controls and exposes required fields", () => {
     const createPage = source("employees/page.tsx");
     const detailPage = source("employees/[id]/page.tsx");
 
-    expect(createPage).toContain('htmlFor="employee-nama" required');
-    expect(createPage).toContain('id="employee-nama" required');
-    expect(createPage).toContain('id="employee-position" aria-required="true"');
-    expect(createPage).toContain('htmlFor="employee-bpjs"');
+    expect(formFieldBlock(createPage, "employee-nama")).toContain("required");
+    expect(formFieldBlock(createPage, "employee-position")).toContain("required");
+    expect(createPage).toContain('id="employee-bpjs"');
     expect(detailPage).toContain('htmlFor="employee-detail-nama" required');
     expect(detailPage).toContain('id="employee-detail-nama" required');
     expect(detailPage).toContain('id="employee-detail-campus" aria-required="true"');
@@ -26,11 +45,9 @@ describe("HR form accessibility contract", () => {
   it("pairs salary component labels with controls and exposes required fields", () => {
     const page = source("salary-components/page.tsx");
 
-    expect(page).toContain('htmlFor="salary-component-code" required');
-    expect(page).toContain('id="salary-component-code" required');
-    expect(page).toContain('htmlFor="salary-component-label" required');
-    expect(page).toContain('id="salary-component-label" required');
-    expect(page).toContain('htmlFor="salary-component-category"');
+    expect(formFieldBlock(page, "salary-component-code")).toContain("required");
+    expect(formFieldBlock(page, "salary-component-label")).toContain("required");
+    expect(page).toContain('id="salary-component-category"');
   });
 });
 
