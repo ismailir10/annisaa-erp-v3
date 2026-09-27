@@ -39,6 +39,7 @@ The same IP-keyed pattern sits on the other teacher write paths: `/api/teacher/s
   - Baseline on staging (`annisaa-erp-v3-git-staging-…`, teacher account, DCARE, 2026-09-27): 14 idempotent re-saves of one Hadir row → `200×10, 429×4` — the reported bug.
   - Preview (`annisaa-erp-v3-git-feat-teache-4e2998-…`), signed in as the teacher account: tapped the six unmarked DCARE children in the UI → six "Absensi tersimpan", zero errors, all 8 rows PRESENT via `GET /api/student-attendance`; then 40 idempotent re-saves → all 200. No console errors. blockers=0, minors=0.
 
+## Ship Notes
 - Behaviour change: teachers are throttled per account, not per school IP. Marking a whole class by tapping no longer hits "Terlalu banyak permintaan".
 - Rate-limit check moved after `getSession()` on the two attendance routes, so an unauthenticated request now 401s instead of 429ing; the limiter is no longer a pre-auth DoS shield there (auth is a cookie read; every other teacher route already works this way).
 - No schema, dependency or UI change.
