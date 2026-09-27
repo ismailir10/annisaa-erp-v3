@@ -318,6 +318,8 @@ describe("FormDialogFooter", () => {
     expect(submit).toBeDisabled();
     expect(submit).toHaveAttribute("form", "my-form");
     expect(submit).toHaveAttribute("type", "submit");
+    // Cancelling mid-request would let the first save close a reopened dialog.
+    expect(screen.getByRole("button", { name: "Batal" })).toBeDisabled();
   });
 
   it("shows the submit label and stays enabled when not pending", () => {
@@ -332,6 +334,7 @@ describe("FormDialogFooter", () => {
 
     const submit = screen.getByRole("button", { name: "Simpan" });
     expect(submit).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Batal" })).toBeEnabled();
     expect(submit).toHaveAttribute("form", "my-form");
   });
 });

@@ -285,7 +285,9 @@ export function FormDialogFooter({
 }) {
   return (
     <div className={cn("contents", className)}>
-      <Button type="button" variant="ghost" onClick={onCancel}>
+      {/* Disabled while pending: cancelling mid-request and reopening would
+          let the first request's completion close the reopened dialog. */}
+      <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
         {cancelLabel}
       </Button>
       <Button
