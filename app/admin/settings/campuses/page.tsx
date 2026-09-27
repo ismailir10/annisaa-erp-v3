@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -10,12 +10,16 @@ import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { LocateFixed, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { createCampusSchema } from "@/lib/validations/campus";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Campus = {
   id: string;
@@ -31,13 +35,15 @@ type Campus = {
 // the toolbar filter uses the shared "all" value, translated below.
 type StatusFilter = "all" | "ACTIVE" | "INACTIVE";
 
+const EMPTY_FORM = { name: "", address: "", lat: "", lng: "" };
+
 export default function CampusesPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Campus | null>(null);
-  const [form, setForm] = useState({ name: "", address: "", lat: "", lng: "" });
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(createCampusSchema, { defaultValues: EMPTY_FORM });
   const [deleteTarget, setDeleteTarget] = useState<Campus | null>(null);
   // FIND-004: surface deactivated campuses via an explicit filter so the
   // admin can reactivate them without dropping into SQL.
@@ -52,7 +58,6 @@ export default function CampusesPage() {
     setLoading(false);
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchCampuses(statusFilter); }, [fetchCampuses, statusFilter]);
 
   const handleReactivate = useCallback(
@@ -75,41 +80,37 @@ export default function CampusesPage() {
 
   const openNew = useCallback(() => {
     setEditing(null);
-    setForm({ name: "", address: "", lat: "", lng: "" });
+    form.reset(EMPTY_FORM);
     setDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openEdit = useCallback((c: Campus) => {
     setEditing(c);
-    setForm({
+    form.reset({
       name: c.name,
       address: c.address ?? "",
       lat: c.lat?.toString() ?? "",
       lng: c.lng?.toString() ?? "",
     });
     setDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleSave() {
-    if (!form.name.trim()) { toast.error("Nama wajib diisi"); return; }
-    setSaving(true);
-    const url = editing ? `/api/config/campuses/${editing.id}` : "/api/config/campuses";
-    const method = editing ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+  const handleSave = form.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editing ? `/api/config/campuses/${editing.id}` : "/api/config/campuses",
+        { method: editing ? "PUT" : "POST", body: values },
+        "Gagal menyimpan kampus. Periksa kolom yang ditandai.",
+      );
       toast.success(editing ? "Kampus diperbarui" : "Kampus ditambahkan");
       setDialogOpen(false);
       fetchCampuses(statusFilter);
-    } else {
-      const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan kampus. Periksa kolom yang ditandai.");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan kampus. Periksa kolom yang ditandai.");
     }
-    setSaving(false);
-  }
+  });
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -128,11 +129,8 @@ export default function CampusesPage() {
     if (!navigator.geolocation) { toast.error("GPS tidak tersedia di perangkat ini. Isi koordinat manual."); return; }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setForm((f) => ({
-          ...f,
-          lat: pos.coords.latitude.toFixed(8),
-          lng: pos.coords.longitude.toFixed(8),
-        }));
+        form.setValue("lat", pos.coords.latitude.toFixed(8), { shouldDirty: true, shouldValidate: true });
+        form.setValue("lng", pos.coords.longitude.toFixed(8), { shouldDirty: true, shouldValidate: true });
         toast.success("Lokasi diperoleh");
       },
       () => toast.error("Gagal mendapatkan lokasi. Izinkan akses lokasi atau isi koordinat manual.")
@@ -242,34 +240,60 @@ export default function CampusesPage() {
         onOpenChange={setDialogOpen}
         title={editing ? "Edit Kampus" : "Tambah Kampus"}
         description={editing ? "Perbarui informasi kampus" : "Tambahkan lokasi kampus baru"}
-        footer={<>
-          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kampus"}
-          </Button>
-        </>}
+        footer={
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Kampus"}
+          />
+        }
       >
-            <Field>
-              <FieldLabel required htmlFor="campus-name">Nama</FieldLabel>
-              <Input id="campus-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Taman Aster" required aria-required="true" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="campus-address">Alamat</FieldLabel>
-              <Input id="campus-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jl. Contoh No.1, Bekasi" />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel htmlFor="campus-lat">Latitude</FieldLabel>
-                <Input id="campus-lat" value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} placeholder="-6.2234" type="number" step="any" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="campus-lng">Longitude</FieldLabel>
-                <Input id="campus-lng" value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} placeholder="106.8432" type="number" step="any" />
-              </Field>
-            </div>
-            <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
-              <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
-            </Button>
+        <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="name"
+            label="Nama"
+            required
+            id="campus-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="Taman Aster" />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="address"
+            label="Alamat"
+            id="campus-address"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={(field.value as string | undefined) ?? ""} placeholder="Jl. Contoh No.1, Bekasi" />
+            )}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="lat"
+              label="Latitude"
+              id="campus-lat"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={(field.value as string | number | undefined) ?? ""} placeholder="-6.2234" type="number" step="any" />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="lng"
+              label="Longitude"
+              id="campus-lng"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={(field.value as string | number | undefined) ?? ""} placeholder="106.8432" type="number" step="any" />
+              )}
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={getCurrentLocation} type="button">
+            <LocateFixed size={14} className="mr-1.5" /> Ambil Lokasi Saat Ini
+          </Button>
+        </form>
       </ResponsiveFormDialog>
 
       <ConfirmDialog

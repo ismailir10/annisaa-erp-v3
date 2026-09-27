@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
+import { createCampusSchema } from "@/lib/validations/campus";
 
 // Cache campuses for 1 hour (static data)
 export const revalidate = 3600;
@@ -42,20 +44,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { name, address, lat, lng } = body;
-
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 });
-  }
+  const result = await validateBody(createCampusSchema, await req.json());
+  if (result.error) return result.error;
+  const { name, address, lat, lng } = result.data;
 
   const campus = await prisma.campus.create({
     data: {
       tenantId: session.tenantId,
-      name: name.trim(),
-      address: address?.trim() || null,
-      lat: lat ? parseFloat(lat) : null,
-      lng: lng ? parseFloat(lng) : null,
+      name,
+      address: address ?? null,
+      lat: lat ?? null,
+      lng: lng ?? null,
     },
   });
 

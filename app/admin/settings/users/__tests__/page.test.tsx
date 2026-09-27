@@ -18,13 +18,20 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/components/ui/data-table-row-actions", () => ({
   DataTableRowActions: ({
+    onEdit,
     onDeactivate,
     onActivate,
   }: {
+    onEdit?: () => void;
     onDeactivate?: () => void;
     onActivate?: () => void;
   }) => (
     <>
+      {onEdit && (
+        <button type="button" onClick={onEdit}>
+          Edit
+        </button>
+      )}
       {onDeactivate && (
         <button type="button" onClick={onDeactivate}>
           Nonaktifkan
@@ -180,5 +187,58 @@ describe("UsersPage deactivate/activate confirmation", () => {
     expect(name.closest("a")).toBeNull();
     expect(screen.queryByRole("link", { name: /Lihat/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
+  });
+});
+
+describe("UsersPage edit dialog", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("submits the PUT with the selected role mapped and the current status", async () => {
+    const editUser = {
+      id: "user-9",
+      name: "Guru Baru",
+      email: "guru@example.com",
+      role: "TEACHER",
+      status: "ACTIVE",
+      lastLoginAt: null,
+      customRoleId: null,
+      customRole: null,
+    };
+    const role = { id: "role-1", name: "Wali Kelas", code: "WALI_KELAS" };
+    const fetchMock = vi
+      .fn()
+      // roles fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [role] }) })
+      // initial list fetch
+      .mockResolvedValueOnce(usersListResponse([editUser]))
+      // PUT
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+      // refetch after success
+      .mockResolvedValueOnce(usersListResponse([{ ...editUser, customRoleId: role.id, customRole: role }]));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<UsersPage />);
+
+    await screen.findByText("Guru Baru");
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit Pengguna" });
+    await user.click(within(dialog).getByRole("combobox", { name: /Peran Kustom/ }));
+    await user.click(await screen.findByRole("option", { name: "Wali Kelas" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/users/user-9", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customRoleId: "role-1", status: "ACTIVE" }),
+      });
+    });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Pengguna diperbarui"));
   });
 });

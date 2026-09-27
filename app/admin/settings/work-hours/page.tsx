@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { parseWorkingDays } from "@/lib/payroll/working-days";
+import { FormField, FormRootError } from "@/components/ui/form";
+import { orgConfigSchema } from "@/lib/validations/org-config";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 
 const DAYS = [
   { key: "MON", label: "Senin" },
@@ -21,18 +26,25 @@ const DAYS = [
   { key: "SUN", label: "Minggu" },
 ];
 
+const EMPTY_FORM = {
+  workingDays: ["MON", "TUE", "WED", "THU", "FRI"],
+  workStartTime: "07:00",
+  workEndTime: "16:00",
+  gracePeriodMinutes: "15",
+  timezone: "Asia/Jakarta",
+  payrollPeriodStartDay: "21",
+  payrollPeriodEndDay: "20",
+};
+
 export default function OrgConfigPage() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    workingDays: ["MON", "TUE", "WED", "THU", "FRI"],
-    workStartTime: "07:00",
-    workEndTime: "16:00",
-    gracePeriodMinutes: "15",
-    timezone: "Asia/Jakarta",
-    payrollPeriodStartDay: "21",
-    payrollPeriodEndDay: "20",
-  });
+  const formId = useId();
+  const form = useZodForm(orgConfigSchema, { defaultValues: EMPTY_FORM });
+
+  useUnsavedChangesGuard(
+    form.formState.isDirty,
+    "Perubahan jam kerja yang belum disimpan akan hilang.",
+  );
 
   useEffect(() => {
     fetch("/api/config/org")
@@ -40,15 +52,16 @@ export default function OrgConfigPage() {
       .then((data) => {
         if (data) {
           const days = parseWorkingDays(data.workingDays);
-          setForm((prev) => ({
-            workingDays: days.length > 0 ? days : prev.workingDays,
-            workStartTime: data.workStartTime ?? prev.workStartTime,
-            workEndTime: data.workEndTime ?? prev.workEndTime,
-            gracePeriodMinutes: String(data.gracePeriodMinutes ?? prev.gracePeriodMinutes),
-            timezone: data.timezone ?? prev.timezone,
-            payrollPeriodStartDay: String(data.payrollPeriodStartDay ?? prev.payrollPeriodStartDay),
-            payrollPeriodEndDay: String(data.payrollPeriodEndDay ?? prev.payrollPeriodEndDay),
-          }));
+          const current = form.getValues();
+          form.reset({
+            workingDays: days.length > 0 ? days : current.workingDays,
+            workStartTime: data.workStartTime ?? current.workStartTime,
+            workEndTime: data.workEndTime ?? current.workEndTime,
+            gracePeriodMinutes: String(data.gracePeriodMinutes ?? current.gracePeriodMinutes),
+            timezone: data.timezone ?? current.timezone,
+            payrollPeriodStartDay: String(data.payrollPeriodStartDay ?? current.payrollPeriodStartDay),
+            payrollPeriodEndDay: String(data.payrollPeriodEndDay ?? current.payrollPeriodEndDay),
+          });
         }
       })
       .catch(() => {
@@ -57,31 +70,18 @@ export default function OrgConfigPage() {
       .finally(() => {
         setLoading(false);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function toggleDay(day: string) {
-    setForm((f) => ({
-      ...f,
-      workingDays: f.workingDays.includes(day)
-        ? f.workingDays.filter((d) => d !== day)
-        : [...f.workingDays, day],
-    }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    const res = await fetch("/api/config/org", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+  const handleSave = form.handleSubmit(async (values) => {
+    try {
+      await sendJson("/api/config/org", { method: "PUT", body: values }, "Gagal menyimpan");
       toast.success("Konfigurasi disimpan");
-    } else {
-      toast.error("Gagal menyimpan");
+      form.reset(values);
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-    setSaving(false);
-  }
+  });
 
   if (loading) return <Skeleton className="h-96 w-full rounded-xl" />;
 
@@ -89,74 +89,122 @@ export default function OrgConfigPage() {
     <>
       <PageHeader title="Jam Kerja" description="Atur jam kerja, zona waktu, dan periode penggajian" />
 
-      <Card className="p-card max-w-2xl space-y-field">
-        {/* Working days */}
-        <Field aria-labelledby="work-hours-days">
-          <FieldLabel id="work-hours-days">Hari Kerja</FieldLabel>
-          <div className="flex flex-wrap gap-2">
-            {DAYS.map((d) => (
-              <label
-                key={d.key}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
-                  form.workingDays.includes(d.key)
-                    ? "border-primary bg-primary/5 text-primary-text"
-                    : "border-border text-muted-foreground hover:border-primary/30"
-                }`}
-              >
-                <Checkbox
-                  checked={form.workingDays.includes(d.key)}
-                  onCheckedChange={() => toggleDay(d.key)}
-                />
-                {d.label}
-              </label>
-            ))}
+      <Card className="p-card max-w-2xl">
+        <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+
+          {/* Working days */}
+          <FormField
+            control={form.control}
+            name="workingDays"
+            label="Hari Kerja"
+            id="work-hours-days"
+            render={({ field }) => (
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map((d) => {
+                  const checked = field.value.includes(d.key);
+                  return (
+                    <label
+                      key={d.key}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                        checked
+                          ? "border-primary bg-primary/5 text-primary-text"
+                          : "border-border text-muted-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() =>
+                          field.onChange(
+                            checked
+                              ? field.value.filter((x: string) => x !== d.key)
+                              : [...field.value, d.key],
+                          )
+                        }
+                      />
+                      {d.label}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          />
+
+          {/* Work hours */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="workStartTime"
+              label="Jam Mulai"
+              id="work-hours-start-time"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} type="time" />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="workEndTime"
+              label="Jam Selesai"
+              id="work-hours-end-time"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} type="time" />
+              )}
+            />
           </div>
-        </Field>
 
-        {/* Work hours */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <FieldLabel htmlFor="work-hours-start-time">Jam Mulai</FieldLabel>
-            <Input id="work-hours-start-time" type="time" value={form.workStartTime} onChange={(e) => setForm({ ...form, workStartTime: e.target.value })} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="work-hours-end-time">Jam Selesai</FieldLabel>
-            <Input id="work-hours-end-time" type="time" value={form.workEndTime} onChange={(e) => setForm({ ...form, workEndTime: e.target.value })} />
-          </Field>
-        </div>
+          {/* Grace period */}
+          <FormField
+            control={form.control}
+            name="gracePeriodMinutes"
+            label="Toleransi Keterlambatan (menit)"
+            id="work-hours-grace-period"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={field.value as string | number} type="number" min="0" max="60" />
+            )}
+          />
 
-        {/* Grace period */}
-        <Field>
-          <FieldLabel htmlFor="work-hours-grace-period">Toleransi Keterlambatan (menit)</FieldLabel>
-          <Input id="work-hours-grace-period" type="number" min="0" max="60" value={form.gracePeriodMinutes} onChange={(e) => setForm({ ...form, gracePeriodMinutes: e.target.value })} />
-        </Field>
+          {/* Timezone */}
+          <FormField
+            control={form.control}
+            name="timezone"
+            label="Zona Waktu"
+            id="work-hours-timezone"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value="Asia/Jakarta" disabled />
+            )}
+          />
 
-        {/* Timezone */}
-        <Field>
-          <FieldLabel htmlFor="work-hours-timezone">Zona Waktu</FieldLabel>
-          <Input id="work-hours-timezone" value="Asia/Jakarta" disabled />
-        </Field>
+          {/* Payroll period */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="payrollPeriodStartDay"
+              label="Tanggal Mulai Gaji"
+              id="work-hours-payroll-start-day"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={field.value as string | number} type="number" min="1" max="31" />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="payrollPeriodEndDay"
+              label="Tanggal Selesai Gaji"
+              id="work-hours-payroll-end-day"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={field.value as string | number} type="number" min="1" max="31" />
+              )}
+            />
+          </div>
 
-        {/* Payroll period */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <FieldLabel htmlFor="work-hours-payroll-start-day">Tanggal Mulai Gaji</FieldLabel>
-            <Input id="work-hours-payroll-start-day" type="number" min="1" max="31" value={form.payrollPeriodStartDay} onChange={(e) => setForm({ ...form, payrollPeriodStartDay: e.target.value })} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="work-hours-payroll-end-day">Tanggal Selesai Gaji</FieldLabel>
-            <Input id="work-hours-payroll-end-day" type="number" min="1" max="31" value={form.payrollPeriodEndDay} onChange={(e) => setForm({ ...form, payrollPeriodEndDay: e.target.value })} />
-          </Field>
-        </div>
-
-        <div className="pt-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan Konfigurasi"}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            Perubahan hanya mempengaruhi perhitungan di masa depan
-          </p>
-        </div>
+          <div className="pt-2">
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? "Menyimpan..." : "Simpan Konfigurasi"}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Perubahan hanya mempengaruhi perhitungan di masa depan
+            </p>
+          </div>
+        </form>
       </Card>
     </>
   );
