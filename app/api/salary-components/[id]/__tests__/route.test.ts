@@ -67,6 +67,39 @@ describe("PUT /api/salary-components/[id]", () => {
     });
   });
 
+  it("deactivating an already-misordered PCT_OF_BASE component is allowed", async () => {
+    db.salaryComponentDef.findUnique.mockResolvedValue({
+      ...EXISTING,
+      calcType: "PCT_OF_BASE",
+      sortOrder: 0,
+    });
+    db.salaryComponentDef.findFirst.mockResolvedValue({ id: "gp1", sortOrder: 1 });
+
+    const res = await PUT(req({ isEnabled: false }), { params } as never);
+
+    expect(res.status).toBe(200);
+    expect(db.salaryComponentDef.update).toHaveBeenCalledWith({
+      where: { id: "sc1" },
+      data: { isEnabled: false },
+    });
+  });
+
+  it("re-enabling a misordered PCT_OF_BASE component is still rejected", async () => {
+    db.salaryComponentDef.findUnique.mockResolvedValue({
+      ...EXISTING,
+      calcType: "PCT_OF_BASE",
+      sortOrder: 0,
+      isEnabled: false,
+    });
+    db.salaryComponentDef.findFirst.mockResolvedValue({ id: "gp1", sortOrder: 1 });
+
+    const res = await PUT(req({ isEnabled: true }), { params } as never);
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).errors[0].field).toBe("sortOrder");
+    expect(db.salaryComponentDef.update).not.toHaveBeenCalled();
+  });
+
   it("a full edit with a valid PCT_OF_BASE ordering succeeds", async () => {
     db.salaryComponentDef.findFirst.mockResolvedValue({ id: "gp1", sortOrder: 1 });
 

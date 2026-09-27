@@ -49,6 +49,7 @@ export async function PUT(
     code: existing.code,
     calcType: (data.calcType as string | undefined) ?? existing.calcType,
     sortOrder: (data.sortOrder as number | undefined) ?? existing.sortOrder,
+    isEnabled: (data.isEnabled as boolean | undefined) ?? existing.isEnabled,
   };
   const orderingError = await checkSalaryComponentOrdering(session.tenantId!, resultingRow);
   if (orderingError) {

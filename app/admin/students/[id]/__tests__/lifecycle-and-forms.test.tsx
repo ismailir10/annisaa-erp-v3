@@ -223,6 +223,49 @@ describe("Informasi Tambahan — duplicate-key guard", () => {
   });
 });
 
+describe("Informasi Tambahan — save clears the dirty state", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    toastError.mockClear();
+    toastSuccess.mockClear();
+  });
+
+  it("after a successful save the Simpan action goes away and the saved row stays", async () => {
+    const user = userEvent.setup();
+    // `metadata` is a JSON string once saved; the fixture types it as null.
+    let student: Omit<ReturnType<typeof makeStudent>, "metadata"> & { metadata: string | null } =
+      makeStudent();
+    const calls: Calls = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url === "/api/students/s1" && init?.method === "PUT") {
+          calls.push({ url, method: "PUT", body: init.body as string });
+          const { metadata } = JSON.parse(init.body as string);
+          student = { ...student, metadata: JSON.stringify(metadata) };
+          return Promise.resolve({ ok: true, json: async () => student } as Response);
+        }
+        const handled = baseHandlers(student as ReturnType<typeof makeStudent>, calls)(input, init);
+        return handled ?? Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }),
+    );
+    render(<StudentDetailPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Field" }));
+    await user.type(screen.getByPlaceholderText("Nama field"), "hobi");
+    await user.type(screen.getByPlaceholderText("Nilai"), "menggambar");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Informasi tambahan disimpan"));
+    expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Simpan" })).not.toBeInTheDocument());
+    expect(screen.getByPlaceholderText("Nama field")).toHaveValue("hobi");
+    expect(toastError).not.toHaveBeenCalled();
+  });
+});
+
 describe("Naik Kelas — empty selection", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();

@@ -11,11 +11,15 @@ import { prisma } from "@/lib/db";
  *
  * `resultingRow` is the row as it will exist after this request — the full
  * new row on create, or the existing row merged with the PUT body on edit.
+ * A row that ends up disabled takes no part in payroll, so it is never
+ * blocked — deactivating an already-misordered component must stay possible.
  */
 export async function checkSalaryComponentOrdering(
   tenantId: string,
-  resultingRow: { id?: string; code: string; calcType: string; sortOrder: number },
+  resultingRow: { id?: string; code: string; calcType: string; sortOrder: number; isEnabled?: boolean },
 ): Promise<{ field: string; message: string } | null> {
+  if (resultingRow.isEnabled === false) return null;
+
   if (resultingRow.calcType === "PCT_OF_BASE" && resultingRow.code !== "gaji_pokok") {
     const gajiPokok = await prisma.salaryComponentDef.findFirst({
       where: { tenantId, code: "gaji_pokok", isEnabled: true },

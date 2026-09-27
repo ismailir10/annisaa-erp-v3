@@ -10,7 +10,7 @@
  *     attendance record.
  */
 import { describe, it, expect } from "vitest";
-import { computeAbsentCount, isWeekend } from "../absent-stat";
+import { computeAbsentCount, isNonWorkingDay, isWeekend } from "../absent-stat";
 
 const ROWS = [
   { attendance: { id: "a1" } }, // present
@@ -114,3 +114,33 @@ describe("computeAbsentCount — F-20", () => {
     expect(out).toBe(2);
   });
 });
+
+describe("isNonWorkingDay — tenant working days", () => {
+  const none = new Set<string>();
+  // 2026-09-26 is a Saturday, 2026-09-27 a Sunday, 2026-09-28 a Monday.
+  it("falls back to Sat/Sun when working days are unknown", () => {
+    expect(isNonWorkingDay("2026-09-26", none, null)).toBe(true);
+    expect(isNonWorkingDay("2026-09-28", none, [])).toBe(false);
+  });
+  it("treats a configured Saturday as a working day", () => {
+    expect(isNonWorkingDay("2026-09-26", none, ["MON", "TUE", "WED", "THU", "FRI", "SAT"])).toBe(false);
+    expect(isNonWorkingDay("2026-09-27", none, ["MON", "TUE", "WED", "THU", "FRI", "SAT"])).toBe(true);
+  });
+  it("treats an unconfigured weekday as closed", () => {
+    expect(isNonWorkingDay("2026-09-28", none, ["TUE", "WED", "THU", "FRI"])).toBe(true);
+  });
+  it("a holiday is closed even on a configured working day", () => {
+    expect(isNonWorkingDay("2026-09-28", new Set(["2026-09-28"]), ["MON"])).toBe(true);
+  });
+  it("counts no-shows on a Saturday the tenant works", () => {
+    expect(
+      computeAbsentCount({
+        selectedDate: "2026-09-26",
+        data: [{ attendance: null }, { attendance: { status: "PRESENT" } }],
+        holidays: none,
+        workingDays: ["MON", "TUE", "WED", "THU", "FRI", "SAT"],
+      }),
+    ).toBe(1);
+  });
+});
+

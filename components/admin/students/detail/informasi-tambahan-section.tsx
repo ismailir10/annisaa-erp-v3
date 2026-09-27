@@ -77,13 +77,13 @@ export function InformasiTambahanSection({
 
   const handleSave = form.handleSubmit(async (values) => {
     const trimmed = values.rows.map((r) => ({ key: r.key.trim(), value: r.value }));
-    const ok = await persistMetadata({ known, extra: trimmed });
-    if (ok) {
-      toast.success("Informasi tambahan disimpan");
-      onSaved();
-    } else {
-      toast.error("Gagal menyimpan");
-    }
+    // persistMetadata toasts its own failure.
+    if (!(await persistMetadata({ known, extra: trimmed }))) return;
+    toast.success("Informasi tambahan disimpan");
+    // Clear the dirty state with what was saved, so the refetched `extra`
+    // is adopted by the re-seed effect above and the Save action goes away.
+    form.reset({ rows: trimmed });
+    onSaved();
   });
 
   return (

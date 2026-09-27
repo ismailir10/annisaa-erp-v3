@@ -10,6 +10,10 @@
  * module load, which made every non-working *today* render its whole roster
  * as Alpa the moment midnight passed without a redeploy; the caller now
  * passes "today" computed per render (see `page.tsx`).
+ *
+ * "Weekend" means a day outside the tenant's `OrgConfig.workingDays` (a school
+ * can run on Saturday); Sat/Sun is only the fallback when that is unset or
+ * hasn't loaded.
  */
 
 export function isWeekend(isoDate: string): boolean {
@@ -21,12 +25,30 @@ export function isWeekend(isoDate: string): boolean {
   return day === 0 || day === 6;
 }
 
+const DAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+/**
+ * A day nobody is expected in: a holiday, or a weekday outside the tenant's
+ * configured working days (Sat/Sun when none are configured).
+ */
+export function isNonWorkingDay(
+  isoDate: string,
+  holidays: Set<string>,
+  workingDays?: string[] | null,
+): boolean {
+  if (holidays.has(isoDate)) return true;
+  if (!workingDays || workingDays.length === 0) return isWeekend(isoDate);
+  const day = DAY_CODES[new Date(`${isoDate}T00:00:00Z`).getUTCDay()];
+  return !workingDays.includes(day);
+}
+
 /**
  * Compute the absent count for the dashboard.
  *
  * @param selectedDate ISO date currently displayed (`YYYY-MM-DD`)
  * @param data the `EmployeeAttendance[]` rows backing the table
  * @param holidays set of ISO date strings that are holidays for this tenant
+ * @param workingDays the tenant's `OrgConfig.workingDays` day codes, if known
  *
  * `today` is no longer part of the rule (Cycle 3 — the past-only exception
  * was the bug: a non-working *today* rendered its whole roster as "Alpa"
@@ -39,9 +61,9 @@ export function computeAbsentCount(args: {
   today?: string;
   data: { attendance: unknown }[];
   holidays: Set<string>;
+  workingDays?: string[] | null;
 }): number {
-  const { selectedDate, data, holidays } = args;
-  const isNonWorkingDay = isWeekend(selectedDate) || holidays.has(selectedDate);
-  if (isNonWorkingDay) return 0;
+  const { selectedDate, data, holidays, workingDays } = args;
+  if (isNonWorkingDay(selectedDate, holidays, workingDays)) return 0;
   return data.filter((d) => !d.attendance).length;
 }

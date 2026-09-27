@@ -33,9 +33,12 @@ const EMPLOYEES = [
   },
 ];
 
-function stubFetch() {
+function stubFetch(orgConfig: unknown = null) {
   return vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/api/config/org")) {
+      return Promise.resolve({ ok: true, json: async () => orgConfig } as Response);
+    }
     if (url.includes("/api/attendance/today")) {
       return Promise.resolve({ ok: true, json: async () => EMPLOYEES } as Response);
     }
@@ -70,3 +73,23 @@ describe("AttendancePage — weekend view (Alpa fix)", () => {
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });
+
+describe("AttendancePage — tenant that works on Saturday", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetch({ workingDays: JSON.stringify(["MON", "TUE", "WED", "THU", "FRI", "SAT"]) }),
+    );
+  });
+
+  it("counts Saturday no-shows as Alpa and shows no Libur rows", async () => {
+    render(<AttendancePage />);
+
+    await screen.findByText("Budi Santoso");
+
+    const alpaLabel = screen.getByText("Alpa");
+    await vi.waitFor(() => expect(alpaLabel.nextElementSibling?.textContent).toBe("2"));
+    expect(screen.queryByText("Libur")).not.toBeInTheDocument();
+  });
+});
+

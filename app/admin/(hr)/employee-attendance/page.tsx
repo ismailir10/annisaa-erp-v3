@@ -19,7 +19,8 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import { computeAbsentCount, isWeekend } from "./absent-stat";
+import { computeAbsentCount, isNonWorkingDay } from "./absent-stat";
+import { parseWorkingDays } from "@/lib/payroll/working-days";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type EmployeeAttendance = {
@@ -45,10 +46,13 @@ export default function AttendancePage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [data, setData] = useState<EmployeeAttendance[]>([]);
   const [loading, setLoading] = useState(true);
-  // F-20: holiday list fetched once. Used only to exclude past-date holidays
-  // from the "tidak hadir" stat. Empty fetch failure is non-fatal — the stat
-  // simply falls back to weekend-only exclusion.
+  // F-20: holiday list fetched once. Holidays are non-working days for the
+  // "tidak hadir" stat and the Libur rows. Fetch failure is non-fatal — the
+  // rule simply falls back to weekend-only exclusion.
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  // Tenant working days (OrgConfig) — a school may run on Saturday. Null until
+  // loaded or on failure, where the rule falls back to Sat/Sun.
+  const [workingDays, setWorkingDays] = useState<string[] | null>(null);
   // 7-weekday trend, fetched independently of the date/campus filters above —
   // moved here from the admin dashboard (DMMT overhaul) via a small
   // dedicated endpoint so this client page doesn't duplicate the dashboard's
@@ -100,6 +104,18 @@ export default function AttendancePage() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch("/api/config/org")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg: { workingDays?: string | null } | null) => {
+        const days = parseWorkingDays(cfg?.workingDays);
+        if (days.length > 0) setWorkingDays(days);
+      })
+      .catch(() => {
+        // Non-fatal: falls back to Sat/Sun as the weekend.
+      });
+  }, []);
+
   // Trend chart fetched once on mount; non-fatal — falls back to the
   // chart's own empty state (never a false zero, never blocks the table).
   useEffect(() => {
@@ -113,11 +129,11 @@ export default function AttendancePage() {
   const late = data.filter((d) => d.attendance?.status === "LATE").length;
   // F-20 (fixed Cycle 3 T8): weekends and holidays are never "tidak hadir",
   // whether the selected date is in the past, is today, or is in the future.
-  const absent = computeAbsentCount({ selectedDate: date, data, holidays });
+  const absent = computeAbsentCount({ selectedDate: date, data, holidays, workingDays });
   const leave = data.filter((d) => d.attendance?.status === "LEAVE").length;
   // Drives the status column below: a row with no attendance record on a
   // non-working day is "Libur" (closed), not "Alpa" (should have shown up).
-  const isNonWorkingDay = isWeekend(date) || holidays.has(date);
+  const nonWorkingDay = isNonWorkingDay(date, holidays, workingDays);
 
   const openOverride = useCallback((ea: EmployeeAttendance) => {
     setOverrideTarget({
@@ -189,7 +205,7 @@ export default function AttendancePage() {
         if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
         // No record on a non-working day means the school was closed, not
         // that the employee failed to show up.
-        return isNonWorkingDay ? (
+        return nonWorkingDay ? (
           <StatusBadge status="HOLIDAY" />
         ) : (
           <StatusBadge status="ABSENT" label="—" />
@@ -213,7 +229,7 @@ export default function AttendancePage() {
         />
       ),
     },
-  ], [openOverride, isNonWorkingDay]);
+  ], [openOverride, nonWorkingDay]);
 
   return (
     <>
