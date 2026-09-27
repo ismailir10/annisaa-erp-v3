@@ -18,6 +18,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -534,7 +535,7 @@ function CreateEmployeeFormBody({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><Input id="employee-hire-date" required type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><DatePicker id="employee-hire-date" required value={form.hireDate} onChange={(v) => setForm({ ...form, hireDate: v })} max={new Date().toISOString().split("T")[0]} /></Field>
         <Field>
           <FieldLabel htmlFor="employee-role" required>Peran Akun</FieldLabel>
           <Select

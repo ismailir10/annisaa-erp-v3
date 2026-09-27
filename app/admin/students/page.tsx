@@ -18,6 +18,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -152,11 +153,10 @@ function StudentFormBody({
         </Field>
         <Field>
           <FieldLabel htmlFor="student-dob">Tanggal Lahir</FieldLabel>
-          <Input
+          <DatePicker
             id="student-dob"
-            type="date"
             value={form.dateOfBirth}
-            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+            onChange={(v) => setForm({ ...form, dateOfBirth: v })}
             max={new Date().toLocaleDateString("en-CA")}
           />
         </Field>

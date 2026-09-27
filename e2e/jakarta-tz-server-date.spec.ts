@@ -42,6 +42,25 @@ test.describe("Jakarta TZ server-date regression guard (UAT FIND-002 + FIND-016)
 
   test("admin employee-attendance page header reflects today-in-WIB", async ({ page }) => {
     const { ymd, day } = todayInJakarta();
+    // The date filter is the shared DatePicker: a Calendar button on a fine
+    // pointer, the native <input type="date"> on a coarse one. Emulate a
+    // touch pointer so the assertion below can read the raw YYYY-MM-DD value.
+    await page.addInitScript(() => {
+      const realMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query: string) =>
+        query === "(pointer: coarse)"
+          ? ({
+              matches: true,
+              media: query,
+              onchange: null,
+              addListener: () => {},
+              removeListener: () => {},
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              dispatchEvent: () => false,
+            } as MediaQueryList)
+          : realMatchMedia(query);
+    });
     const response = await page.goto("/admin/employee-attendance");
     expect(response?.status()).toBeLessThan(400);
     // The page header injects today as the initial date filter value (input[type=date]).

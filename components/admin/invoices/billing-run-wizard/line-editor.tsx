@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
@@ -195,6 +196,15 @@ function EditLineDialog({
         <FieldError>{errors.label}</FieldError>
       </Field>
 
+      {/* T8 date/money sweep: deliberately kept as a native number input,
+          not RupiahInput. A MANUAL-source line's finalAmount may legally go
+          negative (a correction after an overcharge — see handleSubmit's
+          `line.source !== "MANUAL" && parsedAmount < 0` branch and
+          resolveLineEdit in lib/finance/billing-run-lines.ts), and
+          RupiahInput's contract explicitly rejects negative values (every
+          other caller — fees, keringanan, invoices, salary — treats a
+          negative as invalid). Swapping this one would silently remove the
+          admin's ability to enter a negative correction. */}
       <Field data-invalid={errors.amount ? "true" : undefined}>
         <FieldLabel required htmlFor={`line-edit-amount-${line.id}`}>
           Jumlah Akhir
@@ -330,17 +340,11 @@ function AddDiscountDialog({
         <FieldLabel required htmlFor={`discount-amount-${row.id}`}>
           Jumlah Potongan
         </FieldLabel>
-        <Input
+        <RupiahInput
           id={`discount-amount-${row.id}`}
           required
-          aria-required="true"
-          type="number"
-          min={0}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="font-currency"
+          value={amount === "" ? null : Number(amount)}
+          onChange={(v) => setAmount(v === null ? "" : String(v))}
         />
         <FieldDescription>Nominal potongan dalam Rupiah — masukkan sebagai angka positif.</FieldDescription>
         <FieldError>{errors.amount}</FieldError>
@@ -497,17 +501,11 @@ function AddComponentDialog({
         <FieldLabel required htmlFor={`component-amount-${row.id}`}>
           Jumlah
         </FieldLabel>
-        <Input
+        <RupiahInput
           id={`component-amount-${row.id}`}
           required
-          aria-required="true"
-          type="number"
-          min={0}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="font-currency"
+          value={amount === "" ? null : Number(amount)}
+          onChange={(v) => setAmount(v === null ? "" : String(v))}
         />
         <FieldDescription>
           Tidak terisi otomatis dari struktur biaya program — masukkan jumlah secara manual.

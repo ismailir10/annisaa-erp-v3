@@ -14,6 +14,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -436,8 +437,8 @@ export default function AcademicPage() {
       >
         <Field><FieldLabel required htmlFor="year-name">Nama</FieldLabel><Input id="year-name" required aria-required="true" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><Input id="year-startDate" type="date" required aria-required="true" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
-          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><Input id="year-endDate" type="date" required aria-required="true" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
+          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><DatePicker id="year-startDate" required value={yearForm.startDate} max={yearForm.endDate || undefined} onChange={v => setYearForm({ ...yearForm, startDate: v })} /></Field>
+          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><DatePicker id="year-endDate" required value={yearForm.endDate} min={yearForm.startDate || undefined} onChange={v => setYearForm({ ...yearForm, endDate: v })} /></Field>
         </div>
       </ResponsiveFormDialog>
 

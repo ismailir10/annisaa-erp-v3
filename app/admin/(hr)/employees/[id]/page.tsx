@@ -8,6 +8,7 @@ import { DossierNav, DossierSection, type DossierSectionDef } from "@/components
 import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -368,7 +369,7 @@ export default function EmployeeDetailPage() {
                     </Field>
                   </div>
                   <div className="mt-3">
-                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><Input id="employee-detail-hire-date" type="date" value={editForm.hireDate} onChange={ev => setEditForm({ ...editForm, hireDate: ev.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+                    <Field><FieldLabel htmlFor="employee-detail-hire-date">Tanggal Masuk</FieldLabel><DatePicker id="employee-detail-hire-date" value={editForm.hireDate} onChange={v => setEditForm({ ...editForm, hireDate: v })} max={new Date().toISOString().split("T")[0]} /></Field>
                   </div>
                 </div>
 

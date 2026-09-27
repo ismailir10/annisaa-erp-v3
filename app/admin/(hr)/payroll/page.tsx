@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
@@ -326,11 +326,11 @@ function PayrollPeriodBody({
       <div className="grid grid-cols-2 gap-4">
         <Field>
           <FieldLabel htmlFor="payroll-run-period-start">Tanggal Mulai</FieldLabel>
-          <Input id="payroll-run-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <DatePicker id="payroll-run-period-start" value={periodStart} onChange={setPeriodStart} />
         </Field>
         <Field>
           <FieldLabel htmlFor="payroll-run-period-end">Tanggal Selesai</FieldLabel>
-          <Input id="payroll-run-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <DatePicker id="payroll-run-period-end" value={periodEnd} onChange={setPeriodEnd} />
         </Field>
       </div>
       <p className="text-xs text-muted-foreground">

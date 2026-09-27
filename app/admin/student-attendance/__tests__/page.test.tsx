@@ -19,6 +19,16 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+// The Dari/Sampai filters render through <DatePicker>, which renders a
+// native `<input type="date">` only on a coarse (touch) pointer — jsdom's
+// mocked `matchMedia` otherwise reports a fine pointer and DatePicker
+// renders a Calendar popover button instead. Forcing "coarse" here keeps
+// this test's `type="date"` assertions meaningful without reaching into
+// the popover.
+vi.mock("@/hooks/use-coarse-pointer", () => ({
+  useCoarsePointer: () => true,
+}));
+
 const CLASS_SECTIONS = [
   {
     id: "cs-1",

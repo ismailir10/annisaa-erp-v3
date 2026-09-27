@@ -78,6 +78,24 @@ describe("DatePicker", () => {
       expect(withinRange).not.toBeDisabled();
     });
 
+    it("offers future years in the year dropdown (next year's dates are reachable)", async () => {
+      mockPointer(false);
+      render(<DatePicker value="" onChange={vi.fn()} />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button"));
+
+      const nextYear = String(new Date().getFullYear() + 1);
+      const options = await screen.findAllByRole("option", { name: nextYear });
+      expect(options.length).toBeGreaterThan(0);
+    });
+
+    it("forwards aria-label and data-testid to the trigger", () => {
+      mockPointer(false);
+      render(<DatePicker value="" onChange={vi.fn()} aria-label="Dari tanggal" data-testid="from" />);
+      expect(screen.getByRole("button", { name: /Dari tanggal/ })).toHaveAttribute("data-testid", "from");
+    });
+
     it("shows the placeholder when value is empty", () => {
       mockPointer(false);
       render(<DatePicker value="" onChange={vi.fn()} />);

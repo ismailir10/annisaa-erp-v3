@@ -22,7 +22,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BookMarked, CalendarRange, Layers, Plus, Target } from "lucide-react";
@@ -391,24 +391,22 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           <div className="grid grid-cols-2 gap-field">
             <Field>
               <FieldLabel htmlFor="semester-start-date" required>Tanggal mulai</FieldLabel>
-              <Input
+              <DatePicker
                 id="semester-start-date"
                 required
-                aria-required="true"
-                type="date"
+                max={form.endDate || undefined}
                 value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="semester-end-date" required>Tanggal selesai</FieldLabel>
-              <Input
+              <DatePicker
                 id="semester-end-date"
                 required
-                aria-required="true"
-                type="date"
+                min={form.startDate || undefined}
                 value={form.endDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, endDate: v }))}
               />
             </Field>
           </div>

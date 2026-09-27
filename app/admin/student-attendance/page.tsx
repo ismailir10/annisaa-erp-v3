@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -423,12 +424,11 @@ export default function StudentAttendancePage() {
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
-          <Input
+          <DatePicker
             id="attendance-date-from"
-            type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
+            onChange={(v) => {
+              setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
@@ -436,12 +436,11 @@ export default function StudentAttendancePage() {
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
-          <Input
+          <DatePicker
             id="attendance-date-to"
-            type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
+            onChange={(v) => {
+              setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"

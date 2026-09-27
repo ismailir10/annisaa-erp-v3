@@ -12,6 +12,7 @@ import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -380,20 +381,18 @@ export default function PayrollDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field>
               <FieldLabel htmlFor="payroll-period-start">Periode Mulai</FieldLabel>
-              <Input
+              <DatePicker
                 id="payroll-period-start"
-                type="date"
                 value={editForm.periodStart}
-                onChange={(e) => setEditForm({ ...editForm, periodStart: e.target.value })}
+                onChange={(v) => setEditForm({ ...editForm, periodStart: v })}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="payroll-period-end">Periode Akhir</FieldLabel>
-              <Input
+              <DatePicker
                 id="payroll-period-end"
-                type="date"
                 value={editForm.periodEnd}
-                onChange={(e) => setEditForm({ ...editForm, periodEnd: e.target.value })}
+                onChange={(v) => setEditForm({ ...editForm, periodEnd: v })}
               />
             </Field>
             <Field>

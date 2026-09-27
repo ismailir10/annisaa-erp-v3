@@ -96,7 +96,7 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 - [x] **T5 — Komponen Biaya redesign** (`app/admin/fees/page.tsx`, `components/admin/fees/*`, Settings-hub card copy in `config/admin-nav.ts`). *Accept:* all Komponen Biaya criteria; fees Vitest updated; e2e touching fees green.
 - [x] **T6 — Confirm/dialog outliers** (raport-editor, line-editor, journal forms, teacher-swap). *Accept:* grep finds no raw `AlertDialog`/form `Dialog` in admin outside the shared components + the documented admissions exception.
 - [x] **T7 — List/row outliers** (campuses DataTable, name-is-the-link across lists, StatusBadge ternaries, payroll link button, file input, truncation). *Accept:* criteria above; campuses tests updated.
-- [ ] **T8 — Date and money input sweep** (20 date files, remaining money inputs, employee salary). *Accept:* `grep 'type="date"'` in `app/admin` + `components/admin` returns only `date-picker.tsx`.
+- [x] **T8 — Date and money input sweep** (20 date files, remaining money inputs, employee salary). *Accept:* `grep 'type="date"'` in `app/admin` + `components/admin` returns only `date-picker.tsx`.
 - [ ] **T9 — Backlog** (attendance cells, employee grids, unsaved-changes guard, active-year verification). *Accept:* criteria above.
 - [x] **T10 — Standards sync** (`ui.md`, `patterns.md`, `crud.md`) + README if a module line changes. *Accept:* `bash scripts/audit-docs.sh` exits 0.
 
@@ -121,6 +121,8 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 
 - Task 10: standards — `.claude/standards/ui.md` gains the DataTable mobile contract (priority-low columns, sticky actions, stable cell identity / context for inline-edit cells), name-is-the-link (DataTableLinkCell), primary-action placement, DetailPageHeader ≤2 + ⋯, AdminTabs owns layout, toolbar reset, structured inputs (DatePicker / RupiahInput / AsyncCombobox) and named overlay exceptions (admissions convert, payslip Sheet, billing-run wizard shell); `patterns.md` Recipe 1 uses the real components (layout header + AdminBreadcrumb, DataTableToolbar `filters`); `crud.md` moves Holiday to a documented hard-delete exception (`app/api/config/holidays/[id]/route.ts`) and points detail-header rules at ui.md.
 
+- Task 8: input sweep — every `type="date"` in `app/admin/**` and `components/admin/**` is now `DatePicker` (≈26 fields: employee hire date, payroll periods, holidays, attendance filters, academic-year/semester/triwulan/theme-week ranges with min/max coupling, admissions DOB + follow-up, assessment week/sentra day, payments filter range, student DOB create/edit, billing-run due date, manual-invoice due date). Money inputs → `RupiahInput`: manual-invoice line amounts, invoice payment amount, billing-run add-discount/add-component amounts (T5 already did fees/keringanan, T4/7 employee salary). Deliberately native: payroll line adjustment and billing-run "Jumlah Akhir" (both legitimately negative; RupiahInput is non-negative by contract), non-money numbers (counts, capacity, order, days, hours, %, scores). Payload shapes unchanged (string state mapped at the component boundary where the API expects strings). `DatePicker` fix found here: the calendar's year dropdown ended at the current year (react-day-picker default), making next year's dates unreachable on a mouse → `startMonth`/`endMonth` now span min/max or −100y…+10y; also forwards `aria-label`/`data-testid`. e2e: specs that `.fill()` native date inputs emulate `(pointer: coarse)` (students CRUD, manual-invoice layout, curriculum, Jakarta-TZ); RupiahInput fields addressed by label (`Jumlah 1`), formatted values asserted as `87.500`.
+
 ## Verification
 
 - Task 1 + Task 2: `npm run build` exit 0; `npx vitest run` (clean env) → 379 passed, 2 skipped files / 3555 tests passed. Note: running vitest with `DEMO_MODE`/`DATABASE_URL` exported in the shell fails 19 xendit/auth-rate-limit tests — an env leak from the build shell, not a regression; gates run with those unset. `tsc --noEmit` clean; eslint 0 errors. design-system: tabs keep the `bg-muted` pill variant, sticky column uses `bg-background`/`bg-muted` tokens only.
@@ -138,5 +140,7 @@ Dependencies: T1–T4 are independent foundations. T5 needs T1 (tabs), T2 (Rupia
 - Task 4 + 7: build exit 0; `env -u DEMO_MODE -u DATABASE_URL npx vitest run` → 392 passed, 2 skipped files / 3609 tests passed; new list tests assert identity link href and no "Lihat" on each touched list. design-system: tables keep token colours; money cells right-aligned `font-currency tabular-nums`; StatusBadge for status.
 
 - Task 10: `bash scripts/audit-docs.sh` → 13 ok, 1 warn (pre-existing ADR 60-day window), 0 fail.
+
+- Task 8: build exit 0; `env -u DEMO_MODE -u DATABASE_URL npx vitest run` → 3611 tests passed; `grep 'type="date"' app/admin components/admin` → only a test file's assertion on the native branch. design-system: DatePicker uses outline Button + Calendar tokens; RupiahInput right-aligned tabular-nums.
 
 ## Ship Notes

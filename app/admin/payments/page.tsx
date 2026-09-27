@@ -11,7 +11,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatRupiah } from "@/lib/format";
@@ -229,26 +229,26 @@ export default function PaymentsLedgerPage() {
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Dari</span>
-          <Input
-            type="date"
-            aria-label="Tanggal mulai"
+          <label htmlFor="payments-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
+          <DatePicker
+            id="payments-date-from"
+            max={dateTo || undefined}
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
+            onChange={(v) => {
+              setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Sampai</span>
-          <Input
-            type="date"
-            aria-label="Tanggal akhir"
+          <label htmlFor="payments-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
+          <DatePicker
+            id="payments-date-to"
+            min={dateFrom || undefined}
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
+            onChange={(v) => {
+              setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"

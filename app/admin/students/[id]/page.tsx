@@ -7,6 +7,7 @@ import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admi
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1259,7 +1260,7 @@ export default function StudentDetailPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field><FieldLabel htmlFor="student-detail-name">Nama Lengkap</FieldLabel><Input id="student-detail-name" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></Field>
                 <Field><FieldLabel htmlFor="student-detail-nickname">Nama Panggilan</FieldLabel><Input id="student-detail-nickname" value={editForm.nickname} onChange={e => setEditForm({ ...editForm, nickname: e.target.value })} /></Field>
-                <Field><FieldLabel htmlFor="student-detail-dob">Tanggal Lahir</FieldLabel><Input id="student-detail-dob" type="date" value={editForm.dateOfBirth} onChange={e => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></Field>
+                <Field><FieldLabel htmlFor="student-detail-dob">Tanggal Lahir</FieldLabel><DatePicker id="student-detail-dob" value={editForm.dateOfBirth} onChange={v => setEditForm({ ...editForm, dateOfBirth: v })} /></Field>
                 <Field>
                   <FieldLabel htmlFor="student-detail-gender">Jenis Kelamin</FieldLabel>
                   <Select value={editForm.gender || undefined} onValueChange={v => v && setEditForm({ ...editForm, gender: v })} items={{ L: "Laki-laki", P: "Perempuan" }}>

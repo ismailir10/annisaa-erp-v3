@@ -6,7 +6,7 @@ import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy"
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -489,11 +489,11 @@ function TermFormDialog({
         </Field>
         <Field>
           <FieldLabel htmlFor="t-start" required>Mulai</FieldLabel>
-          <Input id="t-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+          <DatePicker id="t-start" value={startDate} max={endDate || undefined} onChange={(v) => setStartDate(v)} required />
         </Field>
         <Field>
           <FieldLabel htmlFor="t-end" required>Selesai</FieldLabel>
-          <Input id="t-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+          <DatePicker id="t-end" value={endDate} min={startDate || undefined} onChange={(v) => setEndDate(v)} required />
         </Field>
     </ResponsiveFormDialog>
   );

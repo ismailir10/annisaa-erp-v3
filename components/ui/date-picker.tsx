@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { CalendarIcon } from "lucide-react"
-import { format, isValid, parse } from "date-fns"
+import { addYears, endOfYear, format, isValid, max as latest, min as earliest, parse, startOfYear } from "date-fns"
 import { id as idLocale } from "date-fns/locale"
 import type { Matcher } from "react-day-picker"
 
@@ -52,6 +52,9 @@ export interface DatePickerProps {
   className?: string
   "aria-invalid"?: React.AriaAttributes["aria-invalid"]
   "aria-describedby"?: string
+  /** For pickers without a visible <label> (e.g. filter bars). */
+  "aria-label"?: string
+  "data-testid"?: string
 }
 
 /**
@@ -76,6 +79,8 @@ export function DatePicker({
   className,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
+  "aria-label": ariaLabel,
+  "data-testid": testId,
 }: DatePickerProps) {
   const coarse = useCoarsePointer()
   const [open, setOpen] = React.useState(false)
@@ -93,6 +98,8 @@ export function DatePicker({
         required={required}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
+        aria-label={ariaLabel}
+        data-testid={testId}
         className={className}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -105,6 +112,18 @@ export function DatePicker({
   const disabledMatchers: Matcher[] = []
   if (minDate) disabledMatchers.push({ before: minDate })
   if (maxDate) disabledMatchers.push({ after: maxDate })
+  // The dropdown caption only offers years between startMonth and endMonth,
+  // and react-day-picker's default end is the current year — which would
+  // make next year's semester end or due date unreachable on a mouse. Span
+  // min/max when given, else a generous window around today, always wide
+  // enough to include the current value.
+  const today = new Date()
+  const rangeStart = startOfYear(
+    earliest([minDate ?? addYears(today, -100), ...(selectedDate ? [selectedDate] : [])])
+  )
+  const rangeEnd = endOfYear(
+    latest([maxDate ?? addYears(today, 10), ...(selectedDate ? [selectedDate] : [])])
+  )
 
   return (
     <Popover
@@ -122,6 +141,8 @@ export function DatePicker({
         aria-required={required || undefined}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
+        aria-label={ariaLabel}
+        data-testid={testId}
         className={cn(
           buttonVariants({ variant: "outline" }),
           "w-full justify-start gap-2 px-2.5 font-normal",
@@ -147,6 +168,8 @@ export function DatePicker({
           disabled={disabledMatchers.length ? disabledMatchers : undefined}
           locale={idLocale}
           captionLayout="dropdown"
+          startMonth={rangeStart}
+          endMonth={rangeEnd}
         />
       </PopoverContent>
     </Popover>

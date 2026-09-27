@@ -7,6 +7,7 @@ import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admi
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -52,7 +53,7 @@ function PaymentFormBody({
     <>
       <Field>
         <FieldLabel required htmlFor="invoice-payment-amount">Jumlah</FieldLabel>
-        <Input id="invoice-payment-amount" required aria-required="true" type="number" value={payForm.amount} onChange={e => setPayForm({ ...payForm, amount: e.target.value })} className="font-currency" placeholder="0" />
+        <RupiahInput id="invoice-payment-amount" required value={payForm.amount === "" ? null : Number(payForm.amount)} onChange={v => setPayForm({ ...payForm, amount: v === null ? "" : String(v) })} />
         <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
       </Field>
       <Field>
