@@ -59,6 +59,8 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 | Action dialog (approve, void, override, record payment, ...) | `<ResponsiveFormDialog>` | hand-rolled `useIsMobile` + `<Dialog>`/`<Sheet>` |
 | Transient feedback | `toast.*()` (sonner) | `alert()`, inline banner for success |
 
+`<StatusBadge>` (`components/ui/status-badge.tsx`) owns every status tone as a named key — never a page-local tone map. Class health ("Kondisi" on the classes list) uses the `Sehat` / `Perhatian` / `Kritis` / `Libur` keys.
+
 ## Overlays Rule
 
 **One overlay at a time — toasts excepted.** Never stack Dialog over Dialog, Sheet over Sheet, or Dialog over Sheet. Close the current overlay before opening another.
@@ -98,7 +100,7 @@ The submit and cancel slots of every admin form Dialog / Sheet use the labels in
 
 For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Simpan Perubahan" : "Tambah <Entity>"`. Same shape on the dialog title.
 
-`<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the reusable default for create/edit forms. It owns the bounded shadcn `ScrollArea`, dynamic viewport-height limit, internal focus-ring padding, and docked header/footer in both modes. Supply fields as children, actions through `footer`, and width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. Migrate legacy inline forms when changing their layout. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute.
+`<ResponsiveFormDialog>` (`components/ui/responsive-form-dialog.tsx`) is the reusable default for create/edit forms. It owns the bounded shadcn `ScrollArea`, dynamic viewport-height limit, internal focus-ring padding, and docked header/footer in both modes. Supply fields as children, actions through `footer`, and width through `size`; do not recreate Dialog/Sheet branches, nest another overflow wrapper, or add caller-owned viewport heights. Migrate legacy inline forms when changing their layout. See `patterns.md` Recipe 3 for a form whose external footer submit button uses the matching `form` attribute. Pass `footer={null}` (not omitted) for a multi-step wizard that owns its own per-step buttons — the shell then renders no docked footer bar instead of an empty one.
 
 ## Forms — react-hook-form + zod
 
@@ -110,12 +112,13 @@ Every admin create/edit form is built the same way (cycle `2026-09-27-admin-form
 - Submit: `form.handleSubmit(async (values) => { try { await sendJson(url, { method, body }, fallback); … } catch (err) { applyServerErrors(form, err, fallback) } })` — `sendJson` in `lib/api/send-json.ts`, `applyServerErrors` in `lib/forms/server-errors.ts` maps a `validateBody` 400 onto fields and anything else to `<FormRootError>` + toast.
 - Dialog: `<form id={formId} onSubmit={…} noValidate>` with `<FormRootError formState={form.formState} />` first, and `footer={<FormDialogFooter formId pending={form.formState.isSubmitting} onCancel submitLabel />}`. Page-level forms add `useUnsavedChangesGuard(form.formState.isDirty)` and `form.reset(saved)` after saving.
 
-**Three rules learned the hard way:**
-1. **Every issue the schema can raise must land on a rendered field.** A refine at an object path, an array path (`lines`), or on a field hidden in the current mode blocks submit with nothing on screen. Point `superRefine` issues at a visible field, render array-level errors with `<FieldError>`, and give edit dialogs a schema that only validates what they show.
-2. **Edit bodies must still carry cleared fields.** `optionalTrimmed` turns `""` into `undefined`, which `JSON.stringify` drops; many PUT routes read a missing key as "keep". If the route clears on `""`/`null`, the form schema must emit that value (see `studentFormSchema`).
+**Four rules learned the hard way:**
+1. **Every issue the schema can raise must land on a rendered field.** A refine at an object path, an array path (`lines`), or on a field hidden in the current mode blocks submit with nothing on screen. Point `superRefine` issues at a visible field, render array-level errors with `<FieldError>`, and give edit dialogs a schema that only validates what they show. This includes a hidden value carried purely for comparison (e.g. `swapClassSessionTeacherFormSchema`'s `defaultTeacherId`, never itself rendered) — its `superRefine` issue still targets the visible field (`substituteReason`), not the hidden one.
+2. **Edit bodies must still carry cleared fields, as an explicit `null`.** `optionalTrimmed` turns `""` into `undefined`, which `JSON.stringify` drops; a PUT route reads an omitted key as "keep", so a form schema that wants to clear a field must emit `null` for it, not drop it (see `studentFormSchema`, `guardianUpdateFormSchema`'s `childOrder`).
 3. **Blank numbers are not zero.** `z.coerce.number()` turns `""` into `0`. Preprocess `""` → `undefined`/`null` and give a required number its own "wajib diisi" message, unless the old behaviour genuinely defaulted to 0.
+4. **String→value preprocessing lives only in the form-derived schema, never the wire schema it's derived from.** Blank-to-null, the `childOrder` null-vs-keep split, and similar coercions belong in the same `lib/validations/*` file's form schema; `lib/validations/__tests__/form-api-roundtrip.test.ts` is the one place that pins both ends of the round trip.
 
-**Named exceptions** (grid/wizard editors, not field forms — stay hand-rolled): billing-run wizard + line editor, raport editor, report-card narrative templates, assessments score grid, Tarif per Program table, themes/subtema/pekan hierarchy, bulk-promote mapping, filter bars. `students/[id]` sub-dialogs and the shared `GuardianFormBody` migrate in Cycle 3.
+**Named exceptions** (grid/wizard editors, not field forms — stay hand-rolled): billing-run wizard *steps* (the shell is `ResponsiveFormDialog`), raport editor, report-card narrative templates, assessments score grid, Tarif per Program table, themes/subtema/pekan hierarchy, bulk-promote mapping, filter bars. The admissions convert dialog is a documented three-way exception (see Overlays Rule) rather than a field form.
 
 ## Required-field indicator
 
@@ -166,6 +169,8 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 3. Status filter (Aktif/Tidak Aktif at minimum)
 4. Action column with: **⋮ dropdown** (Edit, Deactivate) — identity is the link, see below
 
+`<DataTable>` takes an `emptyAction?: { label; onClick?; href? }` prop, passed through to `EmptyState`'s own action, for the empty-state primary CTA (e.g. campuses passes `{ label: "Tambah Kampus", onClick: openNew }`, and hides it — `undefined` — while a filter such as Nonaktif is active, since "add" doesn't belong on a filtered empty result).
+
 ### Mobile contract (`<md`)
 
 `components/ui/data-table.tsx` renders every list identically below `md` — no per-page opt-in beyond column `meta`:
@@ -173,7 +178,7 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 - Mark secondary columns (created/updated-at, ids, anything not needed to identify or act on the row) `meta: { priority: "low" }` — hidden below `md`, back on `md+`.
 - The action column (`id: "actions"`, from `DataTableRowActions`) is automatically sticky-right below `md` with a left shadow and opaque background; a column can opt in explicitly with `meta: { sticky: "right" }` if a page names its actions column differently.
 - Aim for **≤3 visible data columns + actions at 390px** — everything else is `priority: "low"`.
-- **Define `columns` so cell identity is stable** — module-level, or `useMemo` with a tight dependency array. TanStack `flexRender` mounts each `cell` function as its own component; a `columns` array rebuilt on every render remounts every cell, which loses focus in an inline input and closes an open row-actions menu. For an inline-edit cell (e.g. a per-row `RupiahInput`), pass the live value/setter through React context or table `meta` instead of closing over page state in the column definition — see `app/admin/fees/page.tsx`'s `STRUCTURE_COLUMNS` + `TarifContext` for the pattern.
+- **Define `columns` so cell identity is stable** — module-level, or `useMemo` with a tight dependency array, and declared above any early-return (a page that returns a loading skeleton before its own `columns` definition rebuilds it on every render once past that guard). Row-action handlers passed into `columns` go through `useCallback`. TanStack `flexRender` mounts each `cell` function as its own component; a `columns` array rebuilt on every render remounts every cell, which loses focus in an inline input and closes an open row-actions menu — this was the root cause of a flaky attendance-override test's click-retry loop, since removed. For an inline-edit cell (e.g. a per-row `RupiahInput`), pass the live value/setter through React context or table `meta` instead of closing over page state in the column definition — see `app/admin/fees/page.tsx`'s `STRUCTURE_COLUMNS` + `TarifContext` for the pattern.
 
 ### Name is the link
 
