@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -262,47 +262,68 @@ export default function InvoiceDetailPage() {
         title={`${invoice.invoiceNumber}`}
         description={`${invoice.student.name} · ${invoice.periodLabel}`}
         badge={<StatusBadge status={invoice.status} />}
-        actions={
-          <>
-            {canRefreshPayment && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRefreshPayment}
-                disabled={refreshingPayment}
-                data-testid="invoice-refresh-payment-btn"
-              >
-                <RefreshCw
-                  size={14}
-                  className={`mr-1 ${refreshingPayment ? "animate-spin" : ""}`}
-                />
-                {refreshingPayment ? "Memeriksa..." : "Perbarui pembayaran"}
-              </Button>
-            )}
-            {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
-              <>
-                {invoice.capabilities?.create && !invoice.xenditPaymentUrl && (
-                  <Button size="sm" variant="outline" onClick={handleCreateXenditLink} disabled={creatingXendit}>
-                    {creatingXendit ? "Membuat..." : "Buat Link Pembayaran"}
-                  </Button>
-                )}
-                {invoice.capabilities?.recordPayment && <Button size="sm" onClick={() => { setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" }); setPaymentDialog(true); }}>
-                  <CreditCard size={14} className="mr-1" /> Catat Pembayaran
-                </Button>}
-              </>
-            )}
-            {canVoid && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setVoidConfirmOpen(true)}
-                data-testid="invoice-void-btn"
-              >
-                <Ban size={14} className="mr-1" /> Batalkan Tagihan
-              </Button>
-            )}
-          </>
+        primaryActions={[
+          // canRefreshPayment requires an existing xenditPaymentUrl, and "Buat
+          // Link Pembayaran" requires its absence, so at most one of the two
+          // renders — together with the recordPayment action that's never
+          // more than 2 visible buttons.
+          ...(canRefreshPayment
+            ? [
+                {
+                  label: refreshingPayment ? "Memeriksa..." : "Perbarui pembayaran",
+                  icon: (
+                    <RefreshCw
+                      size={14}
+                      aria-hidden="true"
+                      className={refreshingPayment ? "animate-spin" : ""}
+                    />
+                  ),
+                  onClick: handleRefreshPayment,
+                  disabled: refreshingPayment,
+                  testId: "invoice-refresh-payment-btn",
+                } satisfies DetailPageHeaderAction,
+              ]
+            : []),
+          ...(invoice.status !== "PAID" &&
+          invoice.status !== "CANCELLED" &&
+          invoice.capabilities?.create &&
+          !invoice.xenditPaymentUrl
+            ? [
+                {
+                  label: creatingXendit ? "Membuat..." : "Buat Link Pembayaran",
+                  onClick: handleCreateXenditLink,
+                  disabled: creatingXendit,
+                } satisfies DetailPageHeaderAction,
+              ]
+            : []),
+          ...(invoice.status !== "PAID" && invoice.status !== "CANCELLED" && invoice.capabilities?.recordPayment
+            ? [
+                {
+                  label: "Catat Pembayaran",
+                  icon: <CreditCard size={14} aria-hidden="true" />,
+                  onClick: () => {
+                    setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" });
+                    setPaymentDialog(true);
+                  },
+                  // The header's one filled (non-outline) action — recording
+                  // a payment is the single highest-value thing to do here.
+                  variant: "default",
+                } satisfies DetailPageHeaderAction,
+              ]
+            : []),
+        ]}
+        menuActions={
+          canVoid
+            ? [
+                {
+                  label: "Batalkan Tagihan",
+                  icon: <Ban size={14} aria-hidden="true" />,
+                  onClick: () => setVoidConfirmOpen(true),
+                  destructive: true,
+                  testId: "invoice-void-btn",
+                },
+              ]
+            : []
         }
       />
 

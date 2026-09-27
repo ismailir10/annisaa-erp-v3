@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,19 +13,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { User, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save, MoreHorizontal } from "lucide-react";
+import { User, MapPin, GraduationCap, Plus, Pencil, Trash2, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort, formatRupiah } from "@/lib/format";
 import { telHref, whatsappHref } from "@/lib/contact";
@@ -1066,64 +1060,32 @@ export default function StudentDetailPage() {
     ...(student.nis ? [{ label: "NIS", value: <span className="font-currency">{student.nis}</span> }] : []),
   ];
 
-  const headerActions = (
-    <>
-      {!isEditing && (
-        <Button size="sm" variant="outline" onClick={startEditing}>
-          <Pencil size={14} className="mr-1" aria-hidden="true" /> Edit
-        </Button>
-      )}
-      <Button size="sm" variant="outline" onClick={() => setEnrollDialog(true)}>
-        <Plus size={14} className="mr-1" aria-hidden="true" /> Daftarkan ke Kelas
-      </Button>
-      {student.status === "ACTIVE" && activeEnrollment && (
-        <Button size="sm" variant="outline" onClick={openPromoteDialog}>
-          <GraduationCap size={14} className="mr-1" aria-hidden="true" /> Naik Kelas
-        </Button>
-      )}
-      {student.status === "ACTIVE" && (
-        <Button size="sm" variant="outline" onClick={() => setGraduateOpen(true)}>
-          Luluskan
-        </Button>
-      )}
-      {student.status === "ACTIVE" && (
-        <Button size="sm" variant="outline" onClick={() => setWithdrawDialog(true)} className="text-destructive hover:text-destructive">
-          Keluarkan
-        </Button>
-      )}
-    </>
-  );
+  // DetailPageHeader caps visible buttons at two — Edit and the most-used
+  // action (Daftarkan ke Kelas) stay visible; the rest (including the
+  // destructive Keluarkan) live in its `⋯` overflow menu, on every viewport,
+  // so there is one action layout instead of a separate mobile one.
+  const primaryHeaderActions: DetailPageHeaderAction[] = [
+    ...(!isEditing
+      ? [{ label: "Edit", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditing }]
+      : []),
+    {
+      label: "Daftarkan ke Kelas",
+      icon: <Plus size={14} aria-hidden="true" />,
+      onClick: () => setEnrollDialog(true),
+    },
+  ];
 
-  // Five buttons wrap to three rows at 375px and push the whole page down.
-  // Collapse everything except the primary action into a menu on mobile.
-  const mobileActions = (
-    <>
-      {!isEditing && (
-        <Button size="sm" variant="outline" onClick={startEditing}>
-          <Pencil size={14} className="mr-1" aria-hidden="true" /> Edit
-        </Button>
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button size="sm" variant="outline" aria-label="Aksi lain" />}>
-          <MoreHorizontal size={14} aria-hidden="true" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setEnrollDialog(true)}>Daftarkan ke Kelas</DropdownMenuItem>
-          {student.status === "ACTIVE" && activeEnrollment && (
-            <DropdownMenuItem onClick={openPromoteDialog}>Naik Kelas</DropdownMenuItem>
-          )}
-          {student.status === "ACTIVE" && (
-            <DropdownMenuItem onClick={() => setGraduateOpen(true)}>Luluskan</DropdownMenuItem>
-          )}
-          {student.status === "ACTIVE" && (
-            <DropdownMenuItem variant="destructive" onClick={() => setWithdrawDialog(true)}>
-              Keluarkan
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
-  );
+  const menuHeaderActions: DetailPageHeaderAction[] = [
+    ...(student.status === "ACTIVE" && activeEnrollment
+      ? [{ label: "Naik Kelas", onClick: openPromoteDialog }]
+      : []),
+    ...(student.status === "ACTIVE"
+      ? [{ label: "Luluskan", onClick: () => setGraduateOpen(true) }]
+      : []),
+    ...(student.status === "ACTIVE"
+      ? [{ label: "Keluarkan", onClick: () => setWithdrawDialog(true), destructive: true }]
+      : []),
+  ];
 
   const railContent = (
     <>
@@ -1229,7 +1191,8 @@ export default function StudentDetailPage() {
             )}
           </div>
         }
-        actions={isMobile ? mobileActions : headerActions}
+        primaryActions={primaryHeaderActions}
+        menuActions={menuHeaderActions}
       />
 
       {/* Mobile: the rail's numbers move above the sections so the first

@@ -6,7 +6,7 @@ import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy"
 import { Plus, Trash2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 
-import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
 import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
@@ -926,32 +926,23 @@ export function ClassDetailClient({
         title={`${data.name} · ${data.academicYear.name}`}
         description={`${data.program.name}${homeroomLabel}`}
         badge={<Badge variant="outline">{data.campus.name}</Badge>}
-        actions={
-          writeAllowed ? (
-            <>
-              <Button variant="outline" size="sm" onClick={openEdit}>
-                Ubah
-              </Button>
-              {data.status === "ACTIVE" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeactivateOpen(true)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  Nonaktifkan
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setReactivateOpen(true)}
-                >
-                  Aktifkan
-                </Button>
-              )}
-            </>
-          ) : undefined
+        primaryActions={
+          writeAllowed
+            ? [
+                { label: "Ubah", onClick: openEdit },
+                // Aktifkan is not destructive, so it stays visible alongside
+                // Ubah; Nonaktifkan (destructive) goes to the overflow menu
+                // instead of a third visible button.
+                ...(data.status === "ACTIVE"
+                  ? []
+                  : ([{ label: "Aktifkan", onClick: () => setReactivateOpen(true) }] as DetailPageHeaderAction[])),
+              ]
+            : []
+        }
+        menuActions={
+          writeAllowed && data.status === "ACTIVE"
+            ? [{ label: "Nonaktifkan", onClick: () => setDeactivateOpen(true), destructive: true }]
+            : []
         }
       />
 

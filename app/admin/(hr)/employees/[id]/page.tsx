@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
 import { DetailRail, RailCard, RailKV, RailStatTiles } from "@/components/admin/detail-rail";
@@ -244,17 +244,21 @@ export default function EmployeeDetailPage() {
         title={e.nama}
         description={`${e.kode} · ${e.jabatan} · ${e.campus.name}`}
         badge={e.status !== "ACTIVE" ? <StatusBadge status="INACTIVE" /> : undefined}
-        actions={e.status === "ACTIVE" ? (
-          <>
-            {!isEditing && <Button variant="outline" size="sm" onClick={startEditing}><Pencil size={14} className="mr-1" /> Ubah</Button>}
-            <Button variant="outline" size="sm" onClick={() => setDeactivateOpen(true)} className="text-destructive hover:text-destructive">Nonaktifkan</Button>
-          </>
-        ) : (
-          // F-18: when INACTIVE, surface an Aktifkan (restore) action so the
-          // admin can re-activate without leaving the detail page. Uses the
-          // dedicated POST /restore endpoint (idempotent + audited).
-          <Button variant="outline" size="sm" onClick={() => setRestoreOpen(true)}>Aktifkan</Button>
-        )}
+        primaryActions={
+          e.status === "ACTIVE"
+            ? (!isEditing
+                ? [{ label: "Ubah", icon: <Pencil size={14} aria-hidden="true" />, onClick: startEditing }]
+                : []) as DetailPageHeaderAction[]
+            : // F-18: when INACTIVE, surface an Aktifkan (restore) action so the
+              // admin can re-activate without leaving the detail page. Uses the
+              // dedicated POST /restore endpoint (idempotent + audited).
+              [{ label: "Aktifkan", onClick: () => setRestoreOpen(true) }]
+        }
+        menuActions={
+          e.status === "ACTIVE"
+            ? [{ label: "Nonaktifkan", onClick: () => setDeactivateOpen(true), destructive: true }]
+            : []
+        }
       />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">

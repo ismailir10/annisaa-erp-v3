@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { DetailPageHeader } from "@/components/admin/detail-page-header";
+import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusChip } from "../status-chip";
@@ -112,9 +112,13 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
       />
     );
 
-  const transitions: Record<string, { label: string; to: string; variant?: "outline" }[]> = {
+  // SUBMITTED has 3 transitions — over the header's 2-visible cap. "Mulai
+  // Tinjau" is the preliminary step (move into review before deciding), so
+  // it goes to the overflow menu; the two actual decisions (Terima / Tolak)
+  // stay visible, same as they already are in UNDER_REVIEW.
+  const transitions: Record<string, { label: string; to: string; variant?: "outline"; menu?: boolean }[]> = {
     SUBMITTED: [
-      { label: "Mulai Tinjau", to: "UNDER_REVIEW", variant: "outline" },
+      { label: "Mulai Tinjau", to: "UNDER_REVIEW", variant: "outline", menu: true },
       { label: "Terima", to: "ACCEPTED" },
       { label: "Tolak", to: "REJECTED", variant: "outline" },
     ],
@@ -126,6 +130,13 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
     REJECTED: [{ label: "Tinjau Ulang", to: "UNDER_REVIEW", variant: "outline" }],
   };
   const actions = d.studentId || !d.canEdit ? [] : (transitions[d.status] ?? []);
+  const toAction = (a: (typeof actions)[number]): DetailPageHeaderAction => ({
+    label: a.label,
+    onClick: () => transition(a.to),
+    disabled: busy,
+  });
+  const primaryEnrollmentActions = actions.filter((a) => !a.menu).map(toAction);
+  const menuEnrollmentActions = actions.filter((a) => a.menu).map(toAction);
 
   return (
     <>
@@ -135,17 +146,8 @@ export default function EnrollmentDetailPage({ params }: { params: Promise<{ id:
         title={d.childName || "Tanpa nama"}
         description={`${d.program?.name ?? "—"}${d.dcareAddon ? " + Dcare" : ""}`}
         badge={<StatusChip status={d.status} studentId={d.studentId} />}
-        actions={
-          actions.length > 0 ? (
-            <>
-              {actions.map((a) => (
-                <Button key={a.to} size="sm" variant={a.variant} disabled={busy} onClick={() => transition(a.to)}>
-                  {a.label}
-                </Button>
-              ))}
-            </>
-          ) : undefined
-        }
+        primaryActions={primaryEnrollmentActions}
+        menuActions={menuEnrollmentActions}
       />
 
       <div className="space-y-section">
