@@ -311,19 +311,17 @@ The shared Student Journal grid used by both teacher (editable) and parent (read
 
 See `design-system.html` §15 for the mockup and the teacher-entry / parent-view state diagram.
 
-## Cycle-Tap Attendance
+## Class Attendance Entry
 
-Class attendance entry (`/teacher/class-attendance`) must show each student's recorded state clearly and preserve its working save behavior. The approved task-first concept uses explicit status choices; a cycle control is also acceptable where already implemented and understood.
+Class attendance entry (`/teacher/class-attendance`) is exception-first: most children are present, so the teacher marks the exceptions and records everyone else in one tap.
 
 **Rules:**
 - **Unknown stays unknown.** A missing record is not PRESENT or ABSENT. Only show a status when the API has recorded it or a teacher explicitly selects it.
-- **State choice is explicit.** On new entry surfaces, present the available statuses with a visible selected state. Existing cycle controls may remain until a route-level workflow change is warranted.
-- **Less-common states** can live in a menu when the underlying domain supports them.
-- **Live summary trio** above the grid: "Hadir N · Sakit M · Alpa K". Updates on every tap.
-- **Save feedback matches persistence.** Keep the route's existing save/submit behavior. Announce saving, saved, and failed states; roll back or preserve edits appropriately on failure.
-- **Sticky-first-column** with student name + photo initials. Row tints match the current state via `--status-*-subtle`.
-
-See `design-system.html` §16 — Flow B for the mockup. Flow A (teacher self clock-in) is a separate, 4-step flow documented alongside.
+- **Bulk for the common case.** A sticky "Tandai N siswa lainnya Hadir" button records every child *without* a status as Hadir in one request. It never overwrites a recorded status.
+- **State choice is explicit.** Each row offers H · S · I · A (rapor order) as a radio group; one tap selects and saves. No cycle controls — a hidden rotation made Izin four taps and one extra tap saved Alpa.
+- **Live summary** above the list: "Hadir N · Sakit N · Izin N · Alpa N · N belum", counting confirmed saves only.
+- **Save feedback matches persistence.** One page-level status line (saving / saved). A failed row shows its error and "Coba lagi" inline; a failed bulk save puts its rows back to unknown and the bulk button is the retry.
+- **Row tints** match the recorded state via `--status-*-subtle`.
 
 ## Portal Primitive Inventory
 
