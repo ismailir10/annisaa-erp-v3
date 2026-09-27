@@ -101,7 +101,7 @@ dependency; teacher/parent portals.
 - [x] **T3 GuardianFormBody on RHF** — `components/admin/guardian-edit-dialog.tsx`, guardians list +
   detail pages, guardian create route persists address/childrenTotal/childOrder
   (`lib/validations/guardian.ts`), students/[id] caller minimally adapted.
-- [ ] **T4 students/[id] split + forms** (after T3) — `components/admin/students/detail/*`, page as
+- [x] **T4 students/[id] split + forms** (after T3) — `components/admin/students/detail/*`, page as
   orchestrator, fixes (gender, withdraw), enroll dialog `<form>`.
 - [x] **T5 admissions split** — `components/admin/admissions/*`, POST → `validateBody`.
 - [x] **T6 remaining forms** — payroll/[id] period edit (+ columns memo), employees/[id] edit,
@@ -131,6 +131,8 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 6: remaining forms — payroll/[id] period edit on RHF (`payrollEditFormSchema`: blank Hari Kerja Aktual is now "wajib diisi" instead of a silent 0; columns memoised above the early returns) and PUT `/api/payroll/[id]` on `validateBody` (was `{ error, details }`, never mappable to a field); employees/[id] Profil/Kepegawaian/Saldo Cuti card (`employeeEditFormSchema` from `employeeBaseObject.partial()`, `role` omitted so no `role` key reaches the PUT, bank-pair refine reused; salary grid untouched); invoices/[id] Catat Pembayaran (`invoicePaymentFormSchema`: blank Jumlah → "wajib diisi") and POST `/api/invoices/[id]/payments` on `validateBody` (auth, tenant check, advisory-lock transaction unchanged); objectives TP edit / Tambah IKTP / Edit IKTP (`objectiveEditFormSchema`, `indicatorAddFormSchema`, `indicatorEditFormSchema` — blank Urutan no longer snaps to 1). New `app/admin/invoices/[id]/__tests__/page.test.tsx`; round-trip sections for all four.
 
+- Task 4: students/[id] — `page.tsx` 2106 → 882 lines, orchestrating `components/admin/students/detail/{types,data-anak-section,kesehatan-section,keluarga-section,riwayat-kelas-section,kehadiran-section,dokumen-section,riwayat-status-section,informasi-tambahan-section,lifecycle-dialogs,rail-content}`. The page keeps `student`, open sections, lazy latches, hash handling, the single `persistMetadata` writer, the Data Anak form (its Edit trigger is in the header) and Promote's fetch-before-open gate. Forms on RHF: Data Anak (`studentDetailEditFormSchema` = `studentFormSchema` minus `status`; a no-gender student now sends `gender: null` instead of the `""` the PUT rejected), withdrawal-reason edit (`withdrawalReasonFormSchema`), Informasi Tambahan (`useFieldArray`, `studentExtraMetadataFormSchema`: empty key and duplicate key land on the row's own Nama field), Promote, Withdraw (`ResponsiveFormDialog` + `withdrawStudentSchema`; a failed submit keeps it open with the error). Graduate's `ConfirmDialog` handler now rethrows so it also stays open on failure. Enroll dialog wrapped in `<form>`; non-409 failures → `FormRootError`. Informasi Tambahan's dirty state reaches the header's Edit guard through a ref, so typing doesn't re-render the dossier.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
@@ -150,5 +152,7 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 - Task 6: `vitest run` employees/[id], payroll/[id], invoices/[id], objectives, api/invoices, api/payroll, form-api-roundtrip — 7 files / 95 tests passed; eslint 0 errors (7 pre-existing warnings); tsc clean on the staged tree. Security: both route swaps change only the parse call — permission, tenant scope and the payment lock/transaction precede or wrap it exactly as before. design-system: fields keep the existing `Field` layout via `FormField`; the payment dialog uses `FormDialogFooter`.
 
 - CI fix (2ab8310, `Lint, Typecheck & Test`): `app/admin/(hr)/__tests__/accessibility-contract.test.ts` source-scanned employees/[id] for the hand-written `htmlFor="employee-detail-nama" required` label that T6 replaced with `<FormField required>`. The contract now uses its existing `formFieldBlock` check for Nama/Email/Jabatan/Kampus (and asserts No. HP stays optional). Lesson: grep for source-scan tests (`readFileSync`) of a page before migrating it.
+
+- Task 4: `vitest run app/admin/students components/admin lib/validations app/api/students` 65 files / 785 tests passed (new `lifecycle-and-forms.test.tsx`, `student.test.ts`, round-trip sections for all five forms); eslint 0 errors (1 pre-existing `<img>` warning); tsc clean on the staged tree. No route changed. e2e selectors (`admin-students-full-crud`, `admin-guardian-detail`) and field ids/labels unchanged. design-system: sections keep the Dossier layout; Withdraw uses the shared dialog shell with a destructive submit.
 
 ## Ship Notes

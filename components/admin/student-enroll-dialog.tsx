@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { FormField } from "@/components/ui/form";
+import { FormField, FormRootError } from "@/components/ui/form";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 import { enrollStudentFormSchema } from "@/lib/validations/student";
 import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { ApiError } from "@/lib/api/client-errors";
 
 /**
  * Enroll overlay for the student detail page.
@@ -47,6 +49,7 @@ export function StudentEnrollDialog({
    */
   isMobile?: boolean;
 }) {
+  const formId = useId();
   const [sections, setSections] = useState<ClassSection[]>([]);
   const form = useZodForm(enrollStudentFormSchema, {
     defaultValues: { classSectionId: "", ageOverrideReason: "" },
@@ -142,9 +145,20 @@ export function StudentEnrollDialog({
         setEnrollBlock({ code: d.code, message: d.error });
         return;
       }
-      toast.error(d.error || "Gagal mendaftarkan");
-    } catch {
-      toast.error("Terjadi kesalahan jaringan");
+      // Every other failure (validation the server itself rejected, a 500,
+      // a route the client didn't anticipate) goes through the same
+      // field-error-or-FormRootError path every other migrated form uses,
+      // instead of a bare toast.
+      applyServerErrors(
+        form,
+        new ApiError(d.error || "Gagal mendaftarkan", {
+          fieldErrors: Array.isArray(d.errors) ? d.errors : [],
+          status: res.status,
+        }),
+        "Gagal mendaftarkan",
+      );
+    } catch (err) {
+      applyServerErrors(form, err, "Terjadi kesalahan jaringan");
     }
   });
 
@@ -163,7 +177,7 @@ export function StudentEnrollDialog({
         <AlertDescription>{enrollBlock.message}</AlertDescription>
       </Alert>
     );
-    footer = <Button variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>;
+    footer = <Button type="button" variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>;
   } else if (overridingAge) {
     body = (
       <div className="space-y-field">
@@ -192,8 +206,8 @@ export function StudentEnrollDialog({
     );
     footer = (
       <>
-        <Button variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
-        <Button onClick={handleEnroll} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
+        <Button type="button" variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
+        <Button type="submit" form={formId} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
       </>
     );
   } else {
@@ -217,8 +231,8 @@ export function StudentEnrollDialog({
     );
     footer = (
       <>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={enrolling}>Batal</Button>
-        <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={enrolling}>Batal</Button>
+        <Button type="submit" form={formId} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
       </>
     );
   }
@@ -226,12 +240,15 @@ export function StudentEnrollDialog({
   return (
     <ResponsiveFormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(o) => !enrolling && onOpenChange(o)}
       title="Daftarkan ke Kelas"
       size="lg"
       footer={footer}
     >
-      {body}
+      <form id={formId} onSubmit={handleEnroll} noValidate className="space-y-field">
+        <FormRootError formState={form.formState} />
+        {body}
+      </form>
     </ResponsiveFormDialog>
   );
 }

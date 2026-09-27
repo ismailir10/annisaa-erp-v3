@@ -155,3 +155,71 @@ export const promoteStudentSchema = z.object({
   targetClassSectionId: z.string().min(1, "Kelas tujuan wajib dipilih"),
   notes: z.string().trim().max(500, "Catatan maksimal 500 karakter").optional().nullable(),
 });
+
+/**
+ * Data Anak's inline-edit form (`components/admin/students/detail/
+ * data-anak-section.tsx`), derived from `studentFormSchema` with `status`
+ * dropped — the detail page's inline edit never shows a status field
+ * (status only changes through the lifecycle actions: Naik Kelas / Luluskan
+ * / Keluarkan), so the submitted body doesn't carry one either. Everything
+ * else is identical, including the explicit-`null` contract every optional
+ * field gets from `nullableTrimmed`/`nullableEmpty` — that contract is what
+ * fixes a real bug: the old plain-`useState` form sent `gender: ""` for a
+ * student with no gender on file, which `updateStudentSchema`'s `gender:
+ * z.enum(["L","P"]).optional().nullable()` rejects outright (`""` is neither
+ * `undefined` nor `null`), so saving Data Anak silently failed for every such
+ * student. This schema's `nullableEmpty` turns that same `""` into `null`,
+ * which the PUT route accepts as "clear the field".
+ */
+export const studentDetailEditFormSchema = studentFormSchema.omit({ status: true });
+
+/**
+ * Riwayat Status' inline withdrawal-reason edit (`RiwayatStatusSection`).
+ * Same field `updateStudentSchema.withdrawalReason` already validates, with
+ * its own Indonesian copy for this specific control — a lesson-2-style
+ * tightening of the *message* only; the PUT route keeps validating with
+ * `updateStudentSchema`, unmodified, so what the API accepts doesn't change.
+ */
+export const withdrawalReasonFormSchema = z.object({
+  withdrawalReason: z.string().trim().min(1, "Alasan keluar wajib diisi"),
+});
+
+/**
+ * Informasi Tambahan's free-form key/value rows
+ * (`InformasiTambahanSection`). Form-only: there is no wire schema to derive
+ * from, since `PUT /api/students/[id]` accepts `metadata` as an open
+ * `z.record(...)` (`createStudentSchema`) — this is the shape the section
+ * validates client-side before folding the rows into that blob with
+ * `buildStudentMetadata` (`lib/student/metadata.ts`).
+ *
+ * Both rules land on a rendered field (lesson 1, not an object/array-level
+ * error nothing renders): an empty key fails its own `.min(1, ...)`; a
+ * duplicate key raises a `superRefine` issue on the *second* occurrence's
+ * `rows.<index>.key` — the row an admin is actively retyping, not the first
+ * (correct) one — so the inline error lands where the fix belongs.
+ */
+export const studentExtraMetadataFormSchema = z
+  .object({
+    rows: z.array(
+      z.object({
+        key: z.string().trim().min(1, "Nama field wajib diisi"),
+        value: z.string(),
+      }),
+    ),
+  })
+  .superRefine((data, ctx) => {
+    const seen = new Set<string>();
+    data.rows.forEach((row, i) => {
+      const key = row.key.trim();
+      if (key === "") return; // already caught by that field's own .min(1, ...)
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Nama field harus unik",
+          path: ["rows", i, "key"],
+        });
+        return;
+      }
+      seen.add(key);
+    });
+  });
