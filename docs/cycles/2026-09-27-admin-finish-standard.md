@@ -103,7 +103,7 @@ dependency; teacher/parent portals.
   (`lib/validations/guardian.ts`), students/[id] caller minimally adapted.
 - [ ] **T4 students/[id] split + forms** (after T3) — `components/admin/students/detail/*`, page as
   orchestrator, fixes (gender, withdraw), enroll dialog `<form>`.
-- [ ] **T5 admissions split** — `components/admin/admissions/*`, POST → `validateBody`.
+- [x] **T5 admissions split** — `components/admin/admissions/*`, POST → `validateBody`.
 - [ ] **T6 remaining forms** — payroll/[id] period edit (+ columns memo), employees/[id] edit,
   invoices/[id] record payment, objectives dialogs.
 - [ ] **T7 lists & polish** — memoise columns (student-attendance, employee-attendance, holidays, fees
@@ -119,8 +119,12 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 8: loading.tsx — 35 new route-level files; every admin page now has one (43/43). List/table pages copy the shared list skeleton (19); entity detail pages (`[id]` dossiers: students, classes, employees, payroll, enrollments, guardians, invoices, journal student) render `DetailPageSkeleton` (8); settings hub, work-hours, design-system, report templates, semester import/objectives/themes and the journal config page use the root skeleton (8). No existing file changed.
 
+- Task 5: admissions split — `app/admin/admissions/page.tsx` 1088 → 432 lines; `components/admin/admissions/{types,constants,sibling-detect-banner,admission-form-body,columns,convert-dialog}` (columns via `createAdmissionColumns(handlers)` memoised with `useCallback` handlers; the convert dialog moved verbatim — documented 3-way exception). Spec item 5's "POST → validateBody" dropped on review: the POST route already returns the standard `{ error, errors[] }` 400 and keeps a deliberate `console.error` diagnostic that `validateBody` would lose — route left unchanged. New `app/api/admissions/__tests__/route.test.ts` pins that 400 shape + auth boundaries.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
+
+- Task 5: `vitest run app/api/admissions app/admin/admissions` 5 files / 29 tests passed (after the route revert); eslint clean. e2e selectors (`admission-edit-sibling-banner`, `admission-row-sibling-chip`, "Catat Pertanyaan", "Konversi ke Siswa") unchanged. design-system: no visual change (pure extraction).
 
 ## Ship Notes
