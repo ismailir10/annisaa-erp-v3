@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+import {
+  objectiveEditFormSchema,
+  indicatorAddFormSchema,
+  indicatorEditFormSchema,
+} from "@/lib/validations/curriculum";
 import {
   Accordion,
   AccordionContent,
@@ -651,7 +659,7 @@ export function IndicatorRow({
   );
 }
 
-function ObjectiveEditDialog({
+export function ObjectiveEditDialog({
   open,
   onOpenChange,
   objective,
@@ -662,36 +670,26 @@ function ObjectiveEditDialog({
   objective: Objective;
   onSaved: () => void;
 }) {
-  const [competencyText, setCompetencyText] = useState(
-    objective.competencyText,
-  );
-  const [content, setContent] = useState(objective.content);
-  const [submitting, setSubmitting] = useState(false);
+  const formId = useId();
+  const form = useZodForm(objectiveEditFormSchema, {
+    defaultValues: { competencyText: objective.competencyText, content: objective.content },
+  });
 
   useEffect(() => {
-    setCompetencyText(objective.competencyText);
-    setContent(objective.content);
+    form.reset({ competencyText: objective.competencyText, content: objective.content });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objective.id, objective.competencyText, objective.content]);
 
-  const onSubmit = async () => {
-    setSubmitting(true);
+  const onSubmit = form.handleSubmit(async (values) => {
     try {
-      const r = await mutate(
-        `/api/admin/curriculum/objectives/${objective.id}`,
-        "PUT",
-        { competencyText: competencyText.trim(), content: content.trim() },
-      );
-      if (!r.ok) {
-        toast.error(r.error ?? "Gagal menyimpan");
-        return;
-      }
+      await sendJson(`/api/admin/curriculum/objectives/${objective.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
       toast.success("TP tersimpan");
       onOpenChange(false);
       onSaved();
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-  };
+  });
 
   return (
     <ResponsiveFormDialog
@@ -700,49 +698,43 @@ function ObjectiveEditDialog({
       title={`Edit TP #${objective.number}`}
       description="Hanya capaian + tujuan dapat diubah. Identitas (elemen, nomor, kelompok) tetap."
       footer={
-        <>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Batal
-          </Button>
-          <Button onClick={onSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </>
+        <FormDialogFooter
+          formId={formId}
+          pending={form.formState.isSubmitting}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Simpan"
+          pendingLabel="Menyimpan…"
+        />
       }
     >
-      <Field>
-        <FieldLabel htmlFor="objective-competencyText" required>Capaian Perkembangan Diri</FieldLabel>
-        <Textarea
+      <form id={formId} onSubmit={onSubmit} noValidate className="space-y-field">
+        <FormRootError formState={form.formState} />
+        <FormField
+          control={form.control}
+          name="competencyText"
+          label="Capaian Perkembangan Diri"
+          required
           id="objective-competencyText"
-          rows={3}
-          value={competencyText}
-          onChange={(e) => setCompetencyText(e.target.value)}
-          maxLength={2000}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Textarea {...field} {...controlProps} rows={3} maxLength={2000} />
+          )}
         />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="objective-content" required>Tujuan Pembelajaran</FieldLabel>
-        <Textarea
+        <FormField
+          control={form.control}
+          name="content"
+          label="Tujuan Pembelajaran"
+          required
           id="objective-content"
-          rows={3}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          maxLength={2000}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Textarea {...field} {...controlProps} rows={3} maxLength={2000} />
+          )}
         />
-      </Field>
+      </form>
     </ResponsiveFormDialog>
   );
 }
 
-function AddIndicatorDialog({
+export function AddIndicatorDialog({
   open,
   onOpenChange,
   objectiveId,
@@ -755,36 +747,28 @@ function AddIndicatorDialog({
   existingMax: number;
   onSaved: () => void;
 }) {
-  const [content, setContent] = useState("");
-  const [order, setOrder] = useState<number>(existingMax + 1);
-  const [submitting, setSubmitting] = useState(false);
+  const formId = useId();
+  const form = useZodForm(indicatorAddFormSchema, {
+    defaultValues: { content: "", order: existingMax + 1 },
+  });
 
   useEffect(() => {
     if (open) {
-      setContent("");
-      setOrder(existingMax + 1);
+      form.reset({ content: "", order: existingMax + 1 });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existingMax]);
 
-  const onSubmit = async () => {
-    setSubmitting(true);
+  const onSubmit = form.handleSubmit(async (values) => {
     try {
-      const r = await mutate("/api/admin/curriculum/indicators", "POST", {
-        objectiveId,
-        content: content.trim(),
-        order,
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "Gagal menambah IKTP");
-        return;
-      }
+      await sendJson("/api/admin/curriculum/indicators", { method: "POST", body: { ...values, objectiveId } }, "Gagal menambah IKTP");
       toast.success("IKTP ditambahkan");
       onOpenChange(false);
       onSaved();
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menambah IKTP");
     }
-  };
+  });
 
   return (
     <ResponsiveFormDialog
@@ -792,50 +776,43 @@ function AddIndicatorDialog({
       onOpenChange={onOpenChange}
       title="Tambah IKTP"
       footer={
-        <>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Batal
-          </Button>
-          <Button onClick={onSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </>
+        <FormDialogFooter
+          formId={formId}
+          pending={form.formState.isSubmitting}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Simpan"
+          pendingLabel="Menyimpan…"
+        />
       }
     >
-      <Field>
-        <FieldLabel htmlFor="indicator-add-content" required>Isi Indikator</FieldLabel>
-        <Textarea
+      <form id={formId} onSubmit={onSubmit} noValidate className="space-y-field">
+        <FormRootError formState={form.formState} />
+        <FormField
+          control={form.control}
+          name="content"
+          label="Isi Indikator"
+          required
           id="indicator-add-content"
-          rows={3}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          maxLength={2000}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Textarea {...field} {...controlProps} rows={3} maxLength={2000} />
+          )}
         />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="indicator-add-order" required>Urutan</FieldLabel>
-        <Input
+        <FormField
+          control={form.control}
+          name="order"
+          label="Urutan"
+          required
           id="indicator-add-order"
-          type="number"
-          min={1}
-          max={9999}
-          value={order}
-          onChange={(e) => setOrder(Number(e.target.value) || 1)}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={1} max={9999} />
+          )}
         />
-      </Field>
+      </form>
     </ResponsiveFormDialog>
   );
 }
 
-function IndicatorEditDialog({
+export function IndicatorEditDialog({
   open,
   onOpenChange,
   indicator,
@@ -846,34 +823,26 @@ function IndicatorEditDialog({
   indicator: Indicator;
   onSaved: () => void;
 }) {
-  const [content, setContent] = useState(indicator.content);
-  const [order, setOrder] = useState<number>(indicator.order);
-  const [submitting, setSubmitting] = useState(false);
+  const formId = useId();
+  const form = useZodForm(indicatorEditFormSchema, {
+    defaultValues: { content: indicator.content, order: indicator.order },
+  });
 
   useEffect(() => {
-    setContent(indicator.content);
-    setOrder(indicator.order);
+    form.reset({ content: indicator.content, order: indicator.order });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicator.id, indicator.content, indicator.order]);
 
-  const onSubmit = async () => {
-    setSubmitting(true);
+  const onSubmit = form.handleSubmit(async (values) => {
     try {
-      const r = await mutate(
-        `/api/admin/curriculum/indicators/${indicator.id}`,
-        "PUT",
-        { content: content.trim(), order },
-      );
-      if (!r.ok) {
-        toast.error(r.error ?? "Gagal menyimpan");
-        return;
-      }
+      await sendJson(`/api/admin/curriculum/indicators/${indicator.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
       toast.success("IKTP tersimpan");
       onOpenChange(false);
       onSaved();
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-  };
+  });
 
   return (
     <ResponsiveFormDialog
@@ -881,45 +850,38 @@ function IndicatorEditDialog({
       onOpenChange={onOpenChange}
       title={`Edit IKTP #${indicator.order}`}
       footer={
-        <>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Batal
-          </Button>
-          <Button onClick={onSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </>
+        <FormDialogFooter
+          formId={formId}
+          pending={form.formState.isSubmitting}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Simpan"
+          pendingLabel="Menyimpan…"
+        />
       }
     >
-      <Field>
-        <FieldLabel htmlFor="indicator-edit-content" required>Isi indikator</FieldLabel>
-        <Textarea
+      <form id={formId} onSubmit={onSubmit} noValidate className="space-y-field">
+        <FormRootError formState={form.formState} />
+        <FormField
+          control={form.control}
+          name="content"
+          label="Isi indikator"
+          required
           id="indicator-edit-content"
-          rows={3}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          maxLength={2000}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Textarea {...field} {...controlProps} rows={3} maxLength={2000} />
+          )}
         />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="indicator-edit-order" required>Urutan</FieldLabel>
-        <Input
+        <FormField
+          control={form.control}
+          name="order"
+          label="Urutan"
+          required
           id="indicator-edit-order"
-          type="number"
-          min={1}
-          max={9999}
-          value={order}
-          onChange={(e) => setOrder(Number(e.target.value) || 1)}
-          required
-          aria-required="true"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={1} max={9999} />
+          )}
         />
-      </Field>
+      </form>
     </ResponsiveFormDialog>
   );
 }

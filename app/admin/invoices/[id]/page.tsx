@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useId, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { DetailPageHeader, type DetailPageHeaderAction } from "@/components/admin/detail-page-header";
@@ -17,13 +17,22 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
+import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+
+// Same `Control` extraction `useZodForm` produces (input values in, the
+// schema's parsed output out) — `payForm.control`'s exact type, so
+// `PaymentFormBody` and `FormField` agree on it without re-deriving it by hand.
+type PaymentFormControl = ReturnType<typeof useZodForm<typeof invoicePaymentFormSchema>>["control"];
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
 type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
@@ -41,43 +50,62 @@ type InvoiceDetail = {
 // ------------------------------------------------------------------
 
 function PaymentFormBody({
-  payForm,
-  setPayForm,
+  control,
   remaining,
 }: {
-  payForm: { amount: string; method: string; reference: string; notes: string };
-  setPayForm: (v: { amount: string; method: string; reference: string; notes: string }) => void;
+  control: PaymentFormControl;
   remaining: number;
 }) {
   return (
     <>
-      <Field>
-        <FieldLabel required htmlFor="invoice-payment-amount">Jumlah</FieldLabel>
-        <RupiahInput id="invoice-payment-amount" required value={payForm.amount === "" ? null : Number(payForm.amount)} onChange={v => setPayForm({ ...payForm, amount: v === null ? "" : String(v) })} />
-        <FieldDescription>Sisa tagihan: {formatRupiah(remaining)}</FieldDescription>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="invoice-payment-method">Metode Pembayaran</FieldLabel>
-        <Select value={payForm.method} onValueChange={v => v && setPayForm({ ...payForm, method: v })}>
-          <SelectTrigger id="invoice-payment-method"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {PAYMENT_METHODS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {paymentMethodLabel(m)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="invoice-payment-reference">Referensi</FieldLabel>
-        <Input id="invoice-payment-reference" value={payForm.reference} onChange={e => setPayForm({ ...payForm, reference: e.target.value })} placeholder="Opsional" />
-        <FieldDescription>Nomor transfer, ID transaksi, dll.</FieldDescription>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="invoice-payment-notes">Catatan</FieldLabel>
-        <Input id="invoice-payment-notes" value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} placeholder="Opsional" />
-      </Field>
+      <FormField
+        control={control}
+        name="amount"
+        label="Jumlah"
+        required
+        id="invoice-payment-amount"
+        description={`Sisa tagihan: ${formatRupiah(remaining)}`}
+        render={({ field, controlProps }) => (
+          <RupiahInput {...controlProps} value={field.value ?? null} onChange={field.onChange} onBlur={field.onBlur} />
+        )}
+      />
+      <FormField
+        control={control}
+        name="method"
+        label="Metode Pembayaran"
+        id="invoice-payment-method"
+        render={({ field, controlProps }) => (
+          <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
+            <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAYMENT_METHODS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {paymentMethodLabel(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
+      <FormField
+        control={control}
+        name="reference"
+        label="Referensi"
+        id="invoice-payment-reference"
+        description="Nomor transfer, ID transaksi, dll."
+        render={({ field, controlProps }) => (
+          <Input {...field} {...controlProps} value={field.value ?? ""} placeholder="Opsional" />
+        )}
+      />
+      <FormField
+        control={control}
+        name="notes"
+        label="Catatan"
+        id="invoice-payment-notes"
+        render={({ field, controlProps }) => (
+          <Input {...field} {...controlProps} value={field.value ?? ""} placeholder="Opsional" />
+        )}
+      />
     </>
   );
 }
@@ -88,8 +116,10 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: "", method: "CASH", reference: "", notes: "" });
-  const [paying, setPaying] = useState(false);
+  const paymentFormId = useId();
+  const payForm = useZodForm(invoicePaymentFormSchema, {
+    defaultValues: { amount: null, method: "CASH", reference: "", notes: "" },
+  });
   const [creatingXendit, setCreatingXendit] = useState(false);
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
   const [voiding, setVoiding] = useState(false);
@@ -115,19 +145,16 @@ export default function InvoiceDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
 
-  async function handlePayment() {
-    const amount = parseFloat(payForm.amount);
-    if (!amount || amount <= 0) { toast.error("Masukkan jumlah pembayaran"); return; }
-    setPaying(true);
-    const res = await fetch(`/api/invoices/${id}/payments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payForm),
-    });
-    if (res.ok) { toast.success("Pembayaran dicatat"); setPaymentDialog(false); fetchInvoice(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal mencatat pembayaran"); }
-    setPaying(false);
-  }
+  const handlePayment = payForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(`/api/invoices/${id}/payments`, { method: "POST", body: values }, "Gagal mencatat pembayaran");
+      toast.success("Pembayaran dicatat");
+      setPaymentDialog(false);
+      fetchInvoice();
+    } catch (err) {
+      applyServerErrors(payForm, err, "Gagal mencatat pembayaran");
+    }
+  });
 
   async function handleCreateXenditLink() {
     setCreatingXendit(true);
@@ -303,7 +330,7 @@ export default function InvoiceDetailPage() {
                   label: "Catat Pembayaran",
                   icon: <CreditCard size={14} aria-hidden="true" />,
                   onClick: () => {
-                    setPayForm({ amount: String(remaining), method: "CASH", reference: "", notes: "" });
+                    payForm.reset({ amount: remaining, method: "CASH", reference: "", notes: "" });
                     setPaymentDialog(true);
                   },
                   // The header's one filled (non-outline) action — recording
@@ -457,13 +484,18 @@ export default function InvoiceDetailPage() {
         title="Catat Pembayaran"
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setPaymentDialog(false)} disabled={paying}>Batal</Button>
-            <Button onClick={handlePayment} disabled={paying}>{paying ? "Menyimpan..." : "Catat Pembayaran"}</Button>
-          </>
+          <FormDialogFooter
+            formId={paymentFormId}
+            pending={payForm.formState.isSubmitting}
+            onCancel={() => setPaymentDialog(false)}
+            submitLabel="Catat Pembayaran"
+          />
         }
       >
-        <PaymentFormBody payForm={payForm} setPayForm={setPayForm} remaining={remaining} />
+        <form id={paymentFormId} onSubmit={handlePayment} noValidate className="space-y-field">
+          <FormRootError formState={payForm.formState} />
+          <PaymentFormBody control={payForm.control} remaining={remaining} />
+        </form>
       </ResponsiveFormDialog>
     </>
   );

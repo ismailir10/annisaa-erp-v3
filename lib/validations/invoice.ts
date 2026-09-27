@@ -111,3 +111,22 @@ export const manualInvoiceFormSchema = manualInvoiceBaseSchema
     lines: z.array(manualInvoiceFormLineSchema).min(1, "Tambahkan minimal satu komponen"),
   })
   .superRefine(rejectDuplicateFeeComponents);
+
+// Client form schema for the invoices/[id] "Catat Pembayaran" dialog (T6,
+// 2026-09-27 admin-finish-standard cycle). Differs from `recordPaymentSchema`
+// in exactly one way: `amount` comes from `RupiahInput`, whose empty state is
+// `null` (not `0` or an absent key) — same shape as
+// `manualInvoiceFormLineSchema.amount` above. A blank amount must read as
+// "wajib diisi", not the wire schema's "Jumlah harus lebih dari 0" (which
+// still fires for an explicit 0 or a negative value).
+export const invoicePaymentFormSchema = recordPaymentSchema.extend({
+  amount: z
+    .number()
+    .positive("Jumlah harus lebih dari 0")
+    .nullable()
+    .refine((v): v is number => v !== null, {
+      message: "Jumlah pembayaran wajib diisi",
+    }),
+});
+
+export type InvoicePaymentFormInput = z.infer<typeof invoicePaymentFormSchema>;

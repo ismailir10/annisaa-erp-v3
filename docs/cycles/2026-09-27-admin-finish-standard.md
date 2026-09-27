@@ -104,7 +104,7 @@ dependency; teacher/parent portals.
 - [ ] **T4 students/[id] split + forms** (after T3) — `components/admin/students/detail/*`, page as
   orchestrator, fixes (gender, withdraw), enroll dialog `<form>`.
 - [x] **T5 admissions split** — `components/admin/admissions/*`, POST → `validateBody`.
-- [ ] **T6 remaining forms** — payroll/[id] period edit (+ columns memo), employees/[id] edit,
+- [x] **T6 remaining forms** — payroll/[id] period edit (+ columns memo), employees/[id] edit,
   invoices/[id] record payment, objectives dialogs.
 - [x] **T7 lists & polish** — memoise columns (student-attendance, employee-attendance, holidays, fees
   component columns, keringanan, dashboard work-queue) + drop the attendance test retry;
@@ -129,6 +129,8 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 3: GuardianFormBody on RHF — `components/admin/guardian-edit-dialog.tsx` takes an RHF `control` and renders `FormField`s (same ids/labels/order; Email gets the "blank keeps the saved email — it links the parent to portal sign-in" description, Assumption 1); guardians list dialog (bridge removed, Nama error inline), guardians/[id] inline Data Wali edit (`useZodForm(parentFormSchema)` + `sendJson`), students/[id] guardian dialog create/edit (new `guardianCreateFormSchema` / `guardianUpdateFormSchema`; 409 PARENT_CANDIDATES flow kept). Data-loss fix: `createGuardianSchema` gains `childOrder`, and POST `/api/students/[id]/guardians` now persists Alamat + Jumlah Anak on the parent and Anak ke- on the junction; its two `safeParse`s → `validateBody` (auth/tenant/rate-limit, candidates 409 and employee-email checks unchanged). Driver fix on review: the edit dialog still couldn't clear "Anak ke-" (wire field maps "" → undefined → PUT keeps it) — `guardianUpdateFormSchema` now sends an explicit null, with a round-trip test.
 
+- Task 6: remaining forms — payroll/[id] period edit on RHF (`payrollEditFormSchema`: blank Hari Kerja Aktual is now "wajib diisi" instead of a silent 0; columns memoised above the early returns) and PUT `/api/payroll/[id]` on `validateBody` (was `{ error, details }`, never mappable to a field); employees/[id] Profil/Kepegawaian/Saldo Cuti card (`employeeEditFormSchema` from `employeeBaseObject.partial()`, `role` omitted so no `role` key reaches the PUT, bank-pair refine reused; salary grid untouched); invoices/[id] Catat Pembayaran (`invoicePaymentFormSchema`: blank Jumlah → "wajib diisi") and POST `/api/invoices/[id]/payments` on `validateBody` (auth, tenant check, advisory-lock transaction unchanged); objectives TP edit / Tambah IKTP / Edit IKTP (`objectiveEditFormSchema`, `indicatorAddFormSchema`, `indicatorEditFormSchema` — blank Urutan no longer snaps to 1). New `app/admin/invoices/[id]/__tests__/page.test.tsx`; round-trip sections for all four.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
@@ -144,5 +146,7 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 - Task 7: `vitest run` over employee-attendance, fees, campuses, holidays, student-attendance, dashboard, fees components, invoices components, components/ui — 181 tests passed; override-dialog test 10/10 plain + `flake-hunt.sh 10 8` 10/10 green; eslint 0 errors. design-system: campuses empty state uses the existing `EmptyState` action; wizard uses the shared dialog shell; "Libur" uses the existing HOLIDAY status token.
 
 - Task 3: `vitest run` guardian-edit-dialog, guardians list/detail, students/[id], guardians route, guardian-primary-billing-chain, form-api-roundtrip — 162 tests passed; eslint 0 errors; tsc clean on the staged tree. Security: the guardians POST keeps auth + tenant parent lookup before validation. design-system: fields keep the existing `Field` layout; one `FieldDescription` added.
+
+- Task 6: `vitest run` employees/[id], payroll/[id], invoices/[id], objectives, api/invoices, api/payroll, form-api-roundtrip — 7 files / 95 tests passed; eslint 0 errors (7 pre-existing warnings); tsc clean on the staged tree. Security: both route swaps change only the parse call — permission, tenant scope and the payment lock/transaction precede or wrap it exactly as before. design-system: fields keep the existing `Field` layout via `FormField`; the payment dialog uses `FormDialogFooter`.
 
 ## Ship Notes

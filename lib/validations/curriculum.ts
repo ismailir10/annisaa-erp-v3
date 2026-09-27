@@ -286,6 +286,72 @@ export type IndicatorThemeLinkToggleInput = z.infer<
   typeof indicatorThemeLinkToggleSchema
 >;
 
+// ---------------------------------------------------------------------------
+// Admin dialog form schemas (T6, 2026-09-27 admin-finish-standard cycle) —
+// derived from the *Update/*Create schemas above so the objectives page's
+// three dialogs validate with react-hook-form. Each dialog only shows a
+// subset of an already-optional wire field and always fills it, so the form
+// schema makes it required with the SAME Indonesian message the wire schema
+// carries, instead of leaving it silently optional.
+// ---------------------------------------------------------------------------
+
+// Edit TP (Tujuan Pembelajaran) dialog — competencyText + content are the
+// only two fields shown, both always filled (`objectiveUpdateSchema`'s own
+// optionality exists for partial callers this dialog never is).
+export const objectiveEditFormSchema = objectiveUpdateSchema.extend({
+  competencyText: z
+    .string()
+    .trim()
+    .min(1, "Capaian perkembangan diri wajib diisi")
+    .max(2000, "Capaian perkembangan diri terlalu panjang"),
+  content: z
+    .string()
+    .trim()
+    .min(1, "Tujuan pembelajaran wajib diisi")
+    .max(2000, "Tujuan pembelajaran terlalu panjang"),
+});
+
+// Tambah IKTP dialog — `objectiveId` is a page-level prop, not a rendered
+// field, so it's omitted here and spliced into the POST body at submit time
+// (mirrors `classFormSchema.omit({ academicYearId: true })`).
+export const indicatorAddFormSchema = indicatorAdminCreateSchema
+  .omit({ objectiveId: true })
+  .extend({
+    // `order` is coerced from the <Input type="number">'s string value. The
+    // field carries a `required` asterisk, so a blank input must fail with
+    // "wajib diisi", not silently collapse to some fallback — mirrors
+    // `classFormSchema.capacity` (lib/validations/class.ts).
+    order: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.coerce
+        .number({ message: "Urutan wajib diisi" })
+        .int("Urutan harus bilangan bulat")
+        .min(1, "Urutan indikator harus ≥ 1")
+        .max(9999, "Urutan indikator tidak realistis"),
+    ),
+  });
+
+// Edit IKTP dialog — content + order both shown, both always filled.
+export const indicatorEditFormSchema = indicatorUpdateSchema.extend({
+  content: z
+    .string()
+    .trim()
+    .min(1, "Indikator (IKTP) wajib diisi")
+    .max(2000, "Indikator (IKTP) terlalu panjang"),
+  order: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce
+      .number({ message: "Urutan wajib diisi" })
+      .int("Urutan harus bilangan bulat")
+      .min(1, "Urutan indikator harus ≥ 1")
+      .max(9999, "Urutan indikator tidak realistis"),
+  ),
+});
+
+export type ObjectiveEditFormInput = z.infer<typeof objectiveEditFormSchema>;
+export type IndicatorAddFormInput = z.infer<typeof indicatorAddFormSchema>;
+export type IndicatorEditFormInput = z.infer<typeof indicatorEditFormSchema>;
+
 /** Response shape for the preview endpoint (no DB writes). */
 export interface PromesPreviewPayload {
   semesterId: string;
