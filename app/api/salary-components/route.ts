@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { createSalaryComponentSchema } from "@/lib/validations/payroll";
+import { checkSalaryComponentOrdering } from "@/lib/payroll/salary-component-ordering";
 
 // Cache salary components for 1 hour (static data)
 export const revalidate = 3600;
@@ -35,17 +37,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Body harus JSON valid" }, { status: 400 });
   }
 
-  const parsed = createSalaryComponentSchema.safeParse(rawBody);
-  if (!parsed.success) {
+  const result = await validateBody(createSalaryComponentSchema, rawBody);
+  if (result.error) return result.error;
+  const { code, label, category, calcType, isProRated, sortOrder } = result.data;
+  const resultingSortOrder = sortOrder ?? 0;
+
+  const orderingError = await checkSalaryComponentOrdering(session.tenantId!, {
+    code: code.toLowerCase(),
+    calcType,
+    sortOrder: resultingSortOrder,
+  });
+  if (orderingError) {
     return NextResponse.json(
-      {
-        error: parsed.error.issues[0]?.message ?? "Validasi gagal",
-        issues: parsed.error.issues,
-      },
+      { error: "Validasi gagal", errors: [orderingError] },
       { status: 400 },
     );
   }
-  const { code, label, category, calcType, isProRated, sortOrder } = parsed.data;
 
   const component = await prisma.salaryComponentDef.create({
     data: {
@@ -55,7 +62,7 @@ export async function POST(req: NextRequest) {
       category,
       calcType,
       isProRated: isProRated ?? false,
-      sortOrder: sortOrder ?? 0,
+      sortOrder: resultingSortOrder,
     },
   });
 

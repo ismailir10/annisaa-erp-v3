@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useWatch } from "react-hook-form";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -34,6 +35,11 @@ type Component = {
   sortOrder: number;
 };
 
+type CalcType = "FIXED" | "PCT_OF_BASE" | "ATTENDANCE_BASED";
+
+// Single source of truth for calcType copy — shared between the list column
+// and the create/edit dialog's Select so the two never drift (was "Berbasis
+// Kehadiran" in the dialog vs. "Kehadiran" in the list).
 const CALC_LABELS: Record<string, string> = {
   FIXED: "Tetap",
   PCT_OF_BASE: "% Gaji Pokok",
@@ -43,7 +49,7 @@ const CALC_LABELS: Record<string, string> = {
 const EMPTY_FORM = {
   code: "", label: "",
   category: "INCOME" as "INCOME" | "DEDUCTION",
-  calcType: "FIXED" as "FIXED" | "ATTENDANCE_BASED",
+  calcType: "FIXED" as CalcType,
   isProRated: false, sortOrder: "0",
 };
 
@@ -60,16 +66,17 @@ export default function SalaryComponentsPage() {
   // hidden once editing (not re-editable); defaultValues seeds it from the
   // existing row so it stays valid without a visible control.
   const form = useZodForm(salaryComponentFormSchema, { defaultValues: EMPTY_FORM });
+  const watchedCalcType = useWatch({ control: form.control, name: "calcType" });
   const [confirmTarget, setConfirmTarget] = useState<Component | null>(null);
 
-  async function fetchComponents() {
+  const fetchComponents = useCallback(async () => {
     const res = await fetch("/api/salary-components");
     setComponents(await res.json());
     setLoading(false);
-  }
+  }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchComponents(); }, []);
+  useEffect(() => { fetchComponents(); }, [fetchComponents]);
 
   function openNew() {
     setEditing(null);
@@ -77,16 +84,16 @@ export default function SalaryComponentsPage() {
     setDialogOpen(true);
   }
 
-  function openEdit(c: Component) {
+  const openEdit = useCallback((c: Component) => {
     setEditing(c);
     form.reset({
       code: c.code, label: c.label,
       category: c.category as "INCOME" | "DEDUCTION",
-      calcType: c.calcType as "FIXED" | "ATTENDANCE_BASED",
+      calcType: c.calcType as CalcType,
       isProRated: c.isProRated, sortOrder: String(c.sortOrder),
     });
     setDialogOpen(true);
-  }
+  }, [form]);
 
   const handleSave = form.handleSubmit(async (values) => {
     try {
@@ -105,7 +112,7 @@ export default function SalaryComponentsPage() {
 
   // Returns whether the toggle succeeded so callers (e.g. the deactivate
   // ConfirmDialog) can decide whether to keep their dialog open for retry.
-  async function toggleEnabled(c: Component): Promise<boolean> {
+  const toggleEnabled = useCallback(async (c: Component): Promise<boolean> => {
     const res = await fetch(`/api/salary-components/${c.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -119,7 +126,7 @@ export default function SalaryComponentsPage() {
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchComponents();
     return true;
-  }
+  }, [fetchComponents]);
 
   const filteredComponents = components.filter((c) => {
     const q = search.trim().toLowerCase();
@@ -137,7 +144,7 @@ export default function SalaryComponentsPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const columns: ColumnDef<Component>[] = [
+  const columns = useMemo<ColumnDef<Component>[]>(() => [
     {
       accessorKey: "sortOrder",
       header: ({ column }) => (
@@ -196,7 +203,7 @@ export default function SalaryComponentsPage() {
         );
       },
     },
-  ];
+  ], [openEdit, toggleEnabled]);
 
   return (
     <>
@@ -308,12 +315,12 @@ export default function SalaryComponentsPage() {
               label="Tipe Kalkulasi"
               id="salary-component-calc-type"
               render={({ field, controlProps }) => (
-                <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)} items={{ FIXED: "Tetap", PCT_OF_BASE: "% Gaji Pokok", ATTENDANCE_BASED: "Berbasis Kehadiran" }}>
+                <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)} items={CALC_LABELS}>
                   <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FIXED">Tetap</SelectItem>
-                    <SelectItem value="PCT_OF_BASE">% Gaji Pokok</SelectItem>
-                    <SelectItem value="ATTENDANCE_BASED">Berbasis Kehadiran</SelectItem>
+                    <SelectItem value="FIXED">{CALC_LABELS.FIXED}</SelectItem>
+                    <SelectItem value="PCT_OF_BASE">{CALC_LABELS.PCT_OF_BASE}</SelectItem>
+                    <SelectItem value="ATTENDANCE_BASED">{CALC_LABELS.ATTENDANCE_BASED}</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -324,6 +331,11 @@ export default function SalaryComponentsPage() {
             name="sortOrder"
             label="Urutan"
             id="salary-component-sort-order"
+            description={
+              watchedCalcType === "PCT_OF_BASE"
+                ? "Harus lebih besar dari Urutan Gaji Pokok."
+                : undefined
+            }
             render={({ field, controlProps }) => (
               <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
             )}

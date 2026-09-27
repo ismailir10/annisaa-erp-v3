@@ -157,6 +157,36 @@ describe("SalaryComponentsPage — Tambah Komponen dialog", () => {
     expect(await within(dialog).findByText("Label sudah dipakai")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Tambah Komponen" })).toBeInTheDocument();
   });
+
+  it("F-15: shows the server's gaji_pokok ordering error inline under Urutan, without closing the dialog", async () => {
+    fixture({
+      postOk: false,
+      post: {
+        error: "Validasi gagal",
+        errors: [{
+          field: "sortOrder",
+          message: "Komponen % Gaji Pokok harus diurutkan setelah Gaji Pokok (urutan > 3)",
+        }],
+      },
+    });
+    const user = userEvent.setup();
+    render(<SalaryComponentsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Komponen" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Komponen" });
+
+    await user.type(within(dialog).getByRole("textbox", { name: "Kode" }), "insentif_persen");
+    await user.type(within(dialog).getByRole("textbox", { name: "Label" }), "Insentif Persen");
+
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Komponen" }));
+
+    expect(
+      await within(dialog).findByText(
+        "Komponen % Gaji Pokok harus diurutkan setelah Gaji Pokok (urutan > 3)",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Tambah Komponen" })).toBeInTheDocument();
+  });
 });
 
 describe("SalaryComponentsPage — Edit Komponen dialog", () => {

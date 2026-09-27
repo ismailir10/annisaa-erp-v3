@@ -199,26 +199,25 @@ describe("Salary components: salaryComponentFormSchema (form) -> createSalaryCom
     expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(true);
   });
 
-  it("DOCUMENTED GAP (not a regression — payroll.ts:31-37): the create Select always offers " +
-    "PCT_OF_BASE, but POST's schema only accepts FIXED/ATTENDANCE_BASED on create", async () => {
+  it("F-15 (was a documented gap): a create submission with calcType PCT_OF_BASE is now " +
+    "accepted by createSalaryComponentSchema — the ordering rule against `gaji_pokok` is " +
+    "enforced by the route (checkSalaryComponentOrdering), not by the zod schema", async () => {
     const { salaryComponentFormSchema, createSalaryComponentSchema } = await import("../payroll");
     const form = salaryComponentFormSchema.safeParse({
       code: "insentif",
       label: "Insentif",
       category: "INCOME",
       calcType: "PCT_OF_BASE",
-      sortOrder: "0",
+      sortOrder: "5",
     });
-    expect(form.success).toBe(true); // passes client-side validation...
+    expect(form.success).toBe(true);
     if (!form.success) return;
-    // ...but the create route 400s. applyServerErrors maps this back onto
-    // the field (page.tsx:102), so it is not a silent failure, but a user
-    // selecting this option on CREATE will always be rejected by the server.
-    expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(false);
+    expect(createSalaryComponentSchema.safeParse(wire(form.data)).success).toBe(true);
   });
 
-  it("edit PUT is inline/unvalidated (salary-components/[id]/route.ts:19-38) and accepts the full form output, including the unused 'code' key", async () => {
-    const { salaryComponentFormSchema } = await import("../payroll");
+  it("edit PUT now validates with updateSalaryComponentSchema (salary-components/[id]/route.ts) " +
+    "and accepts the full form output, ignoring the unused 'code' key", async () => {
+    const { salaryComponentFormSchema, updateSalaryComponentSchema } = await import("../payroll");
     const form = salaryComponentFormSchema.safeParse({
       code: "spp", // present in the form's defaultValues even though the field is hidden on edit
       label: "SPP",
@@ -228,10 +227,21 @@ describe("Salary components: salaryComponentFormSchema (form) -> createSalaryCom
       sortOrder: "2",
     });
     expect(form.success).toBe(true);
-    // The PUT handler reads body.label/category/calcType/isProRated/sortOrder
-    // directly with no schema — an extra `code` key is simply ignored, not
-    // rejected (route.ts:19-39). Documented here so a future strict rewrite
-    // of that route doesn't quietly break the edit dialog's `code` leak.
+    if (!form.success) return;
+    const parsed = updateSalaryComponentSchema.safeParse(wire(form.data));
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    // `code` is not part of the PUT schema — zod strips it, matching the
+    // route's existing behaviour of never reading it from the body.
+    expect(parsed.data).not.toHaveProperty("code");
+  });
+
+  it("the { isEnabled }-only toggle body still round-trips through updateSalaryComponentSchema", async () => {
+    const { updateSalaryComponentSchema } = await import("../payroll");
+    const parsed = updateSalaryComponentSchema.safeParse(wire({ isEnabled: false }));
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toEqual({ isEnabled: false });
   });
 });
 
