@@ -148,8 +148,8 @@ Every create, edit, and action dialog — including nested-entity dialogs and on
 
 ## Edit Dialog Standard (for nested entities)
 
-- Same form fields as create dialog, pre-filled with current values
+- Same form fields as create dialog, pre-filled with current values via `form.reset(values)` — built per `ui.md` → Forms (react-hook-form + the route's zod schema); if edit shows fewer fields than create, validate with an edit-derived schema
 - Title: "Edit {EntityName}" (e.g., "Edit Wali")
-- Save button: "Simpan" with loading state
+- Save button: "Simpan Perubahan" with loading state (`FormDialogFooter`)
 - Cancel button: "Batal"
 - On success: `toast.success()` + close dialog + refetch data
