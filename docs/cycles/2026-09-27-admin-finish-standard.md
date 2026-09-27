@@ -149,4 +149,6 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 6: `vitest run` employees/[id], payroll/[id], invoices/[id], objectives, api/invoices, api/payroll, form-api-roundtrip — 7 files / 95 tests passed; eslint 0 errors (7 pre-existing warnings); tsc clean on the staged tree. Security: both route swaps change only the parse call — permission, tenant scope and the payment lock/transaction precede or wrap it exactly as before. design-system: fields keep the existing `Field` layout via `FormField`; the payment dialog uses `FormDialogFooter`.
 
+- CI fix (2ab8310, `Lint, Typecheck & Test`): `app/admin/(hr)/__tests__/accessibility-contract.test.ts` source-scanned employees/[id] for the hand-written `htmlFor="employee-detail-nama" required` label that T6 replaced with `<FormField required>`. The contract now uses its existing `formFieldBlock` check for Nama/Email/Jabatan/Kampus (and asserts No. HP stays optional). Lesson: grep for source-scan tests (`readFileSync`) of a page before migrating it.
+
 ## Ship Notes
