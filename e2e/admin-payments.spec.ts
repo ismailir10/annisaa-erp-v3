@@ -30,7 +30,7 @@ test.describe("Admin /admin/payments — Penerimaan ledger", () => {
     await expect(page.getByRole("heading", { name: "Penerimaan" })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Total Penerimaan")).toBeVisible();
     await expect(page.getByText("Jumlah Transaksi")).toBeVisible();
-    await expect(page.getByLabel("Tanggal mulai")).toBeVisible();
+    await expect(page.getByLabel("Dari", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Ekspor CSV" })).toBeVisible();
 
     const tableOrEmpty = page.locator("table").or(page.getByText("Belum ada penerimaan"));

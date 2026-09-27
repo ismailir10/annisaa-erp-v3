@@ -10,9 +10,10 @@ import { AttendanceTrendChart, type WeeklyTrend } from "@/components/admin/dashb
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
@@ -139,12 +140,12 @@ export default function AttendancePage() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{ea.employee.nama}</p>
-              <p className="text-xs text-muted-foreground">
-                {ea.employee.kode} · {ea.employee.campusName}
-              </p>
-            </div>
+            <DataTableLinkCell
+              href={`/admin/employees/${ea.employee.id}`}
+              description={`${ea.employee.kode} · ${ea.employee.campusName}`}
+            >
+              {ea.employee.nama}
+            </DataTableLinkCell>
           </div>
         );
       },
@@ -165,6 +166,7 @@ export default function AttendancePage() {
       id: "checkOut",
       accessorFn: (row) => row.attendance?.checkOutTime,
       header: "Pulang",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-xs text-muted-foreground">
           {formatTime(row.original.attendance?.checkOutTime ?? null)}
@@ -227,7 +229,7 @@ export default function AttendancePage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full sm:w-44" />
+        <DatePicker value={date} onChange={setDate} className="w-full sm:w-44" />
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>

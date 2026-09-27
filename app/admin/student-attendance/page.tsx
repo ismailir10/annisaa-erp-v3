@@ -9,12 +9,14 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -346,18 +348,16 @@ export default function StudentAttendancePage() {
       cell: ({ row }) => {
         const s = row.original.student;
         return (
-          <div>
-            <p className="text-sm font-medium">{s.name}</p>
-            {s.nickname && (
-              <p className="text-xs text-muted-foreground">{s.nickname}</p>
-            )}
-          </div>
+          <DataTableLinkCell href={`/admin/students/${s.id}`} description={s.nickname}>
+            {s.name}
+          </DataTableLinkCell>
         );
       },
     },
     {
       id: "class",
       header: "Kelas",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.classSection.name}
@@ -372,6 +372,7 @@ export default function StudentAttendancePage() {
     {
       id: "notes",
       header: "Catatan",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground max-w-[200px] truncate block">
           {row.original.notes ?? "—"}
@@ -423,12 +424,11 @@ export default function StudentAttendancePage() {
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
-          <Input
+          <DatePicker
             id="attendance-date-from"
-            type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
+            onChange={(v) => {
+              setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
@@ -436,12 +436,11 @@ export default function StudentAttendancePage() {
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
-          <Input
+          <DatePicker
             id="attendance-date-to"
-            type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
+            onChange={(v) => {
+              setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
@@ -588,17 +587,18 @@ const recapColumns: ColumnDef<RecapRow>[] = [
     accessorKey: "name",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
     cell: ({ row }) => (
-      <div>
-        <p className="text-sm font-medium">{row.original.name}</p>
-        {row.original.nis && (
-          <p className="text-xs text-muted-foreground">NIS {row.original.nis}</p>
-        )}
-      </div>
+      <DataTableLinkCell
+        href={`/admin/students/${row.original.studentId}`}
+        description={row.original.nis ? `NIS ${row.original.nis}` : undefined}
+      >
+        {row.original.name}
+      </DataTableLinkCell>
     ),
   },
   {
     accessorKey: "className",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.className}</span>
     ),

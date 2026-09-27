@@ -68,6 +68,11 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 - **Toasts stack, overlays don't.** Multiple toasts allowed; they auto-dismiss. Sonner's default 3–5s timing is correct for success; errors should stay longer (or be persistent via `toast.error(..., { duration: Infinity })` for critical failures).
 - **Body copy states the consequence.** "Data akan hilang selamanya" for hard delete; "Bisa diaktifkan kembali kapan saja" for soft delete. See `voice.md` for audience-matched copy.
 
+**Named exceptions** (raw overlay outside `confirm-dialog.tsx` / `ResponsiveFormDialog`, deliberately not "fixed"):
+- **Admissions "Konversi ke Siswa"** — a genuine three-way decision (merge / new / cancel); forcing it into `ConfirmDialog` would hide a choice.
+- **Payroll payslip Sheet** — read-only detail view, not a form.
+- **Billing-run wizard shell** — multi-step; a follow-up to migrate onto the shared primitives.
+
 **Note:** Shadcn `base-nova` style uses `render` prop (not `asChild`) for composition:
 ```tsx
 // Correct (base-nova):
@@ -99,6 +104,41 @@ For toggled create/edit dialogs, the submit slot uses a ternary: `editingX ? "Si
 
 `<FieldLabel required>Nama</FieldLabel>` renders an `aria-hidden` red asterisk and sets `aria-required` on the underlying label. Callers MUST also pass `required` (or `aria-required`) to the form control itself so screen readers announce required state. Inline `Nama *` strings are deprecated.
 
+## Primary-Action Placement
+
+One rule, no detached button rows:
+
+- **Page-level primary action** (e.g. "Tambah Siswa" on a list) → `PageHeader`'s `actions`.
+- **Tab- or section-scoped primary action** (e.g. "Tambah Komponen" on one tab of a tabbed page) → that section's `DataTableToolbar` `actions` slot, same row as search/filters.
+- Never a bare `<Button>` row floating above or beside the toolbar.
+
+## Detail Header Actions
+
+`DetailPageHeader` (`components/admin/detail-page-header.tsx`) takes structured `primaryActions` / `menuActions` instead of a free-form `actions` node:
+
+- **At most two visible actions** (`primaryActions`, `variant: "outline"` by default) — a third is silently dropped, so don't pass a third.
+- At most **one** `primaryActions` entry may be `variant: "default"` (filled) — it reads as *the* primary action.
+- Everything else, and **every destructive action**, goes in `menuActions` (rendered in the `⋯` `DropdownMenu`). Destructive entries always render last, after a separator from the non-destructive ones.
+- The legacy `actions` prop (an arbitrary `ReactNode`) still works for callers not yet migrated, but new detail pages use `primaryActions`/`menuActions`.
+
+## AdminTabs Layout
+
+`AdminTabsList` (`components/admin/admin-tabs.tsx`) owns tab-strip layout: a single row that scrolls horizontally on narrow screens instead of wrapping. Pages must not pass a `className` that overrides this (`flex-wrap`, `w-full`, etc.) — a wrapped strip drops a tab onto its own centred row where it reads as a heading, not a tab. `AdminLinkTabs` (for sibling routes sharing one nav entry, see `patterns.md` Recipe 1) matches the same layout.
+
+## Toolbar Reset
+
+`DataTableToolbar`'s "Atur Ulang" button only renders while a search, `filters` entry, or `hasExternalFilter` is active — never as a permanently-visible disabled control. It's a ghost button with a leading `X` icon.
+
+## Structured Inputs
+
+Never a raw `<input type="date">` or a hand-parsed `<input type="number">` for money in `app/admin/**` — use the shared primitive:
+
+| Need | Use |
+|---|---|
+| Date | `<DatePicker>` (`components/ui/date-picker.tsx`) — same `value`/`onChange` shape as the native input (`YYYY-MM-DD` string); renders the native input on `pointer: coarse` (touch already has a good platform picker) and a shadcn `Calendar` + `Popover` on a fine pointer. |
+| Money | `<RupiahInput>` (`components/ui/rupiah-input.tsx`) — "Rp" prefix, id-ID thousands separators while typing, emits an integer or `null`, right-aligned `tabular-nums`. |
+| Async typeahead (search-as-you-type over a fetcher) | `<AsyncCombobox>` (`components/ui/async-combobox.tsx`) — debounced, abortable, idle/loading/error/empty states, optional grouping. `parent-picker` / `student-picker` / `class-section-picker` are built on it; `ClassSectionMultiPicker` stays hand-rolled (multi-select doesn't fit a single-value primitive). |
+
 ## DataTable Standard
 
 Any list >10 items: use `<DataTable>` with server-side pagination, column sorting, search, status filter.
@@ -107,7 +147,20 @@ Any list >10 items: use `<DataTable>` with server-side pagination, column sortin
 1. Sortable column headers (`DataTableColumnHeader`)
 2. Skeleton loading state (Shadcn `Skeleton`)
 3. Status filter (Aktif/Tidak Aktif at minimum)
-4. Action column with: **View button** + **⋮ dropdown** (Edit, Deactivate)
+4. Action column with: **⋮ dropdown** (Edit, Deactivate) — identity is the link, see below
+
+### Mobile contract (`<md`)
+
+`components/ui/data-table.tsx` renders every list identically below `md` — no per-page opt-in beyond column `meta`:
+
+- Mark secondary columns (created/updated-at, ids, anything not needed to identify or act on the row) `meta: { priority: "low" }` — hidden below `md`, back on `md+`.
+- The action column (`id: "actions"`, from `DataTableRowActions`) is automatically sticky-right below `md` with a left shadow and opaque background; a column can opt in explicitly with `meta: { sticky: "right" }` if a page names its actions column differently.
+- Aim for **≤3 visible data columns + actions at 390px** — everything else is `priority: "low"`.
+- **Define `columns` so cell identity is stable** — module-level, or `useMemo` with a tight dependency array. TanStack `flexRender` mounts each `cell` function as its own component; a `columns` array rebuilt on every render remounts every cell, which loses focus in an inline input and closes an open row-actions menu. For an inline-edit cell (e.g. a per-row `RupiahInput`), pass the live value/setter through React context or table `meta` instead of closing over page state in the column definition — see `app/admin/fees/page.tsx`'s `STRUCTURE_COLUMNS` + `TarifContext` for the pattern.
+
+### Name is the link
+
+The row's identity cell (name, title, code — whatever a person scans for) is a `DataTableLinkCell` (`href` for a detail route, `onClick` for an overlay view) instead of plain text. There is no separate "Lihat" row action — the name already goes there, with a bigger, more obvious tap target. The `⋯` menu keeps Edit and the terminal action (Deactivate/Cancel/Void). `DataTableRowActions` still accepts `onView` for the rare row with no link target at all (e.g. a read-only Sheet reached only from `extraActions`) — do not pass it alongside a link cell that already opens the same view.
 
 ### Column header casing — title case
 
@@ -133,15 +186,21 @@ Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx
 | B — State-machine (Invoice) | `onVoid` | Batalkan |
 | C — Event-log (StudentAttendance) | `onVoid` | Batalkan |
 
-- **Primary:** "Lihat" button (Eye icon) — visible, navigates to detail or opens Sheet. Only pass `onView` when a detail route exists.
+- **Primary:** the identity cell is the link (`DataTableLinkCell`, see above) — do not also pass `onView` for the same destination. Reserve `onView` for a row with no link target of its own.
 - **Dropdown (⋮):** `onEdit` + one terminal prop (`onDeactivate` | `onCancel` | `onVoid`).
 - Never hard delete. Never use `extraActions` for "Batalkan" / "Nonaktifkan" — use the dedicated prop so menu labels and icons stay consistent.
 - `extraActions` is reserved for **domain-specific** actions (e.g. "Konversi ke Siswa" on Admission, "Setujui" / "Tolak" on LeaveRequest approval queue).
 
 ```tsx
-// Category A — binary:
+// identity cell (Category A — binary):
+cell: ({ row }) => (
+  <DataTableLinkCell href={`/admin/students/${row.original.id}`}>
+    {row.original.name}
+  </DataTableLinkCell>
+),
+
+// action column, same row:
 <DataTableRowActions
-  onView={() => router.push(`/admin/students/${row.original.id}`)}
   onEdit={() => setEditTarget(row.original)}
   onDeactivate={() => setDeactivateTarget(row.original)}
   isActive={row.original.status === "ACTIVE"}
@@ -149,12 +208,12 @@ Use `<DataTableRowActions>` component (`components/ui/data-table-row-actions.tsx
 
 // Category B — state-machine (Invoice):
 <DataTableRowActions
-  onView={() => router.push(`/admin/invoices/${inv.id}`)}
+  onEdit={() => setEditTarget(inv)}
   onVoid={canVoid ? () => setVoidTarget(inv) : undefined}
 />
 ```
 
 **Workflow-queue exceptions** (documented — do NOT "fix"):
-- **PayrollRun list** (`/admin/payroll`): row shows `onView` only. All state transitions (approve, export, send-slips) happen on the detail page. The list is a directory, not an editor.
-- **LeaveRequest approval queue** (`/admin/leave`): `onView` + `extraActions` ("Setujui" / "Tolak"). Approvals ARE the domain action — there is no generic edit or deactivate.
+- **PayrollRun list** (`/admin/payroll`): identity cell links to the run detail page; no `⋯` menu at all. All state transitions (approve, export, send-slips) happen on the detail page. The list is a directory, not an editor.
+- **LeaveRequest approval queue** (`/admin/leave-requests`): identity cell links to detail + `extraActions` ("Setujui" / "Tolak"). Approvals ARE the domain action — there is no generic edit or deactivate.
 - **Daily attendance views** (`/admin/attendance`, `/admin/assessments/*` score entry): single-purpose cell editors, no terminal state. Override-only is correct.

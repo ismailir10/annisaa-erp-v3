@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
@@ -57,6 +57,7 @@ const columns: ColumnDef<Guardian>[] = [
   {
     accessorKey: "phone",
     header: "Telepon",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.phone || "—"}</span>
     ),
@@ -64,6 +65,7 @@ const columns: ColumnDef<Guardian>[] = [
   {
     accessorKey: "email",
     header: "Email",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.email || "—"}</span>
     ),
@@ -103,7 +105,6 @@ const columns: ColumnDef<Guardian>[] = [
 // ------------------------------------------------------------------
 
 export default function GuardiansPage() {
-  const router = useRouter();
   const [data, setData] = useState<Guardian[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -248,12 +249,9 @@ export default function GuardiansPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
         cell: ({ row }) => (
-          <button
-            className="text-sm font-medium text-left hover:underline"
-            onClick={() => router.push(`/admin/guardians/${row.original.id}`)}
-          >
+          <DataTableLinkCell href={`/admin/guardians/${row.original.id}`}>
             {row.original.name}
-          </button>
+          </DataTableLinkCell>
         ),
       },
       ...columns.slice(1),
@@ -264,7 +262,7 @@ export default function GuardiansPage() {
           const g = row.original;
           return (
             <DataTableRowActions
-              onView={() => router.push(`/admin/guardians/${g.id}`)}
+              rowLabel={g.name}
               onEdit={() => openEditDialog(g)}
               onDeactivate={g.status !== "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
               onActivate={g.status === "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
@@ -274,7 +272,7 @@ export default function GuardiansPage() {
         },
       },
     ],
-    [router],
+    [],
   );
 
   if (loading && data.length === 0) return <Skeleton className="h-96 rounded-xl" />;

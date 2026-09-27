@@ -22,6 +22,30 @@ test.describe("Admin curriculum", () => {
         sameSite: "Lax",
       },
     ]);
+    // The week start/end fields use the shared DatePicker, which renders a
+    // Calendar popover on a fine pointer (desktop Chromium's default). Force
+    // `(pointer: coarse)` so it takes its native-`<input type="date">` branch,
+    // same as a real touch device gets; `.fill()` below targets that native
+    // input by id — far simpler than paging a calendar to the 2030 dates this
+    // suite seeds to dodge overlap with real data.
+    await page.addInitScript(() => {
+      const realMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query: string) => {
+        if (query === "(pointer: coarse)") {
+          return {
+            matches: true,
+            media: query,
+            onchange: null,
+            addListener: () => {},
+            removeListener: () => {},
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            dispatchEvent: () => false,
+          } as MediaQueryList;
+        }
+        return realMatchMedia(query);
+      };
+    });
   });
 
   test("semester list shows seeded row + sidebar Kurikulum entry", async ({ page }) => {
@@ -95,8 +119,8 @@ test.describe("Admin curriculum", () => {
     // Create a Mon–Fri week. Pick a stable far-future range so it cannot
     // overlap with seeded weeks: Mon 2030-01-07 → Fri 2030-01-11.
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
-    await page.locator('[data-testid="week-start"]').fill("2030-01-07");
-    await page.locator('[data-testid="week-end"]').fill("2030-01-11");
+    await page.locator("#week-start-date").fill("2030-01-07");
+    await page.locator("#week-end-date").fill("2030-01-11");
     await page.locator('[data-testid="week-save"]').click();
     await expect(
       page.locator('[data-testid="week-row"]').filter({ hasText: /Pekan/ }),
@@ -155,8 +179,8 @@ test.describe("Admin curriculum", () => {
     await page.locator('[data-testid="week-card"]').getByRole("button", { name: /Tambah/ }).click();
     // Submit a one-day-shifted overlap so the candidate hits the existing
     // range without matching the unique (subThemeId, number) tuple.
-    await page.locator('[data-testid="week-start"]').fill(startYmd);
-    await page.locator('[data-testid="week-end"]').fill(endYmd);
+    await page.locator("#week-start-date").fill(startYmd);
+    await page.locator("#week-end-date").fill(endYmd);
     await page.locator('[data-testid="week-save"]').click();
     await expect(page.locator('[data-testid="week-overlap-error"]')).toBeVisible({
       timeout: 5_000,

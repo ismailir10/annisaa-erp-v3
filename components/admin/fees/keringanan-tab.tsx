@@ -6,8 +6,9 @@
 // Self-contained Category A CRUD tab (.claude/standards/crud.md) mounted as
 // the third tab on /admin/fees. Shape cloned from
 // app/admin/(hr)/salary-components/page.tsx: DataTableToolbar → DataTable →
-// DataTableRowActions → ResponsiveFormDialog → AlertDialog confirm before
-// deactivate.
+// DataTableRowActions → ResponsiveFormDialog → ConfirmDialog confirm before
+// deactivate (cycle 2026-09-26, admin-ui-standard-c1 T5 — was a raw
+// AlertDialog).
 //
 // `studentId` / `academicYearId` / `feeComponentId` / `type` are immutable
 // after creation (lib/validations/student-fee-adjustment.ts) — the edit
@@ -31,19 +32,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
+import { RupiahInput } from "@/components/ui/rupiah-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { userMessage } from "@/lib/api/client-errors";
 
@@ -389,7 +383,10 @@ export function KeringananTab() {
   // Deactivate / reactivate
   // ------------------------------------------------------------------
 
-  async function setStatus(adj: Adjustment, nextStatus: "ACTIVE" | "INACTIVE") {
+  // Returns whether the toggle succeeded so the deactivate ConfirmDialog can
+  // decide whether to keep itself open for a retry (same contract as
+  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`).
+  async function setStatus(adj: Adjustment, nextStatus: "ACTIVE" | "INACTIVE"): Promise<boolean> {
     setTogglingId(adj.id);
     try {
       const res = await fetch(`/api/student-fee-adjustments/${adj.id}`, {
@@ -400,12 +397,14 @@ export function KeringananTab() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast.error(body.error || "Gagal mengubah status keringanan");
-        return;
+        return false;
       }
       toast.success(nextStatus === "INACTIVE" ? "Keringanan dinonaktifkan" : "Keringanan diaktifkan");
       fetchAdjustments();
+      return true;
     } catch (e) {
       toast.error(userMessage(e, "Gagal mengubah status keringanan"));
+      return false;
     } finally {
       setTogglingId(null);
     }
@@ -415,10 +414,19 @@ export function KeringananTab() {
   // Columns
   // ------------------------------------------------------------------
 
+  // Sortability rule (one rule, applied to every data column): every header
+  // renders via DataTableColumnHeader, and a column sorts only when the API
+  // accepts that field in its `sort` allow-list
+  // (app/api/student-fee-adjustments/route.ts `parseSort(... allow: [...])`)
+  // — `value`/`validFrom`/`status` do, `student`/`feeComponent`/`type` don't
+  // (they're relation-derived `cell`-only columns with no `accessorFn`, so
+  // TanStack's `getCanSort()` returns false for them on its own; wrapping
+  // them in DataTableColumnHeader too just means they render as a plain
+  // title instead of a mix of raw strings and sortable headers).
   const columns: ColumnDef<Adjustment>[] = [
     {
       id: "student",
-      header: "Siswa",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
       cell: ({ row }) => {
         const adj = row.original;
         return (
@@ -433,14 +441,15 @@ export function KeringananTab() {
     },
     {
       id: "feeComponent",
-      header: "Komponen Biaya",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen Biaya" />,
       cell: ({ row }) => (
         <span className="text-sm">{row.original.feeComponent?.label ?? "—"}</span>
       ),
+      meta: { priority: "low" },
     },
     {
       id: "type",
-      header: "Jenis",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Jenis" />,
       cell: ({ row }) => (
         <Badge variant="secondary" className="text-xs">
           {TYPE_LABELS[row.original.type]}
@@ -464,6 +473,7 @@ export function KeringananTab() {
           {formatValidity(row.original.validFrom, row.original.validTo)}
         </span>
       ),
+      meta: { priority: "low" },
     },
     {
       accessorKey: "status",
@@ -477,6 +487,7 @@ export function KeringananTab() {
         const adj = row.original;
         return (
           <DataTableRowActions
+            rowLabel={adj.student.name}
             onEdit={() => openEdit(adj)}
             isActive={adj.status === "ACTIVE"}
             onDeactivate={togglingId === adj.id ? undefined : () => setConfirmTarget(adj)}
@@ -495,12 +506,6 @@ export function KeringananTab() {
 
   return (
     <>
-      <div className="flex justify-end mb-4 mt-4">
-        <Button size="sm" onClick={openCreate}>
-          <Plus size={14} className="mr-1.5" /> Tambah Keringanan
-        </Button>
-      </div>
-
       <DataTableToolbar
         searchPlaceholder="Cari nama atau NIS siswa..."
         onSearchChange={handleSearchChange}
@@ -518,6 +523,11 @@ export function KeringananTab() {
             ],
           },
         ]}
+        actions={
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={14} className="mr-1.5" /> Tambah Keringanan
+          </Button>
+        }
       />
 
       {loadError && !loading ? (
@@ -684,19 +694,28 @@ export function KeringananTab() {
 
         <Field data-invalid={fieldErrors.value ? "true" : undefined}>
           <FieldLabel required htmlFor="keringanan-value">Nilai</FieldLabel>
-          <Input
-            id="keringanan-value"
-            required
-            aria-required="true"
-            type="number"
-            min={0}
-            step="0.01"
-            max={form.mode === "PERCENT" ? 100 : undefined}
-            value={form.value}
-            onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-            placeholder="0"
-            className="font-currency"
-          />
+          {form.mode === "FIXED" ? (
+            <RupiahInput
+              id="keringanan-value"
+              required
+              value={form.value ? Number(form.value) : null}
+              onChange={(v) => setForm((f) => ({ ...f, value: v === null ? "" : String(v) }))}
+            />
+          ) : (
+            <Input
+              id="keringanan-value"
+              required
+              aria-required="true"
+              type="number"
+              min={0}
+              step="0.01"
+              max={100}
+              value={form.value}
+              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+              placeholder="0"
+              className="font-currency"
+            />
+          )}
           <FieldDescription>{nilaiDescription}</FieldDescription>
           <FieldError>{fieldErrors.value}</FieldError>
         </Field>
@@ -719,20 +738,19 @@ export function KeringananTab() {
         <div className="grid grid-cols-2 gap-3">
           <Field>
             <FieldLabel htmlFor="keringanan-valid-from">Berlaku Dari</FieldLabel>
-            <Input
+            <DatePicker
               id="keringanan-valid-from"
-              type="date"
               value={form.validFrom}
-              onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+              onChange={(v) => setForm((f) => ({ ...f, validFrom: v }))}
             />
           </Field>
           <Field data-invalid={fieldErrors.validTo ? "true" : undefined}>
             <FieldLabel htmlFor="keringanan-valid-to">Berlaku Sampai</FieldLabel>
-            <Input
+            <DatePicker
               id="keringanan-valid-to"
-              type="date"
               value={form.validTo}
-              onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+              onChange={(v) => setForm((f) => ({ ...f, validTo: v }))}
+              aria-invalid={fieldErrors.validTo ? true : undefined}
             />
             <FieldError>{fieldErrors.validTo}</FieldError>
           </Field>
@@ -741,28 +759,19 @@ export function KeringananTab() {
       </ResponsiveFormDialog>
 
       {/* Deactivate guard — reactivate stays single-click (non-destructive) */}
-      <AlertDialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>
-        <AlertDialogContent className="p-card sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Nonaktifkan keringanan ini?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget?.student.name} tidak akan lagi mendapat {confirmTarget ? TYPE_LABELS[confirmTarget.type].toLowerCase() : ""} ini pada tagihan berikutnya. Bisa diaktifkan kembali kapan saja.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (confirmTarget) setStatus(confirmTarget, "INACTIVE");
-                setConfirmTarget(null);
-              }}
-            >
-              Ya, Nonaktifkan
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onOpenChange={(o) => !o && setConfirmTarget(null)}
+        title="Nonaktifkan keringanan ini?"
+        description={`${confirmTarget?.student.name ?? ""} tidak akan lagi mendapat ${confirmTarget ? TYPE_LABELS[confirmTarget.type].toLowerCase() : ""} ini pada tagihan berikutnya. Bisa diaktifkan kembali kapan saja.`}
+        confirmLabel="Ya, Nonaktifkan"
+        destructive
+        onConfirm={async () => {
+          if (!confirmTarget) return;
+          const ok = await setStatus(confirmTarget, "INACTIVE");
+          if (!ok) throw new Error("Gagal menonaktifkan keringanan");
+        }}
+      />
     </>
   );
 }

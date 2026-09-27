@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
 
 /**
@@ -23,21 +22,28 @@ import { ClassSectionCombobox, type ClassSection } from "@/components/admin/clas
  * Behaviour is unchanged from the in-page version:
  *   picker → (409) advisory confirm step
  * AGE_OUT_OF_RANGE is overridable with a required reason; ALREADY_ENROLLED is
- * not. Three mutually-exclusive steps share one Sheet/Dialog instance.
+ * not. Three mutually-exclusive steps share one ResponsiveFormDialog instance
+ * (Dialog on desktop, Sheet on mobile, per ui.md's Overlays Rule).
  */
 export function StudentEnrollDialog({
   studentId,
   open,
   onOpenChange,
   onEnrolled,
-  isMobile,
 }: {
   studentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called after a successful enroll so the page can refetch. */
   onEnrolled: () => void;
-  isMobile: boolean;
+  /**
+   * @deprecated No longer read. `ResponsiveFormDialog` now owns the
+   * desktop/mobile breakpoint switch itself (frozen while open, same as
+   * every other admin form dialog), so the caller no longer needs to
+   * compute and forward this. Kept optional so an existing caller passing
+   * it still type-checks without an unrelated prop-drop diff.
+   */
+  isMobile?: boolean;
 }) {
   const [sections, setSections] = useState<ClassSection[]>([]);
   const [selectedSection, setSelectedSection] = useState("");
@@ -204,21 +210,15 @@ export function StudentEnrollDialog({
     );
   }
 
-  return isMobile ? (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-        <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
-        <div className="px-4 pb-4">{body}</div>
-        <SheetFooter>{footer}</SheetFooter>
-      </SheetContent>
-    </Sheet>
-  ) : (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
-        <div>{body}</div>
-        <DialogFooter>{footer}</DialogFooter>
-      </DialogContent>
-    </Dialog>
+  return (
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Daftarkan ke Kelas"
+      size="lg"
+      footer={footer}
+    >
+      {body}
+    </ResponsiveFormDialog>
   );
 }

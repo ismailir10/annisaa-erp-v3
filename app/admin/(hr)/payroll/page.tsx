@@ -1,20 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
@@ -56,20 +55,16 @@ const columns: ColumnDef<PayrollRun>[] = [
     cell: ({ row }) => {
       const run = row.original;
       return (
-        <Link
-          href={`/admin/payroll/${run.id}`}
-          className="group"
-        >
-          <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-            {run.periodStart} — {run.periodEnd}
-          </span>
-        </Link>
+        <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
+          {run.periodStart} — {run.periodEnd}
+        </DataTableLinkCell>
       );
     },
   },
   {
     id: "employees",
     header: "Karyawan",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm">{row.original._count.items} orang</span>
     ),
@@ -77,6 +72,7 @@ const columns: ColumnDef<PayrollRun>[] = [
   {
     accessorKey: "actualWorkDays",
     header: "Hari Kerja",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm tabular-nums">{row.original.actualWorkDays} hari</span>
     ),
@@ -234,22 +230,6 @@ export default function PayrollListPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  const columnsWithActions = useMemo<ColumnDef<PayrollRun>[]>(
-    () => [
-      ...columns,
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/payroll/${row.original.id}`)}
-          />
-        ),
-      },
-    ],
-    [router],
-  );
-
   return (
     <>
       <PageHeader
@@ -297,7 +277,7 @@ export default function PayrollListPage() {
       />
 
       <DataTable
-        columns={columnsWithActions}
+        columns={columns}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}
@@ -346,11 +326,11 @@ function PayrollPeriodBody({
       <div className="grid grid-cols-2 gap-4">
         <Field>
           <FieldLabel htmlFor="payroll-run-period-start">Tanggal Mulai</FieldLabel>
-          <Input id="payroll-run-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <DatePicker id="payroll-run-period-start" value={periodStart} onChange={setPeriodStart} />
         </Field>
         <Field>
           <FieldLabel htmlFor="payroll-run-period-end">Tanggal Selesai</FieldLabel>
-          <Input id="payroll-run-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <DatePicker id="payroll-run-period-end" value={periodEnd} onChange={setPeriodEnd} />
         </Field>
       </div>
       <p className="text-xs text-muted-foreground">

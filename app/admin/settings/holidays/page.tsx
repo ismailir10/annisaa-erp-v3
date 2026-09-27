@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -130,6 +131,7 @@ export default function HolidaysPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tipe" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <StatusBadge
           status={row.original.type}
@@ -207,7 +209,7 @@ export default function HolidaysPage() {
       >
             <Field>
               <FieldLabel required htmlFor="holiday-date">Tanggal</FieldLabel>
-              <Input id="holiday-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required aria-required="true" />
+              <DatePicker id="holiday-date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} required />
             </Field>
             <Field>
               <FieldLabel required htmlFor="holiday-name">Nama</FieldLabel>

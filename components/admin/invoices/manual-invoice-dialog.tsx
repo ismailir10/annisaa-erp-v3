@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Button } from "@/components/ui/button";
 import { userMessage } from "@/lib/api/client-errors";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
@@ -170,13 +172,11 @@ function ManualInvoiceFormBody({
 
       <Field>
         <FieldLabel required htmlFor="manual-invoice-due-date">Tanggal Jatuh Tempo</FieldLabel>
-        <Input
+        <DatePicker
           id="manual-invoice-due-date"
           required
-          aria-required="true"
-          type="date"
           value={form.dueDate}
-          onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+          onChange={(v) => setForm({ ...form, dueDate: v })}
         />
       </Field>
 
@@ -228,17 +228,12 @@ function ManualInvoiceFormBody({
                 <FieldLabel required htmlFor={`manual-invoice-amount-${index}`}>
                   Jumlah {index + 1}
                 </FieldLabel>
-                <Input
+                <RupiahInput
                   id={`manual-invoice-amount-${index}`}
                   required
-                  aria-required="true"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={line.amount}
-                  onChange={(e) => updateLine(index, { amount: e.target.value })}
-                  placeholder="0"
-                  className="w-full font-currency bg-background"
+                  value={line.amount === "" ? null : Number(line.amount)}
+                  onChange={(v) => updateLine(index, { amount: v === null ? "" : String(v) })}
+                  className="w-full bg-background"
                 />
               </Field>
               <Button

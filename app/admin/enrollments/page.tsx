@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { AdminLinkTabs } from "@/components/admin/admin-tabs";
@@ -36,7 +35,6 @@ type Pagination = {
 };
 
 export default function EnrollmentsPage() {
-  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [status, setStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -107,51 +105,54 @@ export default function EnrollmentsPage() {
     return () => controller.abort();
   }, [pagination.page, pagination.pageSize, search, status]);
 
-  const columns: ColumnDef<Row>[] = [
-    {
-      accessorKey: "childName",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Nama Anak" />,
-      cell: ({ row }) => <span className="font-medium">{row.original.childName || "—"}</span>,
-    },
-    {
-      id: "program",
-      header: "Program",
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original.program?.name ?? "—"}
-          {row.original.dcareAddon ? " + Dcare" : ""}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "parentEmail",
-      header: "Email Orang Tua",
-      cell: ({ row }) => <span className="text-sm">{row.original.parentEmail ?? "—"}</span>,
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-      cell: ({ row }) => <StatusChip status={row.original.status} studentId={row.original.studentId} />,
-    },
-    {
-      id: "submitted",
-      header: "Dikirim",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {row.original.submittedAt ? formatDateShort(row.original.submittedAt.split("T")[0]) : "—"}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <DataTableRowActions
-          rowLabel={row.original.childName || undefined}
-          onView={() => router.push(`/admin/enrollments/${row.original.id}`)}
-        />
-      ),
-    },
-  ];
+  const columns: ColumnDef<Row>[] = useMemo(
+    () => [
+      {
+        accessorKey: "childName",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Nama Anak" />,
+        cell: ({ row }) =>
+          row.original.childName ? (
+            <DataTableLinkCell href={`/admin/enrollments/${row.original.id}`}>
+              {row.original.childName}
+            </DataTableLinkCell>
+          ) : (
+            <span className="font-medium">—</span>
+          ),
+      },
+      {
+        id: "program",
+        header: "Program",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.original.program?.name ?? "—"}
+            {row.original.dcareAddon ? " + Dcare" : ""}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "parentEmail",
+        header: "Email Orang Tua",
+        meta: { priority: "low" },
+        cell: ({ row }) => <span className="text-sm">{row.original.parentEmail ?? "—"}</span>,
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => <StatusChip status={row.original.status} studentId={row.original.studentId} />,
+      },
+      {
+        id: "submitted",
+        header: "Dikirim",
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.submittedAt ? formatDateShort(row.original.submittedAt.split("T")[0]) : "—"}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <>

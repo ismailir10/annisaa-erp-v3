@@ -1,34 +1,104 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
+import { Coins, Plus, Save } from "lucide-react";
+import { toast } from "sonner";
+
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AdminTabs, AdminTabsList, AdminTabsTrigger, AdminTabsContent } from "@/components/admin/admin-tabs";
 import { KeringananTab } from "@/components/admin/fees/keringanan-tab";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Save } from "lucide-react";
-import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
-type Program = { id: string; code: string; name: string };
+type Program = { id: string; code: string; name: string; status: string };
 type AcademicYear = { id: string; name: string; status: string };
 type FeeStructure = { id: string; feeComponentId: string; amount: number; notes: string | null; feeComponent: FeeComponent };
 
 const CATEGORY_LABELS: Record<string, string> = { TUITION: "SPP", REGISTRATION: "Pendaftaran", ACTIVITY: "Kegiatan", MATERIAL: "Bahan", OTHER: "Lainnya" };
+
+// Tarif per Program's live amounts reach the Tarif cell through context, not
+// a closure: TanStack's flexRender mounts each `cell` function as its own
+// React component, so a column array rebuilt on every render would remount
+// every RupiahInput on every keystroke and drop focus. Keeping
+// STRUCTURE_COLUMNS module-level keeps the cell identity stable.
+type TarifContextValue = {
+  amounts: Record<string, number>;
+  setAmount: (componentId: string, amount: number) => void;
+};
+const TarifContext = createContext<TarifContextValue>({ amounts: {}, setAmount: () => {} });
+
+function TarifCell({ component: c }: { component: FeeComponent }) {
+  const { amounts, setAmount } = useContext(TarifContext);
+  // Inactive-but-stored rows are read-only — editing them would let an
+  // admin change an amount `saveStructure()` never sends, which would
+  // look saved but silently do nothing.
+  if (!c.isEnabled) {
+    return (
+      <div className="text-right font-currency text-sm tabular-nums text-muted-foreground">
+        {formatRupiah(amounts[c.id] ?? 0)}
+      </div>
+    );
+  }
+  return (
+    <RupiahInput
+      aria-label={`Tarif ${c.label}`}
+      value={amounts[c.id] ?? 0}
+      onChange={(v) => setAmount(c.id, v ?? 0)}
+      className="ml-auto max-w-40"
+    />
+  );
+}
+
+const STRUCTURE_COLUMNS: ColumnDef<FeeComponent>[] = [
+  {
+    accessorKey: "label",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen" />,
+    cell: ({ row }) => {
+      const c = row.original;
+      return (
+        <div className={!c.isEnabled ? "opacity-60" : undefined}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">{c.label}</span>
+            <Badge variant="outline" className="text-xs font-currency">{c.code}</Badge>
+            {!c.isEnabled && <StatusBadge status="INACTIVE" label="Nonaktif" />}
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "category",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Kategori" />,
+    cell: ({ row }) => <Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
+  },
+  {
+    accessorKey: "isRecurring",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Tipe" />,
+    cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.isRecurring ? "Bulanan" : "Sekali bayar"}</span>,
+  },
+  {
+    id: "amount",
+    header: () => <div className="text-right">Tarif</div>,
+    cell: ({ row }) => <TarifCell component={row.original} />,
+  },
+];
 
 const FEE_TABS = ["components", "structure", "keringanan"] as const;
 
@@ -54,14 +124,24 @@ export default function FeesPage() {
   const [componentCategory, setComponentCategory] = useState("all");
   const [form, setForm] = useState({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: "0" });
   const [saving, setSaving] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<FeeComponent | null>(null);
 
   // Fee structure state
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [, setStructures] = useState<FeeStructure[]>([]);
+  const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [structureAmounts, setStructureAmounts] = useState<Record<string, number>>({});
+  // Snapshot taken right after a fetch (or a successful save) resolves —
+  // compared against `structureAmounts` to drive the dirty-state indicator
+  // and gate "Simpan Tarif". Same JSON.stringify-equality approach as
+  // app/admin/report-cards/raport-editor.tsx's `isDirty`.
+  const [structureBaseline, setStructureBaseline] = useState<Record<string, number>>({});
   const [structureLoading, setStructureLoading] = useState(false);
   const [structureSaving, setStructureSaving] = useState(false);
+  // Set when the admin picks a different program/year while `structureDirty`
+  // is true — gates the switch behind a ConfirmDialog instead of letting
+  // `fetchStructure()`'s effect silently overwrite the unsaved amounts.
+  const [pendingSelection, setPendingSelection] = useState<{ field: "program" | "year"; value: string } | null>(null);
 
   async function fetchAll() {
     try {
@@ -86,6 +166,17 @@ export default function FeesPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, []);
 
+  // Default the Tarif per Program pickers to the active program/year — the
+  // same "first ACTIVE, else first" rule the billing-run wizard uses
+  // (components/admin/invoices/billing-run-wizard/billing-defaults.ts). Only
+  // fills an EMPTY selection, so it never clobbers an admin's manual choice
+  // on a later refetch (e.g. after toggling a component).
+  useEffect(() => {
+    if (programs.length === 0 || years.length === 0) return;
+    setSelectedProgram((prev) => prev || (programs.find((p) => p.status === "ACTIVE") ?? programs[0]).id);
+    setSelectedYear((prev) => prev || (years.find((y) => y.status === "ACTIVE") ?? years[0]).id);
+  }, [programs, years]);
+
   async function saveComponent() {
     setSaving(true);
     const url = editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components";
@@ -96,10 +187,19 @@ export default function FeesPage() {
     setSaving(false);
   }
 
-  async function toggleComponent(c: FeeComponent) {
+  // Returns whether the toggle succeeded so the deactivate ConfirmDialog can
+  // decide whether to keep itself open for a retry (same contract as
+  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`).
+  async function toggleComponent(c: FeeComponent): Promise<boolean> {
     const res = await fetch(`/api/fee-components/${c.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isEnabled: !c.isEnabled }) });
-    if (!res.ok) { toast.error("Gagal mengubah status komponen"); return; }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengubah status komponen");
+      return false;
+    }
+    toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchAll();
+    return true;
   }
 
   async function fetchStructure() {
@@ -114,6 +214,7 @@ export default function FeesPage() {
       // API returns Prisma Decimal serialized as string — coerce on ingest.
       for (const s of data) amounts[s.feeComponentId] = Number(s.amount) || 0;
       setStructureAmounts(amounts);
+      setStructureBaseline(amounts);
     } catch {
       toast.error("Gagal memuat struktur biaya");
     } finally {
@@ -126,11 +227,72 @@ export default function FeesPage() {
 
   async function saveStructure() {
     setStructureSaving(true);
+    // Unchanged payload shape — inactive components are read-only in the UI
+    // (see `storedIds` below) and are deliberately never sent here,
+    // so their previously-saved amount is left untouched by this PUT.
     const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
     const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
     if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); }
     else toast.error("Gagal menyimpan");
     setStructureSaving(false);
+  }
+
+  // Components that were deactivated but still carry a saved fee-structure
+  // amount for this program/year — shown as a muted, read-only row instead
+  // of silently vanishing (Context finding 5). A component with no stored
+  // row simply isn't billed and isn't shown here even if inactive.
+  // Active/inactive comes from `components` (refetched after every toggle),
+  // never from the nested `structures[].feeComponent` snapshot — that one
+  // is only refreshed with the structure, so a just-deactivated component
+  // would otherwise vanish from this tab until the next structure fetch.
+  const storedIds = useMemo(
+    () => new Set(structures.map((s) => s.feeComponentId)),
+    [structures],
+  );
+  const structureRows = useMemo(
+    () => components.filter((c) => c.isEnabled || storedIds.has(c.id)),
+    [components, storedIds],
+  );
+  // Only active components are ever billed (materializeBillingRun filters
+  // `feeComponent: { isEnabled: true }` — lib/finance/materialize-billing-run.ts:85),
+  // so the total shown here matches what a new invoice would actually carry,
+  // rather than double-counting a deactivated component's stale amount.
+  const structureTotal = useMemo(
+    () => structureRows.reduce((sum, c) => sum + (c.isEnabled ? (structureAmounts[c.id] ?? 0) : 0), 0),
+    [structureRows, structureAmounts],
+  );
+  const structureDirty = useMemo(
+    () => JSON.stringify(structureAmounts) !== JSON.stringify(structureBaseline),
+    [structureAmounts, structureBaseline],
+  );
+
+  const setTarifAmount = useCallback(
+    (componentId: string, amount: number) => setStructureAmounts((prev) => ({ ...prev, [componentId]: amount })),
+    [],
+  );
+  const tarifContext = useMemo(
+    () => ({ amounts: structureAmounts, setAmount: setTarifAmount }),
+    [structureAmounts, setTarifAmount],
+  );
+
+  // Program/year Select handlers — go straight through when there's nothing
+  // unsaved; otherwise stage the pick behind the "Buang perubahan tarif?"
+  // ConfirmDialog so `fetchStructure()`'s effect never overwrites unsaved
+  // amounts silently.
+  function handleProgramChange(v: string | null) {
+    if (!v) return;
+    if (structureDirty) setPendingSelection({ field: "program", value: v });
+    else setSelectedProgram(v);
+  }
+  function handleYearChange(v: string | null) {
+    if (!v) return;
+    if (structureDirty) setPendingSelection({ field: "year", value: v });
+    else setSelectedYear(v);
+  }
+  function applyPendingSelection() {
+    if (!pendingSelection) return;
+    if (pendingSelection.field === "program") setSelectedProgram(pendingSelection.value);
+    else setSelectedYear(pendingSelection.value);
   }
 
   if (loading) return <Skeleton className="h-96 rounded-xl" />;
@@ -151,12 +313,13 @@ export default function FeesPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
+  // "Urutan" (sortOrder) intentionally has no column here (Assumption 4,
+  // cycle doc 2026-09-26-admin-ui-standard-c1) — it only orders invoice
+  // lines, not a fact an admin scans a list for. `/api/fee-components`
+  // already returns rows `orderBy: { sortOrder: "asc" }`, so the table's
+  // natural (unsorted) row order IS the sortOrder order; the field itself
+  // stays editable in the create/edit form below.
   const feeComponentColumns: ColumnDef<FeeComponent>[] = [
-    {
-      accessorKey: "sortOrder",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="#" />,
-      cell: ({ row }) => <span className="font-currency text-xs text-muted-foreground">{row.original.sortOrder}</span>,
-    },
     {
       accessorKey: "label",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Komponen" />,
@@ -177,6 +340,7 @@ export default function FeesPage() {
       accessorKey: "category",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Kategori" />,
       cell: ({ row }) => <Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[row.original.category] ?? row.original.category}</Badge>,
+      meta: { priority: "low" },
     },
     {
       id: "status",
@@ -193,13 +357,14 @@ export default function FeesPage() {
       id: "actions",
       cell: ({ row }) => (
         <DataTableRowActions
+          rowLabel={row.original.label}
           onEdit={() => {
             const c = row.original;
             setEditingFee(c);
             setForm({ code: c.code, label: c.label, category: c.category, isRecurring: c.isRecurring, sortOrder: String(c.sortOrder) });
             setComponentDialog(true);
           }}
-          onDeactivate={row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
+          onDeactivate={row.original.isEnabled ? () => setConfirmTarget(row.original) : undefined}
           onActivate={!row.original.isEnabled ? () => toggleComponent(row.original) : undefined}
           isActive={row.original.isEnabled}
         />
@@ -207,24 +372,23 @@ export default function FeesPage() {
     },
   ];
 
+
   return (
     <>
-      <PageHeader title="Biaya & Tagihan" description="Kelola komponen biaya dan struktur per program" />
+      <PageHeader
+        title="Biaya"
+        description="Daftar komponen → tarif per program → keringanan per siswa."
+      />
 
       <AdminTabs defaultValue={initialTab}>
-        <AdminTabsList className="h-auto w-full flex-wrap justify-start gap-1">
+        <AdminTabsList>
           <AdminTabsTrigger value="components">Komponen Biaya</AdminTabsTrigger>
-          <AdminTabsTrigger value="structure">Struktur per Program</AdminTabsTrigger>
-          <AdminTabsTrigger value="keringanan">Keringanan</AdminTabsTrigger>
+          <AdminTabsTrigger value="structure">Tarif per Program</AdminTabsTrigger>
+          <AdminTabsTrigger value="keringanan">Keringanan Siswa</AdminTabsTrigger>
         </AdminTabsList>
 
         {/* Fee Components */}
         <AdminTabsContent value="components">
-          <div className="flex justify-end mb-4 mt-4">
-            <Button size="sm" onClick={() => { setEditingFee(null); setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) }); setComponentDialog(true); }}>
-              <Plus size={14} className="mr-1.5" /> Tambah Komponen
-            </Button>
-          </div>
           <DataTableToolbar
             value={componentSearch}
             onValueChange={setComponentSearch}
@@ -253,12 +417,23 @@ export default function FeesPage() {
                 ],
               },
             ]}
+            actions={
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingFee(null);
+                  setForm({ code: "", label: "", category: "TUITION", isRecurring: true, sortOrder: String(components.length + 1) });
+                  setComponentDialog(true);
+                }}
+              >
+                <Plus size={14} className="mr-1.5" /> Tambah Komponen
+              </Button>
+            }
           />
           <DataTable
             columns={feeComponentColumns}
             data={filteredComponents}
             pagination={{ page: 1, pageSize: 10, total: filteredComponents.length, totalPages: Math.max(1, Math.ceil(filteredComponents.length / 10)) }}
-            defaultSort={{ field: "sortOrder", order: "asc" }}
             emptyTitle="Belum ada komponen biaya"
             emptyDescription="Ubah kata kunci atau filter, atau tambahkan komponen seperti SPP, Uang Pangkal, Seragam."
           />
@@ -267,48 +442,54 @@ export default function FeesPage() {
         {/* Fee Structure per Program */}
         <AdminTabsContent value="structure">
           <div className="flex flex-wrap gap-3 mt-4 mb-4">
-            <Select value={selectedProgram} onValueChange={v => v && setSelectedProgram(v)} items={programs.map(p => ({ label: p.name, value: p.id }))}>
-              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
+            <Select value={selectedProgram} onValueChange={handleProgramChange} disabled={structureSaving}>
+              <SelectTrigger aria-label="Program" className="w-full sm:w-48"><SelectValue placeholder="Pilih program" /></SelectTrigger>
               <SelectContent>{programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
-            <Select value={selectedYear} onValueChange={v => v && setSelectedYear(v)} items={years.map(y => ({ label: y.name, value: y.id }))}>
-              <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
+            <Select value={selectedYear} onValueChange={handleYearChange} disabled={structureSaving}>
+              <SelectTrigger aria-label="Tahun Ajaran" className="w-full sm:w-48"><SelectValue placeholder="Pilih tahun ajaran" /></SelectTrigger>
               <SelectContent>{years.map(y => <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
 
-          {!selectedProgram || !selectedYear ? (
-            <Card className="p-card text-center text-muted-foreground"><p className="text-sm">Pilih program dan tahun ajaran untuk mengatur biaya.</p></Card>
-          ) : structureLoading ? (
+          {programs.length === 0 || years.length === 0 ? (
+            <EmptyState
+              icon={Coins}
+              title={programs.length === 0 ? "Belum ada program" : "Belum ada tahun ajaran"}
+              description="Tambahkan program dan tahun ajaran di halaman Tahun Ajaran & Program sebelum mengatur tarif."
+              actionLabel="Buka Tahun Ajaran & Program"
+              actionHref="/admin/academic-years"
+            />
+          ) : structureLoading || !selectedProgram || !selectedYear ? (
             <Skeleton className="h-40 rounded-xl" />
           ) : (
-            <Card className="p-card">
-              <div className="space-y-3">
-                {components.filter(c => c.isEnabled).map(c => (
-                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div>
-                      <p className="text-sm font-medium">{c.label}</p>
-                      <p className="text-xs text-muted-foreground">{c.isRecurring ? "Bulanan" : "Sekali bayar"}</p>
-                    </div>
-                    <div className="w-40">
-                      <Input
-                        type="number"
-                        value={structureAmounts[c.id] ?? 0}
-                        onChange={e => setStructureAmounts({ ...structureAmounts, [c.id]: parseFloat(e.target.value) || 0 })}
-                        className="font-currency text-right"
-                        placeholder="0"
-                      />
-                    </div>
+            <>
+              <DataTableToolbar
+                actions={
+                  <div className="flex items-center gap-3">
+                    {structureDirty && (
+                      <span className="text-xs text-muted-foreground">Ada perubahan belum disimpan</span>
+                    )}
+                    <Button size="sm" onClick={saveStructure} disabled={structureSaving || !structureDirty}>
+                      <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Tarif"}
+                    </Button>
                   </div>
-                ))}
+                }
+              />
+              <TarifContext.Provider value={tarifContext}>
+                <DataTable
+                  columns={STRUCTURE_COLUMNS}
+                  data={structureRows}
+                  pagination={{ page: 1, pageSize: Math.max(structureRows.length, 10), total: structureRows.length, totalPages: 1 }}
+                  emptyTitle="Belum ada komponen biaya aktif"
+                  emptyDescription="Tambahkan komponen biaya di tab Komponen Biaya terlebih dahulu."
+                />
+              </TarifContext.Provider>
+              <div className="flex items-center justify-between mt-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <p className="text-sm font-semibold">Total Komponen Aktif</p>
+                <p className="font-currency text-sm font-semibold tabular-nums text-primary-text">{formatRupiah(structureTotal)}</p>
               </div>
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                <p className="text-sm font-semibold">Total Komponen: <span className="font-currency text-primary-text">{formatRupiah(Object.values(structureAmounts).reduce<number>((s, v) => s + (Number(v) || 0), 0))}</span></p>
-                <Button onClick={saveStructure} disabled={structureSaving}>
-                  <Save size={14} className="mr-1.5" /> {structureSaving ? "Menyimpan..." : "Simpan Struktur"}
-                </Button>
-              </div>
-            </Card>
+            </>
           )}
         </AdminTabsContent>
 
@@ -332,12 +513,26 @@ export default function FeesPage() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required htmlFor="fee-code">Kode</FieldLabel><Input id="fee-code" required aria-required="true" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} placeholder="spp" /></Field>
+          <Field>
+            <FieldLabel required htmlFor="fee-code">Kode</FieldLabel>
+            <Input
+              id="fee-code"
+              required
+              aria-required="true"
+              disabled={!!editingFee}
+              value={form.code}
+              onChange={e => setForm({ ...form, code: e.target.value })}
+              placeholder="spp"
+            />
+            <FieldDescription>
+              Pengenal unik, permanen setelah dibuat — dipakai untuk impor dan seed data, bukan yang tampil di tagihan (itu memakai Label).
+            </FieldDescription>
+          </Field>
           <Field><FieldLabel required htmlFor="fee-label">Label</FieldLabel><Input id="fee-label" required aria-required="true" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="SPP Bulanan" /></Field>
         </div>
         <Field>
           <FieldLabel htmlFor="fee-category">Kategori</FieldLabel>
-          <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })} items={CATEGORY_LABELS}>
+          <Select value={form.category} onValueChange={v => v && setForm({ ...form, category: v })}>
             <SelectTrigger id="fee-category"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="TUITION">SPP</SelectItem>
@@ -349,10 +544,14 @@ export default function FeesPage() {
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel htmlFor="fee-sort-order">Urutan</FieldLabel><Input id="fee-sort-order" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} /></Field>
+          <Field>
+            <FieldLabel htmlFor="fee-sort-order">Urutan</FieldLabel>
+            <Input id="fee-sort-order" type="number" value={form.sortOrder} onChange={e => setForm({ ...form, sortOrder: e.target.value })} />
+            <FieldDescription>Menentukan urutan komponen ini pada baris tagihan — angka lebih kecil tampil lebih dulu.</FieldDescription>
+          </Field>
           <Field>
             <FieldLabel htmlFor="fee-type">Tipe</FieldLabel>
-            <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })} items={{ "true": "Bulanan (berulang)", "false": "Sekali bayar" }}>
+            <Select value={form.isRecurring ? "true" : "false"} onValueChange={v => setForm({ ...form, isRecurring: v === "true" })}>
               <SelectTrigger id="fee-type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="true">Bulanan (berulang)</SelectItem>
@@ -362,6 +561,42 @@ export default function FeesPage() {
           </Field>
         </div>
       </ResponsiveFormDialog>
+
+      {/* Deactivate guard — activation stays single-click (non-destructive).
+          Consequence copy verified against lib/finance/materialize-billing-run.ts:85
+          (`feeComponent: { isEnabled: true }` when reading fee structures for a
+          new billing run) — a deactivated component drops out of new billing
+          runs/invoices; rows already written to an Invoice are untouched. */}
+      <ConfirmDialog
+        open={!!confirmTarget}
+        onOpenChange={(o) => !o && setConfirmTarget(null)}
+        title="Nonaktifkan komponen ini?"
+        description={`${confirmTarget?.label ?? ""} tidak akan ditambahkan lagi ke tagihan atau proses tagih baru. Tagihan yang sudah dibuat tidak berubah. Bisa diaktifkan kembali kapan saja.`}
+        confirmLabel="Ya, Nonaktifkan"
+        destructive
+        onConfirm={async () => {
+          if (!confirmTarget) return;
+          const ok = await toggleComponent(confirmTarget);
+          if (!ok) throw new Error("Gagal menonaktifkan komponen biaya");
+        }}
+      />
+
+      {/* Discard guard — switching Program/Tahun Ajaran while structureDirty
+          would otherwise let fetchStructure()'s effect silently overwrite the
+          unsaved amounts on the next render. Cancel leaves the current
+          selection untouched (the Selects are controlled by
+          selectedProgram/selectedYear, which this dialog never touches). */}
+      <ConfirmDialog
+        open={!!pendingSelection}
+        onOpenChange={(o) => !o && setPendingSelection(null)}
+        title="Buang perubahan tarif?"
+        description="Tarif yang belum disimpan untuk program dan tahun ajaran ini akan hilang jika Anda beralih sekarang."
+        confirmLabel="Buang perubahan"
+        destructive
+        onConfirm={() => {
+          applyPendingSelection();
+        }}
+      />
     </>
   );
 }

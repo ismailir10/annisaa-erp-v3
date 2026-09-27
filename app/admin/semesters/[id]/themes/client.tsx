@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -803,26 +804,22 @@ function WeekCard({
           <div className="grid grid-cols-2 gap-field">
             <Field>
               <FieldLabel htmlFor="week-start-date" required>Mulai (Senin)</FieldLabel>
-              <Input
+              <DatePicker
                 id="week-start-date"
                 required
-                aria-required="true"
-                type="date"
+                max={form.endDate || undefined}
                 value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                data-testid="week-start"
+                onChange={(v) => setForm((f) => ({ ...f, startDate: v }))}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="week-end-date" required>Selesai (Jumat)</FieldLabel>
-              <Input
+              <DatePicker
                 id="week-end-date"
                 required
-                aria-required="true"
-                type="date"
+                min={form.startDate || undefined}
                 value={form.endDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                data-testid="week-end"
+                onChange={(v) => setForm((f) => ({ ...f, endDate: v }))}
               />
             </Field>
           </div>

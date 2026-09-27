@@ -30,6 +30,29 @@ async function loginAsAdmin(page: Page) {
       sameSite: "Lax",
     },
   ]);
+  // T8 date/money sweep: Tanggal Lahir now uses the shared DatePicker, which
+  // renders a Calendar popover on a fine pointer (desktop Chromium's
+  // default). This spec's `input[type="date"]` locator below targets the
+  // native input, so force `(pointer: coarse)` — same technique as
+  // e2e/curriculum-admin.spec.ts — to keep DatePicker on that branch.
+  await page.addInitScript(() => {
+    const realMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => {
+      if (query === "(pointer: coarse)") {
+        return {
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        } as MediaQueryList;
+      }
+      return realMatchMedia(query);
+    };
+  });
 }
 
 test.describe("Admin students — full-field CRUD round-trip", () => {

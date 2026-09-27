@@ -10,13 +10,7 @@ import {
   AdminTabsList,
   AdminTabsTrigger,
 } from "@/components/admin/admin-tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import {
   Select,
@@ -276,57 +270,12 @@ export default function StudentJournalAdminPage() {
       </AdminTabs>
 
       {/* Category create/edit dialog */}
-      <Dialog
+      <ResponsiveFormDialog
         open={categoryForm !== null}
         onOpenChange={(o) => { if (!o) setCategoryForm(null); }}
-      >
-        <DialogContent className="p-card sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {categoryForm?.mode === "create" ? "Tambah Kategori" : "Edit Kategori"}
-            </DialogTitle>
-          </DialogHeader>
-          {categoryForm && (
-            <div className="space-y-field">
-              <Field data-invalid={categoryNameError || undefined}>
-                <FieldLabel htmlFor="journal-category-name" required>Nama Kategori</FieldLabel>
-                <Input
-                  id="journal-category-name"
-                  required
-                  aria-invalid={categoryNameError}
-                  value={categoryForm.name}
-                  onChange={(e) => {
-                    setCategoryNameError(false);
-                    setCategoryForm({ ...categoryForm, name: e.target.value });
-                  }}
-                  placeholder="Contoh: Ibadah"
-                  autoFocus
-                />
-                {categoryNameError && (
-                  <FieldError>Nama kategori wajib diisi</FieldError>
-                )}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="journal-category-scope" required>Lingkup</FieldLabel>
-                <Select
-                  value={categoryForm.scope}
-                  onValueChange={(v) =>
-                    setCategoryForm({ ...categoryForm, scope: v as Scope })
-                  }
-                  items={{ SCHOOL: SCOPE_LABEL.SCHOOL, HOME: SCOPE_LABEL.HOME }}
-                >
-                  <SelectTrigger id="journal-category-scope" aria-required="true">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SCHOOL">{SCOPE_LABEL.SCHOOL}</SelectItem>
-                    <SelectItem value="HOME">{SCOPE_LABEL.HOME}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          )}
-          <DialogFooter>
+        title={categoryForm?.mode === "create" ? "Tambah Kategori" : "Edit Kategori"}
+        footer={
+          <>
             <Button
               variant="ghost"
               onClick={() => setCategoryForm(null)}
@@ -337,46 +286,62 @@ export default function StudentJournalAdminPage() {
             <Button onClick={saveCategory} disabled={saving}>
               {saving ? "Menyimpan..." : categoryForm?.mode === "create" ? "Tambah Kategori" : "Simpan Perubahan"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        {categoryForm && (
+          <>
+            <Field data-invalid={categoryNameError || undefined}>
+              <FieldLabel htmlFor="journal-category-name" required>Nama Kategori</FieldLabel>
+              <Input
+                id="journal-category-name"
+                required
+                aria-invalid={categoryNameError}
+                value={categoryForm.name}
+                onChange={(e) => {
+                  setCategoryNameError(false);
+                  setCategoryForm({ ...categoryForm, name: e.target.value });
+                }}
+                placeholder="Contoh: Ibadah"
+                autoFocus
+              />
+              {categoryNameError && (
+                <FieldError>Nama kategori wajib diisi</FieldError>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="journal-category-scope" required>Lingkup</FieldLabel>
+              <Select
+                value={categoryForm.scope}
+                onValueChange={(v) =>
+                  setCategoryForm({ ...categoryForm, scope: v as Scope })
+                }
+                items={{ SCHOOL: SCOPE_LABEL.SCHOOL, HOME: SCOPE_LABEL.HOME }}
+              >
+                <SelectTrigger id="journal-category-scope" aria-required="true">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SCHOOL">{SCOPE_LABEL.SCHOOL}</SelectItem>
+                  <SelectItem value="HOME">{SCOPE_LABEL.HOME}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </>
+        )}
+      </ResponsiveFormDialog>
 
       {/* Indicator create/edit dialog */}
-      <Dialog
+      <ResponsiveFormDialog
         open={indicatorForm !== null}
         onOpenChange={(o) => { if (!o) setIndicatorForm(null); }}
-      >
-        <DialogContent className="p-card sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {indicatorForm?.mode === "create"
-                ? `Tambah Indikator — ${indicatorForm.categoryName}`
-                : "Edit Indikator"}
-            </DialogTitle>
-          </DialogHeader>
-          {indicatorForm && (
-            <div className="space-y-field">
-              <Field data-invalid={indicatorLabelError || undefined}>
-                <FieldLabel htmlFor="journal-indicator-label" required>Label Indikator</FieldLabel>
-                <Input
-                  id="journal-indicator-label"
-                  required
-                  aria-invalid={indicatorLabelError}
-                  value={indicatorForm.label}
-                  onChange={(e) => {
-                    setIndicatorLabelError(false);
-                    setIndicatorForm({ ...indicatorForm, label: e.target.value });
-                  }}
-                  placeholder="Contoh: Tahfizul Qur'an"
-                  autoFocus
-                />
-                {indicatorLabelError && (
-                  <FieldError>Label indikator wajib diisi</FieldError>
-                )}
-              </Field>
-            </div>
-          )}
-          <DialogFooter>
+        title={
+          indicatorForm?.mode === "create"
+            ? `Tambah Indikator — ${indicatorForm.categoryName}`
+            : "Edit Indikator"
+        }
+        footer={
+          <>
             <Button
               variant="ghost"
               onClick={() => setIndicatorForm(null)}
@@ -387,9 +352,30 @@ export default function StudentJournalAdminPage() {
             <Button onClick={saveIndicator} disabled={saving}>
               {saving ? "Menyimpan..." : indicatorForm?.mode === "create" ? "Tambah Indikator" : "Simpan Perubahan"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        {indicatorForm && (
+          <Field data-invalid={indicatorLabelError || undefined}>
+            <FieldLabel htmlFor="journal-indicator-label" required>Label Indikator</FieldLabel>
+            <Input
+              id="journal-indicator-label"
+              required
+              aria-invalid={indicatorLabelError}
+              value={indicatorForm.label}
+              onChange={(e) => {
+                setIndicatorLabelError(false);
+                setIndicatorForm({ ...indicatorForm, label: e.target.value });
+              }}
+              placeholder="Contoh: Tahfizul Qur'an"
+              autoFocus
+            />
+            {indicatorLabelError && (
+              <FieldError>Label indikator wajib diisi</FieldError>
+            )}
+          </Field>
+        )}
+      </ResponsiveFormDialog>
     </div>
   );
 }

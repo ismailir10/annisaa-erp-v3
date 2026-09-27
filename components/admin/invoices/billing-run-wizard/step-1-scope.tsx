@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -296,13 +297,11 @@ export function ScopeStep({
       </Field>
       <Field>
         <FieldLabel required htmlFor="wizard-scope-due-date">Tanggal Jatuh Tempo</FieldLabel>
-        <Input
+        <DatePicker
           id="wizard-scope-due-date"
           required
-          aria-required="true"
-          type="date"
           value={form.dueDate}
-          onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+          onChange={(v) => setForm((f) => ({ ...f, dueDate: v }))}
         />
       </Field>
       <Field>

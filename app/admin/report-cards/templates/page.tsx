@@ -192,9 +192,14 @@ export default function RaportTemplatesPage() {
         title="Bank Narasi Rapor"
         description="Susun narasi sekali per triwulan dan kelompok usia. Saat menyusun rapor siswa, narasi ini terpakai otomatis sesuai capaian yang dipilih."
         actions={
-          <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
-            Susun Rapor
-          </Link>
+          // Only shown once terms exist — when the list is empty, the
+          // EmptyState below already offers the same "Susun Rapor" CTA, and
+          // showing both reads as a duplicate action.
+          terms === null || terms.length > 0 ? (
+            <Link href="/admin/report-cards" className={cn(buttonVariants({ variant: "outline" }))}>
+              Susun Rapor
+            </Link>
+          ) : undefined
         }
       />
 

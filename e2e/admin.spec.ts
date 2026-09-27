@@ -363,7 +363,7 @@ test.describe("Admin flows", () => {
     // roll-forward action.
     const targetRow = page.getByRole("row").filter({ hasText: targetName });
     await expect(targetRow).toBeVisible({ timeout: 10_000 });
-    await targetRow.getByRole("button", { name: /Buka menu/i }).click();
+    await targetRow.getByRole("button", { name: /Aksi untuk|Buka menu/i }).click();
     await page.getByRole("menuitem", { name: /Salin Kelas ke Tahun Ini/i }).click();
 
     // Roll-forward dialog: pick the source year, submit.
@@ -766,12 +766,14 @@ test.describe("Admin tagihan flows (bulk + manual + retry)", () => {
     await feeSelect.click();
     await page.getByRole("option", { name: fee.label }).first().click();
 
-    // The amount input is the only `<input type="number">` (role=spinbutton)
-    // inside the manual-invoice dialog. Locating by role is more robust than
-    // by placeholder="0" — Radix Select's portaled SelectContent occasionally
-    // shadows the dialog's locator scope after the fee-component dropdown
-    // round trip, and `dialog.getByPlaceholder("0")` resolves to zero matches.
-    await dialog.getByRole("spinbutton").fill("75000");
+    // T8 date/money sweep: the amount field is now RupiahInput (a
+    // text/numeric input, not `<input type="number">`), so it no longer has
+    // role=spinbutton. Its <FieldLabel htmlFor> is "Jumlah 1" (line index 0)
+    // — a real <label>, robust the same way role=spinbutton was, and unlike
+    // `dialog.getByPlaceholder("0")` unaffected by Radix Select's portaled
+    // SelectContent occasionally shadowing the dialog's locator scope after
+    // the fee-component dropdown round trip.
+    await dialog.getByLabel("Jumlah 1").fill("75000");
 
     await dialog.getByRole("button", { name: /^Buat Tagihan$/ }).click();
 

@@ -137,3 +137,30 @@ describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
     expect(lines?.[1]).toHaveTextContent("Daycare · Daycare 1");
   });
 });
+
+describe("StudentsPage — name is the link (T7, admin-ui-standard-c1)", () => {
+  it("renders the student name as a link to the detail page and drops the separate Lihat button", async () => {
+    const student = {
+      id: "s2",
+      name: "Budi Santoso",
+      nickname: null,
+      dateOfBirth: null,
+      gender: null,
+      status: "ACTIVE",
+      nis: null,
+      nisn: null,
+      notes: null,
+      photoUrl: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      guardians: [],
+      enrollments: [],
+    };
+    vi.stubGlobal("fetch", stubFetch([student]));
+
+    render(<StudentsPage />);
+
+    const nameLink = await screen.findByRole("link", { name: /Budi Santoso/ });
+    expect(nameLink).toHaveAttribute("href", "/admin/students/s2");
+    expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
+  });
+});

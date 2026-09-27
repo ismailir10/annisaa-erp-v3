@@ -141,6 +141,69 @@ async function openAddStudentAndPick(user: ReturnType<typeof userEvent.setup>, s
   await user.click(screen.getByRole("option", { name: new RegExp(studentName) }));
 }
 
+// ── Teacher-swap dialog (T6) ────────────────────────────────────────
+
+const today = new Date();
+const sessionDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-15`;
+
+const sessionRow = {
+  id: "sess-1",
+  classSectionId: "class-1",
+  semesterId: "sem-1",
+  date: sessionDate,
+  slot: "FULL_DAY",
+  teacherId: "emp-1",
+  defaultTeacherId: "emp-1",
+  substituteReason: null,
+  isBackfilled: false,
+  teacher: { id: "emp-1", nama: "Ustadz Bilal" },
+  defaultTeacher: { id: "emp-1", nama: "Ustadz Bilal" },
+};
+
+function stubFetchWithSession({ archived = false }: { archived?: boolean } = {}) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const method = init?.method ?? "GET";
+
+    if (url.startsWith("/api/admin/class-sessions/") && method === "PATCH") {
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    }
+    if (url.includes("/api/admin/class-sessions?")) {
+      return Promise.resolve({ ok: true, json: async () => [sessionRow] } as Response);
+    }
+    if (url.includes("/api/employees?status=ACTIVE")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }],
+          total: 1,
+        }),
+      } as Response);
+    }
+    if (url === "/api/admin/classes/class-1") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          ...classDetail,
+          academicYear: {
+            ...classDetail.academicYear,
+            status: archived ? "ARCHIVED" : "ACTIVE",
+          },
+        }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
+async function openSessionDialog(user: ReturnType<typeof userEvent.setup>) {
+  // "Sehari Penuh" also appears in the Ringkasan rail's slot-template row, so
+  // key off the session chip's teacher name (unique to the calendar) instead.
+  const trigger = (await screen.findByText("Ustadz Bilal")).closest("button");
+  if (!trigger) throw new Error("session button not found");
+  await user.click(trigger);
+}
+
 describe("ClassDetailClient — add-student override-confirm (T7)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -307,5 +370,55 @@ describe("ClassDetailClient — Recipe 2b dossier layout", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Roster")).toHaveLength(1);
     });
+  });
+});
+
+describe("ClassDetailClient — teacher-swap dialog (T6)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens on ResponsiveFormDialog with the session's fields and submits a swap", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetchWithSession());
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    expect(await screen.findByText("Ubah Guru Sesi")).toBeInTheDocument();
+    expect(screen.getByLabelText("Guru pengganti")).toBeInTheDocument();
+    expect(screen.getByLabelText("Alasan pengganti")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru sesi diperbarui"));
+    await waitFor(() => expect(screen.queryByText("Ubah Guru Sesi")).not.toBeInTheDocument());
+  });
+
+  it("closes without saving when dismissed", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetchWithSession());
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByText("Ubah Guru Sesi")).not.toBeInTheDocument());
+  });
+
+  it("hides the swap form and Simpan when the class's academic year is archived", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetchWithSession({ archived: true }));
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    expect(await screen.findByText("Ubah Guru Sesi")).toBeInTheDocument();
+    expect(
+      screen.getByText("Anda tidak memiliki akses untuk mengubah guru sesi."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Guru pengganti")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Simpan" })).not.toBeInTheDocument();
   });
 });

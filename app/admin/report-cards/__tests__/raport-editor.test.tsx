@@ -5,10 +5,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RaportEditor } from "../raport-editor";
 import { BUCKETED_SECTIONS } from "@/lib/raport/labels";
 import { toast } from "sonner";
+import { UnsavedChangesProvider } from "@/components/admin/unsaved-changes-provider";
+import { GuardedLink } from "@/components/admin/guarded-link";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-function payload() {
+const routerPush = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush }),
+}));
+
+type SavedPayload = {
+  sectionLevels: Record<string, string>;
+  sectionNarratives: Record<string, string>;
+  permittedAbsenceDays: number;
+  sickDays: number;
+  unexcusedAbsenceDays: number;
+  totalSchoolDays: number;
+  memorizationNotes: string | null;
+  status: string;
+  publishedAt: string | null;
+} | null;
+
+function payload(saved: SavedPayload = null) {
   const sections: Record<string, { suggested: null; counts: Record<string, number> }> = {};
   for (const s of BUCKETED_SECTIONS) {
     sections[s] = {
@@ -22,7 +41,7 @@ function payload() {
       term: { id: "term-1", number: 1, semesterNumber: 1, academicYear: "2026/2027" },
       ageGroup: null,
       templates: null,
-      saved: null,
+      saved,
       measurement: null,
       draft: {
         sections,
@@ -37,6 +56,29 @@ function stubFetchOnce() {
     ok: true,
     json: async () => payload(),
   });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function publishedPayload() {
+  return payload({
+    sectionLevels: {},
+    sectionNarratives: {},
+    permittedAbsenceDays: 0,
+    sickDays: 0,
+    unexcusedAbsenceDays: 0,
+    totalSchoolDays: 0,
+    memorizationNotes: null,
+    status: "PUBLISHED",
+    publishedAt: "2026-01-01",
+  });
+}
+
+function stubFetchPublished() {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => publishedPayload() })
+    .mockResolvedValue({ ok: true, json: async () => ({}) });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -196,5 +238,84 @@ describe("RaportEditor unsaved-changes guard", () => {
 
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+  });
+});
+
+describe("RaportEditor unpublish confirm", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows the confirmation and keeps the rapor published when cancelled", async () => {
+    stubFetchPublished();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Tarik penerbitan" }));
+    expect(await screen.findByText("Tarik penerbitan rapor?")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Batal" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Tarik penerbitan rapor?")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Tarik penerbitan" })).toBeInTheDocument();
+  });
+
+  it("confirms and pulls the rapor back to draft", async () => {
+    stubFetchPublished();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.click(screen.getByRole("button", { name: "Tarik penerbitan" }));
+    await screen.findByText("Tarik penerbitan rapor?");
+
+    await user.click(screen.getByRole("button", { name: "Ya, Tarik" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Penerbitan ditarik."));
+    expect(await screen.findByRole("button", { name: "Simpan & Terbitkan" })).toBeInTheDocument();
+  });
+});
+
+describe("RaportEditor app-shell unsaved-changes guard", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  // Simulates the admin app shell (app/admin/layout.tsx mounts
+  // UnsavedChangesProvider once; sidebar/breadcrumb links render as
+  // GuardedLink). Proves the editor's dirty flag is wired into
+  // useUnsavedChangesGuard so an app-shell navigation click is intercepted —
+  // not just the editor's own in-editor "Kembali ke daftar" back guard,
+  // which is covered separately above.
+  it("registers the guard once dirty, so an app-shell link click opens the shared confirm dialog instead of navigating", async () => {
+    stubFetchOnce();
+    const user = userEvent.setup();
+    render(
+      <UnsavedChangesProvider>
+        <GuardedLink href="/admin/report-cards">Rapor</GuardedLink>
+        <RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />
+      </UnsavedChangesProvider>,
+    );
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+
+    // Not dirty yet — the sidebar-style link is unguarded.
+    fireEvent.click(screen.getByRole("link", { name: "Rapor" }));
+    expect(screen.queryByText("Keluar tanpa menyimpan?")).not.toBeInTheDocument();
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("Hafalan (surah / hadis / doa)"), "An-Naba ayat 1-5");
+
+    await user.click(screen.getByRole("link", { name: "Rapor" }));
+    expect(await screen.findByText("Keluar tanpa menyimpan?")).toBeInTheDocument();
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Ya, Keluar" }));
+    expect(routerPush).toHaveBeenCalledExactlyOnceWith("/admin/report-cards");
   });
 });

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -9,6 +8,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -18,6 +18,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,25 +66,14 @@ const columns: ColumnDef<Employee>[] = [
     cell: ({ row }) => {
       const e = row.original;
       return (
-        <Link
-          href={`/admin/employees/${e.id}`}
-          className="flex items-center gap-3 group"
-        >
+        <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
             <span className="text-primary text-xs font-bold">{e.nama[0]}</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-                {e.nama}
-              </span>
-              <span className="font-currency text-xs text-muted-foreground">
-                {e.kode}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">{e.email}</p>
-          </div>
-        </Link>
+          <DataTableLinkCell href={`/admin/employees/${e.id}`} description={e.email}>
+            {e.nama} <span className="font-currency text-xs text-muted-foreground">{e.kode}</span>
+          </DataTableLinkCell>
+        </div>
       );
     },
   },
@@ -99,6 +89,7 @@ const columns: ColumnDef<Employee>[] = [
   {
     id: "campus",
     header: "Kampus",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm">{row.original.campus.name}</span>
     ),
@@ -106,6 +97,7 @@ const columns: ColumnDef<Employee>[] = [
   {
     id: "bank",
     header: "Rekening",
+    meta: { priority: "low" },
     cell: ({ row }) => {
       if (!row.original.bankAccountNo) {
         return <StatusBadge status="UNFILLED" />;
@@ -122,6 +114,7 @@ const columns: ColumnDef<Employee>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Dibuat" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
         {formatDateShort(row.original.createdAt)}
@@ -351,7 +344,6 @@ export default function EmployeesPage() {
         header: "",
         cell: ({ row }) => (
           <DataTableRowActions
-            onView={() => router.push(`/admin/employees/${row.original.id}`)}
             onEdit={() => router.push(`/admin/employees/${row.original.id}`)}
             onDeactivate={
               row.original.status === "ACTIVE"
@@ -543,7 +535,7 @@ function CreateEmployeeFormBody({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-field">
-        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><Input id="employee-hire-date" required type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} max={new Date().toISOString().split("T")[0]} /></Field>
+        <Field><FieldLabel htmlFor="employee-hire-date" required>Tanggal Masuk</FieldLabel><DatePicker id="employee-hire-date" required value={form.hireDate} onChange={(v) => setForm({ ...form, hireDate: v })} max={new Date().toISOString().split("T")[0]} /></Field>
         <Field>
           <FieldLabel htmlFor="employee-role" required>Peran Akun</FieldLabel>
           <Select

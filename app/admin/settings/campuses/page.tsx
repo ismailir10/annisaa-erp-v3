@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Building2, MapPin, Plus, Pencil, Trash2, LocateFixed, RotateCcw } from "lucide-react";
+import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
+import { LocateFixed, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 
 type Campus = {
   id: string;
@@ -20,10 +23,13 @@ type Campus = {
   address: string | null;
   lat: number | null;
   lng: number | null;
+  status: string;
   _count: { employees: number };
 };
 
-type StatusFilter = "ACTIVE" | "INACTIVE";
+// The API's `?status=` accepts ACTIVE | INACTIVE | ALL (default ACTIVE) —
+// the toolbar filter uses the shared "all" value, translated below.
+type StatusFilter = "all" | "ACTIVE" | "INACTIVE";
 
 export default function CampusesPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -36,39 +42,44 @@ export default function CampusesPage() {
   // FIND-004: surface deactivated campuses via an explicit filter so the
   // admin can reactivate them without dropping into SQL.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
+  const [query, setQuery] = useState("");
 
-  async function fetchCampuses(filter: StatusFilter = statusFilter) {
+  const fetchCampuses = useCallback(async (filter: StatusFilter) => {
     setLoading(true);
-    const res = await fetch(`/api/config/campuses?status=${filter}`);
+    const param = filter === "all" ? "ALL" : filter;
+    const res = await fetch(`/api/config/campuses?status=${param}`);
     setCampuses(await res.json());
     setLoading(false);
-  }
+  }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchCampuses(statusFilter); }, [statusFilter]);
+  useEffect(() => { fetchCampuses(statusFilter); }, [fetchCampuses, statusFilter]);
 
-  async function handleReactivate(c: Campus) {
-    const res = await fetch(`/api/config/campuses/${c.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "ACTIVE" }),
-    });
-    if (res.ok) {
-      toast.success("Kampus diaktifkan kembali");
-      fetchCampuses(statusFilter);
-    } else {
-      const data = await res.json().catch(() => ({}));
-      toast.error(data.error || "Gagal mengaktifkan kampus. Coba lagi.");
-    }
-  }
+  const handleReactivate = useCallback(
+    async (c: Campus) => {
+      const res = await fetch(`/api/config/campuses/${c.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACTIVE" }),
+      });
+      if (res.ok) {
+        toast.success("Kampus diaktifkan kembali");
+        fetchCampuses(statusFilter);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Gagal mengaktifkan kampus. Coba lagi.");
+      }
+    },
+    [fetchCampuses, statusFilter],
+  );
 
-  function openNew() {
+  const openNew = useCallback(() => {
     setEditing(null);
     setForm({ name: "", address: "", lat: "", lng: "" });
     setDialogOpen(true);
-  }
+  }, []);
 
-  function openEdit(c: Campus) {
+  const openEdit = useCallback((c: Campus) => {
     setEditing(c);
     setForm({
       name: c.name,
@@ -77,7 +88,7 @@ export default function CampusesPage() {
       lng: c.lng?.toString() ?? "",
     });
     setDialogOpen(true);
-  }
+  }, []);
 
   async function handleSave() {
     if (!form.name.trim()) { toast.error("Nama wajib diisi"); return; }
@@ -92,7 +103,7 @@ export default function CampusesPage() {
     if (res.ok) {
       toast.success(editing ? "Kampus diperbarui" : "Kampus ditambahkan");
       setDialogOpen(false);
-      fetchCampuses();
+      fetchCampuses(statusFilter);
     } else {
       const data = await res.json();
       toast.error(data.error || "Gagal menyimpan kampus. Periksa kolom yang ditandai.");
@@ -106,7 +117,7 @@ export default function CampusesPage() {
     if (res.ok) {
       toast.success("Kampus dinonaktifkan");
       setDeleteTarget(null);
-      fetchCampuses();
+      fetchCampuses(statusFilter);
     } else {
       const data = await res.json();
       toast.error(data.error || "Gagal menonaktifkan kampus. Coba lagi.");
@@ -128,6 +139,62 @@ export default function CampusesPage() {
     );
   }
 
+  const filteredCampuses = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return campuses;
+    return campuses.filter((c) =>
+      [c.name, c.address ?? ""].some((value) => value.toLowerCase().includes(needle)),
+    );
+  }, [campuses, query]);
+
+  const columns = useMemo<ColumnDef<Campus>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
+        cell: ({ row }) => (
+          <div>
+            <span className="text-sm font-medium">{row.original.name}</span>
+            <p className="text-xs text-muted-foreground">
+              {row.original._count.employees} karyawan
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "address",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Alamat" />,
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">{row.original.address || "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const c = row.original;
+          const isActive = c.status === "ACTIVE";
+          return (
+            <DataTableRowActions
+              rowLabel={c.name}
+              onEdit={isActive ? () => openEdit(c) : undefined}
+              onDeactivate={isActive ? () => setDeleteTarget(c) : undefined}
+              onActivate={!isActive ? () => handleReactivate(c) : undefined}
+              isActive={isActive}
+            />
+          );
+        },
+      },
+    ],
+    [openEdit, handleReactivate],
+  );
+
   return (
     <>
       <PageHeader
@@ -140,102 +207,34 @@ export default function CampusesPage() {
         }
       />
 
-      {/* FIND-004: status filter — pre-fix deactivated campuses were
-          invisible + non-reactivatable from the UI. */}
-      <div className="mb-4 inline-flex rounded-lg border border-border p-0.5 bg-muted/40">
-        <button
-          onClick={() => setStatusFilter("ACTIVE")}
-          aria-pressed={statusFilter === "ACTIVE"}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-            statusFilter === "ACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Aktif
-        </button>
-        <button
-          onClick={() => setStatusFilter("INACTIVE")}
-          aria-pressed={statusFilter === "INACTIVE"}
-          className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-            statusFilter === "INACTIVE" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Tidak Aktif
-        </button>
-      </div>
+      <DataTableToolbar
+        value={query}
+        onValueChange={setQuery}
+        searchPlaceholder="Cari nama atau alamat..."
+        filters={[
+          {
+            key: "status",
+            label: "Status",
+            value: statusFilter,
+            onChange: (v) => setStatusFilter(v as StatusFilter),
+            resetValue: "ACTIVE",
+            options: ACTIVE_STATUS_OPTIONS,
+          },
+        ]}
+      />
 
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      ) : campuses.length === 0 ? (
-        statusFilter === "ACTIVE" ? (
-          <EmptyState
-            icon={Building2}
-            title="Belum ada kampus"
-            description="Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
-            actionLabel="Tambah Kampus"
-            onAction={openNew}
-          />
-        ) : (
-          <EmptyState
-            icon={Building2}
-            title="Tidak ada kampus nonaktif"
-            description="Semua kampus saat ini aktif."
-          />
-        )
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {campuses.map((c, i) => (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Card className="p-card hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                      <Building2 size={18} className="text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-sm">{c.name}</h3>
-                      {c.address && (
-                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <MapPin size={12} /> {c.address}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {c._count.employees} karyawan
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    {statusFilter === "ACTIVE" ? (
-                      <>
-                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => openEdit(c)} aria-label={`Edit ${c.name}`} className="text-muted-foreground hover:text-foreground">
-                          <Pencil size={14} />
-                        </Button>
-                        <Button type="button" size="icon-sm" variant="ghost" onClick={() => setDeleteTarget(c)} aria-label={`Nonaktifkan ${c.name}`} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 size={14} />
-                        </Button>
-                      </>
-                    ) : (
-                      // FIND-004: inactive rows expose a single reactivate
-                      // action; edit + delete don't apply to deactivated rows.
-                      <Button type="button" size="icon-sm" variant="ghost" onClick={() => handleReactivate(c)} aria-label={`Aktifkan kembali ${c.name}`} className="text-muted-foreground hover:text-primary">
-                        <RotateCcw size={14} />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={filteredCampuses}
+        loading={loading}
+        defaultSort={{ field: "name", order: "asc" }}
+        emptyTitle={statusFilter === "INACTIVE" ? "Tidak ada kampus nonaktif" : "Belum ada kampus"}
+        emptyDescription={
+          statusFilter === "INACTIVE"
+            ? "Semua kampus saat ini aktif."
+            : "Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
+        }
+      />
 
       {/* Add/Edit Dialog */}
       <ResponsiveFormDialog

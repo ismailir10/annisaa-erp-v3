@@ -9,6 +9,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   EDUCATION_OPTIONS,
@@ -189,11 +190,10 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
         </Field>
         <Field>
           <FieldLabel htmlFor="admission-dateOfBirth">Tanggal Lahir</FieldLabel>
-          <Input
+          <DatePicker
             id="admission-dateOfBirth"
-            type="date"
             value={form.dateOfBirth}
-            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+            onChange={(v) => setForm({ ...form, dateOfBirth: v })}
           />
           {form.dateOfBirth && (
             <span className="text-xs text-muted-foreground">
@@ -399,11 +399,10 @@ function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormB
         </Field>
         <Field>
           <FieldLabel htmlFor="admission-followUpDate">Tanggal Tindak Lanjut</FieldLabel>
-          <Input
+          <DatePicker
             id="admission-followUpDate"
-            type="date"
             value={form.followUpDate}
-            onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
+            onChange={(v) => setForm({ ...form, followUpDate: v })}
           />
         </Field>
       </div>
@@ -762,6 +761,7 @@ export default function AdmissionsPage() {
     {
       id: "source",
       header: "Sumber",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <div className="text-xs">
           <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
@@ -776,6 +776,7 @@ export default function AdmissionsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Tanggal" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateShort(row.original.createdAt.split("T")[0])}
@@ -798,6 +799,7 @@ export default function AdmissionsPage() {
     {
       id: "sibling",
       header: "Saudara",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const dp = row.original.detectedParent;
         if (!dp) return <span className="text-xs text-muted-foreground">—</span>;

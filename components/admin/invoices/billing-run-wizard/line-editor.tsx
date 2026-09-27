@@ -7,20 +7,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatRupiah } from "@/lib/format";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { cn } from "@/lib/utils";
@@ -48,12 +40,12 @@ import type {
 //
 // better-accessibility: editing is a real form (label + input + submit),
 // not a click-to-edit cell — each row action is a labelled button that
-// opens a Dialog/Sheet (ResponsiveFormDialog) or AlertDialog; closing
+// opens a Dialog/Sheet (ResponsiveFormDialog) or ConfirmDialog; closing
 // either returns focus to its trigger, so focus lands somewhere sensible
 // after every save. Cross-checked design-system.html §07 Forms (Field +
 // FieldLabel + FieldDescription, errors under the field) and §13 Overlays
 // (Dialog on desktop / Sheet on mobile via ResponsiveFormDialog,
-// AlertDialog for the destructive remove confirm).
+// ConfirmDialog for the destructive remove confirm).
 
 const DEFAULT_ADJUSTMENT_NOTE_HELP =
   "Orang tua akan melihat catatan ini pada tagihan mereka — jangan tulis catatan internal di sini.";
@@ -204,6 +196,15 @@ function EditLineDialog({
         <FieldError>{errors.label}</FieldError>
       </Field>
 
+      {/* T8 date/money sweep: deliberately kept as a native number input,
+          not RupiahInput. A MANUAL-source line's finalAmount may legally go
+          negative (a correction after an overcharge — see handleSubmit's
+          `line.source !== "MANUAL" && parsedAmount < 0` branch and
+          resolveLineEdit in lib/finance/billing-run-lines.ts), and
+          RupiahInput's contract explicitly rejects negative values (every
+          other caller — fees, keringanan, invoices, salary — treats a
+          negative as invalid). Swapping this one would silently remove the
+          admin's ability to enter a negative correction. */}
       <Field data-invalid={errors.amount ? "true" : undefined}>
         <FieldLabel required htmlFor={`line-edit-amount-${line.id}`}>
           Jumlah Akhir
@@ -339,17 +340,11 @@ function AddDiscountDialog({
         <FieldLabel required htmlFor={`discount-amount-${row.id}`}>
           Jumlah Potongan
         </FieldLabel>
-        <Input
+        <RupiahInput
           id={`discount-amount-${row.id}`}
           required
-          aria-required="true"
-          type="number"
-          min={0}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="font-currency"
+          value={amount === "" ? null : Number(amount)}
+          onChange={(v) => setAmount(v === null ? "" : String(v))}
         />
         <FieldDescription>Nominal potongan dalam Rupiah — masukkan sebagai angka positif.</FieldDescription>
         <FieldError>{errors.amount}</FieldError>
@@ -506,17 +501,11 @@ function AddComponentDialog({
         <FieldLabel required htmlFor={`component-amount-${row.id}`}>
           Jumlah
         </FieldLabel>
-        <Input
+        <RupiahInput
           id={`component-amount-${row.id}`}
           required
-          aria-required="true"
-          type="number"
-          min={0}
-          step={1}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="font-currency"
+          value={amount === "" ? null : Number(amount)}
+          onChange={(v) => setAmount(v === null ? "" : String(v))}
         />
         <FieldDescription>
           Tidak terisi otomatis dari struktur biaya program — masukkan jumlah secara manual.
@@ -544,11 +533,8 @@ function DeleteLineConfirm({
   onOpenChange: (open: boolean) => void;
   onRemoved: (lineId: string, totalDue: number) => void;
 }) {
-  const [deleting, setDeleting] = useState(false);
-
   async function handleConfirm() {
     if (!line) return;
-    setDeleting(true);
     try {
       const res = await fetch(
         `/api/billing-runs/${runId}/rows/${row.id}/lines/${line.id}`,
@@ -563,32 +549,24 @@ function DeleteLineConfirm({
       }
       const json = (await res.json()) as DeleteBillingRunLineResponse;
       onRemoved(line.id, json.totalDue);
-      onOpenChange(false);
     } catch (err) {
       toast.error(userMessage(err, "Gagal menghapus baris tagihan"));
-    } finally {
-      setDeleting(false);
+      // Re-throw so ConfirmDialog keeps the dialog open on failure instead
+      // of closing as if the delete had succeeded.
+      throw err;
     }
   }
 
   return (
-    <AlertDialog open={!!line} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <AlertDialogContent className="p-card sm:max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Hapus baris tagihan ini?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {line ? `"${line.labelSnapshot}"` : "Baris ini"} akan dihapus dari tagihan{" "}
-            {row.studentNameSnapshot}. Tindakan ini tidak bisa dibatalkan.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={handleConfirm} disabled={deleting}>
-            {deleting ? "Menghapus..." : "Ya, Hapus"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={!!line}
+      onOpenChange={(o) => !o && onOpenChange(false)}
+      title="Hapus baris tagihan ini?"
+      description={`${line ? `"${line.labelSnapshot}"` : "Baris ini"} akan dihapus dari tagihan ${row.studentNameSnapshot}. Tindakan ini tidak bisa dibatalkan.`}
+      confirmLabel="Ya, Hapus"
+      destructive
+      onConfirm={handleConfirm}
+    />
   );
 }
 

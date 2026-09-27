@@ -8,9 +8,12 @@
  * to include (4 groups, per-group select-all), then downloads a filtered CSV
  * from `GET /api/students/export`.
  *
- * Overlay rule (ui.md): Dialog on desktop, Sheet on mobile — same body.
- * Cross-checked against design-system.html (Overlays §: Dialog/Sheet) for
- * shell + button placement.
+ * Overlay rule (ui.md): Dialog on desktop, Sheet on mobile — same body,
+ * via `ResponsiveFormDialog`. No Cancel button in the footer: the shell's
+ * own close affordance (X / Escape / outside-tap) is the only dismiss
+ * path, same as before this was moved onto the shared component — the
+ * lone footer action is the destination action ("Unduh CSV"), not a
+ * mutation submit.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,25 +30,9 @@ import {
   SelectItem,
   SelectLabel,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { formatClassOptionLabel } from "@/lib/format";
 import {
   STUDENT_EXPORT_COLUMNS,
@@ -126,8 +113,6 @@ export function StudentExportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
-
   // Row criteria
   const [status, setStatus] = useState("all");
   const [gender, setGender] = useState("all");
@@ -400,31 +385,16 @@ export function StudentExportDialog({
   const title = "Unduh Data Siswa";
   const description = "Pilih kriteria siswa dan kolom data, lalu unduh sebagai berkas CSV.";
 
-  if (isMobile) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{title}</SheetTitle>
-            <SheetDescription>{description}</SheetDescription>
-          </SheetHeader>
-          <div className="px-4">{body}</div>
-          <SheetFooter>{downloadButton}</SheetFooter>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        {body}
-        <DialogFooter>{downloadButton}</DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      size="2xl"
+      footer={downloadButton}
+    >
+      {body}
+    </ResponsiveFormDialog>
   );
 }

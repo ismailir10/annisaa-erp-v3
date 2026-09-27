@@ -14,6 +14,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -177,7 +178,7 @@ export default function AcademicPage() {
 
   // --- Column definitions ---
 
-  const programColumns: ColumnDef<Program>[] = [
+  const programColumns = useMemo<ColumnDef<Program>[]>(() => [
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Program" />,
@@ -197,11 +198,13 @@ export default function AcademicPage() {
     {
       accessorKey: "type",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tipe" />,
+      meta: { priority: "low" },
       cell: ({ row }) => <span className="text-sm">{TYPE_LABELS[row.original.type] ?? row.original.type}</span>,
     },
     {
       id: "age",
       header: "Usia",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const p = row.original;
         if (p.ageMin == null) return <span className="text-xs text-muted-foreground">—</span>;
@@ -235,7 +238,7 @@ export default function AcademicPage() {
         />
       ),
     },
-  ];
+  ], []);
 
   const filteredPrograms = useMemo(() => {
     const needle = programQuery.trim().toLowerCase();
@@ -255,7 +258,7 @@ export default function AcademicPage() {
     totalPages: programTotalPages,
   };
 
-  const yearColumns: ColumnDef<AcademicYear>[] = [
+  const yearColumns = useMemo<ColumnDef<AcademicYear>[]>(() => [
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
@@ -264,6 +267,7 @@ export default function AcademicPage() {
     {
       accessorKey: "startDate",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const y = row.original;
         return (
@@ -317,7 +321,7 @@ export default function AcademicPage() {
         />
       ),
     },
-  ];
+  ], []);
 
   const filteredYears = useMemo(() => {
     const needle = yearQuery.trim().toLowerCase();
@@ -343,12 +347,7 @@ export default function AcademicPage() {
 
       {/* Programs Section */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-h2 font-semibold">Program</h2>
-          <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Program
-          </Button>
-        </div>
+        <h2 className="mb-4 text-h2 font-semibold">Program</h2>
         <DataTableToolbar
           value={programQuery}
           onValueChange={setProgramQuery}
@@ -367,6 +366,11 @@ export default function AcademicPage() {
               ],
             },
           ]}
+          actions={
+            <Button size="sm" onClick={() => { setEditingProgram(null); setProgramForm({ code: "", name: "", description: "", type: "SEMESTER", ageMin: "", ageMax: "" }); setProgramDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Program
+            </Button>
+          }
         />
         <DataTable
           columns={programColumns}
@@ -381,12 +385,7 @@ export default function AcademicPage() {
 
       {/* Academic Years Section */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-h2 font-semibold">Tahun Ajaran</h2>
-          <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
-            <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
-          </Button>
-        </div>
+        <h2 className="mb-4 text-h2 font-semibold">Tahun Ajaran</h2>
         <DataTableToolbar
           value={yearQuery}
           onValueChange={setYearQuery}
@@ -406,6 +405,11 @@ export default function AcademicPage() {
               ],
             },
           ]}
+          actions={
+            <Button size="sm" onClick={() => { setEditingYear(null); setYearForm({ name: "", startDate: "", endDate: "" }); setYearDialog(true); }}>
+              <Plus size={14} className="mr-1.5" /> Tambah Tahun Ajaran
+            </Button>
+          }
         />
         <DataTable
           columns={yearColumns}
@@ -433,8 +437,8 @@ export default function AcademicPage() {
       >
         <Field><FieldLabel required htmlFor="year-name">Nama</FieldLabel><Input id="year-name" required aria-required="true" value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="2025/2026" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><Input id="year-startDate" type="date" required aria-required="true" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} /></Field>
-          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><Input id="year-endDate" type="date" required aria-required="true" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} /></Field>
+          <Field><FieldLabel required htmlFor="year-startDate">Mulai</FieldLabel><DatePicker id="year-startDate" required value={yearForm.startDate} max={yearForm.endDate || undefined} onChange={v => setYearForm({ ...yearForm, startDate: v })} /></Field>
+          <Field><FieldLabel required htmlFor="year-endDate">Selesai</FieldLabel><DatePicker id="year-endDate" required value={yearForm.endDate} min={yearForm.startDate || undefined} onChange={v => setYearForm({ ...yearForm, endDate: v })} /></Field>
         </div>
       </ResponsiveFormDialog>
 

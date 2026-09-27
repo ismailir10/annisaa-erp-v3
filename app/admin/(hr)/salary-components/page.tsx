@@ -166,6 +166,7 @@ export default function SalaryComponentsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Kategori" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <StatusBadge
           status={row.original.category}
