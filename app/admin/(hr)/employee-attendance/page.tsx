@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -19,7 +19,7 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import { computeAbsentCount } from "./absent-stat";
+import { computeAbsentCount, isWeekend } from "./absent-stat";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type EmployeeAttendance = {
@@ -33,15 +33,14 @@ type EmployeeAttendance = {
 type Campus = { id: string; name: string };
 type Holiday = { date: string };
 
-// F-20: today's date string used to skip the weekend/holiday exclusion when
-// the admin is looking at the live "today" view (employees who haven't
-// clocked in YET should still count as "tidak hadir" so the dashboard can
-// nudge them). For past dates we want a clean stat — weekends and holidays
-// are not absences.
-const TODAY_ISO = getTodayInTimezone("Asia/Jakarta");
-
 export default function AttendancePage() {
-  const [date, setDate] = useState(TODAY_ISO);
+  // Per-render, not module-level: a module-level `TODAY_ISO` froze at build/
+  // deploy time, so a non-working *today* kept computing as if it were the
+  // day of the last deploy (the "Alpa" bug — F-20/Cycle-3-T8). Computed fresh
+  // on every render rather than cached in state — cheap, and a stale value
+  // for even one render across midnight would misclassify "today".
+  const today = getTodayInTimezone("Asia/Jakarta");
+  const [date, setDate] = useState(today);
   const [campusId, setCampusId] = useState("all");
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [data, setData] = useState<EmployeeAttendance[]>([]);
@@ -112,11 +111,15 @@ export default function AttendancePage() {
 
   const present = data.filter((d) => ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance?.status ?? "")).length;
   const late = data.filter((d) => d.attendance?.status === "LATE").length;
-  // F-20: weekends and holidays are not "tidak hadir" for past dates.
-  const absent = computeAbsentCount({ selectedDate: date, today: TODAY_ISO, data, holidays });
+  // F-20 (fixed Cycle 3 T8): weekends and holidays are never "tidak hadir",
+  // whether the selected date is in the past, is today, or is in the future.
+  const absent = computeAbsentCount({ selectedDate: date, data, holidays });
   const leave = data.filter((d) => d.attendance?.status === "LEAVE").length;
+  // Drives the status column below: a row with no attendance record on a
+  // non-working day is "Libur" (closed), not "Alpa" (should have shown up).
+  const isNonWorkingDay = isWeekend(date) || holidays.has(date);
 
-  function openOverride(ea: EmployeeAttendance) {
+  const openOverride = useCallback((ea: EmployeeAttendance) => {
     setOverrideTarget({
       recordId: ea.attendance?.id ?? null,
       employeeId: ea.employee.id,
@@ -124,9 +127,11 @@ export default function AttendancePage() {
       currentStatus: ea.attendance?.status ?? null,
     });
     setOverrideOpen(true);
-  }
+  }, []);
 
-  const columns: ColumnDef<EmployeeAttendance>[] = [
+  // Memoised — a fresh array every render would remount row cells and close
+  // any open row-action menu (Cycle 3 T7).
+  const columns: ColumnDef<EmployeeAttendance>[] = useMemo(() => [
     {
       id: "nama",
       accessorFn: (row) => row.employee.nama,
@@ -181,8 +186,11 @@ export default function AttendancePage() {
       ),
       cell: ({ row }) => {
         const ea = row.original;
-        return ea.attendance ? (
-          <StatusBadge status={ea.attendance.status} />
+        if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
+        // No record on a non-working day means the school was closed, not
+        // that the employee failed to show up.
+        return isNonWorkingDay ? (
+          <StatusBadge status="HOLIDAY" />
         ) : (
           <StatusBadge status="ABSENT" label="—" />
         );
@@ -205,7 +213,7 @@ export default function AttendancePage() {
         />
       ),
     },
-  ];
+  ], [openOverride, isNonWorkingDay]);
 
   return (
     <>

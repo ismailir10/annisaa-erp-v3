@@ -267,23 +267,26 @@ export function KeringananTab() {
     setDialogOpen(true);
   }
 
-  function openEdit(adj: Adjustment) {
-    setEditing(adj);
-    setSelectedStudent({ id: adj.studentId, name: adj.student.name, nickname: null, nis: adj.student.nis });
-    form.reset({
-      isEditing: true,
-      studentId: adj.studentId,
-      academicYearId: adj.academicYearId,
-      feeComponentId: adj.feeComponentId ?? "",
-      type: adj.type,
-      mode: adj.mode,
-      value: String(Number(adj.value)),
-      reason: adj.reason,
-      validFrom: adj.validFrom ?? "",
-      validTo: adj.validTo ?? "",
-    });
-    setDialogOpen(true);
-  }
+  const openEdit = useCallback(
+    (adj: Adjustment) => {
+      setEditing(adj);
+      setSelectedStudent({ id: adj.studentId, name: adj.student.name, nickname: null, nis: adj.student.nis });
+      form.reset({
+        isEditing: true,
+        studentId: adj.studentId,
+        academicYearId: adj.academicYearId,
+        feeComponentId: adj.feeComponentId ?? "",
+        type: adj.type,
+        mode: adj.mode,
+        value: String(Number(adj.value)),
+        reason: adj.reason,
+        validFrom: adj.validFrom ?? "",
+        validTo: adj.validTo ?? "",
+      });
+      setDialogOpen(true);
+    },
+    [form],
+  );
 
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
@@ -340,30 +343,34 @@ export function KeringananTab() {
 
   // Returns whether the toggle succeeded so the deactivate ConfirmDialog can
   // decide whether to keep itself open for a retry (same contract as
-  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`).
-  async function setStatus(adj: Adjustment, nextStatus: "ACTIVE" | "INACTIVE"): Promise<boolean> {
-    setTogglingId(adj.id);
-    try {
-      const res = await fetch(`/api/student-fee-adjustments/${adj.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        toast.error(body.error || "Gagal mengubah status keringanan");
+  // app/admin/(hr)/salary-components/page.tsx `toggleEnabled`). `useCallback`
+  // so `columns` below can be memoised too.
+  const setStatus = useCallback(
+    async (adj: Adjustment, nextStatus: "ACTIVE" | "INACTIVE"): Promise<boolean> => {
+      setTogglingId(adj.id);
+      try {
+        const res = await fetch(`/api/student-fee-adjustments/${adj.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          toast.error(body.error || "Gagal mengubah status keringanan");
+          return false;
+        }
+        toast.success(nextStatus === "INACTIVE" ? "Keringanan dinonaktifkan" : "Keringanan diaktifkan");
+        fetchAdjustments();
+        return true;
+      } catch (e) {
+        toast.error(userMessage(e, "Gagal mengubah status keringanan"));
         return false;
+      } finally {
+        setTogglingId(null);
       }
-      toast.success(nextStatus === "INACTIVE" ? "Keringanan dinonaktifkan" : "Keringanan diaktifkan");
-      fetchAdjustments();
-      return true;
-    } catch (e) {
-      toast.error(userMessage(e, "Gagal mengubah status keringanan"));
-      return false;
-    } finally {
-      setTogglingId(null);
-    }
-  }
+    },
+    [fetchAdjustments],
+  );
 
   // ------------------------------------------------------------------
   // Columns
@@ -378,7 +385,9 @@ export function KeringananTab() {
   // TanStack's `getCanSort()` returns false for them on its own; wrapping
   // them in DataTableColumnHeader too just means they render as a plain
   // title instead of a mix of raw strings and sortable headers).
-  const columns: ColumnDef<Adjustment>[] = [
+  // Memoised (Cycle 3 T7) — a fresh array every render would remount row
+  // cells and close any open row-action menu.
+  const columns: ColumnDef<Adjustment>[] = useMemo(() => [
     {
       id: "student",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
@@ -451,7 +460,7 @@ export function KeringananTab() {
         );
       },
     },
-  ];
+  ], [openEdit, setStatus, togglingId]);
 
   const dialogTitle = editing ? "Edit Keringanan" : "Tambah Keringanan";
   const nilaiDescription =

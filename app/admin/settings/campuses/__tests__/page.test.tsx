@@ -28,7 +28,9 @@ describe("CampusesPage mobile form", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<CampusesPage />);
-    await user.click(await screen.findByRole("button", { name: "Tambah Kampus" }));
+    // The empty state (no campuses yet) also renders a "Tambah Kampus" CTA
+    // alongside the page header's — the header one is first in the DOM.
+    await user.click((await screen.findAllByRole("button", { name: "Tambah Kampus" }))[0]);
 
     const sheet = screen.getByRole("dialog", { name: "Tambah Kampus" });
     expect(sheet).toHaveAttribute("data-slot", "sheet-content");
@@ -59,7 +61,7 @@ describe("CampusesPage create dialog validation", () => {
     const user = userEvent.setup();
     render(<CampusesPage />);
 
-    await user.click(await screen.findByRole("button", { name: "Tambah Kampus" }));
+    await user.click((await screen.findAllByRole("button", { name: "Tambah Kampus" }))[0]);
     const sheet = screen.getByRole("dialog", { name: "Tambah Kampus" });
 
     await user.click(within(sheet).getByRole("button", { name: "Tambah Kampus" }));
@@ -68,6 +70,40 @@ describe("CampusesPage create dialog validation", () => {
     expect(
       fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST"),
     ).toBe(false);
+  });
+});
+
+describe("CampusesPage empty state (Cycle 3 T7 — DataTable emptyAction)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("shows a 'Tambah Kampus' CTA in the empty state that opens the create dialog", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<CampusesPage />);
+
+    await screen.findByText("Belum ada kampus");
+    const ctas = await screen.findAllByRole("button", { name: "Tambah Kampus" });
+    expect(ctas).toHaveLength(2); // page header + empty-state CTA
+
+    await user.click(ctas[1]);
+    expect(screen.getByRole("dialog", { name: "Tambah Kampus" })).toBeInTheDocument();
+  });
+
+  it("omits the empty-state CTA on the 'Tidak ada kampus nonaktif' view (nothing to create there)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<CampusesPage />);
+
+    await user.click(await screen.findByRole("combobox", { name: "Filter Status" }));
+    await user.click(await screen.findByRole("option", { name: "Tidak Aktif" }));
+
+    await screen.findByText("Tidak ada kampus nonaktif");
+    expect(screen.getAllByRole("button", { name: "Tambah Kampus" })).toHaveLength(1); // header only
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -66,11 +66,14 @@ export default function HolidaysPage() {
     setDialogOpen(true);
   }
 
-  function openEdit(h: Holiday) {
-    setEditing(h);
-    form.reset({ date: h.date, name: h.name, type: h.type, isHalfDay: h.isHalfDay });
-    setDialogOpen(true);
-  }
+  const openEdit = useCallback(
+    (h: Holiday) => {
+      setEditing(h);
+      form.reset({ date: h.date, name: h.name, type: h.type, isHalfDay: h.isHalfDay });
+      setDialogOpen(true);
+    },
+    [form],
+  );
 
   const handleSave = form.handleSubmit(async (values) => {
     try {
@@ -102,7 +105,9 @@ export default function HolidaysPage() {
     );
   }, [holidays, query]);
 
-  const columns: ColumnDef<Holiday>[] = [
+  // Memoised — a fresh array every render would remount row cells and close
+  // any open row-action menu (Cycle 3 T7).
+  const columns: ColumnDef<Holiday>[] = useMemo(() => [
     {
       accessorKey: "date",
       header: ({ column }) => (
@@ -156,7 +161,7 @@ export default function HolidaysPage() {
         />
       ),
     },
-  ];
+  ], [openEdit]);
 
   return (
     <>

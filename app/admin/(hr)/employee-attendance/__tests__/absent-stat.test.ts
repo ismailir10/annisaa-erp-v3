@@ -1,14 +1,13 @@
 /**
  * F-20 coverage for the dashboard "tidak hadir" stat helper.
  *
- * Rule contract:
- *   - Past weekend → 0 absent (school closed).
- *   - Past holiday → 0 absent (school closed).
- *   - Past working day → plain count of rows with no attendance record.
- *   - Today → plain count regardless of weekday (admin uses it to chase
- *     no-shows mid-day).
- *   - Future date → plain count (defensive — UI doesn't normally allow
- *     future selection, but the helper shouldn't return weird values).
+ * Rule contract (Cycle 3 T7/T8 — fixed the "Alpa" bug: a non-working
+ * *today* used to fall through to the plain count and mark the whole
+ * roster absent):
+ *   - Weekend (past, today, or future) → 0 absent (school closed).
+ *   - Holiday (past, today, or future) → 0 absent (school closed).
+ *   - Working day (past, today, or future) → plain count of rows with no
+ *     attendance record.
  */
 import { describe, it, expect } from "vitest";
 import { computeAbsentCount, isWeekend } from "../absent-stat";
@@ -65,21 +64,49 @@ describe("computeAbsentCount — F-20", () => {
     expect(out).toBe(2);
   });
 
-  it("for TODAY, weekend/holiday short-circuit does NOT apply (live view)", () => {
-    // Even if today is a Saturday, admin still wants to see who hasn't
-    // clocked in (e.g. weekend events, on-call staff).
+  it("ignores TODAY when it's a weekend → 0 absent (was the Alpa bug: this used to fall through to the plain count)", () => {
     const out = computeAbsentCount({
       selectedDate: "2026-05-02", // Saturday
       today: "2026-05-02",
       data: ROWS,
-      holidays: new Set(["2026-05-02"]), // even if today is also a holiday
+      holidays: new Set(),
+    });
+    expect(out).toBe(0);
+  });
+
+  it("ignores TODAY when it's a holiday → 0 absent", () => {
+    const out = computeAbsentCount({
+      selectedDate: "2026-05-04", // Monday, tagged as a holiday
+      today: "2026-05-04",
+      data: ROWS,
+      holidays: new Set(["2026-05-04"]),
+    });
+    expect(out).toBe(0);
+  });
+
+  it("counts TODAY when it's a working day, no holiday", () => {
+    const out = computeAbsentCount({
+      selectedDate: "2026-05-04", // Monday, no holiday
+      today: "2026-05-04",
+      data: ROWS,
+      holidays: new Set(),
     });
     expect(out).toBe(2);
   });
 
-  it("for future dates, returns plain count (no weekend exclusion)", () => {
+  it("ignores future weekends too → 0 absent", () => {
     const out = computeAbsentCount({
       selectedDate: "2026-05-09", // future Saturday
+      today: "2026-05-02",
+      data: ROWS,
+      holidays: new Set(),
+    });
+    expect(out).toBe(0);
+  });
+
+  it("counts future working days with no holiday tagged", () => {
+    const out = computeAbsentCount({
+      selectedDate: "2026-05-11", // future Monday, no holiday
       today: "2026-05-02",
       data: ROWS,
       holidays: new Set(),

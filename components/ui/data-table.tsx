@@ -123,6 +123,13 @@ interface DataTableProps<TData extends RowData> {
   defaultSort?: { field: string; order: "asc" | "desc" };
   emptyTitle?: string;
   emptyDescription?: string;
+  /**
+   * Optional call-to-action rendered on the empty state (e.g. "Tambah
+   * Kampus" opening the create dialog). Pass-through to `EmptyState`'s own
+   * `actionLabel`/`actionHref`/`onAction` — provide either `onClick` or
+   * `href`, not both.
+   */
+  emptyAction?: { label: string; onClick?: () => void; href?: string };
   loading?: boolean;
 }
 
@@ -136,6 +143,7 @@ export function DataTable<TData extends RowData>({
   defaultSort,
   emptyTitle = "Belum ada data untuk ditampilkan",
   emptyDescription,
+  emptyAction,
   loading = false,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>(
@@ -253,6 +261,9 @@ export function DataTable<TData extends RowData>({
         icon={Inbox}
         title={emptyTitle}
         description={emptyDescription}
+        actionLabel={emptyAction?.label}
+        actionHref={emptyAction?.href}
+        onAction={emptyAction?.onClick}
       />
     );
   }

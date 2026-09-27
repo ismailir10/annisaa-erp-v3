@@ -232,6 +232,11 @@ export default function CampusesPage() {
             ? "Semua kampus saat ini aktif."
             : "Tambahkan lokasi kampus/cabang untuk mulai mengelola karyawan per kampus."
         }
+        // Same as the header's "Tambah Kampus" — no permission gate on this
+        // page, so the empty-state CTA mirrors it unconditionally. Only
+        // offered on the ACTIVE/default view; "Tidak ada kampus nonaktif"
+        // isn't a place to create a new (active) campus from.
+        emptyAction={statusFilter !== "INACTIVE" ? { label: "Tambah Kampus", onClick: openNew } : undefined}
       />
 
       {/* Add/Edit Dialog */}

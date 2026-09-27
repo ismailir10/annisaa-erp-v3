@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
@@ -51,5 +51,41 @@ describe("DataTable", () => {
 
     expect(screen.getByText("Zaki")).toBeInTheDocument();
     expect(screen.queryByText("Aisyah")).not.toBeInTheDocument();
+  });
+
+  it("omits any CTA on the empty state when emptyAction isn't passed", () => {
+    render(<DataTable columns={columns} data={[]} emptyTitle="Belum ada data" />);
+    expect(screen.getByText("Belum ada data")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("renders emptyAction as a click CTA on the empty state (Cycle 3 T7)", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        emptyTitle="Belum ada data"
+        emptyAction={{ label: "Tambah Data", onClick }}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Tambah Data" });
+    await user.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders emptyAction as a link CTA on the empty state when href is passed", () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        emptyTitle="Belum ada data"
+        emptyAction={{ label: "Buka Halaman", href: "/admin/somewhere" }}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Buka Halaman" });
+    expect(link).toHaveAttribute("href", "/admin/somewhere");
   });
 });

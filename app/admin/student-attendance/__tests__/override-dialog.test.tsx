@@ -6,22 +6,20 @@
  * Kept in its own file, not appended to `page.test.tsx`: this page mounts
  * three independent fetch effects (class-sections, stats, list) plus a
  * second, eagerly-mounted tab (`RecapView`, its own `/recap` fetch) behind
- * `AdminTabs`. Under CPU contention from other files/tests in the same
- * `vitest run` (confirmed reproducible even against a single, unrelated
- * node-env file run alongside it — this repo's documented oversubscription
- * flake class, see `scripts/flake-hunt.sh`), a click on the row's Base UI
- * `DropdownMenu` trigger can race one of those effects and never open the
- * popup at all — reproduced identically against the pre-migration file, so
- * it predates this cycle and isn't specific to the RHF change. `openOverrideDialog`
- * below settles every pending effect (repeated `act`-wrapped ticks) before
- * the first click and retries the click itself if the menu still doesn't
- * open; each alone was still flaky under contention; combined, four
- * back-to-back multi-file runs were clean. `app/admin/guardians` and
- * `app/admin/fees`'s row-menu tests don't need this — neither page has a
- * second concurrently-mounted tab.
+ * `AdminTabs`.
+ *
+ * (Cycle 3 T7) The row menu used to open unreliably under CPU contention.
+ * The real cause was `columns` being rebuilt on every render of
+ * `StudentAttendancePage` (a brand-new array identity each render) — the
+ * DropdownMenu inside the actions cell remounted whenever any of the
+ * page's several mount-time fetch effects settled and called `setState`,
+ * which could tear the popup down mid-open. `columns` is now `useMemo`'d
+ * (module code, not this test), so the menu no longer remounts out from
+ * under a click — a plain `userEvent.click` + `findBy*` (which already
+ * awaits) is enough; no manual settle-ticks or click-retry loop needed.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within, act } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentAttendancePage from "../page";
@@ -88,28 +86,9 @@ describe("StudentAttendancePage — Timpa Kehadiran dialog (RHF)", () => {
     // Base UI Menu — real pointer sequence via userEvent (see
     // app/admin/fees/__tests__/page.test.tsx and
     // app/admin/guardians/__tests__/page.test.tsx for the same pattern).
-    // Retried: under CPU contention from other test files/projects running
-    // in the same `vitest run` (this repo's documented oversubscription
-    // flake class — see `scripts/flake-hunt.sh` and CLAUDE.md's Testing
-    // gates section), a single click on this page's trigger can lose the
-    // race against one of its three mount-time fetch effects and never
-    // open the menu at all; re-clicking recovers it.
-    for (let i = 0; i < 20; i++) {
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 20));
-      });
-    }
     const trigger = await screen.findByRole("button", { name: "Buka menu aksi" });
-    let timpa: HTMLElement | null = null;
-    for (let attempt = 0; attempt < 5 && !timpa; attempt++) {
-      await user.click(trigger);
-      timpa = screen.queryByRole("menuitem", { name: "Timpa" });
-      if (!timpa) {
-        await new Promise((r) => setTimeout(r, 100));
-        timpa = screen.queryByRole("menuitem", { name: "Timpa" });
-      }
-    }
-    if (!timpa) throw new Error("Dropdown menu never opened for the Buka menu aksi trigger");
+    await user.click(trigger);
+    const timpa = await screen.findByRole("menuitem", { name: "Timpa" });
     await user.click(timpa);
     return screen.findByRole("dialog", { name: "Timpa Kehadiran" });
   }

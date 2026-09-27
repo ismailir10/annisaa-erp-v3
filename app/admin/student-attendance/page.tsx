@@ -287,13 +287,16 @@ export default function StudentAttendancePage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  function openOverride(r: AttendanceRecord) {
-    setOverrideTarget(r);
-    overrideForm.reset({
-      status: r.status as z4.input<typeof updateStudentAttendanceSchema>["status"],
-      notes: r.notes ?? "",
-    });
-  }
+  const openOverride = useCallback(
+    (r: AttendanceRecord) => {
+      setOverrideTarget(r);
+      overrideForm.reset({
+        status: r.status as z4.input<typeof updateStudentAttendanceSchema>["status"],
+        notes: r.notes ?? "",
+      });
+    },
+    [overrideForm],
+  );
 
   const handleOverride = overrideForm.handleSubmit(async (values) => {
     if (!overrideTarget) return;
@@ -340,8 +343,11 @@ export default function StudentAttendancePage() {
   }
 
   // ── Columns ─────────────────────────────────────────────────────
+  // Memoised — a fresh array every render would remount row cells and close
+  // any open row-action menu (Cycle 3 T7; see the removed retry hack in
+  // `__tests__/override-dialog.test.tsx`).
 
-  const columns: ColumnDef<AttendanceRecord>[] = [
+  const columns: ColumnDef<AttendanceRecord>[] = useMemo(() => [
     {
       accessorKey: "date",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tanggal" />,
@@ -401,7 +407,7 @@ export default function StudentAttendancePage() {
         />
       ),
     },
-  ];
+  ], [openOverride]);
 
   // ─────────────────────────────────────────────────────────────────
 

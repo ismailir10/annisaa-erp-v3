@@ -106,7 +106,7 @@ dependency; teacher/parent portals.
 - [x] **T5 admissions split** — `components/admin/admissions/*`, POST → `validateBody`.
 - [ ] **T6 remaining forms** — payroll/[id] period edit (+ columns memo), employees/[id] edit,
   invoices/[id] record payment, objectives dialogs.
-- [ ] **T7 lists & polish** — memoise columns (student-attendance, employee-attendance, holidays, fees
+- [x] **T7 lists & polish** — memoise columns (student-attendance, employee-attendance, holidays, fees
   component columns, keringanan, dashboard work-queue) + drop the attendance test retry;
   `DataTable` empty action + campuses CTA; `StatusBadge` health keys; billing-run wizard shell;
   Alpa fix + test; seed semesters.
@@ -125,6 +125,8 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 2: classes/[id] — `client.tsx` 1550 → 437 lines, orchestrating `components/admin/classes/detail/{types,roster-section,teachers-section,sessions-section,edit-class-dialog,add-student-dialog,add-teacher-dialog,swap-session-dialog}`. Ubah Guru Sesi now submits through `handleSubmit`: `swapClassSessionTeacherFormSchema` carries the session's `defaultTeacherId` as a hidden value and requires a reason (on the Alasan field) for a genuine substitution; the route keeps that rule server-side (it needs the DB's default, a client value can't be trusted) but now returns the standard `errors[]` shape, and parses with `validateBody`. "Kembalikan ke wali kelas" still bypasses the form by design. Ubah Kelas on RHF (`classEditFormSchema` picked from `classFormSchema`, PATCH body unchanged). Tambah Siswa / Tambah Guru non-409 failures now show in `FormRootError`; 409 advisory flows untouched. Kondisi on the classes list renders `StatusBadge` with new Sehat / Perhatian / Kritis / Libur keys; `healthTone` deleted.
 
+- Task 7: lists & polish — columns memoised (student-attendance, employee-attendance, holidays, fees component columns — moved above the early loading return, keringanan) or module-level (dashboard work-queue) with `useCallback` handlers; the attendance-override test's 20-tick settle + 5-try click retry removed (the remounting columns were the real cause). `DataTable` `emptyAction` (passes through to `EmptyState`) + campuses empty state "Tambah Kampus" (hidden on the Nonaktif filter). Billing-run wizard shell → `ResponsiveFormDialog size="2xl"` (steps unchanged, `footer={null}`); driver follow-up: `ResponsiveFormDialog` skips the docked footer when `footer` is null instead of rendering an empty bar. Alpa: `computeAbsentCount` returns 0 on any weekend/holiday (past, today or future); "today" computed per render (Jakarta); no-record rows on such a day show "Libur". Weekend stays Sat/Sun as elsewhere in the module (not org working days). **Seed change reverted (Assumption 5 fallback):** demoting Semester 1 doesn't affect session generation, but the demo curriculum (themes/weeks/objectives) lives on Semester 1 and report cards, parent development and teacher assessments select ACTIVE semesters — demoting it would empty those demo flows. Moving the demo curriculum onto the semester that spans today is a seed redesign → follow-up.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
@@ -136,5 +138,7 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 - Task 2: `vitest run app/admin/classes components/ui/__tests__/status-badge.test.tsx lib/validations/__tests__/{class-session,class,form-api-roundtrip}.test.ts app/api/admin` 146 tests passed; eslint clean; tsc clean for these paths. Security: class-sessions PATCH keeps auth + tenant resolution through ClassSection before the reason rule. design-system: Kondisi now uses the status tokens via `StatusBadge` (same tones as the deleted helper).
 
 - Build fix: the T2 commit carried the shared `form-api-roundtrip.test.ts` with T6's still-uncommitted sections (employee edit, invoice payment, objectives schemas), so the committed tree failed typecheck (Vercel build error on 01748b3). The committed copy now ends before those sections (they return with T6); verified with `tsc --noEmit` on a clean checkout of HEAD. Lesson for the parallel build: shared files are committed from a clean-HEAD check, not straight from the working tree.
+
+- Task 7: `vitest run` over employee-attendance, fees, campuses, holidays, student-attendance, dashboard, fees components, invoices components, components/ui — 181 tests passed; override-dialog test 10/10 plain + `flake-hunt.sh 10 8` 10/10 green; eslint 0 errors. design-system: campuses empty state uses the existing `EmptyState` action; wizard uses the shared dialog shell; "Libur" uses the existing HOLIDAY status token.
 
 ## Ship Notes
