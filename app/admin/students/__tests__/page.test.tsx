@@ -13,7 +13,7 @@
  * control.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StudentsPage from "@/app/admin/students/page";
@@ -162,5 +162,142 @@ describe("StudentsPage — name is the link (T7, admin-ui-standard-c1)", () => {
     const nameLink = await screen.findByRole("link", { name: /Budi Santoso/ });
     expect(nameLink).toHaveAttribute("href", "/admin/students/s2");
     expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
+  });
+});
+
+// T4 fix (2026-09-27, admin-forms-rhf review) — the RHF migration's first
+// pass wrapped every optional field in `optionalTrimmed`, which coerces a
+// blank field to `undefined`; `JSON.stringify` then drops that key, and
+// `PUT /api/students/[id]` reads an ABSENT key as "leave the column alone"
+// (app/api/students/[id]/route.ts ~177-187) — so clearing an optional field
+// in the edit dialog silently did nothing. `studentFormSchema` now emits
+// `null` (never `undefined`) for a blank field, matching the pre-migration
+// client's `field.trim() || null`, sent as an explicit key every time.
+describe("StudentsPage — edit/create PUT and POST bodies match the pre-migration contract", () => {
+  const fullStudent = {
+    name: "Aisyah Putri",
+    nickname: "Eef",
+    gender: "P",
+    dateOfBirth: "2018-04-12",
+    address: "Jl. Mawar No. 7",
+    notes: "Catatan awal",
+    nis: "NIS001",
+    nisn: "NISN001",
+    birthPlace: "Bandung",
+    nik: "3273000000000001",
+    kkNumber: "3273000000000002",
+    livingWith: "ORANG_TUA",
+    status: "ACTIVE",
+  };
+
+  const rowStudent = {
+    id: "s1",
+    name: fullStudent.name,
+    nickname: fullStudent.nickname,
+    dateOfBirth: fullStudent.dateOfBirth,
+    gender: fullStudent.gender,
+    status: fullStudent.status,
+    nis: fullStudent.nis,
+    nisn: fullStudent.nisn,
+    notes: fullStudent.notes,
+    photoUrl: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    guardians: [],
+    enrollments: [],
+  };
+
+  function stubFetchForMutations() {
+    return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method;
+      if (url.includes("/api/students/stats")) {
+        return Promise.resolve({ ok: true, json: async () => ({ total: 1, active: 1, graduated: 0 }) } as Response);
+      }
+      if (url === "/api/students/s1" && (method === undefined || method === "GET")) {
+        return Promise.resolve({ ok: true, json: async () => fullStudent } as Response);
+      }
+      if (url === "/api/students/s1" && method === "PUT") {
+        return Promise.resolve({ ok: true, json: async () => ({ ...fullStudent, id: "s1" }) } as Response);
+      }
+      if (url === "/api/students" && method === "POST") {
+        return Promise.resolve({ ok: true, status: 201, json: async () => ({ id: "s-new" }) } as Response);
+      }
+      if (url.includes("/api/students?")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [rowStudent], pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 } }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    });
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", stubFetchForMutations());
+  });
+
+  it("clearing Nama Panggilan on edit sends nickname: null explicitly (not an omitted key)", async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+
+    await screen.findByText("Aisyah Putri");
+    // Base UI Menu — real pointer sequence via userEvent (see
+    // app/admin/fees/__tests__/page.test.tsx for the same pattern).
+    await user.click(await screen.findByRole("button", { name: "Aksi untuk Aisyah Putri" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Ubah" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit Siswa" });
+    const nickname = await within(dialog).findByLabelText("Nama Panggilan");
+    expect(nickname).toHaveValue("Eef");
+    await user.clear(nickname);
+
+    await user.click(within(dialog).getByRole("button", { name: "Simpan Perubahan" }));
+
+    await waitFor(() => {
+      const putCall = vi
+        .mocked(fetch)
+        .mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PUT");
+      expect(putCall).toBeTruthy();
+    });
+    const putCall = vi.mocked(fetch).mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
+    ) as [string, RequestInit];
+    const body = JSON.parse(putCall[1].body as string);
+    expect("nickname" in body).toBe(true);
+    expect(body.nickname).toBeNull();
+    // Untouched fields still ride along explicitly too (never omitted) —
+    // the same "always send every key" contract as the pre-migration client.
+    expect(body.name).toBe("Aisyah Putri");
+    expect(body.address).toBe(fullStudent.address);
+    expect(body.status).toBe("ACTIVE");
+  });
+
+  it("create with every optional field left blank sends null for each (not an omitted key)", async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+
+    await screen.findByText("Aisyah Putri");
+    await user.click(await screen.findByRole("button", { name: "Tambah Siswa" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Siswa" });
+
+    await user.type(within(dialog).getByLabelText(/^Nama Lengkap\*?$/), "Budi Santoso");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Siswa" }));
+
+    await waitFor(() => {
+      const postCall = vi
+        .mocked(fetch)
+        .mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+      expect(postCall).toBeTruthy();
+    });
+    const postCall = vi.mocked(fetch).mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+    ) as [string, RequestInit];
+    const body = JSON.parse(postCall[1].body as string);
+    expect(body.name).toBe("Budi Santoso");
+    for (const key of ["nickname", "gender", "dateOfBirth", "address", "notes", "nis", "nisn", "birthPlace", "nik", "kkNumber", "livingWith"]) {
+      expect(body).toHaveProperty(key);
+      expect(body[key]).toBeNull();
+    }
+    expect(body.status).toBe("ACTIVE");
   });
 });

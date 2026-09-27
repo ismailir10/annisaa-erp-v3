@@ -324,6 +324,30 @@ describe("StudentDetailPage — enroll override-confirm (T7)", () => {
     expect(screen.queryByLabelText(/^Alasan\*?$/)).not.toBeInTheDocument();
     expect(screen.queryByText(AGE_MESSAGE)).not.toBeInTheDocument();
   });
+
+  // T4 (2026-09-27, admin-forms-rhf) — StudentEnrollDialog now runs on
+  // react-hook-form + zodResolver (`enrollStudentFormSchema`,
+  // lib/validations/student.ts). Submitting the picker step with no class
+  // chosen used to show `toast.error("Pilih kelas")` and stop; it now shows
+  // the schema's inline "Kelas wajib dipilih" next to the field instead —
+  // and, either way, sends no request.
+  it("submitting the picker with no class chosen shows an inline error and sends no request", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch([]);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<StudentDetailPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Daftarkan ke Kelas" }));
+    await screen.findByLabelText(/^Pilih Kelas\*?$/);
+
+    fetchMock.mockClear();
+    await user.click(screen.getByRole("button", { name: "Daftarkan" }));
+
+    expect(await screen.findByText("Kelas wajib dipilih")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/api/students/s1/enroll")),
+    ).toBe(false);
+  });
 });
 
 /**
