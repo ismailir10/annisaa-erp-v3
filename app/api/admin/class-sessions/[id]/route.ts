@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { JAKARTA_TZ } from "@/lib/sessions/dates";
+import { validateBody } from "@/lib/api/validate";
 import { swapClassSessionTeacherSchema } from "@/lib/validations/class-session";
 
 /**
@@ -49,14 +50,9 @@ export async function PATCH(
 
   const { id } = await params;
 
-  const parsed = swapClassSessionTeacherSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
-  const body = parsed.data;
+  const result = await validateBody(swapClassSessionTeacherSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
 
   // Tenant scope: ClassSession has no tenantId column — resolve through the
   // parent ClassSection. A cross-tenant id simply fails to match → 404.
@@ -94,11 +90,19 @@ export async function PATCH(
   // INCLUDING clearing to null) must carry a reason — otherwise the swap
   // lands with an empty audit trail. A revert to homeroom
   // (teacherId === defaultTeacherId) needs no reason and clears any stale one.
+  //
+  // This rule cannot live in `swapClassSessionTeacherSchema`: it needs
+  // `existing.defaultTeacherId`, which only this DB read knows — trusting a
+  // client-supplied `defaultTeacherId` instead would let a caller bypass the
+  // reason requirement outright. It stays an in-route check, but returns the
+  // same `{ error, errors: [{ field, message }] }` shape `validateBody`
+  // produces so the client's `applyServerErrors` maps it onto the field.
   const isSubstitution = body.teacherId !== existing.defaultTeacherId;
   const trimmedReason = body.substituteReason?.trim();
   if (isSubstitution && !trimmedReason) {
+    const message = "Alasan pengganti wajib diisi untuk pergantian guru.";
     return NextResponse.json(
-      { error: "Alasan pengganti wajib diisi untuk pergantian guru." },
+      { error: message, errors: [{ field: "substituteReason", message }] },
       { status: 400 },
     );
   }

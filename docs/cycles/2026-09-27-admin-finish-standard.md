@@ -96,7 +96,7 @@ dependency; teacher/parent portals.
 - [x] **T1 Salary components + payroll ordering** — `lib/validations/payroll.ts`, both salary-component
   routes, `app/api/payroll/generate/route.ts`, variables route, salary-components page (+ its
   columns memo), tests incl. round-trip flip.
-- [ ] **T2 classes/[id]** — swap/edit/add dialogs on RHF + split into `components/admin/classes/detail/*`;
+- [x] **T2 classes/[id]** — swap/edit/add dialogs on RHF + split into `components/admin/classes/detail/*`;
   `lib/validations/class-session.ts`, class-sessions route; Kondisi StatusBadge on classes list.
 - [ ] **T3 GuardianFormBody on RHF** — `components/admin/guardian-edit-dialog.tsx`, guardians list +
   detail pages, guardian create route persists address/childrenTotal/childOrder
@@ -123,6 +123,8 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 1: Salary components + payroll ordering — `salaryCalcTypeSchema` includes PCT_OF_BASE; new `updateSalaryComponentSchema`; POST + PUT `/api/salary-components` on `validateBody` (PUT previously had no validation; it now updates only the keys sent, so the `{ isEnabled }` toggle can't clobber fields); `lib/payroll/salary-component-ordering.ts` rejects a PCT_OF_BASE row ordered at/before an enabled `gaji_pokok` (and moving `gaji_pokok` after one) with a field error on `sortOrder`; payroll generate catches the engine's ordering throw → 400 naming the components (was a 500); the variables recalc route applies the same guard. Salary components page: stale calcType types fixed, one label map (Select now says "Kehadiran" like the list), columns memoised, Urutan hint for PCT_OF_BASE. Driver fix on review: the subagent exported the ordering helper from `app/api/salary-components/route.ts` and imported it into `[id]/route.ts` — Next.js route modules may only export handlers/config, so it moved to `lib/payroll/`; the reverse-direction message now reads "Gaji Pokok harus diurutkan sebelum semua komponen % Gaji Pokok". (`lib/validations/payroll.ts` in this commit also carries T6's self-contained `payrollEditFormSchema` export.)
 
+- Task 2: classes/[id] — `client.tsx` 1550 → 437 lines, orchestrating `components/admin/classes/detail/{types,roster-section,teachers-section,sessions-section,edit-class-dialog,add-student-dialog,add-teacher-dialog,swap-session-dialog}`. Ubah Guru Sesi now submits through `handleSubmit`: `swapClassSessionTeacherFormSchema` carries the session's `defaultTeacherId` as a hidden value and requires a reason (on the Alasan field) for a genuine substitution; the route keeps that rule server-side (it needs the DB's default, a client value can't be trusted) but now returns the standard `errors[]` shape, and parses with `validateBody`. "Kembalikan ke wali kelas" still bypasses the form by design. Ubah Kelas on RHF (`classEditFormSchema` picked from `classFormSchema`, PATCH body unchanged). Tambah Siswa / Tambah Guru non-409 failures now show in `FormRootError`; 409 advisory flows untouched. Kondisi on the classes list renders `StatusBadge` with new Sehat / Perhatian / Kritis / Libur keys; `healthTone` deleted.
+
 ## Verification
 
 - Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
@@ -130,5 +132,7 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 - Task 5: `vitest run app/api/admissions app/admin/admissions` 5 files / 29 tests passed (after the route revert); eslint clean. e2e selectors (`admission-edit-sibling-banner`, `admission-row-sibling-chip`, "Catat Pertanyaan", "Konversi ke Siswa") unchanged. design-system: no visual change (pure extraction).
 
 - Task 1: `vitest run app/api/salary-components app/api/payroll "app/admin/(hr)/salary-components" lib/payroll lib/validations/__tests__/{payroll,form-api-roundtrip}.test.ts` 9 files / 124 tests passed after the move; tsc clean for these paths; eslint 0 errors. Security: `requirePermission("payroll.create")` + tenant 404 still precede validation on PUT; POST auth/rate-limit unchanged. design-system: the Urutan hint is a standard `FieldDescription`.
+
+- Task 2: `vitest run app/admin/classes components/ui/__tests__/status-badge.test.tsx lib/validations/__tests__/{class-session,class,form-api-roundtrip}.test.ts app/api/admin` 146 tests passed; eslint clean; tsc clean for these paths. Security: class-sessions PATCH keeps auth + tenant resolution through ClassSection before the reason rule. design-system: Kondisi now uses the status tokens via `StatusBadge` (same tones as the deleted helper).
 
 ## Ship Notes

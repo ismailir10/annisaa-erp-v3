@@ -56,22 +56,65 @@ describe("swapClassSessionTeacherSchema", () => {
 });
 
 describe("swapClassSessionTeacherFormSchema", () => {
-  it("accepts the Select's empty-string 'no substitute' sentinel — unlike the API schema", () => {
-    const result = swapClassSessionTeacherFormSchema.safeParse({ teacherId: "" });
+  it("accepts the Select's empty-string 'no substitute' sentinel when it matches defaultTeacherId (no substitution, no reason needed)", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "",
+      defaultTeacherId: null,
+    });
     expect(result.success).toBe(true);
   });
 
-  it("still accepts a real teacherId plus a reason", () => {
+  it("accepts a real teacherId equal to defaultTeacherId (a no-op 'swap') with no reason", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp1",
+      defaultTeacherId: "emp1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still accepts a real substitution with a reason", () => {
     const result = swapClassSessionTeacherFormSchema.safeParse({
       teacherId: "emp1",
       substituteReason: "wali kelas sedang cuti",
+      defaultTeacherId: "emp-homeroom",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("rejects a genuine substitution (teacherId differs from defaultTeacherId) with no reason, issue on substituteReason", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp2",
+      defaultTeacherId: "emp1",
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.some((i) => i.path.join(".") === "substituteReason")).toBe(true);
+  });
+
+  it("rejects clearing to no-substitute ('') when the homeroom teacher exists, with no reason", () => {
+    // teacherId="" -> effective null, which differs from a non-null
+    // defaultTeacherId — clearing the effective teacher is itself a
+    // substitution and still needs a reason.
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "",
+      defaultTeacherId: "emp1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a whitespace-only reason on a genuine substitution", () => {
+    const result = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp2",
+      substituteReason: "   ",
+      defaultTeacherId: "emp1",
+    });
+    expect(result.success).toBe(false);
   });
 
   it("still rejects a substituteReason over 300 chars", () => {
     const result = swapClassSessionTeacherFormSchema.safeParse({
       teacherId: "",
+      defaultTeacherId: null,
       substituteReason: "x".repeat(301),
     });
     expect(result.success).toBe(false);

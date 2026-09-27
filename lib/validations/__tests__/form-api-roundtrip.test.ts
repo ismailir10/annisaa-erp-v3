@@ -454,29 +454,89 @@ describe("Teaching assignments: teachingAssignmentAddSchema (form) -> teachingAs
   });
 });
 
-describe("Class-session swap: swapClassSessionTeacherSchema (route) vs the dialog's manual body build", () => {
-  // NOTE: client.tsx's "Simpan" button (line 1455) calls `submitSwap(...)`
-  // directly with `swapForm.watch(...)` values, NOT `swapForm.handleSubmit`
-  // (contrast with every other form on this page). `swapClassSessionTeacherFormSchema`
-  // is therefore never actually used to validate a submission — this test
-  // documents that the hand-written `teacherId || null` conversion the
-  // button performs (client.tsx:1455) still produces a body the route's
-  // real schema accepts, but the client-side zod validation for this
-  // particular dialog is effectively dead code.
-  it("an empty Select value ('') converts to null and round-trips", async () => {
-    const { swapClassSessionTeacherSchema } = await import("../class-session");
-    const teacherIdWatch = "";
-    const reasonWatch = "";
-    const body = wire({ teacherId: teacherIdWatch || null, substituteReason: reasonWatch.trim() || undefined });
+// ── Class-session swap — components/admin/classes/detail/swap-session-dialog.tsx ─
+describe("Class-session swap: swapClassSessionTeacherFormSchema (form) -> swapClassSessionTeacherSchema (route)", () => {
+  // T2 (2026-09-27 admin-finish-standard): Simpan now submits through
+  // `swapForm.handleSubmit`, so `swapClassSessionTeacherFormSchema`'s
+  // reason-required superRefine actually runs before the PATCH body is
+  // built (swap-session-dialog.tsx's `submitSwap`). `defaultTeacherId` is a
+  // hidden, form-only field never sent to the API.
+  it("a revert to homeroom (teacherId === defaultTeacherId) needs no reason and round-trips", async () => {
+    const { swapClassSessionTeacherFormSchema, swapClassSessionTeacherSchema } = await import(
+      "../class-session"
+    );
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-1",
+      substituteReason: "",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire({
+      teacherId: form.data.teacherId || null,
+      substituteReason: form.data.substituteReason || undefined,
+    }); // swap-session-dialog.tsx submitSwap
     expect(swapClassSessionTeacherSchema.safeParse(body).success).toBe(true);
   });
 
-  it("a chosen teacher + reason round-trips", async () => {
-    const { swapClassSessionTeacherSchema } = await import("../class-session");
-    const teacherIdWatch: string = "emp-2";
-    const reasonWatch: string = "Sakit";
-    const body = wire({ teacherId: teacherIdWatch || null, substituteReason: reasonWatch.trim() || undefined });
+  it("a genuine substitution with a reason round-trips", async () => {
+    const { swapClassSessionTeacherFormSchema, swapClassSessionTeacherSchema } = await import(
+      "../class-session"
+    );
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-2",
+      substituteReason: "Sakit",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire({
+      teacherId: form.data.teacherId || null,
+      substituteReason: form.data.substituteReason || undefined,
+    });
     expect(swapClassSessionTeacherSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a genuine substitution with no reason is rejected client-side before it ever reaches the wire", async () => {
+    const { swapClassSessionTeacherFormSchema } = await import("../class-session");
+    const form = swapClassSessionTeacherFormSchema.safeParse({
+      teacherId: "emp-2",
+      defaultTeacherId: "emp-1",
+    });
+    expect(form.success).toBe(false);
+  });
+});
+
+// ── Ubah Kelas (class detail) — components/admin/classes/detail/edit-class-dialog.tsx ─
+describe("Class detail edit: classEditFormSchema (form) -> classUpdateSchema (route)", () => {
+  it("round-trips name/capacity/slotTemplate with capacity coerced from a string input", async () => {
+    const { classEditFormSchema, classUpdateSchema } = await import("../class");
+    const form = classEditFormSchema.safeParse({
+      name: "KB 1",
+      capacity: "25",
+      slotTemplate: "MORNING_AND_AFTERNOON",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.capacity).toBe(25);
+    const body = wire({
+      name: form.data.name,
+      capacity: form.data.capacity,
+      slotTemplate: form.data.slotTemplate,
+    }); // edit-class-dialog.tsx's `save`
+    expect(classUpdateSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blanked capacity fails client-side with a 'wajib diisi' message, not a silent 0", async () => {
+    const { classEditFormSchema } = await import("../class");
+    const form = classEditFormSchema.safeParse({
+      name: "KB 1",
+      capacity: "",
+      slotTemplate: "FULL_DAY",
+    });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.message.includes("wajib diisi"))).toBe(true);
   });
 });
 
@@ -810,5 +870,150 @@ describe("Leave review: leaveReviewFormSchema (form) -> inline (POST .../approve
     if (!rejectWithNote.success) return;
     const body = wire({ note: rejectWithNote.data.note }); // page.tsx:332
     expect(rejectLeaveRequestSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+// ── Payroll period edit — app/admin/(hr)/payroll/[id]/page.tsx:312-314 ──────
+describe("Payroll period edit: payrollEditFormSchema (form) -> updatePayrollRunSchema (PUT /api/payroll/[id])", () => {
+  it("round-trips all three fields (the card always sends a full body, never a patch)", async () => {
+    const { payrollEditFormSchema, updatePayrollRunSchema } = await import("../payroll");
+    const form = payrollEditFormSchema.safeParse({
+      periodStart: "2026-08-21",
+      periodEnd: "2026-09-20",
+      actualWorkDays: "22",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.actualWorkDays).toBe(22);
+    const body = wire(form.data); // page.tsx:314 sends `values` directly
+    expect(updatePayrollRunSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blank actualWorkDays is rejected client-side (not silently coerced to 0)", async () => {
+    const { payrollEditFormSchema } = await import("../payroll");
+    const form = payrollEditFormSchema.safeParse({
+      periodStart: "2026-08-21",
+      periodEnd: "2026-09-20",
+      actualWorkDays: "",
+    });
+    expect(form.success).toBe(false);
+  });
+});
+
+// ── Employee profile edit — app/admin/(hr)/employees/[id]/page.tsx:146-148 ──
+describe("Employee profile edit: employeeEditFormSchema (form) -> updateEmployeeSchema (PUT /api/employees/[id])", () => {
+  it("round-trips a full edit submission, `role` never appearing on the wire", async () => {
+    const { employeeEditFormSchema, updateEmployeeSchema } = await import("../employee");
+    const form = employeeEditFormSchema.safeParse({
+      nama: "Budi Santoso",
+      formalName: "",
+      email: "budi@example.com",
+      noHp: "",
+      jabatan: "Guru Kelas",
+      campusId: "campus-1",
+      hireDate: "2022-01-10",
+      bankName: "BCA",
+      bankAccountNo: "1234567890",
+      bpjsEnrolled: true,
+      leaveBalanceAnnual: "12",
+      leaveBalanceSick: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect("role" in form.data).toBe(false);
+    // page.tsx:148 sends `values` directly.
+    const body = wire(form.data);
+    expect("role" in (body as object)).toBe(false);
+    expect(updateEmployeeSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a bank name with no account number is rejected on the same field the wire schema flags", async () => {
+    const { employeeEditFormSchema } = await import("../employee");
+    const form = employeeEditFormSchema.safeParse({
+      nama: "Budi Santoso",
+      email: "budi@example.com",
+      jabatan: "Guru Kelas",
+      campusId: "campus-1",
+      hireDate: "2022-01-10",
+      bankName: "BCA",
+      bankAccountNo: "",
+    });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues.some((i) => i.path.join(".") === "bankAccountNo")).toBe(true);
+  });
+});
+
+// ── Invoice record payment — app/admin/invoices/[id]/page.tsx:148-150 ───────
+describe("Invoice record payment: invoicePaymentFormSchema (form) -> recordPaymentSchema (POST .../payments)", () => {
+  it("round-trips a filled RupiahInput amount", async () => {
+    const { invoicePaymentFormSchema, recordPaymentSchema } = await import("../invoice");
+    const form = invoicePaymentFormSchema.safeParse({
+      amount: 500000,
+      method: "CASH",
+      reference: "",
+      notes: "",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    const body = wire(form.data); // page.tsx:150 sends `values` directly
+    expect(recordPaymentSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a not-yet-filled amount (null) is rejected client-side before it ever reaches the wire", async () => {
+    const { invoicePaymentFormSchema } = await import("../invoice");
+    const form = invoicePaymentFormSchema.safeParse({ amount: null, method: "CASH" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues[0]?.message).toBe("Jumlah pembayaran wajib diisi");
+  });
+});
+
+// ── Curriculum objectives — app/admin/semesters/[id]/objectives/client.tsx ──
+describe("TP edit: objectiveEditFormSchema (form) -> objectiveUpdateSchema (PUT .../objectives/[id])", () => {
+  it("round-trips both fields, trimmed", async () => {
+    const { objectiveEditFormSchema, objectiveUpdateSchema } = await import("../curriculum");
+    const form = objectiveEditFormSchema.safeParse({
+      competencyText: "  Anak mengenal konsep sains sederhana  ",
+      content: "Anak dapat mengamati perubahan benda",
+    });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.competencyText).toBe("Anak mengenal konsep sains sederhana");
+    const body = wire(form.data); // client.tsx:685 sends `values` directly
+    expect(objectiveUpdateSchema.safeParse(body).success).toBe(true);
+  });
+});
+
+describe("Tambah IKTP: indicatorAddFormSchema (form) -> indicatorAdminCreateSchema (POST .../indicators)", () => {
+  it("round-trips with objectiveId spliced in and order coerced from a string", async () => {
+    const { indicatorAddFormSchema, indicatorAdminCreateSchema } = await import("../curriculum");
+    const form = indicatorAddFormSchema.safeParse({ content: "Anak mampu berhitung 1-10", order: "3" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.order).toBe(3);
+    // client.tsx:764 splices `objectiveId` (a prop, not a form field) into the body.
+    const body = wire({ ...form.data, objectiveId: "obj-1" });
+    expect(indicatorAdminCreateSchema.safeParse(body).success).toBe(true);
+  });
+
+  it("a blank order is rejected client-side, not silently defaulted to 1", async () => {
+    const { indicatorAddFormSchema } = await import("../curriculum");
+    const form = indicatorAddFormSchema.safeParse({ content: "Anak mampu berhitung 1-10", order: "" });
+    expect(form.success).toBe(false);
+    if (form.success) return;
+    expect(form.error.issues[0]?.message).toBe("Urutan wajib diisi");
+  });
+});
+
+describe("Edit IKTP: indicatorEditFormSchema (form) -> indicatorUpdateSchema (PUT .../indicators/[id])", () => {
+  it("round-trips content + a coerced order", async () => {
+    const { indicatorEditFormSchema, indicatorUpdateSchema } = await import("../curriculum");
+    const form = indicatorEditFormSchema.safeParse({ content: "Anak mampu menyebutkan angka 1-10", order: "5" });
+    expect(form.success).toBe(true);
+    if (!form.success) return;
+    expect(form.data.order).toBe(5);
+    const body = wire(form.data); // client.tsx:838 sends `values` directly
+    expect(indicatorUpdateSchema.safeParse(body).success).toBe(true);
   });
 });
