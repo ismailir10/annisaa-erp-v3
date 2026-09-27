@@ -135,4 +135,6 @@ Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 - Task 2: `vitest run app/admin/classes components/ui/__tests__/status-badge.test.tsx lib/validations/__tests__/{class-session,class,form-api-roundtrip}.test.ts app/api/admin` 146 tests passed; eslint clean; tsc clean for these paths. Security: class-sessions PATCH keeps auth + tenant resolution through ClassSection before the reason rule. design-system: Kondisi now uses the status tokens via `StatusBadge` (same tones as the deleted helper).
 
+- Build fix: the T2 commit carried the shared `form-api-roundtrip.test.ts` with T6's still-uncommitted sections (employee edit, invoice payment, objectives schemas), so the committed tree failed typecheck (Vercel build error on 01748b3). The committed copy now ends before those sections (they return with T6); verified with `tsc --noEmit` on a clean checkout of HEAD. Lesson for the parallel build: shared files are committed from a clean-HEAD check, not straight from the working tree.
+
 ## Ship Notes
