@@ -37,6 +37,10 @@ Owner feedback after the rate-limit fix (ismailir10/annisaa-erp-v3#567): "the UI
   Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
 - Preview-verify iteration 1 (`annisaa-erp-v3-git-feat-class-1c0224-…`, teacher account, DCARE, 2026-09-25): blocker — the page status line mounted on the first save and pushed every row down ~30px, so a second quick tap landed between rows. Fixed by reserving the line's height before any save (regression assertion added); stray "·" before "N belum" removed. Gates re-run: build exit 0, vitest green.
 
+- Signed-in preview-verify iteration 2, source SHA 76264d1f (`annisaa-erp-v3-git-feat-class-1c0224-…`, teacher account, DCARE, 2026-09-24, all 8 unrecorded): tapped S on row 1 and I on row 4 back-to-back (the sequence that mis-tapped in iteration 1) → both landed; "Tandai 6 siswa lainnya Hadir" → one request. Network: 3 × `POST /api/student-attendance/mark` 200 for 8 children. Summary "Hadir 6 · Sakit 1 · Izin 1 · Alpa 0", bar "Semua siswa sudah dicatat"; `GET` after reload returns SICK, PRESENT×2, PERMISSION, PRESENT×4. No console errors. Narrow window (500px, Chrome minimum): no horizontal overflow, radio targets 44×44. blockers=0, minors=0.
+- Required checks on 76264d1f: Docs sync, Lint/Typecheck/Test, Build, Playwright E2E — all green.
+
+## Ship Notes
 - Teacher flow is now exception-first: pick S/I/A for the few, then "Tandai N siswa lainnya Hadir" once. A 30-child class drops from 30+ taps (and 30+ requests) to about 4.
 - No more tap-to-cycle; tapping an already-selected option does nothing.
 - UI only — no API, schema or dependency change.
