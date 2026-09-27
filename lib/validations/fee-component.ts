@@ -27,7 +27,25 @@ export const createFeeComponentSchema = z.object({
   label: z.string().trim().min(1, "Label wajib diisi").max(120),
   category: categorySchema.default("TUITION"),
   isRecurring: z.boolean().default(true),
-  sortOrder: z.coerce.number().int().min(0).default(0),
+  // Explicit string→number transform (not `z.coerce.number()`) for two
+  // reasons: it keeps the field's declared input type a plain `string |
+  // undefined` — matching exactly what the admin form's native
+  // `<input type="number">` emits, so `FormField`'s
+  // `<Input {...field} {...controlProps} />` spread doesn't collapse to
+  // `unknown` — and it makes the default explicit rather than relying on
+  // the `Number("") === 0` coincidence `z.coerce.number()` would otherwise
+  // lean on silently. Omitted (API caller sends no `sortOrder` at all) and
+  // blank (the form's own field, cleared) both default to `0`, matching the
+  // pre-migration behaviour: the old `parseInt(form.sortOrder)` on a blank
+  // field produced `NaN`, which `JSON.stringify` turns into the literal
+  // `null`, which `z.coerce.number()` (the pre-migration type) then read as
+  // `0`.
+  sortOrder: z
+    .string()
+    .trim()
+    .optional()
+    .transform((s) => (s === undefined || s === "" ? 0 : Number(s)))
+    .pipe(z.number().int().min(0)),
 });
 
 export const updateFeeComponentSchema = z.object({

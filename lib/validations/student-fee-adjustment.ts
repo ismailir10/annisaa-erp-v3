@@ -18,6 +18,22 @@ const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD");
 
+// `dateSchema.optional()` alone only lets a literal `undefined` through —
+// DatePicker's own empty state is `""` (same shape as a native
+// `<input type="date">`), same problem `zod-helpers.ts`'s `optionalTrimmed`
+// documents for other optional string fields. Preprocessing "" → undefined
+// at the SCHEMA level (not by calling `field.onChange(undefined)` from the
+// widget) matters here specifically: an RHF `Controller`-registered field
+// fed a literal `undefined` through `onChange` does not reliably propagate
+// to the field's live value or the native input's rendered value (verified
+// empirically — a plain `useState`-controlled `DatePicker` clears fine, a
+// `Controller`-bound one calling `onChange(undefined)` does not). Keeping
+// the live field value a plain string and doing the "" → undefined mapping
+// only when the resolver parses a snapshot avoids that class of bug.
+function optionalDate() {
+  return z.preprocess((v) => (v === "" ? undefined : v), dateSchema.optional());
+}
+
 const reasonSchema = z
   .string()
   .trim()
@@ -27,6 +43,35 @@ const reasonSchema = z
 // value is always a positive magnitude — reject zero and negative here so
 // callers never have to special-case "0 means no adjustment".
 const valueSchema = z.coerce.number().positive("Nilai harus lebih dari 0");
+
+// Shared by every schema below that carries a full (non-partial) mode+value —
+// create, and the admin form's own edit-mode schema. `updateStudentFeeAdjustmentSchema`
+// (server-side, genuinely partial) keeps its own copy of this check because its
+// `value`/`mode` are optional and it has the extra "only when both are resent"
+// caveat documented on it below — collapsing the two into one helper would make
+// that partial-update nuance harder to read, not easier.
+function checkPercentCapAndDateOrder(
+  data: { mode: (typeof STUDENT_FEE_ADJUSTMENT_MODES)[number]; value: number; validFrom?: string; validTo?: string },
+  ctx: z.RefinementCtx,
+) {
+  // PERCENT is capped at 100 — a percent adjustment above 100% has no
+  // sane meaning (see cycle doc Assumption 3). Cross-field because the
+  // cap only applies when mode === "PERCENT"; FIXED has no such ceiling.
+  if (data.mode === "PERCENT" && data.value > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Nilai persentase tidak boleh lebih dari 100",
+      path: ["value"],
+    });
+  }
+  if (data.validFrom && data.validTo && data.validTo < data.validFrom) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Tanggal berakhir tidak boleh sebelum tanggal mulai",
+      path: ["validTo"],
+    });
+  }
+}
 
 export const createStudentFeeAdjustmentSchema = z
   .object({
@@ -47,24 +92,52 @@ export const createStudentFeeAdjustmentSchema = z
     validFrom: dateSchema.optional(),
     validTo: dateSchema.optional(),
   })
+  .superRefine(checkPercentCapAndDateOrder);
+
+// Client-only schema for the admin Keringanan dialog (`keringanan-tab.tsx`),
+// which reuses ONE `useZodForm` instance for both create and edit rather than
+// swapping schema objects between renders — two structurally-different zod
+// schemas feeding the same `useForm`/`Control` generic produces "two
+// different types with this name exist, but are unrelated" resolver-typing
+// errors, so a single stable schema is the only type-safe option here.
+//
+// `isEditing` is a hidden, never-submitted marker (seeded by `form.reset()`
+// on open) that turns off the studentId/academicYearId/feeComponentId
+// requirement — those three fields are immutable post-creation and the edit
+// dialog never renders them as inputs, so gating on their *current* value
+// would block a perfectly valid edit whenever the stored row happens to hold
+// one that looks "empty" (e.g. a legacy or Cycle-B `feeComponentId: null`,
+// coalesced to `""` for the form — found in review, since
+// `createStudentFeeAdjustmentSchema` used directly here made such a row's
+// Simpan Perubahan silently no-op). mode/value/reason (always rendered,
+// always required) and the percent-cap/date-order rules are unconditional —
+// same `checkPercentCapAndDateOrder` the create schema uses, not a copy.
+export const keringananFormSchema = z
+  .object({
+    isEditing: z.boolean(),
+    studentId: z.string(),
+    academicYearId: z.string(),
+    feeComponentId: z.string(),
+    type: typeSchema,
+    mode: modeSchema,
+    value: valueSchema,
+    reason: reasonSchema,
+    validFrom: optionalDate(),
+    validTo: optionalDate(),
+  })
   .superRefine((data, ctx) => {
-    // PERCENT is capped at 100 — a percent adjustment above 100% has no
-    // sane meaning (see cycle doc Assumption 3). Cross-field because the
-    // cap only applies when mode === "PERCENT"; FIXED has no such ceiling.
-    if (data.mode === "PERCENT" && data.value > 100) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Nilai persentase tidak boleh lebih dari 100",
-        path: ["value"],
-      });
+    if (!data.isEditing) {
+      if (!data.studentId.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Siswa wajib dipilih", path: ["studentId"] });
+      }
+      if (!data.academicYearId.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Tahun ajaran wajib dipilih", path: ["academicYearId"] });
+      }
+      if (!data.feeComponentId.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Komponen biaya wajib dipilih", path: ["feeComponentId"] });
+      }
     }
-    if (data.validFrom && data.validTo && data.validTo < data.validFrom) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Tanggal berakhir tidak boleh sebelum tanggal mulai",
-        path: ["validTo"],
-      });
-    }
+    checkPercentCapAndDateOrder(data, ctx);
   });
 
 export const updateStudentFeeAdjustmentSchema = z

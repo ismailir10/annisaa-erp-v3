@@ -16,7 +16,7 @@
 // still see what a grant applies to while correcting `mode` / `value` /
 // `reason` / validity window.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -33,13 +33,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+import { FieldDescription } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { formatRupiah, formatDateShort } from "@/lib/format";
 import { userMessage } from "@/lib/api/client-errors";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+import { keringananFormSchema } from "@/lib/validations/student-fee-adjustment";
 
 // ------------------------------------------------------------------
 // Types
@@ -71,22 +76,6 @@ type AcademicYearOption = { id: string; name: string; status: string };
 
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 
-type FormState = {
-  studentId: string;
-  academicYearId: string;
-  feeComponentId: string;
-  type: AdjustmentType;
-  mode: AdjustmentMode;
-  value: string;
-  reason: string;
-  validFrom: string;
-  validTo: string;
-};
-
-type FieldErrors = Partial<
-  Record<"studentId" | "academicYearId" | "feeComponentId" | "value" | "reason" | "validTo", string>
->;
-
 // ------------------------------------------------------------------
 // Labels + formatting helpers
 // ------------------------------------------------------------------
@@ -104,49 +93,27 @@ function formatValidity(validFrom: string | null, validTo: string | null): strin
   return `Sampai ${formatDateShort(validTo as string)}`;
 }
 
-function buildInitialForm(): FormState {
+// Reused for both the create and edit RHF instance — `keringananFormSchema`'s
+// `isEditing` marker (not itself rendered as a control) turns off the
+// studentId/academicYearId/feeComponentId required-check in edit mode, since
+// the edit dialog never renders those as inputs and a stored row can hold a
+// value that looks "empty" to that check (e.g. a legacy/Cycle-B
+// `feeComponentId: null`, coalesced to `""` here).
+function buildInitialForm() {
   return {
+    isEditing: false,
     studentId: "",
     academicYearId: "",
     feeComponentId: "",
-    type: "DISCOUNT",
-    mode: "PERCENT",
+    type: "DISCOUNT" as AdjustmentType,
+    mode: "PERCENT" as AdjustmentMode,
     value: "",
     reason: "",
+    // Kept as plain strings (DatePicker's own "no value" shape), never
+    // `undefined` — see `optionalDate()` in student-fee-adjustment.ts for why.
     validFrom: "",
     validTo: "",
   };
-}
-
-/**
- * Mirrors the server-side rules in createStudentFeeAdjustmentSchema /
- * updateStudentFeeAdjustmentSchema so the admin gets an inline FieldError
- * instead of a 400 toast on the common mistakes. Not a replacement for
- * server validation — just a UX guard.
- */
-function validateForm(form: FormState, isEdit: boolean): FieldErrors {
-  const errors: FieldErrors = {};
-
-  if (!isEdit) {
-    if (!form.studentId) errors.studentId = "Siswa wajib dipilih";
-    if (!form.academicYearId) errors.academicYearId = "Tahun ajaran wajib dipilih";
-    if (!form.feeComponentId) errors.feeComponentId = "Komponen biaya wajib dipilih";
-  }
-
-  if (!form.reason.trim()) errors.reason = "Alasan wajib diisi";
-
-  const numericValue = Number(form.value);
-  if (!form.value.trim() || !Number.isFinite(numericValue) || numericValue <= 0) {
-    errors.value = "Nilai harus lebih dari 0";
-  } else if (form.mode === "PERCENT" && numericValue > 100) {
-    errors.value = "Nilai persentase tidak boleh lebih dari 100";
-  }
-
-  if (form.validFrom && form.validTo && form.validTo < form.validFrom) {
-    errors.validTo = "Tanggal berakhir tidak boleh sebelum tanggal mulai";
-  }
-
-  return errors;
 }
 
 // ------------------------------------------------------------------
@@ -185,9 +152,9 @@ export function KeringananTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Adjustment | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [form, setForm] = useState<FormState>(() => buildInitialForm());
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(keringananFormSchema, { defaultValues: buildInitialForm() });
+  const mode = form.watch("mode");
 
   const [confirmTarget, setConfirmTarget] = useState<Adjustment | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -296,15 +263,15 @@ export function KeringananTab() {
   function openCreate() {
     setEditing(null);
     setSelectedStudent(null);
-    setForm(buildInitialForm());
-    setFieldErrors({});
+    form.reset(buildInitialForm());
     setDialogOpen(true);
   }
 
   function openEdit(adj: Adjustment) {
     setEditing(adj);
     setSelectedStudent({ id: adj.studentId, name: adj.student.name, nickname: null, nis: adj.student.nis });
-    setForm({
+    form.reset({
+      isEditing: true,
       studentId: adj.studentId,
       academicYearId: adj.academicYearId,
       feeComponentId: adj.feeComponentId ?? "",
@@ -315,69 +282,57 @@ export function KeringananTab() {
       validFrom: adj.validFrom ?? "",
       validTo: adj.validTo ?? "",
     });
-    setFieldErrors({});
     setDialogOpen(true);
   }
 
-  async function handleSubmit() {
-    const errors = validateForm(form, !!editing);
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setSaving(true);
+  const handleSubmit = form.handleSubmit(async (values) => {
     try {
       if (editing) {
-        const res = await fetch(`/api/student-fee-adjustments/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: form.mode,
-            value: Number(form.value),
-            reason: form.reason.trim(),
-            // Send null, not an omitted key, when the admin blanks a date —
-            // omitting it means "leave unchanged", so an open-ended validity
-            // could never be restored once a bound had been set.
-            validFrom: form.validFrom || null,
-            validTo: form.validTo || null,
-          }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          toast.error(body.error || "Gagal menyimpan perubahan");
-          return;
-        }
+        await sendJson(
+          `/api/student-fee-adjustments/${editing.id}`,
+          {
+            method: "PUT",
+            body: {
+              mode: values.mode,
+              value: values.value,
+              reason: values.reason,
+              // Send null, not an omitted key, when the admin blanks a date —
+              // omitting it means "leave unchanged", so an open-ended
+              // validity could never be restored once a bound had been set.
+              validFrom: values.validFrom ?? null,
+              validTo: values.validTo ?? null,
+            },
+          },
+          "Gagal menyimpan perubahan",
+        );
         toast.success("Keringanan diperbarui");
       } else {
-        const res = await fetch("/api/student-fee-adjustments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            studentId: form.studentId,
-            academicYearId: form.academicYearId,
-            feeComponentId: form.feeComponentId,
-            type: form.type,
-            mode: form.mode,
-            value: Number(form.value),
-            reason: form.reason.trim(),
-            ...(form.validFrom ? { validFrom: form.validFrom } : {}),
-            ...(form.validTo ? { validTo: form.validTo } : {}),
-          }),
-        });
-        if (res.status !== 201) {
-          const body = await res.json().catch(() => ({}));
-          toast.error(body.error || "Gagal menambahkan keringanan");
-          return;
-        }
+        await sendJson(
+          "/api/student-fee-adjustments",
+          {
+            method: "POST",
+            body: {
+              studentId: values.studentId,
+              academicYearId: values.academicYearId,
+              feeComponentId: values.feeComponentId,
+              type: values.type,
+              mode: values.mode,
+              value: values.value,
+              reason: values.reason,
+              ...(values.validFrom ? { validFrom: values.validFrom } : {}),
+              ...(values.validTo ? { validTo: values.validTo } : {}),
+            },
+          },
+          "Gagal menambahkan keringanan",
+        );
         toast.success("Keringanan ditambahkan");
       }
       setDialogOpen(false);
       fetchAdjustments();
-    } catch (e) {
-      toast.error(userMessage(e, editing ? "Gagal menyimpan perubahan" : "Gagal menambahkan keringanan"));
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      applyServerErrors(form, err, editing ? "Gagal menyimpan perubahan" : "Gagal menambahkan keringanan");
     }
-  }
+  });
 
   // ------------------------------------------------------------------
   // Deactivate / reactivate
@@ -500,7 +455,7 @@ export function KeringananTab() {
 
   const dialogTitle = editing ? "Edit Keringanan" : "Tambah Keringanan";
   const nilaiDescription =
-    form.mode === "PERCENT"
+    mode === "PERCENT"
       ? "Persentase dari komponen biaya, maksimal 100."
       : "Nominal rupiah, dipotong atau ditambahkan langsung.";
 
@@ -563,102 +518,144 @@ export function KeringananTab() {
         description="Keringanan berlaku otomatis pada setiap tagihan bulanan yang dibuat untuk siswa ini."
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Keringanan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Keringanan"}
+          />
         }
       >
-        {editing ? (
-          <div className="grid grid-cols-2 gap-3 rounded-lg border border-dashed border-muted-foreground/20 bg-muted/40 p-3">
-            <ReadOnlyField label="Siswa" value={`${editing.student.name}${editing.student.nis ? ` · ${editing.student.nis}` : ""}`} />
-            <ReadOnlyField label="Tahun Ajaran" value={editing.academicYear.name} />
-            <ReadOnlyField label="Komponen Biaya" value={editing.feeComponent?.label ?? "—"} />
-            <ReadOnlyField label="Jenis" value={TYPE_LABELS[editing.type]} />
-          </div>
-        ) : (
-          <>
-            <Field data-invalid={fieldErrors.studentId ? "true" : undefined}>
-              <FieldLabel required htmlFor="keringanan-student">Siswa</FieldLabel>
-              <StudentPicker
-                id="keringanan-student"
-                selected={selectedStudent}
-                onSelect={(s) => {
-                  setSelectedStudent(s);
-                  setForm((f) => ({ ...f, studentId: s?.id ?? "" }));
-                }}
-              />
-              <FieldError>{fieldErrors.studentId}</FieldError>
-            </Field>
+        <form id={formId} onSubmit={handleSubmit} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field data-invalid={fieldErrors.academicYearId ? "true" : undefined}>
-                <FieldLabel required htmlFor="keringanan-year">Tahun Ajaran</FieldLabel>
-                <Select
-                  value={form.academicYearId}
-                  onValueChange={(v) => v && setForm((f) => ({ ...f, academicYearId: v }))}
-                >
-                  <SelectTrigger id="keringanan-year" aria-required="true">
-                    <SelectValue placeholder="Pilih tahun ajaran" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {academicYears.map((y) => (
-                      <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError>{fieldErrors.academicYearId}</FieldError>
-              </Field>
-              <Field data-invalid={fieldErrors.feeComponentId ? "true" : undefined}>
-                <FieldLabel required htmlFor="keringanan-component">Komponen Biaya</FieldLabel>
-                <Select
-                  value={form.feeComponentId}
-                  onValueChange={(v) => v && setForm((f) => ({ ...f, feeComponentId: v }))}
-                >
-                  <SelectTrigger id="keringanan-component" aria-required="true">
-                    <SelectValue placeholder="Pilih komponen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeFeeComponents.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">Belum ada komponen aktif</div>
-                    ) : (
-                      activeFeeComponents.map((fc) => (
-                        <SelectItem key={fc.id} value={fc.id}>{fc.label}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                <FieldError>{fieldErrors.feeComponentId}</FieldError>
-              </Field>
+          {editing ? (
+            <div className="grid grid-cols-2 gap-3 rounded-lg border border-dashed border-muted-foreground/20 bg-muted/40 p-3">
+              <ReadOnlyField label="Siswa" value={`${editing.student.name}${editing.student.nis ? ` · ${editing.student.nis}` : ""}`} />
+              <ReadOnlyField label="Tahun Ajaran" value={editing.academicYear.name} />
+              <ReadOnlyField label="Komponen Biaya" value={editing.feeComponent?.label ?? "—"} />
+              <ReadOnlyField label="Jenis" value={TYPE_LABELS[editing.type]} />
             </div>
+          ) : (
+            <>
+              <FormField
+                control={form.control}
+                name="studentId"
+                label="Siswa"
+                required
+                id="keringanan-student"
+                render={({ field, controlProps }) => (
+                  <StudentPicker
+                    id="keringanan-student"
+                    aria-invalid={controlProps["aria-invalid"]}
+                    selected={selectedStudent}
+                    onSelect={(s) => {
+                      setSelectedStudent(s);
+                      field.onChange(s?.id ?? "");
+                    }}
+                  />
+                )}
+              />
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel required htmlFor="keringanan-type">Jenis</FieldLabel>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => v && setForm((f) => ({ ...f, type: v as AdjustmentType }))}
-                >
-                  <SelectTrigger id="keringanan-type" aria-required="true">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DISCOUNT">Diskon</SelectItem>
-                    <SelectItem value="SURCHARGE">Tambahan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel required htmlFor="keringanan-mode">Mode</FieldLabel>
-                <Select
-                  value={form.mode}
-                  onValueChange={(v) => v && setForm((f) => ({ ...f, mode: v as AdjustmentMode }))}
-                >
-                  <SelectTrigger id="keringanan-mode" aria-required="true">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="academicYearId"
+                  label="Tahun Ajaran"
+                  required
+                  id="keringanan-year"
+                  render={({ field, controlProps }) => (
+                    <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                        <SelectValue placeholder="Pilih tahun ajaran" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {academicYears.map((y) => (
+                          <SelectItem key={y.id} value={y.id}>{y.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="feeComponentId"
+                  label="Komponen Biaya"
+                  required
+                  id="keringanan-component"
+                  render={({ field, controlProps }) => (
+                    <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                        <SelectValue placeholder="Pilih komponen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeFeeComponents.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">Belum ada komponen aktif</div>
+                        ) : (
+                          activeFeeComponents.map((fc) => (
+                            <SelectItem key={fc.id} value={fc.id}>{fc.label}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="type"
+                  label="Jenis"
+                  required
+                  id="keringanan-type"
+                  render={({ field, controlProps }) => (
+                    <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DISCOUNT">Diskon</SelectItem>
+                        <SelectItem value="SURCHARGE">Tambahan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="mode"
+                  label="Mode"
+                  required
+                  id="keringanan-mode"
+                  render={({ field, controlProps }) => (
+                    <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                      <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PERCENT">Persen (%)</SelectItem>
+                        <SelectItem value="FIXED">Nominal (Rp)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Mode stays editable on edit (only student/year/component/type are
+              immutable — see updateStudentFeeAdjustmentSchema). Jenis is not
+              repeated here; it's already shown read-only above. */}
+          {editing && (
+            <FormField
+              control={form.control}
+              name="mode"
+              label="Mode"
+              required
+              id="keringanan-mode-edit"
+              render={({ field, controlProps }) => (
+                <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                  <SelectTrigger {...controlProps} onBlur={field.onBlur}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -666,96 +663,88 @@ export function KeringananTab() {
                     <SelectItem value="FIXED">Nominal (Rp)</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
-            </div>
-          </>
-        )}
-
-        {/* Mode stays editable on edit (only student/year/component/type are
-            immutable — see updateStudentFeeAdjustmentSchema). Jenis is not
-            repeated here; it's already shown read-only above. */}
-        {editing && (
-          <Field>
-            <FieldLabel required htmlFor="keringanan-mode-edit">Mode</FieldLabel>
-            <Select
-              value={form.mode}
-              onValueChange={(v) => v && setForm((f) => ({ ...f, mode: v as AdjustmentMode }))}
-            >
-              <SelectTrigger id="keringanan-mode-edit" aria-required="true">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PERCENT">Persen (%)</SelectItem>
-                <SelectItem value="FIXED">Nominal (Rp)</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-
-        <Field data-invalid={fieldErrors.value ? "true" : undefined}>
-          <FieldLabel required htmlFor="keringanan-value">Nilai</FieldLabel>
-          {form.mode === "FIXED" ? (
-            <RupiahInput
-              id="keringanan-value"
-              required
-              value={form.value ? Number(form.value) : null}
-              onChange={(v) => setForm((f) => ({ ...f, value: v === null ? "" : String(v) }))}
-            />
-          ) : (
-            <Input
-              id="keringanan-value"
-              required
-              aria-required="true"
-              type="number"
-              min={0}
-              step="0.01"
-              max={100}
-              value={form.value}
-              onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-              placeholder="0"
-              className="font-currency"
+              )}
             />
           )}
-          <FieldDescription>{nilaiDescription}</FieldDescription>
-          <FieldError>{fieldErrors.value}</FieldError>
-        </Field>
 
-        <Field data-invalid={fieldErrors.reason ? "true" : undefined}>
-          <FieldLabel required htmlFor="keringanan-reason">Alasan</FieldLabel>
-          <Textarea
-            id="keringanan-reason"
+          <FormField
+            control={form.control}
+            name="value"
+            label="Nilai"
             required
-            aria-required="true"
-            maxLength={500}
-            value={form.reason}
-            onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-            placeholder="Contoh: potongan sibling, anak kedua dan ketiga"
+            id="keringanan-value"
+            description={nilaiDescription}
+            render={({ field, controlProps }) =>
+              mode === "FIXED" ? (
+                <RupiahInput
+                  {...controlProps}
+                  value={(field.value as number | null | undefined) ?? null}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                />
+              ) : (
+                <Input
+                  {...controlProps}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  max={100}
+                  value={(field.value as string | number | undefined) ?? ""}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  onBlur={field.onBlur}
+                  placeholder="0"
+                  className="font-currency"
+                />
+              )
+            }
           />
-          <FieldDescription>Muncul sebagai catatan pada baris tagihan yang terpengaruh.</FieldDescription>
-          <FieldError>{fieldErrors.reason}</FieldError>
-        </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor="keringanan-valid-from">Berlaku Dari</FieldLabel>
-            <DatePicker
+          <FormField
+            control={form.control}
+            name="reason"
+            label="Alasan"
+            required
+            id="keringanan-reason"
+            description="Muncul sebagai catatan pada baris tagihan yang terpengaruh."
+            render={({ field, controlProps }) => (
+              <Textarea
+                {...field}
+                {...controlProps}
+                maxLength={500}
+                placeholder="Contoh: potongan sibling, anak kedua dan ketiga"
+              />
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="validFrom"
+              label="Berlaku Dari"
               id="keringanan-valid-from"
-              value={form.validFrom}
-              onChange={(v) => setForm((f) => ({ ...f, validFrom: v }))}
+              render={({ field, controlProps }) => (
+                // The live field value stays a plain string (DatePicker's own
+                // empty state, "") the whole time it's being edited —
+                // `keringananFormSchema`'s `optionalDate()` maps "" → undefined
+                // only when the resolver parses a snapshot on submit. Calling
+                // `field.onChange(undefined)` directly from the widget doesn't
+                // reliably propagate through a Controller-bound field (see
+                // that helper's comment in student-fee-adjustment.ts).
+                <DatePicker {...controlProps} value={(field.value as string) ?? ""} onChange={field.onChange} />
+              )}
             />
-          </Field>
-          <Field data-invalid={fieldErrors.validTo ? "true" : undefined}>
-            <FieldLabel htmlFor="keringanan-valid-to">Berlaku Sampai</FieldLabel>
-            <DatePicker
+            <FormField
+              control={form.control}
+              name="validTo"
+              label="Berlaku Sampai"
               id="keringanan-valid-to"
-              value={form.validTo}
-              onChange={(v) => setForm((f) => ({ ...f, validTo: v }))}
-              aria-invalid={fieldErrors.validTo ? true : undefined}
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={(field.value as string) ?? ""} onChange={field.onChange} />
+              )}
             />
-            <FieldError>{fieldErrors.validTo}</FieldError>
-          </Field>
-        </div>
-        <FieldDescription>Kosongkan salah satu atau keduanya jika keringanan berlaku selama tahun ajaran ini.</FieldDescription>
+          </div>
+          <FieldDescription>Kosongkan salah satu atau keduanya jika keringanan berlaku selama tahun ajaran ini.</FieldDescription>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Deactivate guard — reactivate stays single-click (non-destructive) */}

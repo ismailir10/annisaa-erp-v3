@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+import { toast } from "sonner";
 import FeesPage from "../page";
 
 const COMPONENTS = [
@@ -216,5 +217,58 @@ describe("FeesPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("combobox", { name: "Program" })).toHaveTextContent("Program Lama");
     });
+  });
+
+  // react-hook-form + zod migration (cycle 2026-09-27-admin-forms-rhf, T5) —
+  // the create/edit dialog now validates with createFeeComponentSchema
+  // instead of an inline useState + toast.error check.
+  it("Komponen Biaya: create dialog shows inline errors and sends no request on an empty submit", async () => {
+    const fetchMock = fixture({ withStructure: false });
+    const user = userEvent.setup();
+    render(<FeesPage />);
+
+    await screen.findByText("SPP Bulanan");
+    await user.click(screen.getByRole("button", { name: "Tambah Komponen" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Komponen Biaya" });
+    const callsBeforeSubmit = fetchMock.mock.calls.length;
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Komponen Biaya" }));
+
+    expect(await within(dialog).findByText("Kode wajib diisi")).toBeInTheDocument();
+    expect(within(dialog).getByText("Label wajib diisi")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeSubmit);
+  });
+
+  it("Komponen Biaya: a valid create submit POSTs the expected body", async () => {
+    const fetchMock = fixture({ withStructure: false });
+    const user = userEvent.setup();
+    render(<FeesPage />);
+
+    await screen.findByText("SPP Bulanan");
+    await user.click(screen.getByRole("button", { name: "Tambah Komponen" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Komponen Biaya" });
+    await user.type(within(dialog).getByLabelText("Kode", { exact: false }), "uang_kegiatan");
+    await user.type(within(dialog).getByLabelText("Label", { exact: false }), "Uang Kegiatan");
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Komponen Biaya" }));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url, init]) => url === "/api/fee-components" && (init as RequestInit)?.method === "POST"),
+      ).toBe(true);
+    });
+    const call = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/fee-components" && (init as RequestInit)?.method === "POST",
+    )!;
+    const [, init] = call as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      code: "uang_kegiatan",
+      label: "Uang Kegiatan",
+      category: "TUITION",
+      isRecurring: true,
+      sortOrder: 3,
+    });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Komponen biaya ditambahkan"));
   });
 });

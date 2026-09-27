@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type AriaAttributes } from "react";
 
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 
@@ -25,10 +25,12 @@ export function StudentPicker({
   id,
   selected,
   onSelect,
+  "aria-invalid": ariaInvalid,
 }: {
   id?: string;
   selected: Student | null;
   onSelect: (s: Student | null) => void;
+  "aria-invalid"?: AriaAttributes["aria-invalid"];
 }) {
   const [total, setTotal] = useState(0);
 
@@ -66,6 +68,7 @@ export function StudentPicker({
   return (
     <AsyncCombobox<Student>
       id={id}
+      aria-invalid={ariaInvalid}
       value={selected}
       onChange={onSelect}
       fetcher={fetcher}
