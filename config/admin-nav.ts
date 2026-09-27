@@ -216,7 +216,7 @@ export const adminNav: NavConfig = {
           href: "/admin/fees",
           icon: Coins,
           permission: "fees.view",
-          description: "Kelola struktur biaya dan komponen tagihan.",
+          description: "Komponen biaya, tarif per program, dan keringanan siswa.",
         },
         {
           label: "Komponen Gaji",

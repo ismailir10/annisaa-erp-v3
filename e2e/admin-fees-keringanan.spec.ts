@@ -86,9 +86,11 @@ test.describe("Admin /admin/fees — Keringanan tab", () => {
     const reason = `E2E Keringanan ${Date.now()}`;
 
     await page.goto("/admin/fees");
-    await expect(page.getByRole("heading", { name: "Biaya & Tagihan" })).toBeVisible({ timeout: 15_000 });
+    // Title is "Biaya" and the tab is "Keringanan Siswa" as of cycle
+    // 2026-09-26-admin-ui-standard-c1 T5 (was "Biaya & Tagihan" / "Keringanan").
+    await expect(page.getByRole("heading", { name: "Biaya", exact: true })).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("tab", { name: "Keringanan" }).click();
+    await page.getByRole("tab", { name: "Keringanan Siswa" }).click();
     await expect(page.getByRole("button", { name: "Tambah Keringanan" })).toBeVisible({ timeout: 10_000 });
     await page
       .waitForResponse((res) => res.url().includes("/api/student-fee-adjustments") && res.ok(), { timeout: 15_000 })
