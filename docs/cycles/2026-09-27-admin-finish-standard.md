@@ -110,13 +110,17 @@ dependency; teacher/parent portals.
   component columns, keringanan, dashboard work-queue) + drop the attendance test retry;
   `DataTable` empty action + campuses CTA; `StatusBadge` health keys; billing-run wizard shell;
   Alpa fix + test; seed semesters.
-- [ ] **T8 loading.tsx** — new files only.
+- [x] **T8 loading.tsx** — new files only.
 - [ ] **T9 standards + docs** — ui.md / patterns.md / crud.md, README, `audit-docs.sh --write`.
 Parallel: T1, T2, T3, T5, T6, T7, T8 (disjoint files); T4 after T3; T9 last.
 
 ## Implementation
 - Subagent plan: driver=claude-opus-5-5, dirty-work=claude-sonnet-5; T1, T2, T3, T5, T6, T7, T8 in parallel (disjoint files, no builds/commits inside subagents); T4 after T3 (shares the guardian dialog); T9 last. Driver reviews each diff (security review on route changes), runs gates, commits per task.
 
+- Task 8: loading.tsx — 35 new route-level files; every admin page now has one (43/43). List/table pages copy the shared list skeleton (19); entity detail pages (`[id]` dossiers: students, classes, employees, payroll, enrollments, guardians, invoices, journal student) render `DetailPageSkeleton` (8); settings hub, work-hours, design-system, report templates, semester import/objectives/themes and the journal config page use the root skeleton (8). No existing file changed.
+
 ## Verification
+
+- Task 8: tsc + eslint clean on the new files. design-system: skeletons reuse the existing `Skeleton` / `DetailPageSkeleton` shapes only.
 
 ## Ship Notes
