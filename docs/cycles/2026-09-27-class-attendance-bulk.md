@@ -35,8 +35,8 @@ Owner feedback after the rate-limit fix (ismailir10/annisaa-erp-v3#567): "the UI
 - [x] Cross-checked design-system.html §16 Flow B for the class roster: kept its intent (everyone-present costs one tap, live tally, sticky CTA above the bottom nav, `--status-*` tokens only); replaced its "cycle-tap, not radio" note with a superseded pointer to `portal.md` § Class Attendance Entry, which already preferred explicit choices.
 - Playwright: local run deferred to CI (env cannot execute it — no local Postgres or Docker; `.env` points at hosted Supabase, which the e2e guard refuses).
   Required CI check `Playwright E2E` gates the merge; CTO will not merge on red.
+- Preview-verify iteration 1 (`annisaa-erp-v3-git-feat-class-1c0224-…`, teacher account, DCARE, 2026-09-25): blocker — the page status line mounted on the first save and pushed every row down ~30px, so a second quick tap landed between rows. Fixed by reserving the line's height before any save (regression assertion added); stray "·" before "N belum" removed. Gates re-run: build exit 0, vitest green.
 
-## Ship Notes
 - Teacher flow is now exception-first: pick S/I/A for the few, then "Tandai N siswa lainnya Hadir" once. A 30-child class drops from 30+ taps (and 30+ requests) to about 4.
 - No more tap-to-cycle; tapping an already-selected option does nothing.
 - UI only — no API, schema or dependency change.

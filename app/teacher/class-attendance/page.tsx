@@ -310,9 +310,12 @@ export default function ClassAttendancePage() {
                 {label} {counts[status]}
               </span>
             ))}
-            {notYet > 0 ? <span className="text-muted-foreground">· {notYet} belum</span> : null}
+            {notYet > 0 ? <span className="text-muted-foreground">{notYet} belum</span> : null}
           </div>
-          {pageSaveState ? <SaveStatus state={pageSaveState} message={pageSaveState === "saving" ? "Menyimpan absensi…" : "Absensi tersimpan"} /> : null}
+          {/* Space is reserved before the first save: the line appearing used to push every row down mid-tap. */}
+          <div className="min-h-6">
+            {pageSaveState ? <SaveStatus state={pageSaveState} message={pageSaveState === "saving" ? "Menyimpan absensi…" : "Absensi tersimpan"} /> : null}
+          </div>
         </div>
       ) : null}
 

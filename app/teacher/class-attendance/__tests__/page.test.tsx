@@ -99,8 +99,12 @@ describe("ClassAttendancePage recovery", () => {
       return Promise.resolve(ok({ saved: JSON.parse(String(init?.body)).records.length }));
     }));
     render(<ClassAttendancePage />);
+    const list = await screen.findByRole("list");
+    const slot = list.previousElementSibling?.lastElementChild;
+    expect(slot).toBeEmptyDOMElement(); // reserved before any save, so rows never jump
     fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
     await screen.findByText("Semua siswa sudah dicatat");
+    expect(list.previousElementSibling?.lastElementChild).toBe(slot);
     expect(markRequests()).toHaveLength(1);
     expect(markRequests()[0].records).toEqual([
       { studentId: "s1", status: "PRESENT" },
