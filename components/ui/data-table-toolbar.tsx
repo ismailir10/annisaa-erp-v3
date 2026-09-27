@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface DataTableToolbarProps {
@@ -47,7 +47,6 @@ export function DataTableToolbar({
   const isControlled = value !== undefined;
   const search = value ?? internalSearch;
   const hasSearch = Boolean(onValueChange || onSearchChange || value !== undefined);
-  const hasFilters = Boolean(filters?.length);
   const filterIsActive = (filter: NonNullable<DataTableToolbarProps["filters"]>[number]) => {
     const resetValue = filter.resetValue ?? filter.options[0]?.value ?? "";
     return filter.value !== resetValue;
@@ -130,15 +129,15 @@ export function DataTableToolbar({
         </Select>
       ))}
 
-      {(hasSearch || hasFilters) && (
+      {canReset && (
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-9 w-full sm:w-auto"
-          disabled={!canReset}
           onClick={handleReset}
         >
+          <X size={14} className="mr-1.5" aria-hidden="true" />
           Atur Ulang
         </Button>
       )}

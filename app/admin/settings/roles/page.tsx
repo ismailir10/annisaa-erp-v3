@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -13,11 +13,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Shield, ShieldCheck, Lock } from "lucide-react";
 import { PERMISSION_GROUPS, getSystemRolePermissions, ALL_PERMISSIONS } from "@/lib/permissions";
 import { toast } from "sonner";
+import { roleFormSchema } from "@/lib/validations/role";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
@@ -203,6 +207,7 @@ function buildColumns(
     {
       accessorKey: "code",
       header: "Kode",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <Badge variant="outline" className="text-xs font-mono">
           {row.original.code}
@@ -212,6 +217,7 @@ function buildColumns(
     {
       id: "permCount",
       header: "Jumlah Izin",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         const perms = safeParsePermissions(row.original.permissions);
         return <span className="text-sm">{perms.length}</span>;
@@ -252,6 +258,8 @@ function safeParsePermissions(json: string): string[] {
   }
 }
 
+const EMPTY_ROLE_FORM = { name: "", code: "", description: "", permissions: [] as string[] };
+
 // ------------------------------------------------------------------
 // Page
 // ------------------------------------------------------------------
@@ -264,11 +272,8 @@ export default function RolesPage() {
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<RoleRow | null>(null);
-  const [formName, setFormName] = useState("");
-  const [formCode, setFormCode] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formPermissions, setFormPermissions] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(roleFormSchema, { defaultValues: EMPTY_ROLE_FORM });
 
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null);
@@ -310,58 +315,42 @@ export default function RolesPage() {
   // Open create dialog
   const openCreate = useCallback(() => {
     setEditTarget(null);
-    setFormName("");
-    setFormCode("");
-    setFormDescription("");
-    setFormPermissions([]);
+    form.reset(EMPTY_ROLE_FORM);
     setDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Open edit dialog
   const openEdit = useCallback((role: RoleRow) => {
     setEditTarget(role);
-    setFormName(role.name);
-    setFormCode(role.code);
-    setFormDescription(role.description ?? "");
-    setFormPermissions(safeParsePermissions(role.permissions));
+    form.reset({
+      name: role.name,
+      code: role.code,
+      description: role.description ?? "",
+      permissions: safeParsePermissions(role.permissions),
+    });
     setDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save (create or update)
-  const handleSave = useCallback(async () => {
-    if (!formName.trim() || !formCode.trim()) {
-      toast.error("Nama dan kode wajib diisi");
-      return;
-    }
-    setSaving(true);
+  const handleSave = form.handleSubmit(async (values) => {
+    const fallback = "Gagal menyimpan peran. Periksa kolom yang ditandai.";
     try {
-      const url = editTarget
-        ? `/api/roles/${editTarget.id}`
-        : "/api/roles";
+      const url = editTarget ? `/api/roles/${editTarget.id}` : "/api/roles";
       const method = editTarget ? "PUT" : "POST";
       const body = editTarget
-        ? { name: formName, description: formDescription, permissions: formPermissions }
-        : { name: formName, code: formCode, description: formDescription, permissions: formPermissions };
+        ? { name: values.name, description: values.description, permissions: values.permissions }
+        : { name: values.name, code: values.code, description: values.description, permissions: values.permissions };
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Gagal menyimpan peran. Periksa kolom yang ditandai.");
-        return;
-      }
+      await sendJson(url, { method, body }, fallback);
       toast.success(editTarget ? "Peran diperbarui" : "Peran dibuat");
       setDialogOpen(false);
       fetchRoles();
-    } catch {
-      toast.error("Gagal menyimpan peran. Periksa koneksi lalu coba lagi.");
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      applyServerErrors(form, err, fallback);
     }
-  }, [editTarget, formName, formCode, formDescription, formPermissions, fetchRoles]);
+  });
 
   // Delete
   const handleDelete = useCallback(async () => {
@@ -450,59 +439,75 @@ export default function RolesPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         title={editTarget ? "Edit Peran" : "Tambah Peran"}
-        footer={<>
-          <Button variant="ghost" onClick={() => setDialogOpen(false)}>Batal</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Menyimpan..." : editTarget ? "Simpan Perubahan" : "Tambah Peran"}
-          </Button>
-        </>}
+        footer={
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editTarget ? "Simpan Perubahan" : "Tambah Peran"}
+          />
+        }
       >
-            <Field>
-              <FieldLabel htmlFor="role-name" required>Nama Peran</FieldLabel>
-              <Input
-                id="role-name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="Contoh: Admin Keuangan"
-                required
-                aria-required="true"
-              />
-            </Field>
+        <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="name"
+            label="Nama Peran"
+            required
+            id="role-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="Contoh: Admin Keuangan" />
+            )}
+          />
 
-            <Field>
-              <FieldLabel htmlFor="role-code" required>Kode</FieldLabel>
+          <FormField
+            control={form.control}
+            name="code"
+            label="Kode"
+            required
+            id="role-code"
+            description="Huruf kapital, angka, dan underscore. Tidak bisa diubah setelah dibuat."
+            render={({ field, controlProps }) => (
               <Input
-                id="role-code"
-                value={formCode}
-                onChange={(e) => setFormCode(e.target.value.toUpperCase())}
+                {...field}
+                {...controlProps}
+                onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                 placeholder="Contoh: FINANCE_ADMIN"
                 disabled={!!editTarget}
-                required
-                aria-required="true"
               />
-              <FieldDescription>
-                Huruf kapital, angka, dan underscore. Tidak bisa diubah setelah dibuat.
-              </FieldDescription>
-            </Field>
+            )}
+          />
 
-            <Field>
-              <FieldLabel htmlFor="role-description">Deskripsi</FieldLabel>
+          <FormField
+            control={form.control}
+            name="description"
+            label="Deskripsi"
+            id="role-description"
+            render={({ field, controlProps }) => (
               <Textarea
-                id="role-description"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
+                {...field}
+                {...controlProps}
+                value={field.value ?? ""}
                 placeholder="Deskripsi singkat peran ini..."
                 rows={2}
               />
-            </Field>
+            )}
+          />
 
-            <div>
-              <p className="text-sm font-medium mb-2">Izin Akses</p>
+          <FormField
+            control={form.control}
+            name="permissions"
+            label="Izin Akses"
+            id="role-permissions"
+            render={({ field }) => (
               <PermissionCheckboxes
-                selected={formPermissions}
-                onChange={setFormPermissions}
+                selected={field.value ?? []}
+                onChange={field.onChange}
               />
-            </div>
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Delete confirm */}

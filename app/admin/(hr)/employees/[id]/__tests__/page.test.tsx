@@ -31,6 +31,8 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+import { toast } from "sonner";
+
 const employee = {
   id: "e1",
   kode: "EMP-001",
@@ -163,5 +165,145 @@ describe("employee dossier — hash-addressable sections", () => {
     const section = document.getElementById("attendance");
     const trigger = section?.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]');
     expect(trigger).toHaveAttribute("data-panel-open");
+  });
+});
+
+describe("Gaji section — calcType-aware value input", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // PCT_OF_BASE is a percentage of gaji_pokok (lib/payroll/engine.ts:
+  // `amount = gajiPokokAmount * (baseValue / 100)`), not a rupiah amount —
+  // RupiahInput would strip "2.5" down to digits-only and stamp a "Rp"
+  // prefix on it, which is what the review caught.
+  const mixedSalaryValues = [
+    {
+      id: "sv1",
+      value: 5000000,
+      componentDefId: "comp1",
+      componentDef: { code: "GAPOK", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", sortOrder: 1 },
+    },
+    {
+      id: "sv2",
+      value: 2.5,
+      componentDefId: "comp2",
+      componentDef: { code: "TUNJ_JABATAN", label: "Tunjangan Jabatan", category: "INCOME", calcType: "PCT_OF_BASE", sortOrder: 2 },
+    },
+  ];
+
+  it("keeps a PCT_OF_BASE value as a decimal percentage with no Rp addon", async () => {
+    const { fn } = stubFetch({ salary: mixedSalaryValues });
+    vi.stubGlobal("fetch", fn);
+    render(<EmployeeDetailPage />);
+
+    const pctInput = await screen.findByRole("spinbutton", { name: "Nilai Tunjangan Jabatan" });
+    expect(pctInput).toHaveValue(2.5);
+    expect(pctInput).toHaveAttribute("type", "number");
+    // Its own group shows "%", not "Rp".
+    const pctGroup = pctInput.closest('[data-slot="input-group"]');
+    expect(pctGroup).not.toBeNull();
+    expect(pctGroup).toHaveTextContent("%");
+    expect(pctGroup).not.toHaveTextContent("Rp");
+  });
+
+  it("uses RupiahInput (Rp addon, thousands-grouped) for a FIXED value", async () => {
+    const { fn } = stubFetch({ salary: mixedSalaryValues });
+    vi.stubGlobal("fetch", fn);
+    render(<EmployeeDetailPage />);
+
+    const fixedInput = await screen.findByRole("textbox", { name: "Nilai Gaji Pokok" });
+    expect(fixedInput).toHaveValue("5.000.000");
+    const fixedGroup = fixedInput.closest('[data-slot="input-group"]');
+    expect(fixedGroup).not.toBeNull();
+    expect(fixedGroup).toHaveTextContent("Rp");
+  });
+});
+
+/**
+ * T6 (2026-09-27 admin-finish-standard) — the Profil/Kepegawaian/Saldo Cuti
+ * edit card migrated from a 12-field `useState` + a single `fetch` onto
+ * react-hook-form + zod (`employeeEditFormSchema`, lib/validations/employee.ts).
+ */
+describe("employee profile edit card", () => {
+  function stubEditableFetch(overrides: { putStatus?: number; putBody?: unknown } = {}) {
+    const { putStatus = 200, putBody = employee } = overrides;
+    const calls: { url: string; method: string; body?: unknown }[] = [];
+    const fn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      calls.push({ url, method, body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (url === "/api/employees/e1" && method === "PUT") {
+        return Promise.resolve({ ok: putStatus < 400, status: putStatus, json: async () => putBody } as Response);
+      }
+      if (url === "/api/employees/e1") {
+        return Promise.resolve({ ok: true, json: async () => employee } as Response);
+      }
+      if (url === "/api/employees/e1/salary") {
+        return Promise.resolve({ ok: true, json: async () => salaryValues } as Response);
+      }
+      if (url === "/api/config/campuses") {
+        return Promise.resolve({ ok: true, json: async () => [{ id: "c1", name: "Kampus Utama" }] } as Response);
+      }
+      if (url === "/api/employees/positions") {
+        return Promise.resolve({ ok: true, json: async () => ["Guru Kelas"] } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    });
+    return { fn, calls };
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("blocks an empty Nama with an inline error and sends no PUT", async () => {
+    const { fn, calls } = stubEditableFetch();
+    vi.stubGlobal("fetch", fn);
+    const user = userEvent.setup();
+    render(<EmployeeDetailPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Budi Santoso" })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Ubah" }));
+    await user.clear(screen.getByRole("textbox", { name: "Nama" }));
+    await user.click(screen.getByRole("button", { name: "Simpan Profil" }));
+
+    expect(await screen.findByText("Nama wajib diisi")).toBeInTheDocument();
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+  });
+
+  it("submits every field as the PUT body, including a cleared optional field", async () => {
+    const { fn, calls } = stubEditableFetch();
+    vi.stubGlobal("fetch", fn);
+    const user = userEvent.setup();
+    render(<EmployeeDetailPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Budi Santoso" })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Ubah" }));
+    await user.clear(screen.getByLabelText("No. HP"));
+    await user.click(screen.getByRole("button", { name: "Simpan Profil" }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    const putCall = calls.find((c) => c.method === "PUT")!;
+    expect(putCall.url).toBe("/api/employees/e1");
+    expect(putCall.body).toEqual({
+      nama: "Budi Santoso",
+      formalName: "",
+      email: "budi@example.com",
+      noHp: "",
+      jabatan: "Guru Kelas",
+      campusId: "c1",
+      hireDate: "2022-01-10",
+      bankName: "BCA",
+      bankAccountNo: "1234567890",
+      bpjsEnrolled: true,
+      leaveBalanceAnnual: 12,
+      leaveBalanceSick: 14,
+    });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Data karyawan disimpan"));
   });
 });

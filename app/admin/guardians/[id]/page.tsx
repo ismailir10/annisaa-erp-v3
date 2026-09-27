@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, use, useRef } from "react";
+import { useEffect, useState, useCallback, use, useId, useRef } from "react";
+import type { Control } from "react-hook-form";
+import type * as z4 from "zod/v4/core";
 import Link from "next/link";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
 import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
@@ -9,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { FormRootError } from "@/components/ui/form";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DossierNav, DossierSection, type DossierSectionDef } from "@/components/admin/dossier-section";
 import { DetailRail, RailCard, RailStatTiles, RailChecklist } from "@/components/admin/detail-rail";
@@ -18,11 +21,33 @@ import { REL_LABELS } from "@/lib/constants/parent-options";
 import { formatRupiah } from "@/lib/format";
 import { telHref, whatsappHref } from "@/lib/contact";
 import { summarizeStudentInvoices, EMPTY_INVOICE_SUMMARY } from "@/lib/finance/student-invoice-summary";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
+import { parentFormSchema } from "@/lib/validations/parent";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
 // ------------------------------------------------------------------
+
+type ParentFormValues = z4.input<typeof parentFormSchema>;
+
+const EMPTY_PARENT_FORM: ParentFormValues = {
+  name: "",
+  phone: "",
+  email: "",
+  whatsapp: "",
+  address: "",
+  parentNik: "",
+  education: "",
+  occupation: "",
+  employer: "",
+  employerAddress: "",
+  employerCity: "",
+  incomeRange: "",
+  childrenTotal: "",
+};
 
 type ParentDetail = {
   id: string;
@@ -203,8 +228,8 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
 
   // Edit toggle
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
-  const [saving, setSaving] = useState(false);
+  const editFormId = useId();
+  const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
 
   // --- Section open/collapse state ---
   // Nothing on this page costs a second request to open, unlike the student
@@ -278,10 +303,10 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
   // --- Edit toggle ---
   function startEditing() {
     if (!parent) return;
-    setEditForm({
-      ...EMPTY_GUARDIAN_FORM,
+    editForm.reset({
+      ...EMPTY_PARENT_FORM,
       name: parent.name,
-      // No relationship/isPrimary seeding: saveParent() now PUTs to
+      // No relationship/isPrimary seeding: the save below PUTs to
       // /api/parents/[id], which owns bio only and never touches a junction
       // row. Relationship belongs to the student↔parent link and is edited
       // from the student page.
@@ -301,38 +326,23 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
     setIsEditing(true);
   }
 
-  async function saveParent() {
-    if (!editForm.name.trim()) { toast.error("Nama wajib diisi"); return; }
+  // Bio lives on Parent, so save through the parent's own route. This page
+  // used to PUT /api/guardians/[guardianId] against whichever junction row
+  // happened to be first — which meant a wali with no linked student could
+  // not be edited at all, and every save rewrote that one child's
+  // relationship as a side effect. `values` carries every field — including
+  // blanks — since a PUT that omits a key means "keep" server-side.
+  const saveParent = editForm.handleSubmit(async (values) => {
     if (!parent) return;
-
-    // Bio lives on Parent, so save through the parent's own route. This page
-    // used to PUT /api/guardians/[guardianId] against whichever junction row
-    // happened to be first — which meant a wali with no linked student could
-    // not be edited at all, and every save rewrote that one child's
-    // relationship as a side effect.
-    setSaving(true);
     try {
-      const res = await fetch(`/api/parents/${parent.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // updateParentSchema is bio-only, so the form's junction keys
-          // (relationship, isPrimary, childOrder) are stripped by Zod.
-          ...editForm,
-          childrenTotal: editForm.childrenTotal ? Number(editForm.childrenTotal) : null,
-        }),
-      });
-      if (res.ok) {
-        toast.success("Data wali diperbarui");
-        setIsEditing(false);
-        fetchParent();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        toast.error(d.error || "Gagal menyimpan");
-      }
-    } catch { toast.error("Terjadi kesalahan"); }
-    setSaving(false);
-  }
+      await sendJson(`/api/parents/${parent.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Data wali diperbarui");
+      setIsEditing(false);
+      fetchParent();
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal menyimpan");
+    }
+  });
 
   if (loading) return <DetailPageSkeleton />;
   if (!parent) return <EmptyState title="Wali tidak ditemukan" description="Data wali tidak tersedia atau telah dihapus." />;
@@ -436,18 +446,26 @@ export default function GuardianDetailPage({ params }: { params: Promise<{ id: s
             actions={
               isEditing ? (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
+                  <Button size="sm" variant="outline" onClick={() => setIsEditing(false)} disabled={editForm.formState.isSubmitting}>
                     <X size={14} className="mr-1" /> Batal
                   </Button>
-                  <Button size="sm" onClick={saveParent} disabled={saving}>
-                    <Save size={14} className="mr-1" /> {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                  <Button size="sm" form={editFormId} type="submit" disabled={editForm.formState.isSubmitting}>
+                    <Save size={14} className="mr-1" /> {editForm.formState.isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                   </Button>
                 </div>
               ) : undefined
             }
           >
             {isEditing ? (
-              <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
+              <form id={editFormId} onSubmit={saveParent} noValidate className="space-y-field">
+                <FormRootError formState={editForm.formState} />
+                {/* Boundary cast — see the identical one in
+                    app/admin/guardians/page.tsx. */}
+                <GuardianFormBody
+                  control={editForm.control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>}
+                  showRelationship={false}
+                />
+              </form>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

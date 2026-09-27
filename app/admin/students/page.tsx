@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useWatch, type Control } from "react-hook-form";
+import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
@@ -17,6 +20,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { STUDENT_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -26,13 +30,17 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Users, GraduationCap, UserCheck, Download } from "lucide-react";
 import { StudentExportDialog } from "@/components/admin/student-export-dialog";
 import { formatDateShort } from "@/lib/format";
 import { LIVING_WITH_OPTIONS, LIVING_WITH_LABELS } from "@/lib/constants/parent-options";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
+import { studentFormSchema } from "@/lib/validations/student";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
@@ -65,7 +73,10 @@ type Pagination = {
   totalPages: number;
 };
 
-const EMPTY_CREATE_FORM = {
+type StudentFormValues = z4.input<typeof studentFormSchema>;
+type StudentFormOutput = z4.output<typeof studentFormSchema>;
+
+const EMPTY_CREATE_FORM: StudentFormValues = {
   name: "",
   nickname: "",
   gender: "",
@@ -83,20 +94,16 @@ const EMPTY_CREATE_FORM = {
   status: "ACTIVE",
 };
 
-type StudentFormValues = typeof EMPTY_CREATE_FORM;
-
 // ------------------------------------------------------------------
 // Shared form body — reused by Dialog (desktop) + Sheet (mobile)
 // for both Create and Edit
 // ------------------------------------------------------------------
 
 function StudentFormBody({
-  form,
-  setForm,
+  control,
   mode,
 }: {
-  form: StudentFormValues;
-  setForm: (v: StudentFormValues) => void;
+  control: Control<StudentFormValues, unknown, StudentFormOutput>;
   /**
    * Create mode keeps all four statuses (historical-import intent — see
    * EMPTY_CREATE_FORM comment above). Edit mode never lets GRADUATED/WITHDRAWN
@@ -107,184 +114,244 @@ function StudentFormBody({
    */
   mode: "create" | "edit";
 }) {
-  const lockedLifecycle = mode === "edit" && (form.status === "GRADUATED" || form.status === "WITHDRAWN");
+  const status = useWatch({ control, name: "status" });
+  const lockedLifecycle = mode === "edit" && (status === "GRADUATED" || status === "WITHDRAWN");
   return (
     <div className="space-y-field">
       <SectionHeading label="Data Anak" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel required htmlFor="student-name">Nama Lengkap</FieldLabel>
-          <Input
-            id="student-name"
-            required
-            aria-required="true"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Aisyah Putri"
-            autoFocus
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="student-nickname">Nama Panggilan</FieldLabel>
-          <Input
-            id="student-nickname"
-            value={form.nickname}
-            onChange={(e) => setForm({ ...form, nickname: e.target.value })}
-            placeholder="Aisyah"
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="name"
+          label="Nama Lengkap"
+          required
+          id="student-name"
+          render={({ field, controlProps }) => (
+            <Input {...field} {...controlProps} placeholder="Aisyah Putri" autoFocus />
+          )}
+        />
+        <FormField
+          control={control}
+          name="nickname"
+          label="Nama Panggilan"
+          id="student-nickname"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Aisyah"
+            />
+          )}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="student-gender">Jenis Kelamin</FieldLabel>
-          <Select
-            value={form.gender}
-            onValueChange={(v) => v && setForm({ ...form, gender: v })}
-          >
-            <SelectTrigger id="student-gender"><SelectValue placeholder="Pilih" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="L">Laki-laki</SelectItem>
-              <SelectItem value="P">Perempuan</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="student-dob">Tanggal Lahir</FieldLabel>
-          <Input
-            id="student-dob"
-            type="date"
-            value={form.dateOfBirth}
-            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-            max={new Date().toLocaleDateString("en-CA")}
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="gender"
+          label="Jenis Kelamin"
+          id="student-gender"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) ?? ""}
+              onValueChange={(v) => v != null && field.onChange(v)}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="L">Laki-laki</SelectItem>
+                <SelectItem value="P">Perempuan</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <FormField
+          control={control}
+          name="dateOfBirth"
+          label="Tanggal Lahir"
+          id="student-dob"
+          render={({ field, controlProps }) => (
+            <DatePicker
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              onChange={field.onChange}
+              max={new Date().toLocaleDateString("en-CA")}
+            />
+          )}
+        />
       </div>
 
-      <Field>
-        <FieldLabel htmlFor="student-address">Alamat</FieldLabel>
-        <Textarea
-          id="student-address"
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
-          placeholder="Alamat tempat tinggal"
-          rows={2}
-        />
-      </Field>
+      <FormField
+        control={control}
+        name="address"
+        label="Alamat"
+        id="student-address"
+        render={({ field, controlProps }) => (
+          <Textarea
+            {...field}
+            {...controlProps}
+            value={(field.value as string | undefined) ?? ""}
+            placeholder="Alamat tempat tinggal"
+            rows={2}
+          />
+        )}
+      />
 
-      <Field>
-        <FieldLabel htmlFor="student-notes">Catatan</FieldLabel>
-        <Textarea
-          id="student-notes"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          placeholder="Alergi, kebutuhan khusus, dll."
-          rows={2}
-        />
-      </Field>
+      <FormField
+        control={control}
+        name="notes"
+        label="Catatan"
+        id="student-notes"
+        render={({ field, controlProps }) => (
+          <Textarea
+            {...field}
+            {...controlProps}
+            value={(field.value as string | undefined) ?? ""}
+            placeholder="Alergi, kebutuhan khusus, dll."
+            rows={2}
+          />
+        )}
+      />
 
       <div className="pt-2"><SectionHeading label="Identitas Resmi" /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="student-nis">NIS</FieldLabel>
-          <Input
-            id="student-nis"
-            value={form.nis}
-            onChange={(e) => setForm({ ...form, nis: e.target.value })}
-            placeholder="Nomor Induk Siswa"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="student-nisn">NISN</FieldLabel>
-          <Input
-            id="student-nisn"
-            value={form.nisn}
-            onChange={(e) => setForm({ ...form, nisn: e.target.value })}
-            placeholder="Nomor Induk Siswa Nasional"
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="nis"
+          label="NIS"
+          id="student-nis"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Nomor Induk Siswa"
+            />
+          )}
+        />
+        <FormField
+          control={control}
+          name="nisn"
+          label="NISN"
+          id="student-nisn"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Nomor Induk Siswa Nasional"
+            />
+          )}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="student-birth-place">Tempat Lahir</FieldLabel>
-          <Input
-            id="student-birth-place"
-            value={form.birthPlace}
-            onChange={(e) => setForm({ ...form, birthPlace: e.target.value })}
-            placeholder="Kota kelahiran"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="student-nik">NIK</FieldLabel>
-          <Input
-            id="student-nik"
-            value={form.nik}
-            onChange={(e) => setForm({ ...form, nik: e.target.value })}
-            placeholder="Nomor Induk Kependudukan"
-          />
-        </Field>
+        <FormField
+          control={control}
+          name="birthPlace"
+          label="Tempat Lahir"
+          id="student-birth-place"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Kota kelahiran"
+            />
+          )}
+        />
+        <FormField
+          control={control}
+          name="nik"
+          label="NIK"
+          id="student-nik"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Nomor Induk Kependudukan"
+            />
+          )}
+        />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-field">
-        <Field>
-          <FieldLabel htmlFor="student-kk-number">No. KK</FieldLabel>
-          <Input
-            id="student-kk-number"
-            value={form.kkNumber}
-            onChange={(e) => setForm({ ...form, kkNumber: e.target.value })}
-            placeholder="Nomor Kartu Keluarga"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="student-living-with">Tinggal Dengan</FieldLabel>
-          <Select
-            value={form.livingWith || undefined}
-            onValueChange={(v) => v && setForm({ ...form, livingWith: v })}
-            items={LIVING_WITH_LABELS}
-          >
-            <SelectTrigger id="student-living-with"><SelectValue placeholder="Pilih" /></SelectTrigger>
-            <SelectContent>
-              {LIVING_WITH_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        <FormField
+          control={control}
+          name="kkNumber"
+          label="No. KK"
+          id="student-kk-number"
+          render={({ field, controlProps }) => (
+            <Input
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Nomor Kartu Keluarga"
+            />
+          )}
+        />
+        <FormField
+          control={control}
+          name="livingWith"
+          label="Tinggal Dengan"
+          id="student-living-with"
+          render={({ field, controlProps }) => (
+            <Select
+              value={(field.value as string | undefined) || undefined}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              items={LIVING_WITH_LABELS}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                {LIVING_WITH_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
       </div>
 
       <div className="pt-2"><SectionHeading label="Status" /></div>
-      <Field>
-        <FieldLabel htmlFor="student-status">Status</FieldLabel>
-        <Select
-          value={form.status}
-          onValueChange={(v) => v && setForm({ ...form, status: v })}
-          disabled={lockedLifecycle}
-        >
-          <SelectTrigger id="student-status"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {lockedLifecycle ? (
-              <SelectItem value={form.status}>
-                {form.status === "GRADUATED" ? "Lulus" : "Keluar"}
-              </SelectItem>
-            ) : (
-              <>
-                <SelectItem value="ACTIVE">Aktif</SelectItem>
-                <SelectItem value="INACTIVE">Nonaktif</SelectItem>
-                {mode === "create" && (
+      <FormField
+        control={control}
+        name="status"
+        label="Status"
+        id="student-status"
+        render={({ field, controlProps }) => (
+          <>
+            <Select
+              value={field.value as string}
+              onValueChange={(v) => v != null && field.onChange(v)}
+              disabled={lockedLifecycle}
+            >
+              <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {lockedLifecycle ? (
+                  <SelectItem value={field.value as string}>
+                    {field.value === "GRADUATED" ? "Lulus" : "Keluar"}
+                  </SelectItem>
+                ) : (
                   <>
-                    <SelectItem value="GRADUATED">Lulus</SelectItem>
-                    <SelectItem value="WITHDRAWN">Keluar</SelectItem>
+                    <SelectItem value="ACTIVE">Aktif</SelectItem>
+                    <SelectItem value="INACTIVE">Nonaktif</SelectItem>
+                    {mode === "create" && (
+                      <>
+                        <SelectItem value="GRADUATED">Lulus</SelectItem>
+                        <SelectItem value="WITHDRAWN">Keluar</SelectItem>
+                      </>
+                    )}
                   </>
                 )}
-              </>
+              </SelectContent>
+            </Select>
+            {lockedLifecycle && (
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Status lulus/keluar diubah melalui aksi Luluskan atau Keluarkan di halaman detail siswa.
+              </p>
             )}
-          </SelectContent>
-        </Select>
-        {lockedLifecycle && (
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Status lulus/keluar diubah melalui aksi Luluskan atau Keluarkan di halaman detail siswa.
-          </p>
+          </>
         )}
-      </Field>
+      />
     </div>
   );
 }
@@ -302,37 +369,34 @@ const columns: ColumnDef<Student>[] = [
     cell: ({ row }) => {
       const s = row.original;
       return (
-        <Link
-          href={`/admin/students/${s.id}`}
-          className="flex items-center gap-3 group"
-        >
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-            {s.photoUrl ? (
-              // Auth-proxied — never a public filesystem path. Lazy-load to
-              // keep large lists snappy on mid-range Android.
-              <img
-                src={`/api/students/${s.id}/photo`}
-                alt={`Foto ${s.name}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <span className="text-primary text-xs font-bold">
-                {s.name[0]}
-              </span>
-            )}
-          </div>
-          <div>
-            <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-              {s.name}
+        <DataTableLinkCell href={`/admin/students/${s.id}`} className="gap-3">
+          <span className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+              {s.photoUrl ? (
+                // Auth-proxied — never a public filesystem path. Lazy-load to
+                // keep large lists snappy on mid-range Android.
+                <img
+                  src={`/api/students/${s.id}/photo`}
+                  alt={`Foto ${s.name}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <span className="text-primary text-xs font-bold">
+                  {s.name[0]}
+                </span>
+              )}
             </span>
-            {s.nickname && (
-              <span className="text-xs text-muted-foreground ml-1.5">
-                ({s.nickname})
-              </span>
-            )}
-          </div>
-        </Link>
+            <span>
+              {s.name}
+              {s.nickname && (
+                <span className="text-xs text-muted-foreground ml-1.5">
+                  ({s.nickname})
+                </span>
+              )}
+            </span>
+          </span>
+        </DataTableLinkCell>
       );
     },
   },
@@ -376,6 +440,7 @@ const columns: ColumnDef<Student>[] = [
   {
     id: "guardian",
     header: "Wali",
+    meta: { priority: "low" },
     cell: ({ row }) => {
       // The API returns the primary guardian, or the first active one when no
       // primary is flagged. There is no row-level click handler on this table
@@ -403,6 +468,7 @@ const columns: ColumnDef<Student>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Terdaftar" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-xs text-muted-foreground">
         {formatDateShort(row.original.createdAt.split("T")[0])}
@@ -441,16 +507,16 @@ export default function StudentsPage() {
   // Create dialog state
   const [exportOpen, setExportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
+  const createFormId = useId();
+  const createForm = useZodForm(studentFormSchema, { defaultValues: EMPTY_CREATE_FORM });
 
   // Deactivate dialog state
   const [deactivateTarget, setDeactivateTarget] = useState<Student | null>(null);
 
   // Edit dialog state
   const [editTarget, setEditTarget] = useState<Student | null>(null);
-  const [editForm, setEditForm] = useState(EMPTY_CREATE_FORM);
-  const [editing, setEditing] = useState(false);
+  const editFormId = useId();
+  const editForm = useZodForm(studentFormSchema, { defaultValues: EMPTY_CREATE_FORM });
 
   // Single groupBy endpoint, not three pageSize=1 list calls. Re-run after
   // any mutation (create/edit/status toggle) so the cards don't go stale.
@@ -555,7 +621,7 @@ export default function StudentsPage() {
         nik: string | null; kkNumber: string | null; livingWith: string | null;
         status: string;
       };
-      setEditForm({
+      editForm.reset({
         name: full.name,
         nickname: full.nickname ?? "",
         gender: full.gender ?? "",
@@ -568,87 +634,46 @@ export default function StudentsPage() {
         kkNumber: full.kkNumber ?? "",
         livingWith: full.livingWith ?? "",
         notes: full.notes ?? "",
-        status: full.status,
+        status: full.status as StudentFormValues["status"],
       });
     } catch {
       toast.error("Terjadi kesalahan jaringan");
     }
   }
 
-  async function handleEdit() {
+  const handleEditSave = editForm.handleSubmit(async (values) => {
     if (!editTarget) return;
-    if (!editForm.name.trim()) { toast.error("Nama siswa wajib diisi"); return; }
-    setEditing(true);
-    const res = await fetch(`/api/students/${editTarget.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editForm.name.trim(),
-        nickname: editForm.nickname.trim() || null,
-        gender: editForm.gender || null,
-        dateOfBirth: editForm.dateOfBirth || null,
-        address: editForm.address.trim() || null,
-        nis: editForm.nis.trim() || null,
-        nisn: editForm.nisn.trim() || null,
-        birthPlace: editForm.birthPlace.trim() || null,
-        nik: editForm.nik.trim() || null,
-        kkNumber: editForm.kkNumber.trim() || null,
-        livingWith: editForm.livingWith || null,
-        notes: editForm.notes.trim() || null,
-        status: editForm.status,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal memperbarui data siswa");
-    } else {
+    try {
+      await sendJson(
+        `/api/students/${editTarget.id}`,
+        { method: "PUT", body: values },
+        "Gagal memperbarui data siswa",
+      );
       toast.success("Data siswa diperbarui");
       setEditTarget(null);
       fetchStudents();
       fetchStats();
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal memperbarui data siswa");
     }
-    setEditing(false);
-  }
+  });
 
-  async function handleCreate() {
-    if (!createForm.name.trim()) {
-      toast.error("Nama siswa wajib diisi");
-      return;
-    }
-    setCreating(true);
-    const res = await fetch("/api/students", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: createForm.name.trim(),
-        nickname: createForm.nickname.trim() || null,
-        gender: createForm.gender || null,
-        dateOfBirth: createForm.dateOfBirth || null,
-        address: createForm.address.trim() || null,
-        nis: createForm.nis.trim() || null,
-        nisn: createForm.nisn.trim() || null,
-        birthPlace: createForm.birthPlace.trim() || null,
-        nik: createForm.nik.trim() || null,
-        kkNumber: createForm.kkNumber.trim() || null,
-        livingWith: createForm.livingWith || null,
-        notes: createForm.notes.trim() || null,
-        status: createForm.status,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Gagal menambahkan siswa");
-    } else {
-      const student = await res.json();
+  const handleCreateSave = createForm.handleSubmit(async (values) => {
+    try {
+      const student = await sendJson<{ id: string }>(
+        "/api/students",
+        { method: "POST", body: values },
+        "Gagal menambahkan siswa",
+      );
       toast.success("Siswa ditambahkan");
       setCreateOpen(false);
-      setCreateForm(EMPTY_CREATE_FORM);
+      createForm.reset(EMPTY_CREATE_FORM);
       fetchStats();
       router.push(`/admin/students/${student.id}`);
+    } catch (err) {
+      applyServerErrors(createForm, err, "Gagal menambahkan siswa");
     }
-    setCreating(false);
-  }
+  });
 
   const columnsWithActions = useMemo<ColumnDef<Student>[]>(
     () => [
@@ -667,7 +692,7 @@ export default function StudentsPage() {
           const isInactive = s.status === "INACTIVE";
           return (
             <DataTableRowActions
-              onView={() => router.push(`/admin/students/${s.id}`)}
+              rowLabel={s.name}
               onEdit={() => openEdit(s)}
               onDeactivate={isActive ? () => setDeactivateTarget(s) : undefined}
               onActivate={isInactive ? () => setDeactivateTarget(s) : undefined}
@@ -677,7 +702,7 @@ export default function StudentsPage() {
         },
       },
     ],
-    [router],
+    [],
   );
 
   return (
@@ -746,45 +771,48 @@ export default function StudentsPage() {
       {/* Edit Student */}
       <ResponsiveFormDialog
         open={!!editTarget}
-        onOpenChange={(open) => { if (!editing && !open) setEditTarget(null); }}
+        onOpenChange={(open) => { if (!editForm.formState.isSubmitting && !open) setEditTarget(null); }}
         title="Edit Siswa"
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editing}>
-              Batal
-            </Button>
-            <Button onClick={handleEdit} disabled={editing}>
-              {editing ? "Menyimpan..." : "Simpan Perubahan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={editFormId}
+            pending={editForm.formState.isSubmitting}
+            onCancel={() => setEditTarget(null)}
+            submitLabel="Simpan Perubahan"
+          />
         }
       >
-        <StudentFormBody form={editForm} setForm={setEditForm} mode="edit" />
+        <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
+          <FormRootError formState={editForm.formState} />
+          <StudentFormBody control={editForm.control} mode="edit" />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Create Student */}
       <ResponsiveFormDialog
         open={createOpen}
-        onOpenChange={(open) => { if (!creating) { setCreateOpen(open); if (!open) setCreateForm(EMPTY_CREATE_FORM); } }}
+        onOpenChange={(open) => {
+          if (!createForm.formState.isSubmitting) {
+            setCreateOpen(open);
+            if (!open) createForm.reset(EMPTY_CREATE_FORM);
+          }
+        }}
         title="Tambah Siswa"
         size="lg"
         footer={
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => { setCreateOpen(false); setCreateForm(EMPTY_CREATE_FORM); }}
-              disabled={creating}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating ? "Menyimpan..." : "Tambah Siswa"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={createFormId}
+            pending={createForm.formState.isSubmitting}
+            onCancel={() => { setCreateOpen(false); createForm.reset(EMPTY_CREATE_FORM); }}
+            submitLabel="Tambah Siswa"
+          />
         }
       >
-        <StudentFormBody form={createForm} setForm={setCreateForm} mode="create" />
+        <form id={createFormId} onSubmit={handleCreateSave} noValidate className="space-y-field">
+          <FormRootError formState={createForm.formState} />
+          <StudentFormBody control={createForm.control} mode="create" />
+        </form>
       </ResponsiveFormDialog>
     </>
   );

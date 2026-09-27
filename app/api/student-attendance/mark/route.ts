@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
+import { ATTENDANCE_TAP_BUDGET, ATTENDANCE_TAP_WINDOW_MS } from "@/lib/api/rate-limit-budgets";
 import { validateBody } from "@/lib/api/validate";
 import { markAttendanceSchema } from "@/lib/validations/student-attendance";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 // Mark attendance for multiple students at once (teacher submits class attendance)
 export async function POST(req: NextRequest) {
-  const { success } = rateLimit(`mark-attendance:${getClientIp(req)}`, 10, 60_000);
-  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
-
   const session = await getSession();
   if (!session?.tenantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Per user, not per IP: the class page saves one request per tap, and every
+  // teacher on the school Wi-Fi shares one IP.
+  const { success } = rateLimit(`mark-attendance:${session.id}`, ATTENDANCE_TAP_BUDGET, ATTENDANCE_TAP_WINDOW_MS);
+  if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
   const isTeacher = session.role === "TEACHER";
   const isAdmin = isAdminRole(session.role);
   if (!isTeacher && !isAdmin) {

@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
@@ -107,20 +107,18 @@ export default function AdminPenilaianPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <Field className="sm:w-48">
           <FieldLabel htmlFor="week-date">Pekan (tanggal acuan)</FieldLabel>
-          <Input
+          <DatePicker
             id="week-date"
-            type="date"
             value={weekDate}
-            onChange={(e) => setWeekDate(e.target.value)}
+            onChange={(v) => setWeekDate(v)}
           />
         </Field>
         <Field className="sm:w-48">
           <FieldLabel htmlFor="sentra-day">Hari sentra</FieldLabel>
-          <Input
+          <DatePicker
             id="sentra-day"
-            type="date"
             value={sentraDay}
-            onChange={(e) => setSentraDay(e.target.value)}
+            onChange={(v) => setSentraDay(v)}
           />
         </Field>
       </div>

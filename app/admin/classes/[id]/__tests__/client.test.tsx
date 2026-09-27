@@ -141,6 +141,69 @@ async function openAddStudentAndPick(user: ReturnType<typeof userEvent.setup>, s
   await user.click(screen.getByRole("option", { name: new RegExp(studentName) }));
 }
 
+// ── Teacher-swap dialog (T6) ────────────────────────────────────────
+
+const today = new Date();
+const sessionDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-15`;
+
+const sessionRow = {
+  id: "sess-1",
+  classSectionId: "class-1",
+  semesterId: "sem-1",
+  date: sessionDate,
+  slot: "FULL_DAY",
+  teacherId: "emp-1",
+  defaultTeacherId: "emp-1",
+  substituteReason: null,
+  isBackfilled: false,
+  teacher: { id: "emp-1", nama: "Ustadz Bilal" },
+  defaultTeacher: { id: "emp-1", nama: "Ustadz Bilal" },
+};
+
+function stubFetchWithSession({ archived = false }: { archived?: boolean } = {}) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const method = init?.method ?? "GET";
+
+    if (url.startsWith("/api/admin/class-sessions/") && method === "PATCH") {
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    }
+    if (url.includes("/api/admin/class-sessions?")) {
+      return Promise.resolve({ ok: true, json: async () => [sessionRow] } as Response);
+    }
+    if (url.includes("/api/employees?status=ACTIVE")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }],
+          total: 1,
+        }),
+      } as Response);
+    }
+    if (url === "/api/admin/classes/class-1") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          ...classDetail,
+          academicYear: {
+            ...classDetail.academicYear,
+            status: archived ? "ARCHIVED" : "ACTIVE",
+          },
+        }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
+async function openSessionDialog(user: ReturnType<typeof userEvent.setup>) {
+  // "Sehari Penuh" also appears in the Ringkasan rail's slot-template row, so
+  // key off the session chip's teacher name (unique to the calendar) instead.
+  const trigger = (await screen.findByText("Ustadz Bilal")).closest("button");
+  if (!trigger) throw new Error("session button not found");
+  await user.click(trigger);
+}
+
 describe("ClassDetailClient — add-student override-confirm (T7)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -237,6 +300,28 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     expect(screen.getByRole("button", { name: "Pilih Siswa Lain" })).toBeInTheDocument();
   });
 
+  // T3 (cycle 2026-09-27, admin-forms-rhf) — the picker step now validates
+  // `studentId` via useZodForm(enrollmentAddSchema) + FormField instead of
+  // the old `if (!selectedStudentId) toast.error(...)` check.
+  it("blocks submit with no student selected, showing an inline error and firing no POST", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch([]);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Siswa" }));
+    await screen.findByLabelText(/^Siswa\*?$/);
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(await screen.findByText("Siswa wajib dipilih")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.includes("/enrollments") && init?.method === "POST";
+      }),
+    ).toBe(false);
+  });
+
   it("resets the override state when the dialog is closed and reopened", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
@@ -259,6 +344,82 @@ describe("ClassDetailClient — add-student override-confirm (T7)", () => {
     expect(await screen.findByLabelText(/^Siswa\*?$/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Alasan\*?$/)).not.toBeInTheDocument();
     expect(screen.queryByText(AGE_MESSAGE)).not.toBeInTheDocument();
+  });
+});
+
+// T3 (cycle 2026-09-27, admin-forms-rhf) — Tambah Guru migrated onto
+// useZodForm(teachingAssignmentAddSchema) + FormField.
+function stubFetchForAddTeacher(teachingAssignmentResponse: { status: number; body: Record<string, unknown> }) {
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    const method = init?.method ?? "GET";
+
+    if (url.includes("/api/admin/classes/class-1/teaching-assignments") && method === "POST") {
+      return Promise.resolve({
+        ok: teachingAssignmentResponse.status < 300,
+        status: teachingAssignmentResponse.status,
+        json: async () => teachingAssignmentResponse.body,
+      } as Response);
+    }
+    if (url.includes("/api/employees?status=ACTIVE")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }], total: 1 }),
+      } as Response);
+    }
+    if (url === "/api/admin/classes/class-1") {
+      return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
+    }
+    return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+  });
+}
+
+describe("ClassDetailClient — Tambah Guru dialog (T3 rhf migration)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("blocks submit with no guru selected, showing an inline error and firing no POST", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchForAddTeacher({ status: 201, body: { id: "ta-1" } });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    await screen.findByLabelText(/^Guru\*?$/);
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    expect(await screen.findByText("Guru wajib dipilih")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.includes("/teaching-assignments") && init?.method === "POST";
+      }),
+    ).toBe(false);
+  });
+
+  it("submits the filled form as POST .../teaching-assignments with the expected body", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchForAddTeacher({ status: 201, body: { id: "ta-1" } });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    await screen.findByLabelText(/^Guru\*?$/);
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Tambahkan" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru ditambahkan"));
+
+    const postCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.includes("/teaching-assignments") && init?.method === "POST";
+    })!;
+    expect(JSON.parse((postCall[1] as RequestInit).body as string)).toEqual({
+      employeeId: "emp-2",
+      role: "HOMEROOM",
+    });
   });
 });
 
@@ -307,5 +468,117 @@ describe("ClassDetailClient — Recipe 2b dossier layout", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Roster")).toHaveLength(1);
     });
+  });
+});
+
+describe("ClassDetailClient — teacher-swap dialog (T6)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens on ResponsiveFormDialog with the session's fields and submits a swap once a reason is entered", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    expect(await screen.findByText("Ubah Guru Sesi")).toBeInTheDocument();
+    expect(screen.getByLabelText("Guru pengganti")).toBeInTheDocument();
+    expect(screen.getByLabelText("Alasan pengganti")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    // T2 (2026-09-27 admin-finish-standard): Simpan now submits through
+    // `swapForm.handleSubmit`, whose schema requires a reason once the
+    // chosen teacher differs from the session's defaultTeacherId — the
+    // session fixture's default is "emp-1" and we just picked "emp-2".
+    await user.type(screen.getByLabelText("Alasan pengganti"), "Wali kelas sedang cuti");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru sesi diperbarui"));
+    await waitFor(() => expect(screen.queryByText("Ubah Guru Sesi")).not.toBeInTheDocument());
+
+    const patchCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+    })!;
+    expect(JSON.parse((patchCall[1] as RequestInit).body as string)).toEqual({
+      teacherId: "emp-2",
+      substituteReason: "Wali kelas sedang cuti",
+    });
+  });
+
+  it("blocks Simpan with no reason for a genuine substitution, showing an inline error and firing no PATCH", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(
+      await screen.findByText("Alasan pengganti wajib diisi untuk pergantian guru."),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input, init]) => {
+        const url = typeof input === "string" ? input : input.toString();
+        return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+      }),
+    ).toBe(false);
+  });
+
+  it("'Kembalikan ke wali kelas' bypasses the form entirely — no reason required", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchWithSession();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.click(screen.getByRole("option", { name: /Ustadzah Fatimah/ }));
+    await user.click(screen.getByRole("button", { name: "Kembalikan ke wali kelas" }));
+
+    const { toast } = await import("sonner");
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Guru sesi diperbarui"));
+
+    const patchCall = fetchMock.mock.calls.find(([input, init]) => {
+      const url = typeof input === "string" ? input : input.toString();
+      return url.startsWith("/api/admin/class-sessions/") && init?.method === "PATCH";
+    })!;
+    expect(JSON.parse((patchCall[1] as RequestInit).body as string)).toEqual({
+      teacherId: "emp-1",
+    });
+  });
+
+  it("closes without saving when dismissed", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetchWithSession());
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    await screen.findByText("Ubah Guru Sesi");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByText("Ubah Guru Sesi")).not.toBeInTheDocument());
+  });
+
+  it("hides the swap form and Simpan when the class's academic year is archived", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", stubFetchWithSession({ archived: true }));
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await openSessionDialog(user);
+    expect(await screen.findByText("Ubah Guru Sesi")).toBeInTheDocument();
+    expect(
+      screen.getByText("Anda tidak memiliki akses untuk mengubah guru sesi."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Guru pengganti")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Simpan" })).not.toBeInTheDocument();
   });
 });

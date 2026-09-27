@@ -51,8 +51,50 @@ export const teachingAssignmentAddSchema = z.object({
   role: z.enum(["HOMEROOM", "ASSISTANT"]).default("HOMEROOM"),
 });
 
+// Client form schema for the Tambah/Ubah Kelas dialog (T3, 2026-09-27
+// admin-forms-rhf cycle). The dialog has no Tahun Ajaran field of its own —
+// `academicYearId` comes from the list page's year switcher and is spliced
+// into the POST body at submit time — so the form omits it entirely rather
+// than carrying a divergent copy of `classCreateSchema`.
+export const classFormSchema = classCreateSchema.omit({ academicYearId: true }).extend({
+  // `capacity` is coerced from the <Input type="number">'s string value.
+  // `z.coerce.number()` alone turns an emptied input ("") into `0`
+  // (`Number("") === 0`), which would silently fail as "Kapasitas minimal 1"
+  // instead of naming the real problem — so empty/null first collapses to
+  // `undefined`, which fails the base type check with a proper "wajib
+  // diisi" message (mirrors `lib/validations/campus.ts`'s
+  // `optionalCoercedNumber`). Explicitly typed preprocess input (`string |
+  // number`) — bare `z.coerce.number()` lets TS default the input type to
+  // `unknown`, which then fails to satisfy `<Input value>`'s prop type.
+  capacity: z.preprocess(
+    (v: string | number | undefined) => (v === "" ? undefined : v),
+    z.coerce
+      .number({ message: "Kapasitas wajib diisi" })
+      .int("Kapasitas harus bilangan bulat")
+      .min(1, "Kapasitas minimal 1")
+      .max(200, "Kapasitas maksimal 200"),
+  ),
+  // Custom message so an unfilled Select doesn't surface zod's default
+  // English "Invalid option" text — matches the previous inline
+  // `if (!form.ageGroup) toast.error("Kelompok usia wajib dipilih")` check.
+  ageGroup: z.enum(["A", "B"], { message: "Kelompok usia wajib dipilih" }),
+});
+
+// Client form schema for the class-detail "Ubah Kelas" dialog (T2, 2026-09-27
+// admin-finish-standard cycle). That dialog only edits name/capacity/
+// slotTemplate — no campus/program/ageGroup fields — so it picks the same
+// three keys off `classFormSchema` rather than redefining the capacity
+// blank-handling preprocessor a second time.
+export const classEditFormSchema = classFormSchema.pick({
+  name: true,
+  capacity: true,
+  slotTemplate: true,
+});
+
 export type ClassCreateInput = z.infer<typeof classCreateSchema>;
 export type ClassUpdateInput = z.infer<typeof classUpdateSchema>;
+export type ClassFormInput = z.infer<typeof classFormSchema>;
+export type ClassEditFormInput = z.infer<typeof classEditFormSchema>;
 export type EnrollmentAddInput = z.infer<typeof enrollmentAddSchema>;
 export type TeachingAssignmentAddInput = z.infer<
   typeof teachingAssignmentAddSchema

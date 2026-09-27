@@ -36,7 +36,7 @@ function refineBankAccountPair<T extends { bankName?: string | null; bankAccount
 const employeeBaseObject = z.object({
   nama: z.string().min(1, "Nama wajib diisi"),
   formalName: z.string().optional().nullable(),
-  email: z.string().email("Email tidak valid"),
+  email: z.string().min(1, "Email wajib diisi").email("Email tidak valid"),
   noHp: z.string().optional().nullable(),
   jabatan: z.string().min(1, "Jabatan wajib diisi"),
   campusId: z.string().min(1, "Kampus wajib dipilih"),
@@ -90,3 +90,34 @@ export const updateEmployeeSchema = employeeBaseObject
 export const employeeStatusReasonSchema = z.object({
   reason: z.string().trim().max(500, "Alasan maksimal 500 karakter").optional(),
 });
+
+// Client form schema for the employees/[id] Profil/Kepegawaian/Saldo Cuti
+// edit card (T6, 2026-09-27 admin-finish-standard cycle). The card always
+// shows and always sends every field below in one PUT (never a partial
+// patch), so:
+//  - `role` is a create-only field the edit card never renders — omitted
+//    entirely, since its `.default("TEACHER")` would otherwise sneak a
+//    `role` key into the wire body that PUT /api/employees/[id] has never
+//    accepted (F-13).
+//  - `nama`/`email`/`jabatan`/`campusId` carry a `required` asterisk in the
+//    UI, so they're narrowed from `updateEmployeeSchema`'s optionality back
+//    to required, with the SAME message `employeeBaseObject` already uses.
+//  - `hireDate` isn't asterisked, but a present-but-blank value already fails
+//    the wire schema's own `min(1, …)` (a blank DatePicker used to reach the
+//    server as `""` and 400 there) — requiring it here just moves that same
+//    rejection earlier, onto the field, instead of letting a cleared value
+//    collapse into "omit the key, keep the existing date".
+// Bank-pair reuses `refineBankAccountPair` verbatim — same rule, same paths.
+export const employeeEditFormSchema = employeeBaseObject
+  .partial()
+  .omit({ role: true })
+  .extend({
+    nama: z.string().trim().min(1, "Nama wajib diisi"),
+    email: z.string().trim().min(1, "Email wajib diisi").email("Email tidak valid"),
+    jabatan: z.string().trim().min(1, "Jabatan wajib diisi"),
+    campusId: z.string().min(1, "Kampus wajib dipilih"),
+    hireDate: z.string().trim().min(1, "Tanggal masuk wajib diisi"),
+  })
+  .superRefine(refineBankAccountPair);
+
+export type EmployeeEditFormInput = z.infer<typeof employeeEditFormSchema>;

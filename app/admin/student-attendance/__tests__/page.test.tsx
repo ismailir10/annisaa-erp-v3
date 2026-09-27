@@ -19,6 +19,16 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+// The Dari/Sampai filters render through <DatePicker>, which renders a
+// native `<input type="date">` only on a coarse (touch) pointer — jsdom's
+// mocked `matchMedia` otherwise reports a fine pointer and DatePicker
+// renders a Calendar popover button instead. Forcing "coarse" here keeps
+// this test's `type="date"` assertions meaningful without reaching into
+// the popover.
+vi.mock("@/hooks/use-coarse-pointer", () => ({
+  useCoarsePointer: () => true,
+}));
+
 const CLASS_SECTIONS = [
   {
     id: "cs-1",
@@ -76,3 +86,14 @@ describe("StudentAttendancePage — attendance filter accessible names (AC10)", 
     expect(dateTo).toHaveAttribute("type", "date");
   });
 });
+
+// T4 (2026-09-27, admin-forms-rhf) — "Timpa Kehadiran"'s dialog is now
+// react-hook-form + zodResolver. Its own test lives in
+// `override-dialog.test.tsx` — a separate file, not another `describe` here.
+// Rendering this page a second time in the same file (this file's own test
+// above already does one `render()` + unmount) makes the row's Base UI
+// `DropdownMenu` unreliable: the trigger's `open` toggle fires but the
+// popup doesn't always mount. A fresh test *file* gives it a clean module
+// registry — reproduced by hand (10 back-to-back runs: 100% pass in its own
+// file, ~25% pass appended here) — so the fix is isolation, not a bigger
+// settle/retry hack in this file.

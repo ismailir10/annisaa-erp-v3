@@ -2,6 +2,8 @@ import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { validateBody } from "@/lib/api/validate";
+import { rejectLeaveRequestSchema } from "@/lib/validations/leave";
 
 export async function POST(
   req: NextRequest,
@@ -13,11 +15,9 @@ export async function POST(
   if (!hasPermission(session, "hr.view")) return NextResponse.json({ error: "forbidden", missing: "hr.view" }, { status: 403 });
 
   const { id } = await params;
-  const body = await req.json();
-
-  if (!body.note?.trim()) {
-    return NextResponse.json({ error: "Alasan penolakan wajib diisi" }, { status: 400 });
-  }
+  const result = await validateBody(rejectLeaveRequestSchema, await req.json());
+  if (result.error) return result.error;
+  const { note } = result.data;
 
   const request = await prisma.leaveRequest.findUnique({
     where: { id },
@@ -38,7 +38,7 @@ export async function POST(
       status: "REJECTED",
       reviewedBy: session.id,
       reviewedAt: new Date(),
-      reviewNote: body.note.trim(),
+      reviewNote: note,
     },
   });
 

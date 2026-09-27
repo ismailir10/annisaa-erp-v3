@@ -16,10 +16,21 @@ const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 import ClassAttendancePage from "../page";
+import { within } from "@testing-library/react";
+
+const pick = async (child: string, status: string) =>
+  within(await screen.findByRole("radiogroup", { name: `Status ${child}` })).getByRole("radio", { name: status });
+const markRequests = () =>
+  (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => String(url).includes("/mark")).map(([, init]) => JSON.parse(init.body));
 
 const ok = (data: unknown) => ({ ok: true, json: async () => data });
 const assignment = [{ id: "a", classSection: { id: "c1", name: "TK A", program: { name: "TK" }, campus: { name: "A" }, _count: { enrollments: 1 } } }];
 const roster = [{ student: { id: "s1", name: "Aisyah", nickname: null, gender: null }, attendance: null }];
+const classOfThree = [
+  ...roster,
+  { student: { id: "s2", name: "Bilal", nickname: null, gender: null }, attendance: { status: "SICK", notes: null } },
+  { student: { id: "s3", name: "Citra", nickname: null, gender: null }, attendance: null },
+];
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -57,10 +68,10 @@ describe("ClassAttendancePage recovery", () => {
     render(<ClassAttendancePage />);
     await screen.findByText("Data siswa tidak bisa dimuat");
     fireEvent.click(screen.getByRole("button", { name: "Coba lagi" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: /Aisyah — Belum dicatat/ })).toBeInTheDocument());
+    expect(await pick("Aisyah", "Hadir")).toHaveAttribute("aria-checked", "false");
   });
 
-  it("records missing attendance as PRESENT on first tap, exposes failure, and retries the same choice", async () => {
+  it("saves the tapped status, exposes failure on the row, and retries the same choice", async () => {
     const pending = deferred<ReturnType<typeof ok>>(); let saves = 0;
     vi.stubGlobal("fetch", vi.fn((url: string) => {
       if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
@@ -68,17 +79,60 @@ describe("ClassAttendancePage recovery", () => {
       return ++saves === 1 ? pending.promise : Promise.resolve(ok({saved:1}));
     }));
     render(<ClassAttendancePage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Aisyah — Belum dicatat/ }));
+    fireEvent.click(await pick("Aisyah", "Izin"));
     expect(screen.getByRole("status")).toHaveTextContent("Menyimpan absensi");
-    expect(screen.getByText("Hadir 0")).toBeInTheDocument();
+    expect(screen.getByText("Izin 0")).toBeInTheDocument();
     await act(async () => { pending.reject(Error("offline")); });
     expect(screen.getByRole("alert")).toHaveTextContent("Absensi belum tersimpan");
-    expect(screen.getByRole("button", {name:/Aisyah — Belum dicatat/})).toBeInTheDocument();
+    expect(await pick("Aisyah", "Izin")).toHaveAttribute("aria-checked", "false");
     fireEvent.click(screen.getByRole("button", {name:"Coba lagi"}));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan"));
-    const requests = (fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => String(url).includes("/mark"));
-    expect(requests.map(([,init]) => JSON.parse(init.body).records[0].status)).toEqual(["PRESENT","PRESENT"]);
-    expect(screen.getByText("Hadir 1")).toBeInTheDocument();
+    expect(markRequests().map((b) => b.records[0].status)).toEqual(["PERMISSION","PERMISSION"]);
+    expect(screen.getByText("Izin 1")).toBeInTheDocument();
+    expect(await pick("Aisyah", "Izin")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("marks only the children without a status Hadir, in one request", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
+      if (url.includes("student-attendance?")) return Promise.resolve(ok(classOfThree));
+      return Promise.resolve(ok({ saved: JSON.parse(String(init?.body)).records.length }));
+    }));
+    render(<ClassAttendancePage />);
+    const list = await screen.findByRole("list");
+    const slot = list.previousElementSibling?.lastElementChild;
+    expect(slot).toBeEmptyDOMElement(); // reserved before any save, so rows never jump
+    fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
+    await screen.findByText("Semua siswa sudah dicatat");
+    expect(list.previousElementSibling?.lastElementChild).toBe(slot);
+    expect(markRequests()).toHaveLength(1);
+    expect(markRequests()[0].records).toEqual([
+      { studentId: "s1", status: "PRESENT" },
+      { studentId: "s3", status: "PRESENT" },
+    ]);
+    expect(await pick("Bilal", "Sakit")).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(screen.getByText("Hadir 2")).toBeInTheDocument());
+    expect(screen.getByText("Sakit 1")).toBeInTheDocument();
+  });
+
+  it("puts the rows back to belum when the bulk save fails, and the button retries", async () => {
+    let saves = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("teaching-assignments")) return Promise.resolve(ok(assignment));
+      if (url.includes("student-attendance?")) return Promise.resolve(ok(classOfThree));
+      return ++saves === 1
+        ? Promise.resolve({ ok: false, json: async () => ({ error: "Terlalu banyak permintaan" }) })
+        : Promise.resolve(ok({ saved: 2 }));
+    }));
+    render(<ClassAttendancePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Absensi belum tersimpan. Terlalu banyak permintaan");
+    expect(await pick("Aisyah", "Hadir")).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Hadir 0")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tandai 2 siswa lainnya Hadir" }));
+    await screen.findByText("Semua siswa sudah dicatat");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(markRequests()).toHaveLength(2);
   });
 
   it("keeps the newest class/date roster when an earlier request resolves late", async () => {
@@ -114,7 +168,7 @@ describe("ClassAttendancePage recovery", () => {
     secondRoster.resolve(ok([
       { student: { id: "s2", name: "Bilal", nickname: null, gender: null }, attendance: null },
     ]));
-    expect(await screen.findByRole("button", { name: /Bilal — Belum dicatat/ })).toBeInTheDocument();
+    expect(await screen.findByRole("radiogroup", { name: "Status Bilal" })).toBeInTheDocument();
 
     // The stale response must be *handled* before we can claim it was
     // ignored. The `waitFor` this replaces was not a barrier — Bilal is
@@ -124,8 +178,8 @@ describe("ClassAttendancePage recovery", () => {
     await act(async () => {
       firstRoster.resolve(ok(roster));
     });
-    expect(screen.getByRole("button", { name: /Bilal — Belum dicatat/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Aisyah — Belum dicatat/ })).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "Status Bilal" })).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Status Aisyah" })).toBeNull();
   });
 
   it("ignores an older failed save after a newer save succeeds for the same student", async () => {
@@ -142,8 +196,8 @@ describe("ClassAttendancePage recovery", () => {
     }));
 
     render(<ClassAttendancePage />);
-    fireEvent.click(await screen.findByRole("button", { name: /Aisyah — Hadir/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Aisyah — Alpa/ }));
+    fireEvent.click(await pick("Aisyah", "Alpa"));
+    fireEvent.click(await pick("Aisyah", "Sakit"));
     await waitFor(() => expect(saveCalls).toBe(1));
 
     olderSave.resolve({ ok: false, json: async () => ({ error: "stale failure" }) });
@@ -153,12 +207,12 @@ describe("ClassAttendancePage recovery", () => {
     expect(toastError).not.toHaveBeenCalled();
 
     newerSave.resolve(ok({ saved: 1 }));
-    // "Aisyah — Sakit" is already on screen from the optimistic update, so
+    // Sakit is already checked from the optimistic update, so
     // this find resolves on the first poll and is not a barrier for anything.
     // The live region only flips to "Absensi tersimpan" once the save
     // promise chain settles, so that assertion needs its own wait — asserting
     // it synchronously here read "Menyimpan absensi" on a loaded CI runner.
-    expect(await screen.findByRole("button", { name: /Aisyah — Sakit/ })).toBeInTheDocument();
+    expect(await pick("Aisyah", "Sakit")).toHaveAttribute("aria-checked", "true");
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("Absensi tersimpan"),
     );
@@ -169,12 +223,12 @@ describe("ClassAttendancePage recovery", () => {
 it("does not apply an earlier date's failed save to the newly loaded date",async()=>{
  const save=deferred<ReturnType<typeof ok>>();
  vi.stubGlobal("fetch",vi.fn((url:string)=>url.includes("teaching-assignments")?Promise.resolve(ok(assignment)):url.includes("student-attendance?")?Promise.resolve(ok(roster)):save.promise));
- render(<ClassAttendancePage/>);fireEvent.click(await screen.findByRole("button",{name:/Aisyah — Belum dicatat/}));
+ render(<ClassAttendancePage/>);fireEvent.click(await pick("Aisyah","Hadir"));
  await waitFor(()=>expect((fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url])=>String(url).includes("/mark"))).toBe(true));
  const input=screen.getByLabelText("Tanggal kehadiran") as HTMLInputElement;
  const past=new Date(`${input.value}T12:00:00Z`);past.setUTCDate(past.getUTCDate()-1);
  fireEvent.change(input,{target:{value:past.toISOString().slice(0,10)}});
- await screen.findByRole("button",{name:/Aisyah — Belum dicatat/});
+ await waitFor(async()=>expect(await pick("Aisyah","Hadir")).toHaveAttribute("aria-checked","false"));
  await act(async()=>{save.reject(Error("late failure"));});
  expect(screen.queryByRole("alert")).toBeNull();expect(screen.queryByRole("button",{name:"Coba lagi"})).toBeNull();
 });

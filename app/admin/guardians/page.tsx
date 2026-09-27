@@ -1,24 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import type { Control } from "react-hook-form";
+import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { ACTIVE_STATUS_OPTIONS } from "@/lib/constants/filter-options";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Button } from "@/components/ui/button";
+import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Users, UserCheck, UserX } from "lucide-react";
-import { GuardianFormBody, EMPTY_GUARDIAN_FORM, type GuardianForm } from "@/components/admin/guardian-edit-dialog";
+import { GuardianFormBody, type GuardianFieldValues } from "@/components/admin/guardian-edit-dialog";
+import { parentFormSchema } from "@/lib/validations/parent";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+
+type ParentFormValues = z4.input<typeof parentFormSchema>;
+
+const EMPTY_PARENT_FORM: ParentFormValues = {
+  name: "",
+  phone: "",
+  email: "",
+  whatsapp: "",
+  address: "",
+  parentNik: "",
+  education: "",
+  occupation: "",
+  employer: "",
+  employerAddress: "",
+  employerCity: "",
+  incomeRange: "",
+  childrenTotal: "",
+};
 
 // ------------------------------------------------------------------
 // Types
@@ -57,6 +81,7 @@ const columns: ColumnDef<Guardian>[] = [
   {
     accessorKey: "phone",
     header: "Telepon",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.phone || "—"}</span>
     ),
@@ -64,6 +89,7 @@ const columns: ColumnDef<Guardian>[] = [
   {
     accessorKey: "email",
     header: "Email",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.email || "—"}</span>
     ),
@@ -103,7 +129,6 @@ const columns: ColumnDef<Guardian>[] = [
 // ------------------------------------------------------------------
 
 export default function GuardiansPage() {
-  const router = useRouter();
   const [data, setData] = useState<Guardian[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -115,9 +140,9 @@ export default function GuardiansPage() {
 
   const [editTarget, setEditTarget] = useState<Guardian | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Guardian | null>(null);
-  const [editForm, setEditForm] = useState<GuardianForm>(EMPTY_GUARDIAN_FORM);
+  const editFormId = useId();
+  const editForm = useZodForm(parentFormSchema, { defaultValues: EMPTY_PARENT_FORM });
   const [editGuardianId, setEditGuardianId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   // Stats — re-fetched after any mutation (edit / status toggle) so the
   // cards don't go stale.
@@ -165,8 +190,8 @@ export default function GuardiansPage() {
 
   async function openEditDialog(g: Guardian) {
     setEditTarget(g);
-    setEditForm({
-      ...EMPTY_GUARDIAN_FORM,
+    editForm.reset({
+      ...EMPTY_PARENT_FORM,
       name: g.name,
       email: g.email || "",
       phone: g.phone || "",
@@ -177,8 +202,8 @@ export default function GuardiansPage() {
       const res = await fetch(`/api/parents/${g.id}`);
       if (res.ok) {
         const parent = await res.json();
-        setEditForm({
-          ...EMPTY_GUARDIAN_FORM,
+        editForm.reset({
+          ...EMPTY_PARENT_FORM,
           name: parent.name || g.name,
           email: parent.email || "",
           phone: parent.phone || "",
@@ -200,32 +225,21 @@ export default function GuardiansPage() {
     } catch { /* use basic fields from list */ }
   }
 
-  async function handleEditSave() {
+  // /admin/guardians is a Parent-list page despite its URL; mutations go to
+  // /api/parents/[id]. The /api/guardians/[id] tree edits StudentGuardian
+  // junction rows (used from the Student detail page).
+  const handleEditSave = editForm.handleSubmit(async (values) => {
     if (!editTarget) return;
-    setSaving(true);
-    // /admin/guardians is a Parent-list page despite its URL; mutations go to
-    // /api/parents/[id]. The /api/guardians/[id] tree edits StudentGuardian
-    // junction rows (used from the Student detail page).
-    const payload: Record<string, unknown> = { ...editForm };
-    if (payload.childrenTotal === "") payload.childrenTotal = null;
-    else payload.childrenTotal = Number(payload.childrenTotal);
-    // T8 fields are hidden on this surface (showRelationship={false}) and
-    // /api/parents/[id] doesn't accept them anyway, but coerce/strip so a
-    // future schema tightening doesn't reject the payload.
-    if (payload.childOrder === "") delete payload.childOrder;
-    else payload.childOrder = Number(payload.childOrder);
-    const res = await fetch(`/api/parents/${editTarget.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); toast.error(e.error || "Gagal menyimpan"); setSaving(false); return; }
-    toast.success("Data wali diperbarui");
-    setEditTarget(null);
-    setSaving(false);
-    fetchGuardians();
-    fetchStats();
-  }
+    try {
+      await sendJson(`/api/parents/${editTarget.id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Data wali diperbarui");
+      setEditTarget(null);
+      fetchGuardians();
+      fetchStats();
+    } catch (err) {
+      applyServerErrors(editForm, err, "Gagal menyimpan");
+    }
+  });
 
   async function handleStatusToggle() {
     if (!deactivateTarget) return;
@@ -248,12 +262,9 @@ export default function GuardiansPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Nama" />,
         cell: ({ row }) => (
-          <button
-            className="text-sm font-medium text-left hover:underline"
-            onClick={() => router.push(`/admin/guardians/${row.original.id}`)}
-          >
+          <DataTableLinkCell href={`/admin/guardians/${row.original.id}`}>
             {row.original.name}
-          </button>
+          </DataTableLinkCell>
         ),
       },
       ...columns.slice(1),
@@ -264,7 +275,7 @@ export default function GuardiansPage() {
           const g = row.original;
           return (
             <DataTableRowActions
-              onView={() => router.push(`/admin/guardians/${g.id}`)}
+              rowLabel={g.name}
               onEdit={() => openEditDialog(g)}
               onDeactivate={g.status !== "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
               onActivate={g.status === "INACTIVE" ? () => setDeactivateTarget(g) : undefined}
@@ -274,7 +285,7 @@ export default function GuardiansPage() {
         },
       },
     ],
-    [router],
+    [],
   );
 
   if (loading && data.length === 0) return <Skeleton className="h-96 rounded-xl" />;
@@ -319,17 +330,30 @@ export default function GuardiansPage() {
       {/* Edit */}
       <ResponsiveFormDialog
         open={!!editTarget}
-        onOpenChange={(o) => !o && setEditTarget(null)}
+        onOpenChange={(o) => { if (!editForm.formState.isSubmitting && !o) setEditTarget(null); }}
         title="Edit Wali"
         size="xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={saving}>Batal</Button>
-            <Button onClick={handleEditSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-          </>
+          <FormDialogFooter
+            formId={editFormId}
+            pending={editForm.formState.isSubmitting}
+            onCancel={() => setEditTarget(null)}
+            submitLabel="Simpan Perubahan"
+          />
         }
       >
-        <GuardianFormBody form={editForm} setForm={setEditForm} showRelationship={false} />
+        <form id={editFormId} onSubmit={handleEditSave} noValidate className="space-y-field">
+          <FormRootError formState={editForm.formState} />
+          {/* Boundary cast: `parentFormSchema`'s parsed values don't line up
+              1:1 with `GuardianFieldValues` field-by-field (e.g. its
+              preprocessed `email`/`childrenTotal` are typed `unknown`, not
+              optional), which RHF's `Control` can't unify generically —
+              see the identical cast inside GuardianFormBody itself. */}
+          <GuardianFormBody
+            control={editForm.control as unknown as Control<GuardianFieldValues, unknown, GuardianFieldValues>}
+            showRelationship={false}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Confirm Dialog */}

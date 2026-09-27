@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +24,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
+import { GuardedLink } from "@/components/admin/guarded-link";
 import {
   adminNav,
   getActiveGroup,
@@ -51,7 +51,7 @@ function NavMenuItems({
         return (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
-              render={<Link href={item.href} />}
+              render={<GuardedLink href={item.href} />}
               isActive={active}
               tooltip={item.label}
             >
@@ -146,7 +146,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link href="/admin" />}>
+            <SidebarMenuButton size="lg" render={<GuardedLink href="/admin" />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
                 <Image
                   src="/logo.png"
@@ -172,7 +172,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
-                    render={<Link href={item.href} />}
+                    render={<GuardedLink href={item.href} />}
                     isActive={active}
                     tooltip={item.label}
                   >
@@ -208,7 +208,7 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  render={<Link href={settingsNavLink.href} />}
+                  render={<GuardedLink href={settingsNavLink.href} />}
                   isActive={activeHref === settingsNavLink.href}
                   tooltip={settingsNavLink.label}
                 >

@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { FormField, FormRootError } from "@/components/ui/form";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ClassSectionCombobox, type ClassSection } from "@/components/admin/class-section-picker";
+import { enrollStudentFormSchema } from "@/lib/validations/student";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { ApiError } from "@/lib/api/client-errors";
 
 /**
  * Enroll overlay for the student detail page.
@@ -23,25 +26,34 @@ import { ClassSectionCombobox, type ClassSection } from "@/components/admin/clas
  * Behaviour is unchanged from the in-page version:
  *   picker → (409) advisory confirm step
  * AGE_OUT_OF_RANGE is overridable with a required reason; ALREADY_ENROLLED is
- * not. Three mutually-exclusive steps share one Sheet/Dialog instance.
+ * not. Three mutually-exclusive steps share one ResponsiveFormDialog instance
+ * (Dialog on desktop, Sheet on mobile, per ui.md's Overlays Rule).
  */
 export function StudentEnrollDialog({
   studentId,
   open,
   onOpenChange,
   onEnrolled,
-  isMobile,
 }: {
   studentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called after a successful enroll so the page can refetch. */
   onEnrolled: () => void;
-  isMobile: boolean;
+  /**
+   * @deprecated No longer read. `ResponsiveFormDialog` now owns the
+   * desktop/mobile breakpoint switch itself (frozen while open, same as
+   * every other admin form dialog), so the caller no longer needs to
+   * compute and forward this. Kept optional so an existing caller passing
+   * it still type-checks without an unrelated prop-drop diff.
+   */
+  isMobile?: boolean;
 }) {
+  const formId = useId();
   const [sections, setSections] = useState<ClassSection[]>([]);
-  const [selectedSection, setSelectedSection] = useState("");
-  const [enrolling, setEnrolling] = useState(false);
+  const form = useZodForm(enrollStudentFormSchema, {
+    defaultValues: { classSectionId: "", ageOverrideReason: "" },
+  });
   // Populated from the 409 the server returns; cleared whenever the overlay
   // closes or a different class is picked, so a stale reason can never ride
   // along on an unrelated submit.
@@ -50,7 +62,7 @@ export function StudentEnrollDialog({
     | { code: "ALREADY_ENROLLED"; message: string }
     | null
   >(null);
-  const [ageOverrideReason, setAgeOverrideReason] = useState("");
+  const ageOverrideReason = form.watch("ageOverrideReason");
   const enrollBannerRef = useRef<HTMLDivElement | null>(null);
 
   /**
@@ -72,9 +84,8 @@ export function StudentEnrollDialog({
   // same time — the single choke point every open path routes through.
   useEffect(() => {
     if (!open) return;
-    setSelectedSection("");
+    form.reset({ classSectionId: "", ageOverrideReason: "" });
     setEnrollBlock(null);
-    setAgeOverrideReason("");
     let cancelled = false;
     (async () => {
       try {
@@ -94,25 +105,27 @@ export function StudentEnrollDialog({
     return () => {
       cancelled = true;
     };
+    // `form` (react-hook-form's returned object) is referentially stable —
+    // omitted the same way app/admin/settings/campuses/page.tsx omits it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   /** Steps back from the confirm step to the picker without closing. */
   const cancelEnrollBlock = useCallback(() => {
     setEnrollBlock(null);
-    setAgeOverrideReason("");
+    form.setValue("ageOverrideReason", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleEnroll() {
-    if (!selectedSection) { toast.error("Pilih kelas"); return; }
+  const handleEnroll = form.handleSubmit(async (values) => {
     const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
-    if (overridingAge && !ageOverrideReason.trim()) return; // confirm button is disabled for this too — defensive only
-    setEnrolling(true);
+    if (overridingAge && !values.ageOverrideReason?.trim()) return; // confirm button is disabled for this too — defensive only
     try {
       const res = await fetch(`/api/students/${studentId}/enroll`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          classSectionId: selectedSection,
-          ...(overridingAge ? { ageOverrideReason: ageOverrideReason.trim() } : {}),
+          classSectionId: values.classSectionId,
+          ...(overridingAge ? { ageOverrideReason: values.ageOverrideReason } : {}),
         }),
       });
       if (res.ok) {
@@ -132,17 +145,27 @@ export function StudentEnrollDialog({
         setEnrollBlock({ code: d.code, message: d.error });
         return;
       }
-      toast.error(d.error || "Gagal mendaftarkan");
-    } catch {
-      toast.error("Terjadi kesalahan jaringan");
-    } finally {
-      setEnrolling(false);
+      // Every other failure (validation the server itself rejected, a 500,
+      // a route the client didn't anticipate) goes through the same
+      // field-error-or-FormRootError path every other migrated form uses,
+      // instead of a bare toast.
+      applyServerErrors(
+        form,
+        new ApiError(d.error || "Gagal mendaftarkan", {
+          fieldErrors: Array.isArray(d.errors) ? d.errors : [],
+          status: res.status,
+        }),
+        "Gagal mendaftarkan",
+      );
+    } catch (err) {
+      applyServerErrors(form, err, "Terjadi kesalahan jaringan");
     }
-  }
+  });
 
+  const enrolling = form.formState.isSubmitting;
   const overridingAge = enrollBlock?.code === "AGE_OUT_OF_RANGE";
   const alreadyEnrolled = enrollBlock?.code === "ALREADY_ENROLLED";
-  const reasonEmpty = !ageOverrideReason.trim();
+  const reasonEmpty = !(ageOverrideReason as string | undefined)?.trim();
 
   let body: React.ReactNode;
   let footer: React.ReactNode;
@@ -154,7 +177,7 @@ export function StudentEnrollDialog({
         <AlertDescription>{enrollBlock.message}</AlertDescription>
       </Alert>
     );
-    footer = <Button variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>;
+    footer = <Button type="button" variant="ghost" onClick={cancelEnrollBlock}>Pilih Kelas Lain</Button>;
   } else if (overridingAge) {
     body = (
       <div className="space-y-field">
@@ -162,63 +185,70 @@ export function StudentEnrollDialog({
           <AlertTitle>Usia di luar batas program</AlertTitle>
           <AlertDescription>{enrollBlock.message}</AlertDescription>
         </Alert>
-        <Field>
-          <FieldLabel required htmlFor="enroll-age-override-reason">Alasan</FieldLabel>
-          <Textarea
-            id="enroll-age-override-reason"
-            required
-            aria-required="true"
-            value={ageOverrideReason}
-            onChange={(e) => setAgeOverrideReason(e.target.value)}
-            placeholder="Contoh: penempatan sesuai kemampuan anak, atau anak telat masuk sekolah"
-            rows={3}
-          />
-          <FieldDescription>Alasan wajib diisi sebelum melanjutkan.</FieldDescription>
-        </Field>
+        <FormField
+          control={form.control}
+          name="ageOverrideReason"
+          label="Alasan"
+          required
+          id="enroll-age-override-reason"
+          description="Alasan wajib diisi sebelum melanjutkan."
+          render={({ field, controlProps }) => (
+            <Textarea
+              {...field}
+              {...controlProps}
+              value={(field.value as string | undefined) ?? ""}
+              placeholder="Contoh: penempatan sesuai kemampuan anak, atau anak telat masuk sekolah"
+              rows={3}
+            />
+          )}
+        />
       </div>
     );
     footer = (
       <>
-        <Button variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
-        <Button onClick={handleEnroll} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
+        <Button type="button" variant="ghost" onClick={cancelEnrollBlock} disabled={enrolling}>Batal</Button>
+        <Button type="submit" form={formId} disabled={enrolling || reasonEmpty}>{enrolling ? "Mendaftarkan..." : "Tetap Daftarkan"}</Button>
       </>
     );
   } else {
     body = (
-      <Field>
-        <FieldLabel required htmlFor="enroll-class-section">Pilih Kelas</FieldLabel>
-        <ClassSectionCombobox
-          id="enroll-class-section"
-          sections={sections}
-          value={selectedSection}
-          onChange={(v) => { setSelectedSection(v); setEnrollBlock(null); setAgeOverrideReason(""); }}
-          placeholder="Pilih kelas..."
-        />
-      </Field>
+      <FormField
+        control={form.control}
+        name="classSectionId"
+        label="Pilih Kelas"
+        required
+        id="enroll-class-section"
+        render={({ field, controlProps }) => (
+          <ClassSectionCombobox
+            id={controlProps.id}
+            sections={sections}
+            value={(field.value as string | undefined) ?? ""}
+            onChange={(v) => { field.onChange(v); setEnrollBlock(null); form.setValue("ageOverrideReason", ""); }}
+            placeholder="Pilih kelas..."
+          />
+        )}
+      />
     );
     footer = (
       <>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={enrolling}>Batal</Button>
-        <Button onClick={handleEnroll} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={enrolling}>Batal</Button>
+        <Button type="submit" form={formId} disabled={enrolling}>{enrolling ? "Mendaftarkan..." : "Daftarkan"}</Button>
       </>
     );
   }
 
-  return isMobile ? (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
-        <SheetHeader><SheetTitle>Daftarkan ke Kelas</SheetTitle></SheetHeader>
-        <div className="px-4 pb-4">{body}</div>
-        <SheetFooter>{footer}</SheetFooter>
-      </SheetContent>
-    </Sheet>
-  ) : (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Daftarkan ke Kelas</DialogTitle></DialogHeader>
-        <div>{body}</div>
-        <DialogFooter>{footer}</DialogFooter>
-      </DialogContent>
-    </Dialog>
+  return (
+    <ResponsiveFormDialog
+      open={open}
+      onOpenChange={(o) => !enrolling && onOpenChange(o)}
+      title="Daftarkan ke Kelas"
+      size="lg"
+      footer={footer}
+    >
+      <form id={formId} onSubmit={handleEnroll} noValidate className="space-y-field">
+        <FormRootError formState={form.formState} />
+        {body}
+      </form>
+    </ResponsiveFormDialog>
   );
 }

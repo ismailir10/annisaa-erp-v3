@@ -8,7 +8,48 @@ const LONG_FEE_LABEL =
   "Biaya kegiatan pembelajaran tambahan dan perlengkapan sekolah semester ganjil";
 const PERIOD = "E2E formulir panjang";
 
+/**
+ * T8 date/money sweep: "Tanggal Jatuh Tempo" now uses the shared DatePicker,
+ * which renders a Calendar popover on a fine pointer (desktop Chromium's
+ * default). This spec's `.fill("2026-12-31")` / `.toHaveValue("2026-12-31")`
+ * calls target the native `<input type="date">`, so force `(pointer:
+ * coarse)` — same technique as e2e/curriculum-admin.spec.ts — to keep
+ * DatePicker on that branch instead of driving a Calendar popover.
+ */
+async function forceCoarsePointer(page: Page) {
+  await page.addInitScript(() => {
+    const realMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => {
+      if (query === "(pointer: coarse)") {
+        return {
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        } as MediaQueryList;
+      }
+      return realMatchMedia(query);
+    };
+  });
+}
+
+/**
+ * T8 date/money sweep: the per-line amount fields are now RupiahInput, a
+ * text input with id-ID thousands grouping while typing — not
+ * `<input type="number">` (role=spinbutton) any more. Each has a real
+ * `<FieldLabel htmlFor>` reading "Jumlah N" (N = 1-indexed row position),
+ * so locate by that instead.
+ */
+function amountInputs(dialog: Locator) {
+  return dialog.getByLabel(/^Jumlah \d+/);
+}
+
 async function openLongInvoiceForm(page: Page) {
+  await forceCoarsePointer(page);
   const usersResponse = await page.request.get("/api/auth/users");
   expect(usersResponse.ok()).toBeTruthy();
   const users = (await usersResponse.json()) as { id: string; role: string }[];
@@ -72,8 +113,8 @@ async function openLongInvoiceForm(page: Page) {
   for (let index = 1; index < 8; index++) {
     await dialog.getByRole("button", { name: "Tambah Komponen", exact: true }).click();
   }
-  await expect(dialog.getByRole("spinbutton")).toHaveCount(8);
-  await dialog.getByRole("spinbutton").first().fill("125000");
+  await expect(amountInputs(dialog)).toHaveCount(8);
+  await amountInputs(dialog).first().fill("125000");
   return { dialog, studentName: student.name };
 }
 
@@ -98,7 +139,7 @@ async function expectContainedControls(dialog: Locator) {
 }
 
 async function wheelThroughForm(page: Page, dialog: Locator) {
-  const scrollHandle = await dialog.getByRole("spinbutton").last().evaluateHandle((input) => {
+  const scrollHandle = await amountInputs(dialog).last().evaluateHandle((input) => {
     for (let parent = input.parentElement; parent; parent = parent.parentElement) {
       if (/auto|scroll/.test(getComputedStyle(parent).overflowY) && parent.scrollHeight > parent.clientHeight + 1) {
         return parent;
@@ -116,7 +157,7 @@ async function wheelThroughForm(page: Page, dialog: Locator) {
   await expect(dialog.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeInViewport({ ratio: 0.95 });
   await page.mouse.wheel(0, 4000);
   await expect.poll(() => scrollElement!.evaluate((element) => element.scrollTop)).toBeGreaterThan(30);
-  await expect(dialog.getByRole("spinbutton").last()).toBeInViewport({ ratio: 0.95 });
+  await expect(amountInputs(dialog).last()).toBeInViewport({ ratio: 0.95 });
   await expect(dialog.getByText("Total", { exact: true })).toBeInViewport({ ratio: 0.95 });
   await expect(dialog.getByRole("button", { name: "Buat Tagihan", exact: true })).toBeInViewport({ ratio: 0.95 });
   await scrollHandle.dispose();
@@ -144,10 +185,12 @@ for (const viewport of [
     await wheelThroughForm(page, dialog);
 
     await dialog.getByLabel(/^Periode/).focus();
-    const lastAmount = dialog.getByRole("spinbutton").last();
+    const lastAmount = amountInputs(dialog).last();
     await tabTo(page, lastAmount, 40);
     await page.keyboard.type("87500");
-    await expect(lastAmount).toHaveValue("87500");
+    // RupiahInput groups thousands as the admin types — id-ID formatting,
+    // not the raw digits a native `<input type="number">` would show.
+    await expect(lastAmount).toHaveValue("87.500");
     await expect(lastAmount).toBeInViewport({ ratio: 0.95 });
     const submit = dialog.getByRole("button", { name: "Buat Tagihan", exact: true });
     await tabTo(page, submit, 10);
@@ -163,16 +206,17 @@ for (const viewport of [
 test("manual invoice preserves entered values when an open form crosses the mobile breakpoint", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 740 });
   const { dialog, studentName } = await openLongInvoiceForm(page);
-  await dialog.getByRole("spinbutton").last().fill("87500");
+  await amountInputs(dialog).last().fill("87500");
   for (const viewport of [{ width: 1280, height: 600 }, { width: 320, height: 568 }]) {
     await page.setViewportSize(viewport);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel(/^Periode/)).toHaveValue(PERIOD);
     await expect(dialog.getByLabel(/^Tanggal Jatuh Tempo/)).toHaveValue("2026-12-31");
     await expect(dialog.getByRole("combobox").first()).toContainText(studentName);
-    await expect(dialog.getByRole("spinbutton")).toHaveCount(8);
-    await expect(dialog.getByRole("spinbutton").first()).toHaveValue("125000");
-    await expect(dialog.getByRole("spinbutton").last()).toHaveValue("87500");
+    await expect(amountInputs(dialog)).toHaveCount(8);
+    // RupiahInput's id-ID thousands grouping, not raw digits.
+    await expect(amountInputs(dialog).first()).toHaveValue("125.000");
+    await expect(amountInputs(dialog).last()).toHaveValue("87.500");
     await expectContainedControls(dialog);
     await wheelThroughForm(page, dialog);
   }

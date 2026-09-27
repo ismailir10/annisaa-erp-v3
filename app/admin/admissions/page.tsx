@@ -1,115 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  EDUCATION_OPTIONS,
-  OCCUPATION_OPTIONS,
-  INCOME_OPTIONS,
-  RELATIONSHIP_OPTIONS,
-} from "@/lib/constants/parent-options";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users2 } from "lucide-react";
+import { FormDialogFooter, FormRootError } from "@/components/ui/form";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { AdminLinkTabs } from "@/components/admin/admin-tabs";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, UserPlus, Users, PhoneCall, CheckCircle, ArrowRight, Send } from "lucide-react";
+import { Plus, Users, PhoneCall, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
-import { formatDateShort } from "@/lib/format";
-import { canConvertAdmissionToStudent } from "./conversion";
-import { formatAgeFromDob } from "@/lib/admission/age";
-
-// ------------------------------------------------------------------
-// Sibling-detect edit-form banner (cycle 1.2)
-// ------------------------------------------------------------------
-
-function SiblingDetectBanner({
-  detectedParent,
-}: {
-  detectedParent: {
-    name: string;
-    guardians: Array<{ student: { name: string } }>;
-  } | null;
-}) {
-  if (!detectedParent) return null;
-  const names = detectedParent.guardians
-    .map((g) => g.student.name)
-    .filter(Boolean)
-    .join(", ");
-  return (
-    <Alert
-      className="border-status-late bg-status-late-subtle text-status-late-text"
-      data-testid="admission-edit-sibling-banner"
-    >
-      <Users2 className="size-4" />
-      <AlertDescription>
-        Pendaftar ini terdeteksi sebagai saudara dari keluarga{" "}
-        <strong>{detectedParent.name}</strong>
-        {names ? ` (${names})` : ""}. Verifikasi sebelum mengonversi ke siswa.
-      </AlertDescription>
-    </Alert>
-  );
-}
-
-// ------------------------------------------------------------------
-// Types
-// ------------------------------------------------------------------
-
-type Admission = {
-  id: string;
-  childName: string;
-  childAge: string | null; // legacy free-text; auto-derived from dateOfBirth on new rows
-  dateOfBirth: string | null; // YYYY-MM-DD — source of truth for age display
-  childGender: string | null;
-  parentName: string;
-  parentPhone: string | null;
-  parentWhatsapp: string | null;
-  parentEmail: string | null;
-  parentEducation: string | null;
-  parentOccupation: string | null;
-  parentIncome: string | null;
-  parentRelationship: string | null;
-  programId: string | null;
-  campusPreference: string | null;
-  source: string;
-  status: string;
-  notes: string | null;
-  followUpDate: string | null;
-  studentId: string | null;
-  createdAt: string;
-  program: { name: string } | null;
-  detectedParentId: string | null;
-  detectedParent: {
-    id: string;
-    name: string;
-    guardians: Array<{ student: { name: string } }>;
-  } | null;
-};
-
-type Program = { id: string; name: string };
-
-type Campus = { id: string; name: string };
+import { createAdmissionSchema } from "@/lib/validations/admission";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
+import {
+  AdmissionFormBody,
+  EMPTY_ADMISSION_FORM,
+  type AdmissionFormValues,
+} from "@/components/admin/admissions/admission-form-body";
+import { SiblingDetectBanner } from "@/components/admin/admissions/sibling-detect-banner";
+import {
+  AdmissionConvertDialog,
+  type EmailConflict,
+} from "@/components/admin/admissions/convert-dialog";
+import { createAdmissionColumns } from "@/components/admin/admissions/columns";
+import { NEXT_STATUS } from "@/components/admin/admissions/constants";
+import type { Admission, Program, Campus } from "@/components/admin/admissions/types";
 
 type Pagination = {
   page: number;
@@ -118,310 +38,9 @@ type Pagination = {
   totalPages: number;
 };
 
-const SOURCE_LABELS: Record<string, string> = {
-  WHATSAPP: "WhatsApp",
-  WALK_IN: "Datang Langsung",
-  WEBSITE: "Website",
-  REFERRAL: "Referensi",
-  OTHER: "Lainnya",
-};
-
-// Happy-path transitions for the Admission state machine.
-// Mirrors VALID_TRANSITIONS in `app/api/admissions/[id]/route.ts`.
-// Terminal state CANCELLED has no next step. ADMITTED is terminal in the
-// next-action surface (no entry below) but retains ADMITTED → CANCELLED via
-// VALID_TRANSITIONS. ADMITTED-with-studentId hides via the row-action
-// early-return (see actions column cell). Cycle 2026-05-12 dropped REGISTERED
-// — converted vs not is encoded by `studentId`.
-const NEXT_STATUS: Record<string, { status: string; label: string } | undefined> = {
-  INQUIRY: { status: "VISIT_SCHEDULED", label: "Jadwalkan Kunjungan" },
-  VISIT_SCHEDULED: { status: "VISITED", label: "Tandai Sudah Kunjungan" },
-  VISITED: { status: "ADMITTED", label: "Terima" },
-};
-
-// Terminal states — hide "Batalkan" when already at one of these.
-const TERMINAL_STATUSES = new Set(["CANCELLED"]);
-
 // ------------------------------------------------------------------
-// Form body (shared between Dialog on desktop and Sheet on mobile)
-// ------------------------------------------------------------------
-
-type AdmissionForm = {
-  childName: string;
-  dateOfBirth: string; // YYYY-MM-DD — age is auto-derived from this
-  childGender: string;
-  parentName: string;
-  parentPhone: string;
-  parentWhatsapp: string;
-  parentEmail: string;
-  parentEducation: string;
-  parentOccupation: string;
-  parentIncome: string;
-  parentRelationship: string;
-  programId: string;
-  campusPreference: string;
-  source: string;
-  notes: string;
-  followUpDate: string;
-};
-
-type AdmissionFormBodyProps = {
-  form: AdmissionForm;
-  setForm: React.Dispatch<React.SetStateAction<AdmissionForm>>;
-  programs: Program[];
-  campuses: Campus[];
-};
-
-function AdmissionFormBody({ form, setForm, programs, campuses }: AdmissionFormBodyProps) {
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-childName">Nama Anak</FieldLabel>
-          <Input
-            id="admission-childName"
-            required
-            aria-required="true"
-            value={form.childName}
-            onChange={(e) => setForm({ ...form, childName: e.target.value })}
-            placeholder="Aisyah"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-dateOfBirth">Tanggal Lahir</FieldLabel>
-          <Input
-            id="admission-dateOfBirth"
-            type="date"
-            value={form.dateOfBirth}
-            onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-          />
-          {form.dateOfBirth && (
-            <span className="text-xs text-muted-foreground">
-              Usia: {formatAgeFromDob(form.dateOfBirth) ?? "—"}
-            </span>
-          )}
-        </Field>
-      </div>
-      <Field>
-          <FieldLabel htmlFor="admission-childGender">Jenis Kelamin</FieldLabel>
-        <Select
-          value={form.childGender}
-          onValueChange={(v) => v && setForm({ ...form, childGender: v })}
-          items={{ L: "Laki-laki", P: "Perempuan" }}
-        >
-          <SelectTrigger id="admission-childGender">
-            <SelectValue placeholder="Pilih" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="L">Laki-laki</SelectItem>
-            <SelectItem value="P">Perempuan</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-parentName">Nama Orang Tua</FieldLabel>
-          <Input
-            id="admission-parentName"
-            required
-            aria-required="true"
-            value={form.parentName}
-            onChange={(e) => setForm({ ...form, parentName: e.target.value })}
-            placeholder="Ibu Fatimah"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentWhatsapp">WhatsApp</FieldLabel>
-          <Input
-            id="admission-parentWhatsapp"
-            value={form.parentWhatsapp}
-            onChange={(e) => setForm({ ...form, parentWhatsapp: e.target.value })}
-            placeholder="081234567890"
-          />
-        </Field>
-      </div>
-      <Field>
-        <FieldLabel htmlFor="admission-parentRelationship">Hubungan dengan Anak</FieldLabel>
-        <Select
-          value={form.parentRelationship}
-          onValueChange={(v) => v && setForm({ ...form, parentRelationship: v })}
-          items={Object.fromEntries(RELATIONSHIP_OPTIONS.map((o) => [o.value, o.label]))}
-        >
-          <SelectTrigger id="admission-parentRelationship">
-            <SelectValue placeholder="Pilih" />
-          </SelectTrigger>
-          <SelectContent>
-            {RELATIONSHIP_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-parentEmail">Email</FieldLabel>
-          <Input
-            id="admission-parentEmail"
-            type="email"
-            value={form.parentEmail}
-            onChange={(e) => setForm({ ...form, parentEmail: e.target.value })}
-            placeholder="email@contoh.com"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentPhone">No. HP</FieldLabel>
-          <Input
-            id="admission-parentPhone"
-            value={form.parentPhone}
-            onChange={(e) => setForm({ ...form, parentPhone: e.target.value })}
-            placeholder="081234567890"
-          />
-        </Field>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-parentEducation">Pendidikan Orang Tua</FieldLabel>
-          <Select
-            value={form.parentEducation}
-            onValueChange={(v) => v && setForm({ ...form, parentEducation: v })}
-            items={Object.fromEntries(EDUCATION_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentEducation">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {EDUCATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentOccupation">Pekerjaan</FieldLabel>
-          <Select
-            value={form.parentOccupation}
-            onValueChange={(v) => v && setForm({ ...form, parentOccupation: v })}
-            items={Object.fromEntries(OCCUPATION_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentOccupation">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {OCCUPATION_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-parentIncome">Penghasilan</FieldLabel>
-          <Select
-            value={form.parentIncome}
-            onValueChange={(v) => v && setForm({ ...form, parentIncome: v })}
-            items={Object.fromEntries(INCOME_OPTIONS.map((o) => [o.value, o.label]))}
-          >
-            <SelectTrigger id="admission-parentIncome">
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              {INCOME_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="admission-programId">Program Diminati</FieldLabel>
-          <Select
-            value={form.programId}
-            onValueChange={(v) => v && setForm({ ...form, programId: v })}
-            items={programs.map((p) => ({ label: p.name, value: p.id }))}
-          >
-            <SelectTrigger id="admission-programId">
-              <SelectValue placeholder="Pilih program" />
-            </SelectTrigger>
-            <SelectContent>
-              {programs.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-campusPreference">Preferensi Kampus</FieldLabel>
-          <Select
-            value={form.campusPreference}
-            onValueChange={(v) => v && setForm({ ...form, campusPreference: v })}
-            items={campuses.map((c) => ({ label: c.name, value: c.id }))}
-          >
-            <SelectTrigger id="admission-campusPreference">
-              <SelectValue placeholder="Pilih kampus" />
-            </SelectTrigger>
-            <SelectContent>
-              {campuses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel required htmlFor="admission-source">Sumber</FieldLabel>
-          <Select
-            value={form.source}
-            onValueChange={(v) => v && setForm({ ...form, source: v })}
-            items={{
-              WHATSAPP: "WhatsApp",
-              WALK_IN: "Datang Langsung",
-              WEBSITE: "Website",
-              REFERRAL: "Referensi",
-              OTHER: "Lainnya",
-            }}
-          >
-            <SelectTrigger id="admission-source" aria-required="true">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
-              <SelectItem value="WALK_IN">Datang Langsung</SelectItem>
-              <SelectItem value="WEBSITE">Website</SelectItem>
-              <SelectItem value="REFERRAL">Referensi</SelectItem>
-              <SelectItem value="OTHER">Lainnya</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="admission-followUpDate">Tanggal Tindak Lanjut</FieldLabel>
-          <Input
-            id="admission-followUpDate"
-            type="date"
-            value={form.followUpDate}
-            onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
-          />
-        </Field>
-      </div>
-      <Field>
-        <FieldLabel htmlFor="admission-notes">Catatan</FieldLabel>
-        <Input
-          id="admission-notes"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          placeholder="Catatan tambahan..."
-        />
-      </Field>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------
-// Page (columns defined inside to access convertToStudent)
+// Page (owns list state, fetching, stats, dialogs' open state + handlers;
+// columns + form body + convert dialog live in components/admin/admissions/*)
 // ------------------------------------------------------------------
 
 export default function AdmissionsPage() {
@@ -470,29 +89,9 @@ export default function AdmissionsPage() {
   const [cancelTarget, setCancelTarget] = useState<Admission | null>(null);
   // T10: convert-confirm + email-conflict UI state.
   const [convertTarget, setConvertTarget] = useState<Admission | null>(null);
-  const [emailConflict, setEmailConflict] = useState<{
-    message: string;
-    conflictingParentName: string | null;
-  } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    childName: "",
-    dateOfBirth: "",
-    childGender: "",
-    parentName: "",
-    parentPhone: "",
-    parentWhatsapp: "",
-    parentEmail: "",
-    parentEducation: "",
-    parentOccupation: "",
-    parentIncome: "",
-    parentRelationship: "",
-    programId: "",
-    campusPreference: "",
-    source: "WHATSAPP",
-    notes: "",
-    followUpDate: "",
-  });
+  const [emailConflict, setEmailConflict] = useState<EmailConflict | null>(null);
+  const admissionFormId = useId();
+  const form = useZodForm(createAdmissionSchema, { defaultValues: EMPTY_ADMISSION_FORM });
 
   // Fetch programs + campuses once. Campuses cached for 1 h server-side
   // (revalidate=3600 in /api/config/campuses) so this is cheap on repeat opens.
@@ -562,7 +161,7 @@ export default function AdmissionsPage() {
   // a confirmation dialog (state below). For admissions without detection the
   // direct path runs unchanged. The runConvert helper does the actual POST so
   // both call sites + the dialog confirm action route through one place.
-  async function runConvert(admissionId: string, mergeWithDetected: boolean) {
+  const runConvert = useCallback(async (admissionId: string, mergeWithDetected: boolean) => {
     const res = await fetch(`/api/admissions/${admissionId}/convert`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -596,13 +195,13 @@ export default function AdmissionsPage() {
     }
     const d = await res.json().catch(() => ({}));
     toast.error(d.error || "Gagal mengonversi pendaftaran. Coba lagi.");
-  }
+  }, [fetchAdmissions, fetchStats]);
 
   // Cycle A: "Kirim Formulir" — invite the parent to complete the rich
   // enrollment application. Creates/refreshes the EnrollmentApplication +
   // emails the tokenized link. 422 NO_EMAIL when the inquiry lacks an email;
   // 409 when the form is already filled/processed.
-  async function sendEnrollmentForm(a: Admission) {
+  const sendEnrollmentForm = useCallback(async (a: Admission) => {
     const res = await fetch("/api/enrollments/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -625,9 +224,9 @@ export default function AdmissionsPage() {
     }
     const d = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     toast.error(d.message || d.error || "Gagal mengirim formulir");
-  }
+  }, []);
 
-  function convertToStudent(a: Admission) {
+  const convertToStudent = useCallback((a: Admission) => {
     if (a.detectedParentId) {
       setConvertTarget(a);
       setEmailConflict(null);
@@ -635,34 +234,23 @@ export default function AdmissionsPage() {
     }
     // No detection → preserve the pre-T10 one-click behaviour (auto-merge).
     void runConvert(a.id, true);
-  }
+  }, [runConvert]);
 
-  async function handleSubmit() {
-    if (!form.childName.trim() || !form.parentName.trim()) {
-      toast.error("Nama anak dan orang tua wajib diisi");
-      return;
-    }
-    setSaving(true);
+  const handleSubmit = form.handleSubmit(async (values) => {
     const url = editingAdmission ? `/api/admissions/${editingAdmission.id}` : "/api/admissions";
     const method = editingAdmission ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
+    try {
+      await sendJson(url, { method, body: values }, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
       toast.success(editingAdmission ? "Data diperbarui" : "Pendaftaran tercatat");
       setDialogOpen(false);
       setEditingAdmission(null);
       fetchAdmissions(); fetchStats();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan pendaftaran. Periksa kolom yang ditandai.");
     }
-    setSaving(false);
-  }
+  });
 
-  async function advanceStatus(a: Admission) {
+  const advanceStatus = useCallback(async (a: Admission) => {
     const next = NEXT_STATUS[a.status];
     if (!next) return;
     const res = await fetch(`/api/admissions/${a.id}`, {
@@ -677,7 +265,7 @@ export default function AdmissionsPage() {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal mengubah status");
     }
-  }
+  }, [fetchAdmissions, fetchStats]);
 
   async function handleCancel() {
     if (!cancelTarget) return;
@@ -692,206 +280,49 @@ export default function AdmissionsPage() {
 
   function openDialog() {
     setEditingAdmission(null);
-    setForm({
-      childName: "",
-      dateOfBirth: "",
-      childGender: "",
-      parentName: "",
-      parentPhone: "",
-      parentWhatsapp: "",
-      parentEmail: "",
-      parentEducation: "",
-      parentOccupation: "",
-      parentIncome: "",
-      parentRelationship: "",
-      programId: "",
-      campusPreference: "",
-      source: "WHATSAPP",
-      notes: "",
-      followUpDate: "",
-    });
+    form.reset(EMPTY_ADMISSION_FORM);
     setDialogOpen(true);
   }
 
+  // Stable per the row-action edit handler that opens the dialog pre-filled.
+  // `form.reset` is stable across renders (react-hook-form), as are the
+  // `setState` setters, so this only changes identity if `form` itself does.
+  const handleEditRow = useCallback((a: Admission) => {
+    setEditingAdmission(a);
+    form.reset({
+      childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
+      parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
+      parentEmail: a.parentEmail ?? "", parentEducation: a.parentEducation ?? "",
+      parentOccupation: a.parentOccupation ?? "",
+      parentIncome: a.parentIncome ?? "",
+      parentRelationship: a.parentRelationship ?? "",
+      programId: a.programId ?? "",
+      campusPreference: a.campusPreference ?? "",
+      source: a.source as AdmissionFormValues["source"], notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
+    });
+    setDialogOpen(true);
+  }, [form]);
+
+  const handleCancelRequest = useCallback((a: Admission) => setCancelTarget(a), []);
+
   // ------------------------------------------------------------------
-  // Columns (need access to convertToStudent)
+  // Columns — module-level factory (components/admin/admissions/columns.tsx),
+  // memoised here with stable useCallback handlers so a rebuild never remounts
+  // row cells / closes an open row-action menu (lesson 6).
   // ------------------------------------------------------------------
 
-  const columns: ColumnDef<Admission>[] = [
-    {
-      accessorKey: "childName",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Anak" />
-      ),
-      cell: ({ row }) => {
-        const a = row.original;
-        return (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{a.childName}</span>
-              {(() => {
-                // Prefer derived age from dateOfBirth (new rows); fall back to
-                // the legacy childAge free-text column for rows created before
-                // the DOB-only switch (cycle 2026-05-11).
-                const derived = formatAgeFromDob(a.dateOfBirth);
-                const display = derived ?? a.childAge;
-                return display ? (
-                  <span className="text-xs text-muted-foreground">{display}</span>
-                ) : null;
-              })()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {a.parentName}
-              {a.parentPhone && ` · ${a.parentPhone}`}
-            </p>
-          </div>
-        );
-      },
-    },
-    {
-      id: "program",
-      header: "Program",
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {row.original.program?.name ?? (
-            <span className="text-muted-foreground italic">Belum dipilih</span>
-          )}
-        </span>
-      ),
-    },
-    {
-      id: "source",
-      header: "Sumber",
-      cell: ({ row }) => (
-        <div className="text-xs">
-          <span>{SOURCE_LABELS[row.original.source] ?? row.original.source}</span>
-          <p className="text-muted-foreground">
-            {formatDateShort(row.original.createdAt.split("T")[0])}
-          </p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "createdAt",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Tanggal" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {formatDateShort(row.original.createdAt.split("T")[0])}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      cell: ({ row }) => {
-        const a = row.original;
-        if (a.status === "ADMITTED" && a.studentId) {
-          return <StatusBadge status="REGISTERED" />;
-        }
-        return <StatusBadge status={a.status} />;
-      },
-    },
-    {
-      id: "sibling",
-      header: "Saudara",
-      cell: ({ row }) => {
-        const dp = row.original.detectedParent;
-        if (!dp) return <span className="text-xs text-muted-foreground">—</span>;
-        const studentNames = dp.guardians
-          .map((g) => g.student.name)
-          .filter((n): n is string => Boolean(n));
-        return (
-          <HoverCard>
-            <HoverCardTrigger
-              render={
-                <button
-                  type="button"
-                  className="inline-flex cursor-help items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
-                  data-testid="admission-row-sibling-chip"
-                >
-                  <Users2 size={12} aria-hidden="true" />
-                  Saudara terdeteksi
-                </button>
-              }
-            />
-
-            <HoverCardContent className="w-64 text-sm" side="left">
-              <p className="font-semibold">{dp.name}</p>
-              {studentNames.length > 0 ? (
-                <ul className="mt-1 list-disc pl-4 text-muted-foreground">
-                  {studentNames.map((n) => (
-                    <li key={n}>{n}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-muted-foreground italic">
-                  Tidak ada siswa tertaut
-                </p>
-              )}
-            </HoverCardContent>
-          </HoverCard>
-        );
-      },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const a = row.original;
-        if (!canEdit) {
-          return <span className="text-xs text-muted-foreground">Hanya lihat</span>;
-        }
-        if (a.studentId) {
-          return <span className="text-xs text-muted-foreground">Sudah jadi siswa</span>;
-        }
-        const next = NEXT_STATUS[a.status];
-        const extras: { label: string; icon?: React.ReactNode; onClick: () => void }[] = [];
-        if (next) {
-          extras.push({
-            label: `Lanjutkan ke ${next.label}`,
-            icon: <ArrowRight size={14} />,
-            onClick: () => advanceStatus(a),
-          });
-        }
-        if (canConvertAdmissionToStudent(a.status)) {
-          extras.push({
-            label: "Konversi ke Siswa",
-            icon: <UserPlus size={14} />,
-            onClick: () => convertToStudent(a),
-          });
-        }
-        extras.push({
-          label: "Kirim Formulir",
-          icon: <Send size={14} />,
-          onClick: () => void sendEnrollmentForm(a),
-        });
-        return (
-          <DataTableRowActions
-            onEdit={() => {
-              setEditingAdmission(a);
-              setForm({
-                childName: a.childName, dateOfBirth: a.dateOfBirth ?? "", childGender: a.childGender ?? "",
-                parentName: a.parentName, parentPhone: a.parentPhone ?? "", parentWhatsapp: a.parentWhatsapp ?? "",
-                parentEmail: a.parentEmail ?? "", parentEducation: a.parentEducation ?? "",
-                parentOccupation: a.parentOccupation ?? "",
-                parentIncome: a.parentIncome ?? "",
-                parentRelationship: a.parentRelationship ?? "",
-                programId: a.programId ?? "",
-                campusPreference: a.campusPreference ?? "",
-                source: a.source, notes: a.notes ?? "", followUpDate: a.followUpDate ?? "",
-              });
-              setDialogOpen(true);
-            }}
-            onCancel={!TERMINAL_STATUSES.has(a.status) ? () => setCancelTarget(a) : undefined}
-            extraActions={extras.length ? extras : undefined}
-          />
-        );
-      },
-    },
-  ];
+  const columns = useMemo(
+    () =>
+      createAdmissionColumns({
+        canEdit,
+        onEdit: handleEditRow,
+        onCancelRequest: handleCancelRequest,
+        onAdvanceStatus: advanceStatus,
+        onConvertToStudent: convertToStudent,
+        onSendEnrollmentForm: sendEnrollmentForm,
+      }),
+    [canEdit, handleEditRow, handleCancelRequest, advanceStatus, convertToStudent, sendEnrollmentForm],
+  );
 
   return (
     <>
@@ -958,24 +389,25 @@ export default function AdmissionsPage() {
       {/* Add/Edit Admission — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
       <ResponsiveFormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => { if (!form.formState.isSubmitting) setDialogOpen(open); }}
         title={editingAdmission ? "Edit Pendaftaran" : "Catat Pertanyaan Baru"}
         size="xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={saving}>
-              {saving ? "Menyimpan..." : editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={admissionFormId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editingAdmission ? "Simpan Perubahan" : "Catat Pertanyaan"}
+          />
         }
       >
-        {editingAdmission?.detectedParent && (
-          <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
-        )}
-        <AdmissionFormBody form={form} setForm={setForm} programs={programs} campuses={campuses} />
+        <form id={admissionFormId} onSubmit={handleSubmit} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          {editingAdmission?.detectedParent && (
+            <SiblingDetectBanner detectedParent={editingAdmission.detectedParent} />
+          )}
+          <AdmissionFormBody control={form.control} programs={programs} campuses={campuses} />
+        </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog
@@ -986,71 +418,15 @@ export default function AdmissionsPage() {
         onConfirm={handleCancel}
       />
 
-      {/* T10: sibling-detect confirmation dialog — only opens when admission
-          has detectedParentId. Three actions: Merge (default, link to existing
-          parent), Convert without merging (new Parent), Cancel. Email-conflict
-          on no-merge surfaces inline via emailConflict state. */}
-      <Dialog
-        open={!!convertTarget}
-        onOpenChange={(o) => {
-          if (!o) {
-            setConvertTarget(null);
-            setEmailConflict(null);
-          }
+      <AdmissionConvertDialog
+        convertTarget={convertTarget}
+        emailConflict={emailConflict}
+        onClose={() => {
+          setConvertTarget(null);
+          setEmailConflict(null);
         }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Konversi ke Siswa</DialogTitle>
-          </DialogHeader>
-          {convertTarget && (
-            <div className="space-y-4">
-              <p className="text-sm">
-                Pendaftar <strong>{convertTarget.childName}</strong> terdeteksi sebagai saudara dari keluarga{" "}
-                <strong>{convertTarget.detectedParent?.name ?? "(tidak diketahui)"}</strong>.
-              </p>
-              {convertTarget.detectedParent?.guardians?.length ? (
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <p className="text-xs text-muted-foreground mb-1">Anak terdaftar di keluarga ini:</p>
-                  <ul className="text-sm list-disc pl-5">
-                    {convertTarget.detectedParent.guardians.map((g, i) => (
-                      <li key={i}>{g.student.name}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {emailConflict && (
-                <Alert className="border-destructive/40 bg-destructive/10 text-destructive">
-                  <AlertDescription>
-                    {emailConflict.message}
-                    {emailConflict.conflictingParentName ? ` (Wali: ${emailConflict.conflictingParentName})` : ""}
-                  </AlertDescription>
-                </Alert>
-              )}
-              <p className="text-xs text-muted-foreground">
-                <strong>Gabungkan</strong>: tautkan siswa baru ke wali yang sudah ada (rekomendasi).<br />
-                <strong>Konversi tanpa gabung</strong>: buat wali baru terpisah meski email cocok.
-              </p>
-            </div>
-          )}
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            <DialogClose>
-              <Button variant="ghost">Batal</Button>
-            </DialogClose>
-            <Button
-              variant="outline"
-              onClick={() => convertTarget && void runConvert(convertTarget.id, false)}
-            >
-              Konversi tanpa gabung
-            </Button>
-            <Button
-              onClick={() => convertTarget && void runConvert(convertTarget.id, true)}
-            >
-              Gabungkan dengan wali
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onConvert={(admissionId, mergeWithDetected) => void runConvert(admissionId, mergeWithDetected)}
+      />
     </>
   );
 }

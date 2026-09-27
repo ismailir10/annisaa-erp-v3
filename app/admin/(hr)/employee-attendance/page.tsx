@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -10,15 +10,17 @@ import { AttendanceTrendChart, type WeeklyTrend } from "@/components/admin/dashb
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import { computeAbsentCount } from "./absent-stat";
+import { computeAbsentCount, isNonWorkingDay } from "./absent-stat";
+import { parseWorkingDays } from "@/lib/payroll/working-days";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 type EmployeeAttendance = {
@@ -32,23 +34,25 @@ type EmployeeAttendance = {
 type Campus = { id: string; name: string };
 type Holiday = { date: string };
 
-// F-20: today's date string used to skip the weekend/holiday exclusion when
-// the admin is looking at the live "today" view (employees who haven't
-// clocked in YET should still count as "tidak hadir" so the dashboard can
-// nudge them). For past dates we want a clean stat — weekends and holidays
-// are not absences.
-const TODAY_ISO = getTodayInTimezone("Asia/Jakarta");
-
 export default function AttendancePage() {
-  const [date, setDate] = useState(TODAY_ISO);
+  // Per-render, not module-level: a module-level `TODAY_ISO` froze at build/
+  // deploy time, so a non-working *today* kept computing as if it were the
+  // day of the last deploy (the "Alpa" bug — F-20/Cycle-3-T8). Computed fresh
+  // on every render rather than cached in state — cheap, and a stale value
+  // for even one render across midnight would misclassify "today".
+  const today = getTodayInTimezone("Asia/Jakarta");
+  const [date, setDate] = useState(today);
   const [campusId, setCampusId] = useState("all");
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [data, setData] = useState<EmployeeAttendance[]>([]);
   const [loading, setLoading] = useState(true);
-  // F-20: holiday list fetched once. Used only to exclude past-date holidays
-  // from the "tidak hadir" stat. Empty fetch failure is non-fatal — the stat
-  // simply falls back to weekend-only exclusion.
+  // F-20: holiday list fetched once. Holidays are non-working days for the
+  // "tidak hadir" stat and the Libur rows. Fetch failure is non-fatal — the
+  // rule simply falls back to weekend-only exclusion.
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
+  // Tenant working days (OrgConfig) — a school may run on Saturday. Null until
+  // loaded or on failure, where the rule falls back to Sat/Sun.
+  const [workingDays, setWorkingDays] = useState<string[] | null>(null);
   // 7-weekday trend, fetched independently of the date/campus filters above —
   // moved here from the admin dashboard (DMMT overhaul) via a small
   // dedicated endpoint so this client page doesn't duplicate the dashboard's
@@ -100,6 +104,18 @@ export default function AttendancePage() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch("/api/config/org")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg: { workingDays?: string | null } | null) => {
+        const days = parseWorkingDays(cfg?.workingDays);
+        if (days.length > 0) setWorkingDays(days);
+      })
+      .catch(() => {
+        // Non-fatal: falls back to Sat/Sun as the weekend.
+      });
+  }, []);
+
   // Trend chart fetched once on mount; non-fatal — falls back to the
   // chart's own empty state (never a false zero, never blocks the table).
   useEffect(() => {
@@ -111,11 +127,15 @@ export default function AttendancePage() {
 
   const present = data.filter((d) => ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance?.status ?? "")).length;
   const late = data.filter((d) => d.attendance?.status === "LATE").length;
-  // F-20: weekends and holidays are not "tidak hadir" for past dates.
-  const absent = computeAbsentCount({ selectedDate: date, today: TODAY_ISO, data, holidays });
+  // F-20 (fixed Cycle 3 T8): weekends and holidays are never "tidak hadir",
+  // whether the selected date is in the past, is today, or is in the future.
+  const absent = computeAbsentCount({ selectedDate: date, data, holidays, workingDays });
   const leave = data.filter((d) => d.attendance?.status === "LEAVE").length;
+  // Drives the status column below: a row with no attendance record on a
+  // non-working day is "Libur" (closed), not "Alpa" (should have shown up).
+  const nonWorkingDay = isNonWorkingDay(date, holidays, workingDays);
 
-  function openOverride(ea: EmployeeAttendance) {
+  const openOverride = useCallback((ea: EmployeeAttendance) => {
     setOverrideTarget({
       recordId: ea.attendance?.id ?? null,
       employeeId: ea.employee.id,
@@ -123,9 +143,11 @@ export default function AttendancePage() {
       currentStatus: ea.attendance?.status ?? null,
     });
     setOverrideOpen(true);
-  }
+  }, []);
 
-  const columns: ColumnDef<EmployeeAttendance>[] = [
+  // Memoised — a fresh array every render would remount row cells and close
+  // any open row-action menu (Cycle 3 T7).
+  const columns: ColumnDef<EmployeeAttendance>[] = useMemo(() => [
     {
       id: "nama",
       accessorFn: (row) => row.employee.nama,
@@ -139,12 +161,12 @@ export default function AttendancePage() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{ea.employee.nama[0]}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{ea.employee.nama}</p>
-              <p className="text-xs text-muted-foreground">
-                {ea.employee.kode} · {ea.employee.campusName}
-              </p>
-            </div>
+            <DataTableLinkCell
+              href={`/admin/employees/${ea.employee.id}`}
+              description={`${ea.employee.kode} · ${ea.employee.campusName}`}
+            >
+              {ea.employee.nama}
+            </DataTableLinkCell>
           </div>
         );
       },
@@ -165,6 +187,7 @@ export default function AttendancePage() {
       id: "checkOut",
       accessorFn: (row) => row.attendance?.checkOutTime,
       header: "Pulang",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-xs text-muted-foreground">
           {formatTime(row.original.attendance?.checkOutTime ?? null)}
@@ -179,8 +202,11 @@ export default function AttendancePage() {
       ),
       cell: ({ row }) => {
         const ea = row.original;
-        return ea.attendance ? (
-          <StatusBadge status={ea.attendance.status} />
+        if (ea.attendance) return <StatusBadge status={ea.attendance.status} />;
+        // No record on a non-working day means the school was closed, not
+        // that the employee failed to show up.
+        return nonWorkingDay ? (
+          <StatusBadge status="HOLIDAY" />
         ) : (
           <StatusBadge status="ABSENT" label="—" />
         );
@@ -203,7 +229,7 @@ export default function AttendancePage() {
         />
       ),
     },
-  ];
+  ], [openOverride, nonWorkingDay]);
 
   return (
     <>
@@ -227,7 +253,7 @@ export default function AttendancePage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full sm:w-44" />
+        <DatePicker value={date} onChange={setDate} className="w-full sm:w-44" />
         <Select value={campusId} onValueChange={(v) => v && setCampusId(v)} items={{ all: "Semua Kampus", ...Object.fromEntries(campuses.map((c) => [c.id, c.name])) }}>
           <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Semua Kampus" /></SelectTrigger>
           <SelectContent>

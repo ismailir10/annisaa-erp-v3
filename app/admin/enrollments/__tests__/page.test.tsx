@@ -2,21 +2,20 @@
  * T2 (cycle 2026-09-25, Pendaftaran merge) — this page used to have its own
  * confusingly-named nav entry ("Formulir Pendaftaran"). It's now the
  * "Formulir" sub-view of the single "Pendaftaran" nav entry, sharing a
- * link-tab strip with /admin/admissions ("Calon Siswa"). Also covers the
- * row action column, migrated off a hand-rolled `<Button>Lihat</Button>`
- * onto the shared `DataTableRowActions` `onView` action.
+ * link-tab strip with /admin/admissions ("Calon Siswa").
+ *
+ * T7 (cycle 2026-09-26, admin-ui-standard-c1) — the row action column (a
+ * hand-rolled `<Button>Lihat</Button>`, then a `DataTableRowActions`
+ * `onView`) is gone; the child's name cell is now the row's only link to
+ * the detail page (`DataTableLinkCell`), and the row had no other action.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import EnrollmentsPage from "@/app/admin/enrollments/page";
 
-const push = vi.fn();
-
 vi.mock("next/navigation", () => ({
   usePathname: () => "/admin/enrollments",
-  useRouter: () => ({ push }),
 }));
 
 vi.mock("sonner", () => ({
@@ -66,7 +65,6 @@ function stubFetch() {
 
 describe("EnrollmentsPage — Pendaftaran tab strip", () => {
   beforeEach(() => {
-    push.mockReset();
     vi.stubGlobal("fetch", stubFetch());
   });
 
@@ -83,19 +81,16 @@ describe("EnrollmentsPage — Pendaftaran tab strip", () => {
   });
 });
 
-describe("EnrollmentsPage — row action", () => {
+describe("EnrollmentsPage — name is the link (T7)", () => {
   beforeEach(() => {
-    push.mockReset();
     vi.stubGlobal("fetch", stubFetch());
   });
 
-  it("uses DataTableRowActions' view action to navigate to the detail page", async () => {
-    const user = userEvent.setup();
+  it("renders the child's name as a link to the detail page and drops the separate Lihat button", async () => {
     render(<EnrollmentsPage />);
 
-    const viewButton = await screen.findByRole("button", { name: "Lihat Aisyah Putri" });
-    await user.click(viewButton);
-
-    expect(push).toHaveBeenCalledWith("/admin/enrollments/ea-1");
+    const nameLink = await screen.findByRole("link", { name: "Aisyah Putri" });
+    expect(nameLink).toHaveAttribute("href", "/admin/enrollments/ea-1");
+    expect(screen.queryByRole("button", { name: /^Lihat/ })).not.toBeInTheDocument();
   });
 });

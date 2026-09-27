@@ -234,7 +234,7 @@ Three layers, weakest to strongest:
 | `patterns.md` | Page recipes — Admin List/Detail/Form, Portal Dashboard, Workflow Queue, Daily Data Entry | `app/*/page.tsx`, `app/**/client.tsx`, `components/{admin,teacher,parent,portal}/**` |
 | `voice.md` | Voice & tone — 3 personas, Islamic courtesy layer, error/empty/success/destructive copy, glossary | Any user-facing copy diff |
 | `crud.md` | ERPNext-inspired CRUD (Categories A/B/C), soft-delete, list/detail layouts, edit dialog | `app/admin/**` with a create-or-edit form |
-| `portal.md` | Portal nav, Empty State Contract, fetch error contract, Household Overview, WeekGrid, cycle-tap attendance | `app/teacher/**`, `app/parent/**`, `components/{teacher,parent}/**` |
+| `portal.md` | Portal nav, Empty State Contract, fetch error contract, Household Overview, WeekGrid, class attendance entry | `app/teacher/**`, `app/parent/**`, `components/{teacher,parent}/**` |
 | `api.md` | GET list pagination, mutation shape | `app/api/**`, `lib/validations/**`, `proxy.ts` |
 | `security.md` | API route checklist, data-access roles, new-route security | `app/api/**`, `lib/auth*`, `proxy.ts` |
 | `colors.md` | Color tokens + brand | `app/globals.css` (the `@theme` block), `bg-status-*` edits, arbitrary `#hex` classNames |
@@ -288,10 +288,10 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `app/admin` pages | 43 |
 | `app/teacher` pages | 13 |
 | `app/parent` pages | 8 |
-| `components/ui/*.tsx` | 65 |
+| `components/ui/*.tsx` | 68 |
 | `e2e/*.spec.ts` | 35 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 49 / 233 |
+| `docs/cycles` active / archived | 54 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

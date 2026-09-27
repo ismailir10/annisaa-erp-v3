@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -21,13 +21,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { BookMarked, CalendarRange, Layers, Plus } from "lucide-react";
+import { BookMarked, CalendarRange, Layers, Plus, Target } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
+import { semesterFormSchema } from "@/lib/validations/curriculum";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Semester = {
   id: string;
@@ -44,6 +48,13 @@ type AcademicYear = { id: string; name: string; status: string };
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
 
 const NUMBER_LABEL: Record<number, string> = { 1: "Semester 1", 2: "Semester 2" };
+
+const EMPTY_SEMESTER_FORM = {
+  academicYearId: "",
+  number: "1" as const,
+  startDate: "",
+  endDate: "",
+};
 
 function toJakartaYmd(iso: string): string {
   // The API returns UTC-midnight DateTime values; for display we want the
@@ -65,13 +76,10 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Semester | null>(null);
-  const [form, setForm] = useState({
-    academicYearId: "",
-    number: "1" as "1" | "2",
-    startDate: "",
-    endDate: "",
-  });
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(semesterFormSchema, { defaultValues: EMPTY_SEMESTER_FORM });
+  const formStartDate = form.watch("startDate");
+  const formEndDate = form.watch("endDate");
 
   const [deactivateTarget, setDeactivateTarget] = useState<Semester | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<Semester | null>(null);
@@ -106,65 +114,52 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     return { active: active.length, all: rows.length, themes: themeTotal };
   }, [rows]);
 
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setEditing(null);
-    setForm({ academicYearId: "", number: "1", startDate: "", endDate: "" });
-  }
+    form.reset(EMPTY_SEMESTER_FORM);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openCreate() {
     resetForm();
     setCreateOpen(true);
   }
 
-  function openEdit(row: Semester) {
+  const openEdit = useCallback((row: Semester) => {
     setEditing(row);
-    setForm({
+    form.reset({
       academicYearId: row.academicYearId,
       number: String(row.number) as "1" | "2",
       startDate: toJakartaYmd(row.startDate),
       endDate: toJakartaYmd(row.endDate),
     });
     setCreateOpen(true);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function save() {
-    if (!form.academicYearId) {
-      toast.error("Pilih tahun ajaran");
-      return;
-    }
-    if (!form.startDate || !form.endDate) {
-      toast.error("Tanggal mulai dan selesai wajib diisi");
-      return;
-    }
-    setSaving(true);
+  const save = form.handleSubmit(async (values) => {
     const url = editing
       ? `/api/admin/curriculum/semesters/${editing.id}`
       : `/api/admin/curriculum/semesters`;
     const method = editing ? "PUT" : "POST";
     const body = editing
-      ? { number: Number(form.number) as 1 | 2, startDate: form.startDate, endDate: form.endDate }
+      ? { number: values.number, startDate: values.startDate, endDate: values.endDate }
       : {
-          academicYearId: form.academicYearId,
-          number: Number(form.number) as 1 | 2,
-          startDate: form.startDate,
-          endDate: form.endDate,
+          academicYearId: values.academicYearId,
+          number: values.number,
+          startDate: values.startDate,
+          endDate: values.endDate,
         };
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
+    try {
+      await sendJson(url, { method, body }, "Gagal menyimpan");
       toast.success(editing ? "Semester diperbarui" : "Semester ditambahkan");
       setCreateOpen(false);
       resetForm();
       fetchAll();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error ?? "Gagal menyimpan");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-    setSaving(false);
-  }
+  });
 
   async function flipStatus(target: Semester, status: "ACTIVE" | "INACTIVE") {
     const res = await fetch(`/api/admin/curriculum/semesters/${target.id}`, {
@@ -181,20 +176,23 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  const columns: ColumnDef<Semester>[] = [
+  const columns = useMemo<ColumnDef<Semester>[]>(() => [
     {
       accessorKey: "academicYear",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tahun Ajaran" />,
-      cell: ({ row }) => <span className="text-sm font-medium">{row.original.academicYear.name}</span>,
-    },
-    {
-      accessorKey: "number",
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Nomor" />,
-      cell: ({ row }) => <span className="text-sm">{NUMBER_LABEL[row.original.number]}</span>,
+      cell: ({ row }) => (
+        <DataTableLinkCell
+          href={`/admin/semesters/${row.original.id}/themes`}
+          description={NUMBER_LABEL[row.original.number]}
+        >
+          {row.original.academicYear.name}
+        </DataTableLinkCell>
+      ),
     },
     {
       accessorKey: "startDate",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Periode" />,
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm">
           {formatDateShort(toJakartaYmd(row.original.startDate))} – {formatDateShort(toJakartaYmd(row.original.endDate))}
@@ -215,44 +213,35 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            render={<Link href={`/admin/semesters/${row.original.id}/themes`} />}
-          >
-            Kelola tema
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            render={
-              <Link
-                href={`/admin/semesters/${row.original.id}/objectives`}
-              />
-            }
-          >
-            Kelola Tujuan Pembelajaran
-          </Button>
-          <DataTableRowActions
-            onView={() => router.push(`/admin/semesters/${row.original.id}/themes`)}
-            onEdit={canWrite ? () => openEdit(row.original) : undefined}
-            onDeactivate={
-              canWrite && row.original.status === "ACTIVE"
-                ? () => setDeactivateTarget(row.original)
-                : undefined
-            }
-            onActivate={
-              canWrite && row.original.status === "INACTIVE"
-                ? () => setReactivateTarget(row.original)
-                : undefined
-            }
-            isActive={row.original.status === "ACTIVE"}
-          />
-        </div>
+        <DataTableRowActions
+          onEdit={canWrite ? () => openEdit(row.original) : undefined}
+          onDeactivate={
+            canWrite && row.original.status === "ACTIVE"
+              ? () => setDeactivateTarget(row.original)
+              : undefined
+          }
+          onActivate={
+            canWrite && row.original.status === "INACTIVE"
+              ? () => setReactivateTarget(row.original)
+              : undefined
+          }
+          isActive={row.original.status === "ACTIVE"}
+          extraActions={[
+            {
+              label: "Kelola tema",
+              icon: <Layers size={14} />,
+              onClick: () => router.push(`/admin/semesters/${row.original.id}/themes`),
+            },
+            {
+              label: "Kelola Tujuan Pembelajaran",
+              icon: <Target size={14} />,
+              onClick: () => router.push(`/admin/semesters/${row.original.id}/objectives`),
+            },
+          ]}
+        />
       ),
     },
-  ];
+  ], [canWrite, openEdit, router]);
 
   const filteredRows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -344,81 +333,93 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         title={editing ? "Ubah Semester" : "Tambah Semester"}
         description={editing ? "Perbarui periode atau status." : "Pilih tahun ajaran lalu tentukan nomor dan periode."}
         footer={
-          <>
-            <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)} disabled={saving}>
-              Batal
-            </Button>
-            <Button onClick={save} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Semester"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setCreateOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Semester"}
+          />
         }
       >
-        <div className="space-y-field">
-          <Field>
-            <FieldLabel htmlFor="semester-academic-year" required>Tahun ajaran</FieldLabel>
-            <Select
-              value={form.academicYearId}
-              onValueChange={(v) => setForm((f) => ({ ...f, academicYearId: v ?? "" }))}
-              disabled={!!editing}
-            >
-              <SelectTrigger id="semester-academic-year" aria-required="true">
-                <SelectValue placeholder="Pilih tahun ajaran" />
-              </SelectTrigger>
-              <SelectContent>
-                {academicYears
-                  // When editing, always include the row's existing AY even
-                  // if it has been deactivated since — otherwise the dialog
-                  // would show an empty Select trigger.
-                  .filter((ay) => ay.status === "ACTIVE" || ay.id === form.academicYearId)
-                  .map((ay) => (
-                    <SelectItem key={ay.id} value={ay.id}>
-                      {ay.name}
-                      {ay.status !== "ACTIVE" ? " (nonaktif)" : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </Field>
+        <form id={formId} onSubmit={save} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="academicYearId"
+            label="Tahun ajaran"
+            required
+            id="semester-academic-year"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+                disabled={!!editing}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue placeholder="Pilih tahun ajaran" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears
+                    // When editing, always include the row's existing AY even
+                    // if it has been deactivated since — otherwise the dialog
+                    // would show an empty Select trigger.
+                    .filter((ay) => ay.status === "ACTIVE" || ay.id === field.value)
+                    .map((ay) => (
+                      <SelectItem key={ay.id} value={ay.id}>
+                        {ay.name}
+                        {ay.status !== "ACTIVE" ? " (nonaktif)" : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="semester-number" required>Nomor semester</FieldLabel>
-            <Select value={form.number} onValueChange={(v) => setForm((f) => ({ ...f, number: (v ?? "1") as "1" | "2" }))}>
-              <SelectTrigger id="semester-number" aria-required="true">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Semester 1</SelectItem>
-                <SelectItem value="2">Semester 2</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
+          <FormField
+            control={form.control}
+            name="number"
+            label="Nomor semester"
+            required
+            id="semester-number"
+            render={({ field, controlProps }) => (
+              <Select
+                value={String(field.value) as "1" | "2"}
+                onValueChange={(v) => v != null && field.onChange(v)}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Semester 1</SelectItem>
+                  <SelectItem value="2">Semester 2</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
 
           <div className="grid grid-cols-2 gap-field">
-            <Field>
-              <FieldLabel htmlFor="semester-start-date" required>Tanggal mulai</FieldLabel>
-              <Input
-                id="semester-start-date"
-                required
-                aria-required="true"
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="semester-end-date" required>Tanggal selesai</FieldLabel>
-              <Input
-                id="semester-end-date"
-                required
-                aria-required="true"
-                type="date"
-                value={form.endDate}
-                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-              />
-            </Field>
+            <FormField
+              control={form.control}
+              name="startDate"
+              label="Tanggal mulai"
+              required
+              id="semester-start-date"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} max={formEndDate || undefined} required />
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="endDate"
+              label="Tanggal selesai"
+              required
+              id="semester-end-date"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} min={formStartDate || undefined} required />
+              )}
+            />
           </div>
-        </div>
+        </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog

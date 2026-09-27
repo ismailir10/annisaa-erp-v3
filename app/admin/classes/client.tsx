@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { pickDefaultYear } from "./pick-default-year";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
@@ -9,8 +8,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { StatusBadge, healthTone } from "@/components/ui/status-badge";
-import { Badge } from "@/components/ui/badge";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -20,13 +19,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BulkPromoteDialog } from "@/components/admin/classes/bulk-promote-dialog";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { classFormSchema } from "@/lib/validations/class";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type ClassRow = {
   id: string;
@@ -64,8 +67,16 @@ type AcademicYear = {
 
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
 
+const EMPTY_CLASS_FORM = {
+  campusId: "",
+  programId: "",
+  name: "",
+  capacity: 20,
+  slotTemplate: "FULL_DAY" as const,
+  ageGroup: "" as unknown as "A" | "B",
+};
+
 export function ClassesClient({ canWrite }: { canWrite: boolean }) {
-  const router = useRouter();
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -81,15 +92,8 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRow | null>(null);
-  const [form, setForm] = useState({
-    campusId: "",
-    programId: "",
-    name: "",
-    capacity: 20,
-    slotTemplate: "FULL_DAY" as ClassRow["slotTemplate"],
-    ageGroup: "" as "" | ClassRow["ageGroup"],
-  });
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const form = useZodForm(classFormSchema, { defaultValues: EMPTY_CLASS_FORM });
 
   const [deactivateTarget, setDeactivateTarget] = useState<ClassRow | null>(
     null,
@@ -168,26 +172,21 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     setTablePage(1);
   }, [yearId, statusFilter, campusFilter, programFilter, query]);
 
-  function resetForm() {
+  const resetForm = useCallback(() => {
     setEditing(null);
-    setForm({
-      campusId: "",
-      programId: "",
-      name: "",
-      capacity: 20,
-      slotTemplate: "FULL_DAY",
-      ageGroup: "",
-    });
-  }
+    form.reset(EMPTY_CLASS_FORM);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function openCreate() {
+  const openCreate = useCallback(() => {
     resetForm();
     setDialogOpen(true);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function openEdit(row: ClassRow) {
+  const openEdit = useCallback((row: ClassRow) => {
     setEditing(row);
-    setForm({
+    form.reset({
       campusId: row.campusId,
       programId: row.programId,
       name: row.name,
@@ -196,62 +195,40 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
       ageGroup: row.ageGroup,
     });
     setDialogOpen(true);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function save() {
-    if (!editing && (!form.campusId || !form.programId)) {
-      toast.error("Pilih kampus dan program");
-      return;
-    }
-    if (!form.name.trim()) {
-      toast.error("Nama kelas wajib diisi");
-      return;
-    }
-    if (form.capacity < 1 || form.capacity > 200) {
-      toast.error("Kapasitas harus antara 1 dan 200");
-      return;
-    }
-    if (!form.ageGroup) {
-      toast.error("Kelompok usia wajib dipilih");
-      return;
-    }
-    setSaving(true);
+  const save = form.handleSubmit(async (values) => {
     const url = editing
       ? `/api/admin/classes/${editing.id}`
       : `/api/admin/classes`;
     const method = editing ? "PATCH" : "POST";
     const body = editing
       ? {
-          name: form.name.trim(),
-          capacity: form.capacity,
-          slotTemplate: form.slotTemplate,
-          ageGroup: form.ageGroup,
+          name: values.name,
+          capacity: values.capacity,
+          slotTemplate: values.slotTemplate,
+          ageGroup: values.ageGroup,
         }
       : {
-          campusId: form.campusId,
-          programId: form.programId,
+          campusId: values.campusId,
+          programId: values.programId,
           academicYearId: yearId,
-          name: form.name.trim(),
-          capacity: form.capacity,
-          slotTemplate: form.slotTemplate,
-          ageGroup: form.ageGroup,
+          name: values.name,
+          capacity: values.capacity,
+          slotTemplate: values.slotTemplate,
+          ageGroup: values.ageGroup,
         };
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
+    try {
+      await sendJson(url, { method, body }, "Gagal menyimpan");
       toast.success(editing ? "Kelas diperbarui" : "Kelas ditambahkan");
       setDialogOpen(false);
       resetForm();
       fetchRows();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error ?? "Gagal menyimpan");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan");
     }
-    setSaving(false);
-  }
+  });
 
   async function flipStatus(target: ClassRow, status: "ACTIVE" | "INACTIVE") {
     const res =
@@ -271,107 +248,109 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  const columns: ColumnDef<ClassRow>[] = [
-    {
-      accessorKey: "name",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Nama" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm font-medium">{row.original.name}</span>
-      ),
-    },
-    {
-      id: "campus",
-      accessorFn: (r) => r.campus.name,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Kampus" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.campus.name}</span>
-      ),
-    },
-    {
-      id: "program",
-      accessorFn: (r) => r.program.name,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Program" />
-      ),
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.program.name}</span>
-      ),
-    },
-    {
-      id: "homeroom",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Wali Kelas" />
-      ),
-      cell: ({ row }) => {
-        const h = row.original.teachingAssignments[0]?.employee?.nama;
-        return h ? (
-          <span className="text-sm">{h}</span>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        );
+  const columns: ColumnDef<ClassRow>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Nama" />
+        ),
+        cell: ({ row }) => (
+          <DataTableLinkCell href={`/admin/classes/${row.original.id}`}>
+            {row.original.name}
+          </DataTableLinkCell>
+        ),
       },
-    },
-    {
-      id: "roster",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Siswa" />
-      ),
-      cell: ({ row }) => (
-        <span className="font-currency text-sm">
-          {row.original.enrolledCount}/{row.original.capacity}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
-    },
-    {
-      id: "health",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Kondisi" />
-      ),
-      cell: ({ row }) => (
-        <Badge
-          variant="outline"
-          className={healthTone(row.original.health)}
-        >
-          {row.original.health}
-        </Badge>
-      ),
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end">
-          <DataTableRowActions
-            onView={() => router.push(`/admin/classes/${row.original.id}`)}
-            onEdit={
-              canWrite && !archivedMode ? () => openEdit(row.original) : undefined
-            }
-            onDeactivate={
-              canWrite && !archivedMode && row.original.status === "ACTIVE"
-                ? () => setDeactivateTarget(row.original)
-                : undefined
-            }
-            onActivate={
-              canWrite && !archivedMode && row.original.status === "INACTIVE"
-                ? () => setReactivateTarget(row.original)
-                : undefined
-            }
-            isActive={row.original.status === "ACTIVE"}
-          />
-        </div>
-      ),
-    },
-  ];
+      {
+        id: "campus",
+        accessorFn: (r) => r.campus.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Kampus" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.campus.name}</span>
+        ),
+      },
+      {
+        id: "program",
+        accessorFn: (r) => r.program.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Program" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.program.name}</span>
+        ),
+      },
+      {
+        id: "homeroom",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Wali Kelas" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => {
+          const h = row.original.teachingAssignments[0]?.employee?.nama;
+          return h ? (
+            <span className="text-sm">{h}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          );
+        },
+      },
+      {
+        id: "roster",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Siswa" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-currency text-sm">
+            {row.original.enrolledCount}/{row.original.capacity}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Status" />
+        ),
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "health",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Kondisi" />
+        ),
+        meta: { priority: "low" },
+        cell: ({ row }) => <StatusBadge status={row.original.health} />,
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end">
+            <DataTableRowActions
+              rowLabel={row.original.name}
+              onEdit={
+                canWrite && !archivedMode ? () => openEdit(row.original) : undefined
+              }
+              onDeactivate={
+                canWrite && !archivedMode && row.original.status === "ACTIVE"
+                  ? () => setDeactivateTarget(row.original)
+                  : undefined
+              }
+              onActivate={
+                canWrite && !archivedMode && row.original.status === "INACTIVE"
+                  ? () => setReactivateTarget(row.original)
+                  : undefined
+              }
+              isActive={row.original.status === "ACTIVE"}
+            />
+          </div>
+        ),
+      },
+    ],
+    [canWrite, archivedMode, openEdit],
+  );
 
   const tableTotalPages = Math.max(1, Math.ceil(rows.length / tablePageSize));
   const safeTablePage = Math.min(tablePage, tableTotalPages);
@@ -496,153 +475,136 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
             : "Pilih kampus dan program, beri nama, lalu tentukan kapasitas."
         }
         footer={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setDialogOpen(false)}
-              disabled={saving}
-            >
-              Batal
-            </Button>
-            <Button onClick={save} disabled={saving}>
-              {saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Kelas"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Kelas"}
+          />
         }
       >
-        <div className="space-y-field">
-          <Field>
-            <FieldLabel htmlFor="class-campus" required>Kampus</FieldLabel>
-            <Select
-              value={form.campusId}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, campusId: v ?? "" }))
-              }
-              disabled={!!editing}
-            >
-              <SelectTrigger id="class-campus" aria-required="true">
-                <SelectValue placeholder="Pilih kampus" />
-              </SelectTrigger>
-              <SelectContent>
-                {campuses
-                  .filter(
-                    (c) => c.status === "ACTIVE" || c.id === form.campusId,
-                  )
-                  .map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                      {c.status !== "ACTIVE" ? " (nonaktif)" : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </Field>
+        <form id={formId} onSubmit={save} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="campusId"
+            label="Kampus"
+            required
+            id="class-campus"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+                disabled={!!editing}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue placeholder="Pilih kampus" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campuses
+                    .filter((c) => c.status === "ACTIVE" || c.id === field.value)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.status !== "ACTIVE" ? " (nonaktif)" : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="class-program" required>Program</FieldLabel>
-            <Select
-              value={form.programId}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, programId: v ?? "" }))
-              }
-              disabled={!!editing}
-            >
-              <SelectTrigger id="class-program" aria-required="true">
-                <SelectValue placeholder="Pilih program" />
-              </SelectTrigger>
-              <SelectContent>
-                {programs
-                  .filter(
-                    (p) => p.status === "ACTIVE" || p.id === form.programId,
-                  )
-                  .map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.code})
-                      {p.status !== "ACTIVE" ? " — nonaktif" : ""}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <FormField
+            control={form.control}
+            name="programId"
+            label="Program"
+            required
+            id="class-program"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+                disabled={!!editing}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue placeholder="Pilih program" />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs
+                    .filter((p) => p.status === "ACTIVE" || p.id === field.value)
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.code})
+                        {p.status !== "ACTIVE" ? " — nonaktif" : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="class-name" required>Nama kelas</FieldLabel>
-            <Input
-              id="class-name"
-              required
-              aria-required="true"
-              value={form.name}
-              placeholder="mis. TKIT A"
-              onChange={(e) =>
-                setForm((f) => ({ ...f, name: e.target.value }))
-              }
-            />
-          </Field>
+          <FormField
+            control={form.control}
+            name="name"
+            label="Nama kelas"
+            required
+            id="class-name"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} placeholder="mis. TKIT A" />
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="class-capacity" required>Kapasitas</FieldLabel>
-            <Input
-              id="class-capacity"
-              required
-              aria-required="true"
-              type="number"
-              min={1}
-              max={200}
-              value={form.capacity}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  capacity: Number.parseInt(e.target.value || "0", 10) || 0,
-                }))
-              }
-            />
-          </Field>
+          <FormField
+            control={form.control}
+            name="capacity"
+            label="Kapasitas"
+            required
+            id="class-capacity"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} type="number" min={1} max={200} />
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="class-slot-template" required>Pola Waktu Kelas</FieldLabel>
-            <Select
-              value={form.slotTemplate}
-              onValueChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  slotTemplate: (v as ClassRow["slotTemplate"]) ?? "FULL_DAY",
-                }))
-              }
-            >
-              <SelectTrigger id="class-slot-template" aria-required="true">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FULL_DAY">Sehari penuh</SelectItem>
-                <SelectItem value="MORNING_AND_AFTERNOON">
-                  Pagi & sore
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
+          <FormField
+            control={form.control}
+            name="slotTemplate"
+            label="Pola Waktu Kelas"
+            required
+            id="class-slot-template"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FULL_DAY">Sehari penuh</SelectItem>
+                  <SelectItem value="MORNING_AND_AFTERNOON">
+                    Pagi & sore
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
 
-          <Field>
-            <FieldLabel htmlFor="class-age-group" required>Kelompok usia</FieldLabel>
-            <Select
-              value={form.ageGroup}
-              onValueChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  ageGroup: (v as ClassRow["ageGroup"]) ?? "",
-                }))
-              }
-            >
-              <SelectTrigger id="class-age-group" aria-required="true">
-                <SelectValue placeholder="Pilih kelompok usia" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A">A · 4–5 tahun (TK A)</SelectItem>
-                <SelectItem value="B">B · 5–6 tahun (TK B)</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+          <FormField
+            control={form.control}
+            name="ageGroup"
+            label="Kelompok usia"
+            required
+            id="class-age-group"
+            render={({ field, controlProps }) => (
+              <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)}>
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue placeholder="Pilih kelompok usia" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">A · 4–5 tahun (TK A)</SelectItem>
+                  <SelectItem value="B">B · 5–6 tahun (TK B)</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       <DeactivateConfirmDialog

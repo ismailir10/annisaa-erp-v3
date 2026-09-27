@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  academicYearFormSchema,
   createAcademicYearSchema,
   updateAcademicYearSchema,
 } from "../academic-year";
@@ -59,5 +60,38 @@ describe("updateAcademicYearSchema", () => {
 
   it("still validates date format when a date is supplied", () => {
     expect(updateAcademicYearSchema.safeParse({ startDate: "bad" }).success).toBe(false);
+  });
+});
+
+describe("academicYearFormSchema", () => {
+  const valid = {
+    name: "2025/2026",
+    startDate: "2025-07-01",
+    endDate: "2026-06-30",
+  };
+
+  it("accepts a valid range", () => {
+    expect(academicYearFormSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts an equal start/end date (end >= start)", () => {
+    const r = academicYearFormSchema.safeParse({ ...valid, endDate: valid.startDate });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects an end date before the start date, on endDate", () => {
+    const r = academicYearFormSchema.safeParse({ ...valid, endDate: "2025-01-01" });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const issue = r.error.issues[0];
+      expect(issue.path).toEqual(["endDate"]);
+      expect(issue.message).toMatch(/setelah tanggal mulai/);
+    }
+  });
+
+  it("still enforces the base schema's rules (e.g. required name)", () => {
+    const { name: _omit, ...noName } = valid;
+    void _omit;
+    expect(academicYearFormSchema.safeParse(noName).success).toBe(false);
   });
 });

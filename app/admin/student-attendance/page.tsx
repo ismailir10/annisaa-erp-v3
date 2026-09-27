@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import type * as z4 from "zod/v4/core";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
@@ -9,12 +10,13 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -29,6 +31,11 @@ import { toast } from "sonner";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatDate, formatClassOptionLabel } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
+import { updateStudentAttendanceSchema } from "@/lib/validations/student-attendance";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 import {
   AdminTabs,
   AdminTabsList,
@@ -212,8 +219,10 @@ export default function StudentAttendancePage() {
 
   // Override dialog (Category C — event-log override, not a destructive edit)
   const [overrideTarget, setOverrideTarget] = useState<AttendanceRecord | null>(null);
-  const [overriding, setOverriding] = useState(false);
-  const [overrideForm, setOverrideForm] = useState({ status: "PRESENT", notes: "" });
+  const overrideFormId = useId();
+  const overrideForm = useZodForm(updateStudentAttendanceSchema, {
+    defaultValues: { status: "PRESENT", notes: "" },
+  });
 
   // Void confirm
   const [voidTarget, setVoidTarget] = useState<AttendanceRecord | null>(null);
@@ -278,29 +287,32 @@ export default function StudentAttendancePage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  function openOverride(r: AttendanceRecord) {
-    setOverrideTarget(r);
-    setOverrideForm({ status: r.status, notes: r.notes ?? "" });
-  }
+  const openOverride = useCallback(
+    (r: AttendanceRecord) => {
+      setOverrideTarget(r);
+      overrideForm.reset({
+        status: r.status as z4.input<typeof updateStudentAttendanceSchema>["status"],
+        notes: r.notes ?? "",
+      });
+    },
+    [overrideForm],
+  );
 
-  async function handleOverride() {
+  const handleOverride = overrideForm.handleSubmit(async (values) => {
     if (!overrideTarget) return;
-    setOverriding(true);
-    const res = await fetch(`/api/student-attendance/${overrideTarget.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: overrideForm.status, notes: overrideForm.notes || null }),
-    });
-    if (res.ok) {
+    try {
+      await sendJson(
+        `/api/student-attendance/${overrideTarget.id}`,
+        { method: "PUT", body: { status: values.status, notes: values.notes || null } },
+        "Gagal menimpa kehadiran",
+      );
       toast.success("Kehadiran ditimpa");
       setOverrideTarget(null);
       fetchData();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menimpa kehadiran");
+    } catch (err) {
+      applyServerErrors(overrideForm, err, "Gagal menimpa kehadiran");
     }
-    setOverriding(false);
-  }
+  });
 
   async function handleVoid() {
     if (!voidTarget) return;
@@ -331,8 +343,11 @@ export default function StudentAttendancePage() {
   }
 
   // ── Columns ─────────────────────────────────────────────────────
+  // Memoised — a fresh array every render would remount row cells and close
+  // any open row-action menu (Cycle 3 T7; see the removed retry hack in
+  // `__tests__/override-dialog.test.tsx`).
 
-  const columns: ColumnDef<AttendanceRecord>[] = [
+  const columns: ColumnDef<AttendanceRecord>[] = useMemo(() => [
     {
       accessorKey: "date",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tanggal" />,
@@ -346,18 +361,16 @@ export default function StudentAttendancePage() {
       cell: ({ row }) => {
         const s = row.original.student;
         return (
-          <div>
-            <p className="text-sm font-medium">{s.name}</p>
-            {s.nickname && (
-              <p className="text-xs text-muted-foreground">{s.nickname}</p>
-            )}
-          </div>
+          <DataTableLinkCell href={`/admin/students/${s.id}`} description={s.nickname}>
+            {s.name}
+          </DataTableLinkCell>
         );
       },
     },
     {
       id: "class",
       header: "Kelas",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.classSection.name}
@@ -372,6 +385,7 @@ export default function StudentAttendancePage() {
     {
       id: "notes",
       header: "Catatan",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground max-w-[200px] truncate block">
           {row.original.notes ?? "—"}
@@ -393,7 +407,7 @@ export default function StudentAttendancePage() {
         />
       ),
     },
-  ];
+  ], [openOverride]);
 
   // ─────────────────────────────────────────────────────────────────
 
@@ -423,12 +437,11 @@ export default function StudentAttendancePage() {
       <div className="flex flex-wrap gap-3 mb-3">
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
-          <Input
+          <DatePicker
             id="attendance-date-from"
-            type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
+            onChange={(v) => {
+              setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
@@ -436,12 +449,11 @@ export default function StudentAttendancePage() {
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="attendance-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
-          <Input
+          <DatePicker
             id="attendance-date-to"
-            type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
+            onChange={(v) => {
+              setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
@@ -519,46 +531,59 @@ export default function StudentAttendancePage() {
       {/* ── Override dialog (Category C — event-log override) ─── */}
       <ResponsiveFormDialog
         open={!!overrideTarget}
-        onOpenChange={(o) => { if (!overriding && !o) setOverrideTarget(null); }}
+        onOpenChange={(o) => { if (!overrideForm.formState.isSubmitting && !o) setOverrideTarget(null); }}
         title="Timpa Kehadiran"
         description={overrideTarget ? `${overrideTarget.student.name} — ${formatDate(overrideTarget.date)}` : undefined}
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setOverrideTarget(null)} disabled={overriding}>Batal</Button>
-            <Button onClick={handleOverride} disabled={overriding}>
-              {overriding ? "Menyimpan..." : "Simpan"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={overrideFormId}
+            pending={overrideForm.formState.isSubmitting}
+            onCancel={() => setOverrideTarget(null)}
+            submitLabel="Simpan"
+          />
         }
       >
-        <Field>
-          <FieldLabel htmlFor="attendance-override-status">Status Kehadiran</FieldLabel>
-          <Select
-            value={overrideForm.status}
-            onValueChange={(v) => setOverrideForm((f) => ({ ...f, status: v ?? f.status }))}
-          >
-            <SelectTrigger id="attendance-override-status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PRESENT">Hadir</SelectItem>
-              <SelectItem value="ABSENT">Alpa</SelectItem>
-              <SelectItem value="SICK">Sakit</SelectItem>
-              <SelectItem value="PERMISSION">Izin</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="attendance-override-notes">Catatan (opsional)</FieldLabel>
-          <Textarea
-            id="attendance-override-notes"
-            value={overrideForm.notes}
-            onChange={(e) => setOverrideForm((f) => ({ ...f, notes: e.target.value }))}
-            placeholder="Catatan tambahan..."
-            rows={2}
+        <form id={overrideFormId} onSubmit={handleOverride} noValidate className="space-y-field">
+          <FormRootError formState={overrideForm.formState} />
+          <FormField
+            control={overrideForm.control}
+            name="status"
+            label="Status Kehadiran"
+            id="attendance-override-status"
+            render={({ field, controlProps }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => v != null && field.onChange(v)}
+              >
+                <SelectTrigger {...controlProps} onBlur={field.onBlur}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PRESENT">Hadir</SelectItem>
+                  <SelectItem value="ABSENT">Alpa</SelectItem>
+                  <SelectItem value="SICK">Sakit</SelectItem>
+                  <SelectItem value="PERMISSION">Izin</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           />
-        </Field>
+          <FormField
+            control={overrideForm.control}
+            name="notes"
+            label="Catatan (opsional)"
+            id="attendance-override-notes"
+            render={({ field, controlProps }) => (
+              <Textarea
+                {...field}
+                {...controlProps}
+                value={field.value ?? ""}
+                placeholder="Catatan tambahan..."
+                rows={2}
+              />
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* ── Void confirm ────────────────────────────────────────── */}
@@ -588,17 +613,18 @@ const recapColumns: ColumnDef<RecapRow>[] = [
     accessorKey: "name",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Siswa" />,
     cell: ({ row }) => (
-      <div>
-        <p className="text-sm font-medium">{row.original.name}</p>
-        {row.original.nis && (
-          <p className="text-xs text-muted-foreground">NIS {row.original.nis}</p>
-        )}
-      </div>
+      <DataTableLinkCell
+        href={`/admin/students/${row.original.studentId}`}
+        description={row.original.nis ? `NIS ${row.original.nis}` : undefined}
+      >
+        {row.original.name}
+      </DataTableLinkCell>
     ),
   },
   {
     accessorKey: "className",
     header: ({ column }) => <DataTableColumnHeader column={column} title="Kelas" />,
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">{row.original.className}</span>
     ),

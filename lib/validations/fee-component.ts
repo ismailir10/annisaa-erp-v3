@@ -30,6 +30,22 @@ export const createFeeComponentSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).default(0),
 });
 
+/**
+ * Admin dialog schema. Only `sortOrder` differs from the wire schema: the
+ * number input holds a string, parsed here with an explicit blank → 0 (the
+ * old `parseInt("")` → NaN → null path landed on 0 too). The parsed output
+ * (a number) is what gets POSTed, so it must stay valid for
+ * `createFeeComponentSchema` — covered by a round-trip test.
+ */
+export const feeComponentFormSchema = createFeeComponentSchema.extend({
+  sortOrder: z
+    .string()
+    .trim()
+    .optional()
+    .transform((s) => (s === undefined || s === "" ? 0 : Number(s)))
+    .pipe(z.number({ message: "Urutan harus berupa angka" }).int("Urutan harus bilangan bulat").min(0, "Urutan tidak boleh negatif")),
+});
+
 export const updateFeeComponentSchema = z.object({
   // `code` is intentionally not updatable — it backs the unique key and is
   // shown read-only on edit. label/category/flags are the editable surface.

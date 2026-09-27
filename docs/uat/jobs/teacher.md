@@ -22,9 +22,9 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Steps (user intent, not UI clicks):**
   1. Open the teacher portal
   2. Open the current class's attendance action and confirm the class and school date carried over
-  3. Distinguish saved statuses from "Belum dicatat". Record a missing student's presence directly, then mark any exceptions.
-  4. Each change saves through the existing attendance API. Confirm saving, saved, or recoverable failure feedback; a missing record must never count as saved presence.
-- **Done when:** All students have a status for today. Each tap-to-save is confirmed by the "✓ Tersimpan" indicator; no separate save action is required. Reopening the page shows today's state preserved.
+  3. Mark the exceptions first — pick S, I or A on those rows (one tap each).
+  4. Record everyone else with "Tandai N siswa lainnya Hadir" (one tap, one request). Confirm the page-level saving → "Absensi tersimpan" feedback, or recoverable failure feedback; a missing record must never count as saved presence.
+- **Done when:** All students have a status for today and the bar reads "Semua siswa sudah dicatat". A 30-child class with 3 exceptions takes about 4 taps. Reopening the page shows today's state preserved.
 - **Why this job matters:** Bu Sari's #1 daily task. She has 3 minutes before morning circle. Every extra tap is expensive.
 - **Expected perf:** full page load <1.5s; save click-to-confirm <800ms; any slower is noticeable and graded accordingly.
 - **Known friction (from last UAT):** Class selector now displays human-readable class name (fixed in `uat-quick-wins` cycle, previously showed raw DB ID like `cs_kb_aster`)
@@ -41,10 +41,10 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Steps:**
   1. Open the teacher portal → class attendance
   2. Change the date picker to yesterday (or navigate back one day)
-  3. Find the student whose parent reported they were actually sick, change status from `HADIR` → `SAKIT`
-  4. Wait for that row's `✓ Tersimpan` confirmation; there is no separate Simpan button
+  3. Find the student whose parent reported they were actually sick and tap S (Sakit) on their row
+  4. Wait for the page's "Absensi tersimpan" confirmation; there is no separate Simpan button
   5. Reload and confirm the corrected `SAKIT` status remains
-- **Done when:** Yesterday's record for that student is updated and persists on reload, with the per-row saved confirmation after the tap. No confusing "out of range" or "locked" errors for a same-week correction.
+- **Done when:** Yesterday's record for that student is updated and persists on reload, with the saved confirmation after the tap. No confusing "out of range" or "locked" errors for a same-week correction.
 - **Why this job matters:** Parents call the next morning saying "my kid was actually sick yesterday, can you fix the record?" If Bu Sari can't correct it without asking admin, she either lies to the parent or stops trusting the system.
 - **Expected perf:** date-picker change + list reload <1.5s; tap-to-confirm <800ms.
 - **Known friction (from last UAT):** <filled by /uat reports>

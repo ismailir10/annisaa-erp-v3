@@ -34,6 +34,8 @@ const state = {
   lastUpdateMany: null as Record<string, unknown> | null,
   parentUpsertCalls: 0,
   parentCreateCalls: 0,
+  parentUpsertCreateData: null as Record<string, unknown> | null,
+  parentCreateData: null as Record<string, unknown> | null,
   forceP2034Once: false,
   txAttempts: 0,
   /** Rows findParentCandidates sees — the tenant's existing ACTIVE parents. */
@@ -129,12 +131,14 @@ vi.mock("@/lib/db", () => ({
       // findParentCandidates issues one narrow SELECT over the tenant's
       // ACTIVE parents and compares in JS.
       findMany: vi.fn(async () => state.existingParents),
-      upsert: vi.fn(async () => {
+      upsert: vi.fn(async ({ create }: { create: Record<string, unknown> }) => {
         state.parentUpsertCalls++;
+        state.parentUpsertCreateData = create;
         return { id: "p-upserted" };
       }),
-      create: vi.fn(async () => {
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         state.parentCreateCalls++;
+        state.parentCreateData = data;
         return { id: "p-created" };
       }),
     },
@@ -196,6 +200,8 @@ beforeEach(() => {
   state.lastUpdateMany = null;
   state.parentUpsertCalls = 0;
   state.parentCreateCalls = 0;
+  state.parentUpsertCreateData = null;
+  state.parentCreateData = null;
   state.forceP2034Once = false;
   state.txAttempts = 0;
   state.existingParents = [];
@@ -408,5 +414,58 @@ describe("POST guardians — isPrimary default on the create-new-parent branch",
     const res = await post({ name: "Siti Aminah", relationship: "IBU", confirmNew: true });
     expect(res.status).toBe(201);
     expect(state.created).toMatchObject({ isPrimary: false });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T3 (2026-09-27, admin-finish-standard) data-loss fix: "Tambah Wali Baru"
+// (student-detail create step) collected Alamat, Jumlah Anak and Anak ke-,
+// but the route parsed `address`/`childrenTotal` and never wrote them, and
+// `childOrder` wasn't even in createGuardianSchema — every save from that
+// form silently dropped all three. Covers both the no-email `parent.create`
+// path and the has-email `parent.upsert` path, plus the junction's
+// `childOrder`.
+// ──────────────────────────────────────────────────────────────────────────
+describe("POST guardians — create-new-parent persists address/childrenTotal/childOrder (T3)", () => {
+  it("persists address + childrenTotal on parent.create (no email) and childOrder on the junction", async () => {
+    const res = await post({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      confirmNew: true,
+      address: "Jl. Merdeka No. 1",
+      childrenTotal: 2,
+      childOrder: 1,
+    });
+    expect(res.status).toBe(201);
+    expect(state.parentCreateData).toMatchObject({ address: "Jl. Merdeka No. 1", childrenTotal: 2 });
+    expect(state.created).toMatchObject({ childOrder: 1 });
+  });
+
+  it("persists address + childrenTotal on parent.upsert's create branch (has email)", async () => {
+    const res = await post({
+      name: "Siti Aminah",
+      relationship: "IBU",
+      confirmNew: true,
+      email: "siti-t3@example.test",
+      address: "Jl. Merdeka No. 1",
+      childrenTotal: 2,
+    });
+    expect(res.status).toBe(201);
+    expect(state.parentUpsertCreateData).toMatchObject({ address: "Jl. Merdeka No. 1", childrenTotal: 2 });
+  });
+
+  it("defaults address/childrenTotal/childOrder to null when omitted, same as every other optional field", async () => {
+    const res = await post({ name: "Budi", relationship: "AYAH", confirmNew: true });
+    expect(res.status).toBe(201);
+    expect(state.parentCreateData).toMatchObject({ address: null, childrenTotal: null });
+    expect(state.created).toMatchObject({ childOrder: null });
+  });
+
+  it("400s a create payload with a non-numeric childOrder (validateBody, not the old safeParse envelope)", async () => {
+    const res = await post({ name: "Siti", relationship: "IBU", childOrder: "not-a-number" });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Validasi gagal");
+    expect(Array.isArray(body.errors)).toBe(true);
   });
 });

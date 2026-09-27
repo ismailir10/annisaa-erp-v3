@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { toast } from "sonner";
 import { weekStart } from "@/lib/student-journal/week";
 import { formatDate } from "@/lib/format";
@@ -178,7 +178,11 @@ export default function ClassWeekPage({
           <DataTableColumnHeader column={column} title="Siswa" />
         ),
         cell: ({ row }) => (
-          <p className="text-sm font-medium">{row.original.name}</p>
+          <DataTableLinkCell
+            href={`/admin/student-journal/students/${row.original.studentId}?weekStart=${ws}`}
+          >
+            {row.original.name}
+          </DataTableLinkCell>
         ),
       },
       {
@@ -193,21 +197,8 @@ export default function ClassWeekPage({
           />
         ),
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() =>
-              router.push(
-                `/admin/student-journal/students/${row.original.studentId}?weekStart=${ws}`,
-              )
-            }
-          />
-        ),
-      },
     ],
-    [router, ws],
+    [ws],
   );
 
   const students = rollUp?.students ?? [];

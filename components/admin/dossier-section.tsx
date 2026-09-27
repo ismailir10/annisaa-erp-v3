@@ -86,11 +86,14 @@ export function DossierSection({
  * Sticky in-page nav over the sections. Clicking expands the target (a
  * collapsed section cannot be scrolled to meaningfully) and then scrolls.
  *
- * Horizontally scrollable below `lg` rather than wrapping to three rows on a
- * phone. From `lg` it wraps instead: increment 2 took the dossier from 8
- * sections to 11, and a single scrolling row at 1440 pushed the last two off
- * the right edge with no scrollbar to hint they were there — the nav silently
- * stopped listing every section, which is the one job it has.
+ * `lg`+ only (T1, cycle 2026-09-26, admin-ui-standard-c1). Below `lg`,
+ * `DossierSection`'s own collapsible headers already list every section as
+ * you scroll past them — showing this jump strip too was the same list
+ * twice. From `lg` it still wraps rather than scrolls: increment 2 took the
+ * dossier from 8 sections to 11, and a single scrolling row at 1440 pushed
+ * the last two off the right edge with no scrollbar to hint they were there
+ * — the nav silently stopped listing every section, which is the one job it
+ * has.
  */
 export function DossierNav({
   sections,
@@ -102,9 +105,9 @@ export function DossierNav({
   return (
     <nav
       aria-label="Bagian halaman"
-      className="sticky top-0 z-10 mb-3 overflow-x-auto rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:overflow-x-visible"
+      className="sticky top-0 z-10 mb-3 hidden overflow-x-visible rounded-lg border bg-card/95 p-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:block"
     >
-      <ul className="flex min-w-max items-center gap-1 lg:min-w-0 lg:flex-wrap">
+      <ul className="flex min-w-0 items-center gap-1 flex-wrap">
         {sections.map((s) => (
           <li key={s.id}>
             <button

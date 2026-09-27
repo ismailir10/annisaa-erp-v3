@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classCreateSchema,
+  classFormSchema,
   classUpdateSchema,
   enrollmentAddSchema,
   teachingAssignmentAddSchema,
@@ -120,6 +121,47 @@ describe("classUpdateSchema", () => {
 
   it("rejects invalid capacity", () => {
     expect(classUpdateSchema.safeParse({ capacity: -1 }).success).toBe(false);
+  });
+});
+
+describe("classFormSchema", () => {
+  const valid = {
+    campusId: "camp-1",
+    programId: "prog-1",
+    name: "TKIT A",
+    capacity: 20,
+    slotTemplate: "FULL_DAY" as const,
+    ageGroup: "A" as const,
+  };
+
+  it("has no academicYearId field — the dialog splices it in from the page's year switcher", () => {
+    const r = classFormSchema.safeParse(valid);
+    expect(r.success).toBe(true);
+    if (r.success) expect("academicYearId" in r.data).toBe(false);
+  });
+
+  it("coerces a numeric-string capacity from the <Input type='number'>", () => {
+    const r = classFormSchema.safeParse({ ...valid, capacity: "25" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.capacity).toBe(25);
+  });
+
+  it("rejects an emptied capacity with a 'wajib diisi' message, not a silent coerce to 0", () => {
+    const r = classFormSchema.safeParse({ ...valid, capacity: "" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("Kapasitas wajib diisi");
+  });
+
+  it("rejects an empty ageGroup with the Indonesian required message, not zod's default", () => {
+    const r = classFormSchema.safeParse({ ...valid, ageGroup: "" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe("Kelompok usia wajib dipilih");
+  });
+
+  it("still requires campusId/programId/name", () => {
+    expect(classFormSchema.safeParse({ ...valid, campusId: "" }).success).toBe(false);
+    expect(classFormSchema.safeParse({ ...valid, programId: "" }).success).toBe(false);
+    expect(classFormSchema.safeParse({ ...valid, name: "" }).success).toBe(false);
   });
 });
 

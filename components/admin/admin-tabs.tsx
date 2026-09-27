@@ -1,27 +1,61 @@
 "use client";
 
 /**
- * Admin-namespaced re-export of Shadcn `<Tabs>` primitives.
+ * Admin-namespaced wrapper over Shadcn `<Tabs>` primitives.
  *
- * Currently a passthrough — the admin portal is happy with Shadcn's
- * default variant (pill on `bg-muted`). The wrapper exists so future
- * admin-wide tab styling changes (spacing, active underline, color
- * tokens) land in one place instead of across every detail page.
+ * `AdminTabs`/`AdminTabsTrigger`/`AdminTabsContent` are still a passthrough —
+ * the admin portal is happy with Shadcn's default variant (pill on
+ * `bg-muted`). `AdminTabsList` is not: it OWNS tab-strip layout (cycle
+ * 2026-09-26, admin-ui-standard-c1 T1) so every admin tab strip behaves
+ * identically on a phone — a single row that scrolls horizontally instead of
+ * wrapping to two or three rows (which, on a strip like Komponen Biaya's,
+ * dropped a tab onto its own centred row where it read as a heading, not a
+ * tab). Pages must not re-fight this with their own `flex-wrap`/`w-full`
+ * overrides — see `.claude/standards/ui.md` DataTable/AdminTabs section.
  *
- * Consumers that import `AdminTabs*` will automatically pick up any
- * future admin-specific tweak without further per-page edits.
+ * The wrapper exists so future admin-wide tab styling changes land in one
+ * place instead of across every detail page.
  */
 
-export {
+import * as React from "react";
+import {
   Tabs as AdminTabs,
-  TabsList as AdminTabsList,
-  TabsTrigger as AdminTabsTrigger,
+  TabsList,
+  TabsTrigger,
   TabsContent as AdminTabsContent,
 } from "@/components/ui/tabs";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+
+export { AdminTabs, AdminTabsContent };
+
+export function AdminTabsList({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsList>) {
+  return (
+    <TabsList
+      className={cn(
+        "max-w-full flex-nowrap justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+// `TabsTrigger`'s own `flex-1` (meant for a `TabsList` that never overflows)
+// would fight `AdminTabsList`'s horizontal scroll by stretching triggers to
+// fill it instead of letting them keep their natural width. `shrink-0` here,
+// applied directly rather than via a parent selector, wins deterministically
+// over `flex-1` (same specificity either way — this avoids the coin flip).
+export function AdminTabsTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsTrigger>) {
+  return <TabsTrigger className={cn("shrink-0", className)} {...props} />;
+}
 
 /**
  * Link-based sibling to AdminTabs (T2, cycle 2026-09-25 — the Pendaftaran /
@@ -47,7 +81,7 @@ export function AdminLinkTabs({
   return (
     <div
       className={cn(
-        "inline-flex h-8 w-fit items-center justify-center gap-1.5 rounded-lg bg-muted p-[3px] text-muted-foreground",
+        "inline-flex h-8 max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden items-center justify-start gap-1.5 overflow-x-auto rounded-lg bg-muted p-[3px] text-muted-foreground",
         className,
       )}
     >
@@ -59,7 +93,7 @@ export function AdminLinkTabs({
             href={item.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
+              "relative inline-flex h-[calc(100%-1px)] shrink-0 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
               isActive &&
                 "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30",
             )}

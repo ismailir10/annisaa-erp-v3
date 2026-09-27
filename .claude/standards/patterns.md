@@ -25,27 +25,39 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 **Layout skeleton:**
 
 ```tsx
-<SidebarInset>
-  <SiteHeader breadcrumbs={[{ label: "Siswa", href: "/admin/students" }]} />
-  <main className="flex flex-1 flex-col p-page-x py-page-y">
-    <PageHeader
-      title="Siswa"
-      subtitle="Kelola data siswa aktif dan riwayat"
-      actions={<Button>Tambah Siswa</Button>}
+// Breadcrumb + sidebar chrome come from app/admin/layout.tsx (AppSidebar +
+// AdminBreadcrumb) — a list page starts at PageHeader, no SiteHeader.
+<>
+  <PageHeader
+    title="Siswa"
+    subtitle="Kelola data siswa aktif dan riwayat"
+    actions={<Button>Tambah Siswa</Button>}
+  />
+  <section className="mt-section">
+    <DataTableToolbar
+      searchPlaceholder="Cari nama / NIS..."
+      value={search}
+      onValueChange={setSearch}
+      filters={[
+        {
+          key: "status",
+          label: "Status",
+          options: [
+            { value: "ALL", label: "Semua Status" },
+            { value: "ACTIVE", label: "Aktif" },
+            { value: "INACTIVE", label: "Tidak Aktif" },
+          ],
+          value: status,
+          onChange: setStatus,
+        },
+      ]}
     />
-    <section className="mt-section">
-      <DataTable
-        columns={columns}
-        data={rows}
-        searchPlaceholder="Cari nama / NIS..."
-        statusFilter={<StatusFilter value={s} onChange={setS} />}
-      />
-    </section>
-  </main>
-</SidebarInset>
+    <DataTable columns={columns} data={rows} pagination={pagination} />
+  </section>
+</>
 ```
 
-**Required pieces:** breadcrumb in SiteHeader · PageHeader with title + subtitle + primary CTA · DataTable with sort + search + status filter + pagination + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns (sortable, muted) · EmptyState via `DataTable`'s empty slot.
+**Required pieces:** breadcrumb comes free from `app/admin/layout.tsx`'s `AdminBreadcrumb` — a list page's own root starts at `PageHeader` · `PageHeader` with title + static subtitle + primary CTA in `actions` (unless the CTA is tab-scoped — then it goes in the toolbar's `actions`, see `ui.md` Primary-Action Placement) · `DataTableToolbar` with search + status `filters` entry (Aktif/Tidak Aktif at minimum) · `DataTable` with sort + pagination + a `DataTableLinkCell` identity column ("name is the link", see `ui.md`) + action column (`<DataTableRowActions>` — see `ui.md`) · Created At + Updated At columns `meta: { priority: "low" }` (hidden below `md`, see `ui.md` DataTable mobile contract) · EmptyState via `DataTable`'s empty slot.
 
 **Forbidden:** hand-rolled `flex flex-col gap-2` row loops · custom modal buttons outside the `<Dialog>` / `<Sheet>` rule · hardcoded `p-6` page padding (use `p-page-x` / `py-page-y` from the spacing scale).
 
@@ -109,6 +121,8 @@ Six recipes cover every screen in the ERP today. Pick the narrowest match; do no
 
 **Required pieces:** `DetailPageHeader` + `DetailPageSkeleton` for loading (`components/admin/`) · sticky `DossierNav` that expands a collapsed section before scrolling to it · one `DossierSection` per concern, `id` = DOM anchor = nav target, `keepMounted` only for sections whose fetch is worth surviving a collapse · `DetailRail` (`RailStatTiles` / `RailCard` / `RailKV` / `RailChecklist`) — collapses into normal document flow below `lg` · hash-addressable sections (`#akademik` etc.) · aggregate numbers distinguish "not loaded" (`Memuat…`) from a real zero (never a bare `0` while a fetch is pending) · lazy sections fetch only on first open; above-the-fold rail data fetches eagerly.
 
+**Split a big dossier page, don't let it grow into a monolith.** The route `page.tsx` stays a thin orchestrator — entity state, which sections are open, lazy-fetch latches, hash handling — and each section and its dialogs live in `components/admin/<entity>/detail/*`, one file per concern (`components/admin/classes/detail/{roster,teachers,sessions}-section.tsx` + its dialogs is the shipped example; `components/admin/students/detail/*` is the second).
+
 Both variants share: StatusBadge on every state field, the Edit Toggle Pattern (`crud.md`) for inline section edits.
 
 ## Recipe 3 — Admin Form (Dialog or Sheet)
@@ -123,6 +137,17 @@ The wrapper owns the viewport-height limit, shadcn `ScrollArea` body, internal f
 
 ```tsx
 const formId = useId();
+const form = useZodForm(createStudentFormSchema, { defaultValues: EMPTY });
+
+const onSubmit = form.handleSubmit(async (values) => {
+  try {
+    await sendJson("/api/students", { method: "POST", body: values }, "Gagal menyimpan");
+    toast.success("Siswa ditambahkan");
+    setOpen(false);
+  } catch (err) {
+    applyServerErrors(form, err, "Gagal menyimpan");
+  }
+});
 
 <ResponsiveFormDialog
   open={open}
@@ -131,30 +156,32 @@ const formId = useId();
   description="Isi data siswa baru."
   size="lg"
   footer={
-    <>
-      <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-        Batal
-      </Button>
-      <Button type="submit" form={formId} disabled={isPending}>
-        {isPending ? "Menyimpan..." : "Tambah Siswa"}
-      </Button>
-    </>
+    <FormDialogFooter
+      formId={formId}
+      pending={form.formState.isSubmitting}
+      onCancel={() => setOpen(false)}
+      submitLabel="Tambah Siswa"
+    />
   }
 >
-  <form id={formId} className="space-y-field" onSubmit={onSubmit}>
-    <Field>
-      <FieldLabel required htmlFor={`${formId}-name`}>Nama Lengkap</FieldLabel>
-      <Input id={`${formId}-name`} required {...register("name")} />
-      <FieldDescription>Sesuai akta kelahiran.</FieldDescription>
-    </Field>
+  <form id={formId} className="space-y-field" onSubmit={onSubmit} noValidate>
+    <FormRootError formState={form.formState} />
+    <FormField
+      control={form.control}
+      name="name"
+      label="Nama Lengkap"
+      required
+      description="Sesuai akta kelahiran."
+      render={({ field, controlProps }) => <Input {...field} {...controlProps} />}
+    />
     {/* ...more fields */}
   </form>
 </ResponsiveFormDialog>
 ```
 
-The footer sits outside the form's DOM subtree; its submit button must use the matching `form` attribute. For existing click-driven submissions, keep the submit handler on the footer button.
+The footer sits outside the form's DOM subtree; `FormDialogFooter`'s submit button carries the matching `form` attribute.
 
-**Required pieces:** `<Field>` + `<FieldLabel>` + `<FieldDescription>` (never raw `<Label>` + `<Input>`) · Zod schema + React Hook Form · submit button shows loading state · ghost-Cancel on the left, solid-Submit on the right.
+**Required pieces:** `useZodForm` with the route's schema (or one derived from it) · `FormField` for every control · `FormRootError` · `FormDialogFooter` (loading state, ghost-Cancel left, solid-Submit right) · `sendJson` + `applyServerErrors`. Full rules and the three pitfalls: `ui.md` → Forms.
 
 ## Recipe 4 — Portal Dashboard
 
@@ -224,6 +251,7 @@ The footer sits outside the form's DOM subtree; its submit button must use the m
 - **Page-wrapper standard.** Every admin page root is a fragment starting with `PageHeader`. Multiple body blocks go in a single `<div className="space-y-section">` wrapper below it — never raw `space-y-4` / `space-y-6` at the page root.
 - **Never render nothing on empty.** Every conditional list MUST have an `<EmptyState>` branch (see `portal.md` — Empty State Contract).
 - **Loading is always `<Skeleton>`.** No `animate-pulse` divs.
+- **Every admin route has a route-level `loading.tsx`** (cycle `2026-09-27-admin-finish-standard` filled the gaps). List/table routes copy the shared list skeleton (stat-tile row + toolbar bar + one large card skeleton — see `app/admin/guardians/loading.tsx`); entity detail `[id]` routes (Recipe 2a and 2b alike) render `<DetailPageSkeleton />` (`components/admin/detail-page-skeleton.tsx` — see `app/admin/classes/[id]/loading.tsx`); everything else (settings hub, a wizard, a config/import page) renders the root skeleton shape (title + stat row + list rows — see `app/admin/settings/loading.tsx`).
 - **Errors via `toast.error()`.** Never `alert()`, never silent catch.
 - **Currency via `formatRupiah()`, dates via `formatDate()` / `formatDateShort()`.** Never inline `.toLocaleString()`.
 - **Spacing from tokens.** `p-page-x`, `py-page-y`, `gap-section`, `p-card`, `space-y-field` — never ad-hoc `p-4` / `p-8` for page chrome.

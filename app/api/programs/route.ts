@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
+import { createProgramSchema } from "@/lib/validations/program";
 
 // Cache programs for 1 hour (static data)
 export const revalidate = 3600;
@@ -27,14 +29,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json();
+  const result = await validateBody(createProgramSchema, await req.json());
+  if (result.error) return result.error;
+  const body = result.data;
+
   const program = await prisma.program.create({
     data: {
       tenantId: session.tenantId,
-      code: body.code?.trim().toUpperCase(),
-      name: body.name?.trim(),
+      code: body.code.trim().toUpperCase(),
+      name: body.name.trim(),
       description: body.description?.trim() || null,
-      type: body.type ?? "SEMESTER",
+      type: body.type,
       ageMin: body.ageMin ?? null,
       ageMax: body.ageMax ?? null,
     },

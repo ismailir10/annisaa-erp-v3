@@ -15,8 +15,8 @@ Response: `{ data: [...], pagination: { page, pageSize, total, totalPages } }`
 1. `getSession()` → auth check
 2. `session.role` → role check
 3. `tenantId` → tenant ownership
-4. Zod validation → reject bad input
-5. Structured errors: `{ error: "message" }`
+4. Zod validation with `validateBody(schema, await req.json())` (`lib/api/validate.ts`) — the schema lives in `lib/validations/**` so the admin form validates with the same one. Its 400 is `{ error: "Validasi gagal", errors: [{ field, message }] }`, which `applyServerErrors` maps onto form fields
+5. Other errors: `{ error: "message" }` (business rules such as uniqueness stay in the route, after validation)
 
 ## Xendit calls
 

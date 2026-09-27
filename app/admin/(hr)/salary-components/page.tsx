@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useWatch } from "react-hook-form";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -12,12 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { salaryComponentFormSchema } from "@/lib/validations/payroll";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type Component = {
   id: string;
@@ -30,10 +35,22 @@ type Component = {
   sortOrder: number;
 };
 
+type CalcType = "FIXED" | "PCT_OF_BASE" | "ATTENDANCE_BASED";
+
+// Single source of truth for calcType copy — shared between the list column
+// and the create/edit dialog's Select so the two never drift (was "Berbasis
+// Kehadiran" in the dialog vs. "Kehadiran" in the list).
 const CALC_LABELS: Record<string, string> = {
   FIXED: "Tetap",
   PCT_OF_BASE: "% Gaji Pokok",
   ATTENDANCE_BASED: "Kehadiran",
+};
+
+const EMPTY_FORM = {
+  code: "", label: "",
+  category: "INCOME" as "INCOME" | "DEDUCTION",
+  calcType: "FIXED" as CalcType,
+  isProRated: false, sortOrder: "0",
 };
 
 export default function SalaryComponentsPage() {
@@ -44,61 +61,58 @@ export default function SalaryComponentsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ACTIVE");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [form, setForm] = useState({
-    code: "", label: "", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: "0",
-  });
-  const [saving, setSaving] = useState(false);
+  const formId = useId();
+  // Reused for both create and edit — `code` is required by the schema but
+  // hidden once editing (not re-editable); defaultValues seeds it from the
+  // existing row so it stays valid without a visible control.
+  const form = useZodForm(salaryComponentFormSchema, { defaultValues: EMPTY_FORM });
+  const watchedCalcType = useWatch({ control: form.control, name: "calcType" });
   const [confirmTarget, setConfirmTarget] = useState<Component | null>(null);
 
-  async function fetchComponents() {
+  const fetchComponents = useCallback(async () => {
     const res = await fetch("/api/salary-components");
     setComponents(await res.json());
     setLoading(false);
-  }
+  }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchComponents(); }, []);
+  useEffect(() => { fetchComponents(); }, [fetchComponents]);
 
   function openNew() {
     setEditing(null);
-    setForm({ code: "", label: "", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: String(components.length + 1) });
+    form.reset({ ...EMPTY_FORM, sortOrder: String(components.length + 1) });
     setDialogOpen(true);
   }
 
-  function openEdit(c: Component) {
+  const openEdit = useCallback((c: Component) => {
     setEditing(c);
-    setForm({
-      code: c.code, label: c.label, category: c.category, calcType: c.calcType,
+    form.reset({
+      code: c.code, label: c.label,
+      category: c.category as "INCOME" | "DEDUCTION",
+      calcType: c.calcType as CalcType,
       isProRated: c.isProRated, sortOrder: String(c.sortOrder),
     });
     setDialogOpen(true);
-  }
+  }, [form]);
 
-  async function handleSave() {
-    if (!form.label.trim()) { toast.error("Label wajib diisi"); return; }
-    if (!editing && !form.code.trim()) { toast.error("Kode wajib diisi"); return; }
-    setSaving(true);
-    const url = editing ? `/api/salary-components/${editing.id}` : "/api/salary-components";
-    const method = editing ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, sortOrder: parseInt(form.sortOrder) }),
-    });
-    if (res.ok) {
+  const handleSave = form.handleSubmit(async (values) => {
+    try {
+      await sendJson(
+        editing ? `/api/salary-components/${editing.id}` : "/api/salary-components",
+        { method: editing ? "PUT" : "POST", body: values },
+        "Gagal menyimpan komponen gaji. Periksa kolom yang ditandai.",
+      );
       toast.success(editing ? "Komponen diperbarui" : "Komponen ditambahkan");
       setDialogOpen(false);
       fetchComponents();
-    } else {
-      const data = await res.json();
-      toast.error(data.error || "Gagal menyimpan komponen gaji. Periksa kolom yang ditandai.");
+    } catch (err) {
+      applyServerErrors(form, err, "Gagal menyimpan komponen gaji. Periksa kolom yang ditandai.");
     }
-    setSaving(false);
-  }
+  });
 
   // Returns whether the toggle succeeded so callers (e.g. the deactivate
   // ConfirmDialog) can decide whether to keep their dialog open for retry.
-  async function toggleEnabled(c: Component): Promise<boolean> {
+  const toggleEnabled = useCallback(async (c: Component): Promise<boolean> => {
     const res = await fetch(`/api/salary-components/${c.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -112,7 +126,7 @@ export default function SalaryComponentsPage() {
     toast.success(c.isEnabled ? "Komponen dinonaktifkan" : "Komponen diaktifkan");
     fetchComponents();
     return true;
-  }
+  }, [fetchComponents]);
 
   const filteredComponents = components.filter((c) => {
     const q = search.trim().toLowerCase();
@@ -130,7 +144,7 @@ export default function SalaryComponentsPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const columns: ColumnDef<Component>[] = [
+  const columns = useMemo<ColumnDef<Component>[]>(() => [
     {
       accessorKey: "sortOrder",
       header: ({ column }) => (
@@ -166,6 +180,7 @@ export default function SalaryComponentsPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Kategori" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <StatusBadge
           status={row.original.category}
@@ -188,7 +203,7 @@ export default function SalaryComponentsPage() {
         );
       },
     },
-  ];
+  ], [openEdit, toggleEnabled]);
 
   return (
     <>
@@ -250,58 +265,98 @@ export default function SalaryComponentsPage() {
         description="Komponen gaji menentukan struktur penggajian"
         contentClassName="max-h-[90vh]"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving}>Batal</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Tambah Komponen"}</Button>
-          </>
+          <FormDialogFooter
+            formId={formId}
+            pending={form.formState.isSubmitting}
+            onCancel={() => setDialogOpen(false)}
+            submitLabel={editing ? "Simpan Perubahan" : "Tambah Komponen"}
+          />
         }
       >
-            {!editing && (
-              <Field>
-                <FieldLabel htmlFor="salary-component-code" required>Kode</FieldLabel>
-                <Input id="salary-component-code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="tunjangan_baru" />
-              </Field>
-            )}
-            <Field>
-              <FieldLabel htmlFor="salary-component-label" required>Label</FieldLabel>
-              <Input id="salary-component-label" required value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tunjangan Baru" />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel htmlFor="salary-component-category">Kategori</FieldLabel>
-                <Select value={form.category} onValueChange={(v) => v && setForm({ ...form, category: v })} items={{ INCOME: "Pendapatan", DEDUCTION: "Potongan" }}>
-                  <SelectTrigger id="salary-component-category"><SelectValue /></SelectTrigger>
+        <form id={formId} onSubmit={handleSave} noValidate className="space-y-field">
+          <FormRootError formState={form.formState} />
+          {!editing && (
+            <FormField
+              control={form.control}
+              name="code"
+              label="Kode"
+              required
+              id="salary-component-code"
+              render={({ field, controlProps }) => <Input {...field} {...controlProps} placeholder="tunjangan_baru" />}
+            />
+          )}
+          <FormField
+            control={form.control}
+            name="label"
+            label="Label"
+            required
+            id="salary-component-label"
+            render={({ field, controlProps }) => <Input {...field} {...controlProps} placeholder="Tunjangan Baru" />}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="category"
+              label="Kategori"
+              id="salary-component-category"
+              render={({ field, controlProps }) => (
+                <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)} items={{ INCOME: "Pendapatan", DEDUCTION: "Potongan" }}>
+                  <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="INCOME">Pendapatan</SelectItem>
                     <SelectItem value="DEDUCTION">Potongan</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="salary-component-calc-type">Tipe Kalkulasi</FieldLabel>
-                <Select value={form.calcType} onValueChange={(v) => v && setForm({ ...form, calcType: v })} items={{ FIXED: "Tetap", PCT_OF_BASE: "% Gaji Pokok", ATTENDANCE_BASED: "Berbasis Kehadiran" }}>
-                  <SelectTrigger id="salary-component-calc-type"><SelectValue /></SelectTrigger>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="calcType"
+              label="Tipe Kalkulasi"
+              id="salary-component-calc-type"
+              render={({ field, controlProps }) => (
+                <Select value={field.value} onValueChange={(v) => v != null && field.onChange(v)} items={CALC_LABELS}>
+                  <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FIXED">Tetap</SelectItem>
-                    <SelectItem value="PCT_OF_BASE">% Gaji Pokok</SelectItem>
-                    <SelectItem value="ATTENDANCE_BASED">Berbasis Kehadiran</SelectItem>
+                    <SelectItem value="FIXED">{CALC_LABELS.FIXED}</SelectItem>
+                    <SelectItem value="PCT_OF_BASE">{CALC_LABELS.PCT_OF_BASE}</SelectItem>
+                    <SelectItem value="ATTENDANCE_BASED">{CALC_LABELS.ATTENDANCE_BASED}</SelectItem>
                   </SelectContent>
                 </Select>
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="salary-component-sort-order">Urutan</FieldLabel>
-              <Input id="salary-component-sort-order" type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} />
-            </Field>
-            <Field orientation="horizontal">
+              )}
+            />
+          </div>
+          <FormField
+            control={form.control}
+            name="sortOrder"
+            label="Urutan"
+            id="salary-component-sort-order"
+            description={
+              watchedCalcType === "PCT_OF_BASE"
+                ? "Harus lebih besar dari Urutan Gaji Pokok."
+                : undefined
+            }
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="isProRated"
+            label="Pro-rata (dihitung berdasarkan hari hadir)"
+            orientation="horizontal"
+            id="salary-component-prorated"
+            render={({ field, controlProps }) => (
               <Checkbox
-                id="salary-component-prorated"
+                {...controlProps}
                 aria-label="Pro-rata dihitung berdasarkan hari hadir"
-                checked={form.isProRated}
-                onCheckedChange={(c) => setForm({ ...form, isProRated: !!c })}
+                checked={!!field.value}
+                onCheckedChange={(c) => field.onChange(!!c)}
+                onBlur={field.onBlur}
               />
-              <FieldLabel htmlFor="salary-component-prorated">Pro-rata (dihitung berdasarkan hari hadir)</FieldLabel>
-            </Field>
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Deactivate guard — activation stays single-click (non-destructive) */}

@@ -90,8 +90,9 @@ test.describe("Admin guardian detail — navigate + edit round-trip", () => {
       { timeout: 15_000 },
     );
 
-    // Click the name button → routes to /admin/guardians/[parentId].
-    await page.getByRole("button", { name: parentName }).first().click();
+    // Click the name link → routes to /admin/guardians/[parentId] (T7 —
+    // "name is the link" replaced the separate button + Lihat action).
+    await page.getByRole("link", { name: parentName }).first().click();
     await page.waitForURL(`**/admin/guardians/${parentId}`, { timeout: 15_000 });
 
     // Detail page renders (not 404 — the pre-cycle regression).

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { updateStudentAttendanceSchema } from "@/lib/validations/student-attendance";
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,17 +41,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!existing) return NextResponse.json({ error: "Record tidak ditemukan" }, { status: 404 });
   if (existing.isVoided) return NextResponse.json({ error: "Record sudah dibatalkan" }, { status: 400 });
 
-  const body = await req.json();
-  const parsed = updateStudentAttendanceSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
-  }
+  const result = await validateBody(updateStudentAttendanceSchema, await req.json());
+  if (result.error) return result.error;
 
   const updated = await prisma.studentAttendance.update({
     where: { id },
     data: {
-      status: parsed.data.status,
-      notes: parsed.data.notes ?? null,
+      status: result.data.status,
+      notes: result.data.notes ?? null,
     },
   });
 

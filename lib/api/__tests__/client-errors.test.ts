@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { ApiError, userMessage } from "../client-errors";
+import { ApiError, readApiError, userMessage } from "../client-errors";
 
 describe("userMessage", () => {
   afterEach(() => {
@@ -47,5 +47,71 @@ describe("userMessage", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const err = new Error("some internal detail");
     expect(userMessage(err, "Gagal memuat data.")).toBe("Gagal memuat data.");
+  });
+});
+
+describe("readApiError", () => {
+  it("builds an ApiError from the standard envelope, carrying message, fieldErrors and status", async () => {
+    const res = new Response(
+      JSON.stringify({
+        error: "Validasi gagal",
+        errors: [
+          { field: "name", message: "Nama wajib diisi" },
+          { field: "date", message: "Tanggal wajib diisi" },
+        ],
+      }),
+      { status: 400 },
+    );
+
+    const err = await readApiError(res, "Gagal menyimpan");
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe("Validasi gagal");
+    expect(err.status).toBe(400);
+    expect(err.fieldErrors).toEqual([
+      { field: "name", message: "Nama wajib diisi" },
+      { field: "date", message: "Tanggal wajib diisi" },
+    ]);
+  });
+
+  it("falls back to the given message when the envelope has no `error` string", async () => {
+    const res = new Response(JSON.stringify({ errors: [] }), { status: 500 });
+
+    const err = await readApiError(res, "Gagal menyimpan");
+
+    expect(err.message).toBe("Gagal menyimpan");
+    expect(err.status).toBe(500);
+    expect(err.fieldErrors).toEqual([]);
+  });
+
+  it("falls back to the given message and empty fieldErrors for a non-JSON body", async () => {
+    const res = new Response("<html>502 Bad Gateway</html>", { status: 502 });
+
+    const err = await readApiError(res, "Gagal menyimpan");
+
+    expect(err.message).toBe("Gagal menyimpan");
+    expect(err.status).toBe(502);
+    expect(err.fieldErrors).toEqual([]);
+  });
+
+  it("filters out malformed entries in `errors`", async () => {
+    const res = new Response(
+      JSON.stringify({
+        error: "Validasi gagal",
+        errors: [
+          { field: "name", message: "Nama wajib diisi" },
+          { field: "onlyField" },
+          { message: "onlyMessage" },
+          "not-an-object",
+          null,
+          42,
+        ],
+      }),
+      { status: 400 },
+    );
+
+    const err = await readApiError(res, "Gagal menyimpan");
+
+    expect(err.fieldErrors).toEqual([{ field: "name", message: "Nama wajib diisi" }]);
   });
 });

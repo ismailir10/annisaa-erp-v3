@@ -1,23 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Plus, Banknote, FileCheck, Clock, Send } from "lucide-react";
+import { generatePayrollSchema } from "@/lib/validations/payroll";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { ApiError } from "@/lib/api/client-errors";
+import type { Control } from "react-hook-form";
 
 // ------------------------------------------------------------------
 // Types
@@ -56,20 +60,16 @@ const columns: ColumnDef<PayrollRun>[] = [
     cell: ({ row }) => {
       const run = row.original;
       return (
-        <Link
-          href={`/admin/payroll/${run.id}`}
-          className="group"
-        >
-          <span className="text-sm font-medium group-hover:text-primary-text transition-colors">
-            {run.periodStart} — {run.periodEnd}
-          </span>
-        </Link>
+        <DataTableLinkCell href={`/admin/payroll/${run.id}`}>
+          {run.periodStart} — {run.periodEnd}
+        </DataTableLinkCell>
       );
     },
   },
   {
     id: "employees",
     header: "Karyawan",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm">{row.original._count.items} orang</span>
     ),
@@ -77,6 +77,7 @@ const columns: ColumnDef<PayrollRun>[] = [
   {
     accessorKey: "actualWorkDays",
     header: "Hari Kerja",
+    meta: { priority: "low" },
     cell: ({ row }) => (
       <span className="text-sm tabular-nums">{row.original.actualWorkDays} hari</span>
     ),
@@ -101,8 +102,8 @@ function defaultPayrollPeriod() {
   const startMonth = endMonth === 0 ? 11 : endMonth - 1;
   const startYear = endMonth === 0 ? endYear - 1 : endYear;
   return {
-    start: `${startYear}-${String(startMonth + 1).padStart(2, "0")}-21`,
-    end: `${endYear}-${String(endMonth + 1).padStart(2, "0")}-20`,
+    periodStart: `${startYear}-${String(startMonth + 1).padStart(2, "0")}-21`,
+    periodEnd: `${endYear}-${String(endMonth + 1).padStart(2, "0")}-20`,
   };
 }
 
@@ -111,15 +112,13 @@ export default function PayrollListPage() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<PayrollRun[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
-  const [periodStart, setPeriodStart] = useState(() => defaultPayrollPeriod().start);
-  const [periodEnd, setPeriodEnd] = useState(() => defaultPayrollPeriod().end);
-  const [generating, setGenerating] = useState(false);
+  const createFormId = useId();
+  const createForm = useZodForm(generatePayrollSchema, { defaultValues: defaultPayrollPeriod() });
 
   const openCreate = useCallback(() => {
-    const p = defaultPayrollPeriod();
-    setPeriodStart(p.start);
-    setPeriodEnd(p.end);
+    createForm.reset(defaultPayrollPeriod());
     setCreateOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-open dialog when arriving via ?create=1 (from dashboard quick-action).
@@ -130,34 +129,40 @@ export default function PayrollListPage() {
     }
   }, [searchParams, openCreate, router]);
 
-  async function handleGenerate() {
-    setGenerating(true);
-    const res = await fetch("/api/payroll/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ periodStart, periodEnd }),
-    });
-    if (res.ok) {
-      const d = await res.json();
-      toast.success("Draft penggajian dibuat");
-      setCreateOpen(false);
-      router.push(`/admin/payroll/${d.id}`);
-    } else {
+  const handleGenerate = createForm.handleSubmit(async (values) => {
+    const fallback = "Gagal membuat draft";
+    try {
+      const res = await fetch("/api/payroll/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        toast.success("Draft penggajian dibuat");
+        setCreateOpen(false);
+        router.push(`/admin/payroll/${d.id}`);
+        return;
+      }
       const d = await res.json().catch(() => ({}));
       // F-10: 422 with `employees` array lists offenders missing Rekening.
       // Surface each one in a separate toast so the admin can click into
-      // each Karyawan to fix the data, then retry.
+      // each Karyawan to fix the data, then retry. This is a domain-shaped
+      // error the standard `{ error, errors[] }` fieldErrors envelope
+      // doesn't carry, so it stays a direct toast rather than going through
+      // applyServerErrors.
       if (res.status === 422 && Array.isArray(d.employees) && d.employees.length > 0) {
         toast.error(
           `${d.error}: ${d.employees.map((e: { kode: string; nama: string }) => `${e.kode} ${e.nama}`).join(", ")}`,
           { duration: 8000 },
         );
-      } else {
-        toast.error(d.error || "Gagal membuat draft");
+        return;
       }
+      applyServerErrors(createForm, new ApiError(d.error || fallback, { status: res.status }), fallback);
+    } catch (err) {
+      applyServerErrors(createForm, err, fallback);
     }
-    setGenerating(false);
-  }
+  });
 
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -234,22 +239,6 @@ export default function PayrollListPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  const columnsWithActions = useMemo<ColumnDef<PayrollRun>[]>(
-    () => [
-      ...columns,
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/payroll/${row.original.id}`)}
-          />
-        ),
-      },
-    ],
-    [router],
-  );
-
   return (
     <>
       <PageHeader
@@ -297,7 +286,7 @@ export default function PayrollListPage() {
       />
 
       <DataTable
-        columns={columnsWithActions}
+        columns={columns}
         data={data}
         pagination={pagination}
         onPageChange={handlePageChange}
@@ -312,46 +301,56 @@ export default function PayrollListPage() {
       {/* Create Payroll */}
       <ResponsiveFormDialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(o) => { setCreateOpen(o); if (!o) createForm.reset(defaultPayrollPeriod()); }}
         title="Buat Penggajian Baru"
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={generating}>Batal</Button>
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? "Memproses..." : "Buat Draft Penggajian"}
-            </Button>
-          </>
+          <FormDialogFooter
+            formId={createFormId}
+            pending={createForm.formState.isSubmitting}
+            onCancel={() => setCreateOpen(false)}
+            submitLabel="Buat Draft Penggajian"
+            pendingLabel="Memproses..."
+          />
         }
       >
-        <PayrollPeriodBody periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} />
+        <form id={createFormId} onSubmit={handleGenerate} noValidate className="space-y-field">
+          <FormRootError formState={createForm.formState} />
+          <PayrollPeriodBody control={createForm.control} />
+        </form>
       </ResponsiveFormDialog>
     </>
   );
 }
 
+type PayrollPeriodFormValues = { periodStart: string; periodEnd: string };
+
 function PayrollPeriodBody({
-  periodStart,
-  setPeriodStart,
-  periodEnd,
-  setPeriodEnd,
+  control,
 }: {
-  periodStart: string;
-  setPeriodStart: (v: string) => void;
-  periodEnd: string;
-  setPeriodEnd: (v: string) => void;
+  control: Control<PayrollPeriodFormValues, unknown, PayrollPeriodFormValues>;
 }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-4">
-        <Field>
-          <FieldLabel htmlFor="payroll-run-period-start">Tanggal Mulai</FieldLabel>
-          <Input id="payroll-run-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="payroll-run-period-end">Tanggal Selesai</FieldLabel>
-          <Input id="payroll-run-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
-        </Field>
+        <FormField
+          control={control}
+          name="periodStart"
+          label="Tanggal Mulai"
+          id="payroll-run-period-start"
+          render={({ field, controlProps }) => (
+            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+          )}
+        />
+        <FormField
+          control={control}
+          name="periodEnd"
+          label="Tanggal Selesai"
+          id="payroll-run-period-end"
+          render={({ field, controlProps }) => (
+            <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+          )}
+        />
       </div>
       <p className="text-xs text-muted-foreground">
         Sistem akan menghitung hari kerja aktual, kehadiran per karyawan, dan semua komponen gaji.

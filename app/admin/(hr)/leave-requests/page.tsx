@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -8,17 +8,22 @@ import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { FormField, FormRootError } from "@/components/ui/form";
 import { Check, X, Clock, CheckCircle, XCircle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useRouter, useSearchParams } from "next/navigation";
+import { leaveReviewFormSchema } from "@/lib/validations/leave";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 // ------------------------------------------------------------------
 // Types
@@ -64,20 +69,20 @@ const TYPE_LABELS: Record<string, string> = {
 // Review body (shared between Dialog on desktop and Sheet on mobile)
 // ------------------------------------------------------------------
 
+type LeaveReviewForm = ReturnType<typeof useZodForm<typeof leaveReviewFormSchema>>;
+
 type ReviewBodyProps = {
   target: LeaveRequest;
   viewOnly: boolean;
   reviewAction: "approve" | "reject";
-  reviewNote: string;
-  setReviewNote: (v: string) => void;
+  form: LeaveReviewForm;
 };
 
 function LeaveReviewBody({
   target,
   viewOnly,
   reviewAction,
-  reviewNote,
-  setReviewNote,
+  form,
 }: ReviewBodyProps) {
   return (
     <div className="space-y-3">
@@ -98,24 +103,27 @@ function LeaveReviewBody({
       </div>
       {!viewOnly && (
         <>
-          <Field>
-            <FieldLabel htmlFor="leave-review-note">
-              {reviewAction === "approve"
-                ? "Catatan (opsional)"
-                : "Alasan penolakan *"}
-            </FieldLabel>
-            <Textarea
-              id="leave-review-note"
-              value={reviewNote}
-              onChange={(e) => setReviewNote(e.target.value)}
-              placeholder={
-                reviewAction === "approve"
-                  ? "Catatan untuk karyawan..."
-                  : "Jelaskan alasan penolakan..."
-              }
-              rows={2}
-            />
-          </Field>
+          <FormRootError formState={form.formState} />
+          <FormField
+            control={form.control}
+            name="note"
+            label={reviewAction === "approve" ? "Catatan (opsional)" : "Alasan Penolakan"}
+            required={reviewAction === "reject"}
+            id="leave-review-note"
+            render={({ field, controlProps }) => (
+              <Textarea
+                {...field}
+                {...controlProps}
+                value={field.value ?? ""}
+                placeholder={
+                  reviewAction === "approve"
+                    ? "Catatan untuk karyawan..."
+                    : "Jelaskan alasan penolakan..."
+                }
+                rows={2}
+              />
+            )}
+          />
           {reviewAction === "approve" && (
             <p className="text-xs text-muted-foreground">
               Menyetujui akan otomatis membuat catatan kehadiran LEAVE untuk tanggal
@@ -182,8 +190,7 @@ export default function AdminLeavePage() {
   // Review dialog
   const [reviewTarget, setReviewTarget] = useState<LeaveRequest | null>(null);
   const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
-  const [reviewNote, setReviewNote] = useState("");
-  const [reviewing, setReviewing] = useState(false);
+  const reviewForm = useZodForm(leaveReviewFormSchema, { defaultValues: { action: "approve", note: "" } });
   const [viewOnly, setViewOnly] = useState(false);
 
   const fetchRequests = useCallback(async () => {
@@ -242,6 +249,11 @@ export default function AdminLeavePage() {
       .catch(() => { if (active) setDeepLinkError(true); })
       .finally(() => { if (active) setDeepLinkLoading(false); });
     return () => { active = false; };
+    // `openReview` now closes over `reviewForm` (useZodForm's return value),
+    // so the rule no longer treats it as stable (setState setters only).
+    // It must stay out of these deps regardless — this effect fires once
+    // per `requestId`/`deepLinkRetry` change, not per render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId, deepLinkRetry]);
 
   // ResponsiveFormDialog doesn't expose Base UI's `finalFocus` passthrough, so
@@ -296,47 +308,49 @@ export default function AdminLeavePage() {
   function openReview(req: LeaveRequest, action: "approve" | "reject" | "view", fromLink = false) {
     openedFromLink.current = fromLink;
     setReviewTarget(req);
-    setReviewNote("");
     if (action === "view") {
       setViewOnly(true);
+      reviewForm.reset({ action: reviewAction, note: "" });
     } else {
       setViewOnly(false);
       setReviewAction(action);
+      reviewForm.reset({ action, note: "" });
     }
   }
 
-  async function handleReview() {
+  function switchReviewAction(action: "approve" | "reject") {
+    setReviewAction(action);
+    setViewOnly(false);
+    reviewForm.setValue("action", action);
+  }
+
+  const handleReview = reviewForm.handleSubmit(async (values) => {
     if (!reviewTarget || !canApprove) return;
-    if (reviewAction === "reject" && !reviewNote.trim()) {
-      toast.error("Alasan penolakan wajib diisi");
-      return;
-    }
-    setReviewing(true);
     try {
-    const res = await fetch(`/api/leave/requests/${reviewTarget.id}/${reviewAction}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note: reviewNote }),
-    });
-    if (res.ok) {
-      toast.success(reviewAction === "approve" ? "Cuti disetujui" : "Cuti ditolak");
+      await sendJson(
+        `/api/leave/requests/${reviewTarget.id}/${values.action}`,
+        { method: "POST", body: { note: values.note } },
+        "Gagal memproses pengajuan cuti. Coba lagi.",
+      );
+      toast.success(values.action === "approve" ? "Cuti disetujui" : "Cuti ditolak");
       closeReview();
       fetchRequests();
       fetchStats();
-    } else {
-      const d = await res.json();
-      toast.error(d.error || "Gagal memproses pengajuan cuti. Coba lagi.");
+    } catch (err) {
+      applyServerErrors(reviewForm, err, "Gagal memproses pengajuan cuti. Coba lagi.");
     }
-    } catch {
-      toast.error("Pengajuan belum tersimpan. Periksa koneksi dan coba lagi.");
-    } finally { setReviewing(false); }
-  }
+  });
 
   // ------------------------------------------------------------------
   // Columns (needs access to openReview)
   // ------------------------------------------------------------------
 
-  const columns: ColumnDef<LeaveRequest>[] = [
+  // Memoized so TanStack's `flexRender` keeps one stable component per cell
+  // (ui.md's DataTable note) — an unmemoized array rebuilt on every render
+  // remounts every row's cells, which would close the row's "⋮" action
+  // menu mid-interaction on any unrelated state update (e.g. the stats
+  // fetch resolving).
+  const columns: ColumnDef<LeaveRequest>[] = useMemo(() => [
     {
       id: "employee",
       header: ({ column }) => (
@@ -345,17 +359,15 @@ export default function AdminLeavePage() {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{r.employee.nama}</span>
-              <span className="font-currency text-xs text-muted-foreground">
-                {r.employee.kode}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {r.employee.jabatan} · {r.employee.campus.name}
-            </p>
-          </div>
+          <DataTableLinkCell
+            onClick={() => openReview(r, "view")}
+            description={`${r.employee.jabatan} · ${r.employee.campus.name}`}
+          >
+            {r.employee.nama}{" "}
+            <span className="font-currency text-xs text-muted-foreground">
+              {r.employee.kode}
+            </span>
+          </DataTableLinkCell>
         );
       },
     },
@@ -380,6 +392,7 @@ export default function AdminLeavePage() {
     {
       id: "reason",
       header: "Alasan",
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <div className="max-w-[200px]">
           <p className="text-xs truncate">{row.original.reason}</p>
@@ -396,6 +409,7 @@ export default function AdminLeavePage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Dibuat" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {formatDateShort(row.original.createdAt)}
@@ -417,7 +431,7 @@ export default function AdminLeavePage() {
         const isPending = canApprove && r.status === "PENDING";
         return (
           <DataTableRowActions
-            onView={() => openReview(r, "view")}
+            rowLabel={r.employee.nama}
             extraActions={
               isPending
                 ? [
@@ -439,7 +453,8 @@ export default function AdminLeavePage() {
         );
       },
     },
-  ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [canApprove]);
 
   return (
     <>
@@ -506,7 +521,7 @@ export default function AdminLeavePage() {
       {reviewTarget && (
         <ResponsiveFormDialog
           open={!!reviewTarget}
-          onOpenChange={(o) => { if (!o && !reviewing) closeReview(); }}
+          onOpenChange={(o) => { if (!o && !reviewForm.formState.isSubmitting) closeReview(); }}
           title={viewOnly ? "Detail Cuti" : reviewAction === "approve" ? "Setujui Cuti" : "Tolak Cuti"}
           description={
             <>
@@ -518,7 +533,7 @@ export default function AdminLeavePage() {
           size="xl"
           footer={
             <>
-              <Button variant="ghost" onClick={closeReview} disabled={reviewing}>
+              <Button variant="ghost" onClick={closeReview} disabled={reviewForm.formState.isSubmitting}>
                 {viewOnly ? "Tutup" : "Batal"}
               </Button>
               {/* FIND-018: mirror row-kebab Setujui/Tolak in detail view — the
@@ -528,12 +543,12 @@ export default function AdminLeavePage() {
                 <>
                   <Button
                     variant="outline"
-                    onClick={() => { setReviewAction("reject"); setViewOnly(false); }}
+                    onClick={() => switchReviewAction("reject")}
                     className="text-destructive hover:bg-destructive/10"
                   >
                     Tolak
                   </Button>
-                  <Button onClick={() => { setReviewAction("approve"); setViewOnly(false); }}>
+                  <Button onClick={() => switchReviewAction("approve")}>
                     Setujui
                   </Button>
                 </>
@@ -541,10 +556,10 @@ export default function AdminLeavePage() {
               {!viewOnly && (
                 <Button
                   onClick={handleReview}
-                  disabled={reviewing}
+                  disabled={reviewForm.formState.isSubmitting}
                   variant={reviewAction === "reject" ? "destructive" : "default"}
                 >
-                  {reviewing
+                  {reviewForm.formState.isSubmitting
                     ? "Memproses..."
                     : reviewAction === "approve"
                       ? "Setujui"
@@ -558,8 +573,7 @@ export default function AdminLeavePage() {
             target={reviewTarget}
             viewOnly={viewOnly}
             reviewAction={reviewAction}
-            reviewNote={reviewNote}
-            setReviewNote={setReviewNote}
+            form={reviewForm}
           />
         </ResponsiveFormDialog>
       )}

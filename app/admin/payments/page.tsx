@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
@@ -9,10 +8,10 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { formatRupiah } from "@/lib/format";
@@ -57,7 +56,6 @@ function formatJakartaDateTime(iso: string): string {
 }
 
 export default function PaymentsLedgerPage() {
-  const router = useRouter();
   const today = getTodayInTimezone("Asia/Jakarta");
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
@@ -159,18 +157,19 @@ export default function PaymentsLedgerPage() {
         id: "student",
         accessorFn: (row) => row.studentName,
         header: "Siswa",
-        cell: ({ row }) => <span className="text-sm font-medium">{row.original.studentName}</span>,
-      },
-      {
-        accessorKey: "invoiceNumber",
-        header: "No. Tagihan",
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">{row.original.invoiceNumber}</span>
+          <DataTableLinkCell
+            href={`/admin/invoices/${row.original.invoiceId}`}
+            description={row.original.invoiceNumber}
+          >
+            {row.original.studentName}
+          </DataTableLinkCell>
         ),
       },
       {
         accessorKey: "methodLabel",
         header: "Metode",
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <Badge variant="outline" className="text-xs">{row.original.methodLabel}</Badge>
         ),
@@ -178,6 +177,7 @@ export default function PaymentsLedgerPage() {
       {
         accessorKey: "reference",
         header: "Referensi",
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">{row.original.reference ?? "—"}</span>
         ),
@@ -189,17 +189,8 @@ export default function PaymentsLedgerPage() {
           <span className="text-sm font-medium tabular-nums">{formatRupiah(row.original.amount)}</span>
         ),
       },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <DataTableRowActions
-            onView={() => router.push(`/admin/invoices/${row.original.invoiceId}`)}
-          />
-        ),
-      },
     ],
-    [router],
+    [],
   );
 
   return (
@@ -238,26 +229,26 @@ export default function PaymentsLedgerPage() {
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Dari</span>
-          <Input
-            type="date"
-            aria-label="Tanggal mulai"
+          <label htmlFor="payments-date-from" className="text-xs text-muted-foreground whitespace-nowrap">Dari</label>
+          <DatePicker
+            id="payments-date-from"
+            max={dateTo || undefined}
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
+            onChange={(v) => {
+              setDateFrom(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Sampai</span>
-          <Input
-            type="date"
-            aria-label="Tanggal akhir"
+          <label htmlFor="payments-date-to" className="text-xs text-muted-foreground whitespace-nowrap">Sampai</label>
+          <DatePicker
+            id="payments-date-to"
+            min={dateFrom || undefined}
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
+            onChange={(v) => {
+              setDateTo(v);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className="h-9 w-40 text-sm"

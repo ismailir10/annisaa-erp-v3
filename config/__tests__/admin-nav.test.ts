@@ -369,4 +369,50 @@ describe("getBreadcrumbs", () => {
   it("returns empty array for unknown path", () => {
     expect(getBreadcrumbs("/admin/does-not-exist")).toEqual([]);
   });
+
+  // T1 (cycle 2026-09-26, admin-ui-standard-c1) — nested dynamic routes used
+  // to render "Detail › Detail" because neither of their two trailing
+  // segments had a label. Known leaf segments now name themselves, so the
+  // dynamic id only ever renders "Detail" once.
+  it("labels the student-journal class sub-route, no duplicate Detail", () => {
+    expect(getBreadcrumbs("/admin/student-journal/classes/cls-1")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Templat Buku Penghubung", href: "/admin/student-journal" },
+      { label: "Kelas" },
+      { label: "Detail" },
+    ]);
+  });
+
+  it("labels the student-journal student sub-route, no duplicate Detail", () => {
+    expect(getBreadcrumbs("/admin/student-journal/students/s-1")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Templat Buku Penghubung", href: "/admin/student-journal" },
+      { label: "Siswa" },
+      { label: "Detail" },
+    ]);
+  });
+
+  it("labels semester /import as Impor PROMES", () => {
+    expect(getBreadcrumbs("/admin/semesters/sem-1/import")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Semester", href: "/admin/semesters" },
+      { label: "Detail" },
+      { label: "Impor PROMES" },
+    ]);
+  });
+
+  it("labels semester /themes as Tema and /objectives as Tujuan Pembelajaran", () => {
+    expect(getBreadcrumbs("/admin/semesters/sem-1/themes")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Semester", href: "/admin/semesters" },
+      { label: "Detail" },
+      { label: "Tema" },
+    ]);
+    expect(getBreadcrumbs("/admin/semesters/sem-1/objectives")).toEqual([
+      { label: "Pengaturan", href: "/admin/settings" },
+      { label: "Semester", href: "/admin/semesters" },
+      { label: "Detail" },
+      { label: "Tujuan Pembelajaran" },
+    ]);
+  });
 });

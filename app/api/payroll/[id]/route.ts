@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { validateBody } from "@/lib/api/validate";
 import { updatePayrollRunSchema } from "@/lib/validations/payroll";
 
 export async function GET(
@@ -64,13 +65,13 @@ export async function PUT(
     return NextResponse.json({ error: "Body JSON tidak valid" }, { status: 400 });
   }
 
-  const parsed = updatePayrollRunSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation error", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
+  // validateBody's `{ error, errors: [{ field, message }] }` shape is what
+  // `applyServerErrors` maps onto the period-edit form's fields; the prior
+  // `safeParse` + `{ error, details }` shape wasn't mapped onto anything and
+  // only ever surfaced as "Validation error" (F-15 forms cycle).
+  const result = await validateBody(updatePayrollRunSchema, body);
+  if (result.error) return result.error;
+  const parsed = { data: result.data } as const;
 
   // Serializable: fetch + status guard + overlap check + update commit
   // atomically so two concurrent DRAFT edits cannot both pass the overlap

@@ -5,6 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { recordPaymentSchema } from "@/lib/validations/invoice";
 import { hasPermission } from "@/lib/permissions";
+import { validateBody } from "@/lib/api/validate";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,15 +17,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: invoiceId } = await params;
   // recordPaymentSchema existed for exactly this endpoint but was never wired
   // in — the hand-rolled check let any `method` string persist verbatim
-  // (Payment.method is a plain String column, no DB enum).
-  const body = await req.json().catch(() => null);
-  const parsed = recordPaymentSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Jumlah pembayaran tidak valid" },
-      { status: 400 },
-    );
-  }
+  // (Payment.method is a plain String column, no DB enum). `validateBody`'s
+  // `{ error, errors: [{ field, message }] }` shape (vs. the prior bare
+  // `{ error }` string) is what the record-payment dialog's
+  // `applyServerErrors` maps onto its Jumlah field.
+  const rawBody = await req.json().catch(() => null);
+  const result = await validateBody(recordPaymentSchema, rawBody);
+  if (result.error) return result.error;
+  const parsed = { data: result.data } as const;
   const amountDec = new Prisma.Decimal(parsed.data.amount.toString());
 
   // Quick tenant-scope check outside the tx so a cross-tenant id bails early.

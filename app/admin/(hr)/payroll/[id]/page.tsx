@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import type { LegacyColumnDef as ColumnDef } from "@tanstack/react-table/legacy";
 import { DetailPageHeader } from "@/components/admin/detail-page-header";
@@ -8,11 +8,11 @@ import { DetailPageSkeleton } from "@/components/admin/detail-page-skeleton";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
@@ -22,9 +22,14 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { Download, Check, Pencil, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah } from "@/lib/format";
+import { adjustPayrollLineFormSchema, payrollEditFormSchema, payrollVariablesSchema } from "@/lib/validations/payroll";
+import { useZodForm } from "@/lib/forms/use-zod-form";
+import { applyServerErrors } from "@/lib/forms/server-errors";
+import { sendJson } from "@/lib/api/send-json";
 
 type PayrollLine = {
   id: string; labelSnapshot: string; categorySnapshot: string;
@@ -60,20 +65,25 @@ export default function PayrollDetailPage() {
   const [approveModal, setApproveModal] = useState(false);
 
   // Vars form
-  const [varsForm, setVarsForm] = useState({ overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 });
-  const [varsSaving, setVarsSaving] = useState(false);
+  const varsFormId = useId();
+  const varsForm = useZodForm(payrollVariablesSchema, {
+    defaultValues: { overtimeHours: 0, outdoorDays: 0, holidayWorkedDays: 0, dcDays: 0 },
+  });
 
   // Line adjustment form
-  const [adjAmount, setAdjAmount] = useState("");
-  const [adjNote, setAdjNote] = useState("");
-  const [adjSaving, setAdjSaving] = useState(false);
+  const adjFormId = useId();
+  const adjForm = useZodForm(adjustPayrollLineFormSchema, {
+    defaultValues: { adjustmentAmount: "", adjustmentNote: "" },
+  });
+  const liveAdjustmentAmount = Number(adjForm.watch("adjustmentAmount")) || 0;
 
   const [approving, setApproving] = useState(false);
 
   // Edit toggle for summary card (Category B — Edit Toggle Pattern, DRAFT only)
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ periodStart: "", periodEnd: "", actualWorkDays: 0 });
-  const [editSaving, setEditSaving] = useState(false);
+  const periodForm = useZodForm(payrollEditFormSchema, {
+    defaultValues: { periodStart: "", periodEnd: "", actualWorkDays: undefined },
+  });
   const [comparison, setComparison] = useState<Record<string, number> | null>(null);
   const [prevPeriod, setPrevPeriod] = useState<string | null>(null);
 
@@ -129,114 +139,12 @@ export default function PayrollDetailPage() {
     });
   }, [payrollItems, employeeSearch, bankFilter]);
 
-  function openVars(item: PayrollItem) {
-    setVarsForm({
-      overtimeHours: item.overtimeHours,
-      outdoorDays: item.outdoorDays,
-      holidayWorkedDays: item.holidayWorkedDays,
-      dcDays: item.dcDays,
-    });
-    setVarsModal(item);
-  }
-
-  async function saveVars() {
-    if (!varsModal) return;
-    setVarsSaving(true);
-    const res = await fetch(`/api/payroll/${id}/items/${varsModal.id}/variables`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(varsForm),
-    });
-    if (res.ok) { toast.success("Variabel diperbarui"); setVarsModal(null); fetchData(); }
-    else toast.error("Gagal menyimpan");
-    setVarsSaving(false);
-  }
-
-  function openLineAdj(item: PayrollItem, line: PayrollLine) {
-    setAdjAmount(String(line.adjustmentAmount || ""));
-    setAdjNote(line.adjustmentNote ?? "");
-    setLineModal({ item, line });
-  }
-
-  async function saveLineAdj() {
-    if (!lineModal) return;
-    setAdjSaving(true);
-    const res = await fetch(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adjustmentAmount: parseFloat(adjAmount) || 0, adjustmentNote: adjNote }),
-    });
-    if (res.ok) { toast.success("Penyesuaian disimpan"); setLineModal(null); fetchData(); }
-    else { const d = await res.json(); toast.error(d.error || "Gagal"); }
-    setAdjSaving(false);
-  }
-
-  async function handleApprove() {
-    setApproving(true);
-    try {
-      const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
-      if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
-      else {
-        toast.error("Gagal menyetujui");
-        // Re-thrown so ConfirmDialog keeps the modal open for retry instead
-        // of closing after a failed approve (it only closes when onConfirm
-        // resolves without throwing).
-        throw new Error("approve failed");
-      }
-    } finally {
-      setApproving(false);
-    }
-  }
-
-  async function handleExport() {
-    window.open(`/api/payroll/${id}/export/bsi`, "_blank");
-    setTimeout(fetchData, 1000);
-  }
-
-  function openEdit() {
-    if (!data) return;
-    setEditForm({
-      periodStart: data.periodStart,
-      periodEnd: data.periodEnd,
-      actualWorkDays: data.actualWorkDays,
-    });
-    setIsEditing(true);
-  }
-
-  function cancelEdit() {
-    setIsEditing(false);
-  }
-
-  async function saveEdit() {
-    if (!data) return;
-    setEditSaving(true);
-    const res = await fetch(`/api/payroll/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
-    if (res.ok) {
-      toast.success("Periode diperbarui");
-      setIsEditing(false);
-      fetchData();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error || "Gagal menyimpan");
-    }
-    setEditSaving(false);
-  }
-
-  if (loading) return <DetailPageSkeleton />;
-  if (!data) return <EmptyState title="Data penggajian tidak ditemukan" description="Data penggajian tidak tersedia atau telah dihapus." actionLabel="Kembali ke daftar penggajian" actionHref="/admin/payroll" />;
-
-  const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
-  const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
-  const totalNet = data.items.reduce((s, i) => s + Number(i.netAmount), 0);
-  const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
-  const isDraft = data.status === "DRAFT";
-  const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
-
-  const columns: ColumnDef<PayrollItem>[] = [
+  // Memoised — rebuilding this array on every render (e.g. while the period
+  // edit form or either dialog's form state changes) would remount every row
+  // cell and close any open row-action menu (lesson from the Cycle 2
+  // reviews). Only `comparison` and `setDetailItem` are read inside; the
+  // latter is a stable `useState` setter.
+  const columns: ColumnDef<PayrollItem>[] = useMemo(() => [
     {
       id: "nama",
       accessorFn: (row) => row.employee.nama,
@@ -250,10 +158,12 @@ export default function PayrollDetailPage() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
               <span className="text-primary text-xs font-bold">{item.employee.nama[0]}</span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{item.employee.nama}</p>
-              <p className="text-xs text-muted-foreground">{item.employee.kode} · {item.employee.jabatan}</p>
-            </div>
+            <DataTableLinkCell
+              onClick={() => setDetailItem(item)}
+              description={`${item.employee.kode} · ${item.employee.jabatan}`}
+            >
+              {item.employee.nama}
+            </DataTableLinkCell>
           </div>
         );
       },
@@ -264,6 +174,7 @@ export default function PayrollDetailPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Pendapatan" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-sm">{formatRupiah(row.original.grossAmount)}</span>
       ),
@@ -274,6 +185,7 @@ export default function PayrollDetailPage() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Potongan" />
       ),
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="font-currency text-sm text-destructive">{formatRupiah(row.original.deductions)}</span>
       ),
@@ -302,6 +214,7 @@ export default function PayrollDetailPage() {
     {
       id: "bank",
       header: "Rekening",
+      meta: { priority: "low" },
       cell: ({ row }) => {
         if (!row.original.employee.bankAccountNo) {
           return <StatusBadge status="UNFILLED" />;
@@ -313,14 +226,109 @@ export default function PayrollDetailPage() {
         );
       },
     },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <DataTableRowActions onView={() => setDetailItem(row.original)} />
-      ),
-    },
-  ];
+  ], [comparison]);
+
+  function openVars(item: PayrollItem) {
+    varsForm.reset({
+      overtimeHours: item.overtimeHours,
+      outdoorDays: item.outdoorDays,
+      holidayWorkedDays: item.holidayWorkedDays,
+      dcDays: item.dcDays,
+    });
+    setVarsModal(item);
+  }
+
+  const saveVars = varsForm.handleSubmit(async (values) => {
+    if (!varsModal) return;
+    try {
+      await sendJson(`/api/payroll/${id}/items/${varsModal.id}/variables`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Variabel diperbarui");
+      setVarsModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(varsForm, err, "Gagal menyimpan");
+    }
+  });
+
+  function openLineAdj(item: PayrollItem, line: PayrollLine) {
+    // Blank (not "0") when there's no existing adjustment — matches the
+    // prior `String(line.adjustmentAmount || "")` display exactly;
+    // z.coerce.number() still turns a resubmitted blank back into 0.
+    adjForm.reset({
+      adjustmentAmount: line.adjustmentAmount ? String(line.adjustmentAmount) : "",
+      adjustmentNote: line.adjustmentNote ?? "",
+    });
+    setLineModal({ item, line });
+  }
+
+  const saveLineAdj = adjForm.handleSubmit(async (values) => {
+    if (!lineModal) return;
+    try {
+      await sendJson(`/api/payroll/${id}/items/${lineModal.item.id}/lines/${lineModal.line.id}`, { method: "PUT", body: values }, "Gagal");
+      toast.success("Penyesuaian disimpan");
+      setLineModal(null);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(adjForm, err, "Gagal");
+    }
+  });
+
+  async function handleApprove() {
+    setApproving(true);
+    try {
+      const res = await fetch(`/api/payroll/${id}/approve`, { method: "POST" });
+      if (res.ok) { toast.success("Penggajian disetujui"); fetchData(); }
+      else {
+        toast.error("Gagal menyetujui");
+        // Re-thrown so ConfirmDialog keeps the modal open for retry instead
+        // of closing after a failed approve (it only closes when onConfirm
+        // resolves without throwing).
+        throw new Error("approve failed");
+      }
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  async function handleExport() {
+    window.open(`/api/payroll/${id}/export/bsi`, "_blank");
+    setTimeout(fetchData, 1000);
+  }
+
+  function openEdit() {
+    if (!data) return;
+    periodForm.reset({
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      actualWorkDays: data.actualWorkDays,
+    });
+    setIsEditing(true);
+  }
+
+  function cancelEdit() {
+    setIsEditing(false);
+  }
+
+  const savePeriod = periodForm.handleSubmit(async (values) => {
+    try {
+      await sendJson(`/api/payroll/${id}`, { method: "PUT", body: values }, "Gagal menyimpan");
+      toast.success("Periode diperbarui");
+      setIsEditing(false);
+      fetchData();
+    } catch (err) {
+      applyServerErrors(periodForm, err, "Gagal menyimpan");
+    }
+  });
+
+  if (loading) return <DetailPageSkeleton />;
+  if (!data) return <EmptyState title="Data penggajian tidak ditemukan" description="Data penggajian tidak tersedia atau telah dihapus." actionLabel="Kembali ke daftar penggajian" actionHref="/admin/payroll" />;
+
+  const totalGross = data.items.reduce((s, i) => s + Number(i.grossAmount), 0);
+  const totalDed = data.items.reduce((s, i) => s + Number(i.deductions), 0);
+  const totalNet = data.items.reduce((s, i) => s + Number(i.netAmount), 0);
+  const noBank = data.items.filter((i) => !i.employee.bankAccountNo);
+  const isDraft = data.status === "DRAFT";
+  const isApproved = ["APPROVED", "EXPORTED", "SLIPS_SENT"].includes(data.status);
 
   return (
     <>
@@ -353,11 +361,11 @@ export default function PayrollDetailPage() {
           </div>
           {isEditing && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={editSaving}>
+              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={periodForm.formState.isSubmitting}>
                 <X size={14} className="mr-1.5" /> Batal
               </Button>
-              <Button size="sm" onClick={saveEdit} disabled={editSaving} data-testid="payroll-edit-save">
-                {editSaving ? "Menyimpan..." : "Simpan Perubahan"}
+              <Button size="sm" onClick={savePeriod} disabled={periodForm.formState.isSubmitting} data-testid="payroll-edit-save">
+                {periodForm.formState.isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           )}
@@ -380,34 +388,34 @@ export default function PayrollDetailPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field>
-              <FieldLabel htmlFor="payroll-period-start">Periode Mulai</FieldLabel>
-              <Input
-                id="payroll-period-start"
-                type="date"
-                value={editForm.periodStart}
-                onChange={(e) => setEditForm({ ...editForm, periodStart: e.target.value })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="payroll-period-end">Periode Akhir</FieldLabel>
-              <Input
-                id="payroll-period-end"
-                type="date"
-                value={editForm.periodEnd}
-                onChange={(e) => setEditForm({ ...editForm, periodEnd: e.target.value })}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="payroll-actual-work-days">Hari Kerja Aktual</FieldLabel>
-              <Input
-                id="payroll-actual-work-days"
-                type="number"
-                min={0}
-                value={editForm.actualWorkDays}
-                onChange={(e) => setEditForm({ ...editForm, actualWorkDays: parseInt(e.target.value) || 0 })}
-              />
-            </Field>
+            <FormRootError formState={periodForm.formState} className="md:col-span-3" />
+            <FormField
+              control={periodForm.control}
+              name="periodStart"
+              label="Periode Mulai"
+              id="payroll-period-start"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+              )}
+            />
+            <FormField
+              control={periodForm.control}
+              name="periodEnd"
+              label="Periode Akhir"
+              id="payroll-period-end"
+              render={({ field, controlProps }) => (
+                <DatePicker {...controlProps} value={field.value} onChange={field.onChange} />
+              )}
+            />
+            <FormField
+              control={periodForm.control}
+              name="actualWorkDays"
+              label="Hari Kerja Aktual"
+              id="payroll-actual-work-days"
+              render={({ field, controlProps }) => (
+                <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" min={0} />
+              )}
+            />
           </div>
         )}
       </Card>
@@ -472,9 +480,9 @@ export default function PayrollDetailPage() {
               <div className="mt-6 space-y-4">
                 {/* Variables button */}
                 {isDraft && (
-                  <button onClick={() => openVars(detailItem)} className="text-xs text-primary-text flex items-center gap-1 hover:underline">
+                  <Button variant="link" size="sm" onClick={() => openVars(detailItem)} className="gap-1.5">
                     <Settings2 size={12} /> Edit Variabel Kehadiran
-                  </button>
+                  </Button>
                 )}
 
                 {/* Component lines */}
@@ -528,16 +536,53 @@ export default function PayrollDetailPage() {
         description={varsModal?.employee.nama}
         size="2xl"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setVarsModal(null)} disabled={varsSaving}>Batal</Button>
-            <Button onClick={saveVars} disabled={varsSaving}>{varsSaving ? "Menyimpan..." : "Simpan & Hitung Ulang"}</Button>
-          </>
+          <FormDialogFooter
+            formId={varsFormId}
+            pending={varsForm.formState.isSubmitting}
+            onCancel={() => setVarsModal(null)}
+            submitLabel="Simpan & Hitung Ulang"
+          />
         }
       >
-        <Field><FieldLabel htmlFor="payroll-vars-overtime-hours">Jam Lembur</FieldLabel><Input id="payroll-vars-overtime-hours" type="number" step="0.5" value={varsForm.overtimeHours} onChange={(e) => setVarsForm({ ...varsForm, overtimeHours: parseFloat(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-outdoor-days">Hari Outdoor</FieldLabel><Input id="payroll-vars-outdoor-days" type="number" value={varsForm.outdoorDays} onChange={(e) => setVarsForm({ ...varsForm, outdoorDays: parseInt(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-holiday-worked-days">Hari Libur Kerja</FieldLabel><Input id="payroll-vars-holiday-worked-days" type="number" value={varsForm.holidayWorkedDays} onChange={(e) => setVarsForm({ ...varsForm, holidayWorkedDays: parseInt(e.target.value) || 0 })} /></Field>
-        <Field><FieldLabel htmlFor="payroll-vars-dc-days">Hari DC</FieldLabel><Input id="payroll-vars-dc-days" type="number" value={varsForm.dcDays} onChange={(e) => setVarsForm({ ...varsForm, dcDays: parseInt(e.target.value) || 0 })} /></Field>
+        <form id={varsFormId} onSubmit={saveVars} noValidate className="space-y-field">
+          <FormRootError formState={varsForm.formState} />
+          <FormField
+            control={varsForm.control}
+            name="overtimeHours"
+            label="Jam Lembur"
+            id="payroll-vars-overtime-hours"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" step="0.5" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="outdoorDays"
+            label="Hari Outdoor"
+            id="payroll-vars-outdoor-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="holidayWorkedDays"
+            label="Hari Libur Kerja"
+            id="payroll-vars-holiday-worked-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+          <FormField
+            control={varsForm.control}
+            name="dcDays"
+            label="Hari DC"
+            id="payroll-vars-dc-days"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" />
+            )}
+          />
+        </form>
       </ResponsiveFormDialog>
 
       {/* Line Adjustment Modal */}
@@ -548,16 +593,38 @@ export default function PayrollDetailPage() {
         description={lineModal ? `${lineModal.line.labelSnapshot} — ${lineModal.item.employee.nama}` : undefined}
         size="lg"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setLineModal(null)} disabled={adjSaving}>Batal</Button>
-            <Button onClick={saveLineAdj} disabled={adjSaving}>{adjSaving ? "Menyimpan..." : "Simpan Perubahan"}</Button>
-          </>
+          <FormDialogFooter
+            formId={adjFormId}
+            pending={adjForm.formState.isSubmitting}
+            onCancel={() => setLineModal(null)}
+            submitLabel="Simpan Perubahan"
+          />
         }
       >
-        <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
-        <Field><FieldLabel htmlFor="payroll-line-adjustment-amount">Penyesuaian (+ atau -)</FieldLabel><Input id="payroll-line-adjustment-amount" type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} placeholder="0" className="font-currency" /></Field>
-        <Field><FieldLabel required htmlFor="payroll-line-adjustment-note">Catatan</FieldLabel><Textarea id="payroll-line-adjustment-note" required aria-required="true" value={adjNote} onChange={(e) => setAdjNote(e.target.value)} placeholder="Alasan penyesuaian..." rows={2} /></Field>
-        <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + (parseFloat(adjAmount) || 0))}</span></p>
+        <form id={adjFormId} onSubmit={saveLineAdj} noValidate className="space-y-field">
+          <FormRootError formState={adjForm.formState} />
+          <p className="text-sm text-muted-foreground">Kalkulasi: <span className="font-currency font-medium">{formatRupiah(lineModal?.line.calculatedAmount ?? 0)}</span></p>
+          <FormField
+            control={adjForm.control}
+            name="adjustmentAmount"
+            label="Penyesuaian (+ atau -)"
+            id="payroll-line-adjustment-amount"
+            render={({ field, controlProps }) => (
+              <Input {...field} {...controlProps} value={String(field.value ?? "")} type="number" placeholder="0" className="font-currency" />
+            )}
+          />
+          <FormField
+            control={adjForm.control}
+            name="adjustmentNote"
+            label="Catatan"
+            required
+            id="payroll-line-adjustment-note"
+            render={({ field, controlProps }) => (
+              <Textarea {...field} {...controlProps} placeholder="Alasan penyesuaian..." rows={2} />
+            )}
+          />
+          <p className="text-sm">Final: <span className="font-currency font-bold text-primary-text">{formatRupiah(Number(lineModal?.line.calculatedAmount ?? 0) + liveAdjustmentAmount)}</span></p>
+        </form>
       </ResponsiveFormDialog>
 
       {/* Approve — irreversible (locks attendance) */}

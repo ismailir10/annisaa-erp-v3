@@ -28,3 +28,30 @@ export const updateParentSchema = z.object({
 export const toggleParentStatusSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]),
 });
+
+/**
+ * Form schema for the "Edit Wali" dialog on `/admin/guardians` and the
+ * inline edit on `/admin/guardians/[id]` (react-hook-form + zodResolver).
+ * Both pages pass `editForm.control` straight into the shared
+ * `GuardianFormBody` (components/admin/guardian-edit-dialog.tsx) with
+ * `showRelationship={false}` — T3 (2026-09-27, admin-finish-standard) moved
+ * that component off its pre-existing `form`/`setForm` prop contract onto a
+ * generic RHF `control`, so the useWatch/setValue bridge this comment used
+ * to describe no longer exists.
+ *
+ * Derived from `updateParentSchema`, not a divergent copy: every field
+ * keeps that schema's validator except `childrenTotal`, whose form value is
+ * a raw `<Input type="number">` string ("" when unset) rather than a
+ * coerced number — `z.coerce.number()` alone turns `""` into `0`, not the
+ * "clear the field" `null` the previous handler produced with
+ * `payload.childrenTotal === "" ? null : Number(...)`. The preprocess below
+ * reproduces that exactly. `nik` is omitted — `GuardianFieldValues` only
+ * ever carries the unified `parentNik` key (never the legacy `nik` alias),
+ * so keeping it would leave an unindexable field on this form-values type.
+ */
+export const parentFormSchema = updateParentSchema.omit({ childrenTotal: true, nik: true }).extend({
+  childrenTotal: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.union([z.null(), z.coerce.number().int().min(0, "Jumlah anak tidak valid")]),
+  ),
+});

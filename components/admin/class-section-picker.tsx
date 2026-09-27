@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 import {
@@ -16,6 +16,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatClassOptionLabel } from "@/lib/format";
@@ -55,13 +56,12 @@ function groupByCampus(sections: ClassSection[]) {
 }
 
 // ------------------------------------------------------------------
-// Single-select — extracted unchanged from
-// app/admin/students/[id]/page.tsx (originally module-private). Used by
-// the Enroll + Promote dialogs there. Follows the Popover + Command idiom
-// from components/admin/invoices/manual-invoice-dialog.tsx's StudentPicker,
-// minus the async debounce (the section list here is small and
-// pre-fetched, so cmdk's built-in client-side filtering is enough — no
-// server round-trip per keystroke).
+// Single-select — rebased onto the shared AsyncCombobox primitive
+// (components/ui/async-combobox.tsx). The section list is small and
+// pre-fetched by the caller, so the "fetcher" is a synchronous client-side
+// filter wrapped in a resolved promise — no server round-trip per
+// keystroke, `debounceMs={0}` so it stays instant like the original cmdk
+// client-side filtering did.
 // ------------------------------------------------------------------
 
 export function ClassSectionCombobox({
@@ -79,69 +79,42 @@ export function ClassSectionCombobox({
   placeholder: string;
   disabled?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const selected = sections.find((s) => s.id === value) ?? null;
 
   // Kampus is the group heading only — it is deliberately NOT part of each
-  // item's search value. Both campus names share the "An Nisaa' Sekolahku "
-  // prefix, and cmdk scores subsequence matches, so folding them in made
-  // typing "Aster" still rank every Metland row (confirmed on preview).
-  // Searching matches the class name + year, which is what an admin types.
-  const { byCampus, campusNames } = groupByCampus(sections);
+  // item's search text. Both campus names share the "An Nisaa' Sekolahku "
+  // prefix, so folding it into the match text made typing "Aster" still
+  // match every Metland row (confirmed on preview). Searching matches the
+  // class name + year, which is what an admin types.
+  const filterSections = useCallback(
+    async (query: string) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return sections;
+      return sections.filter((s) => label(s).toLowerCase().includes(q));
+    },
+    [sections],
+  );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        id={id}
-        type="button"
-        role="combobox"
-        aria-expanded={open}
-        aria-required="true"
-        disabled={disabled}
-        className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-hidden transition-colors hover:bg-accent/30 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-          !selected && "text-muted-foreground",
-        )}
-      >
-        {/* The trigger names the kampus explicitly — in the list it is the
-            group heading, but once collapsed there is no other cue. */}
-        <span className="truncate text-left">
-          {selected ? `${label(selected)} · ${selected.campus.name}` : placeholder}
-        </span>
-        <ChevronDown size={14} className="pointer-events-none shrink-0 opacity-50" />
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[--anchor-width] min-w-[var(--anchor-width)] p-0"
-        align="start"
-        sideOffset={4}
-      >
-        <Command>
-          <CommandInput placeholder="Cari kelas..." />
-          <CommandList>
-            <CommandEmpty>Tidak ada kelas yang cocok.</CommandEmpty>
-            {campusNames.map((campusName) => (
-              <CommandGroup key={campusName} heading={campusName}>
-                {byCampus[campusName].map((s) => (
-                  <CommandItem
-                    key={s.id}
-                    // Suffix the id: cmdk keys its selection/highlight state on
-                    // `value`, so two classes with an identical label would
-                    // otherwise share keyboard-navigation state.
-                    value={`${label(s)} ${s.id}`}
-                    onSelect={() => {
-                      onChange(s.id);
-                      setOpen(false);
-                    }}
-                  >
-                    {label(s)}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <AsyncCombobox<ClassSection>
+      id={id}
+      value={selected}
+      onChange={(s) => onChange(s?.id ?? "")}
+      fetcher={filterSections}
+      getKey={(s) => s.id}
+      getLabel={(s) => label(s)}
+      // The trigger names the kampus explicitly — in the grouped list it is
+      // the group heading, but once collapsed there is no other cue.
+      getTriggerLabel={(s) => `${label(s)} · ${s.campus.name}`}
+      getGroup={(s) => s.campus.name}
+      placeholder={placeholder}
+      searchPlaceholder="Cari kelas..."
+      emptyText="Tidak ada kelas yang cocok."
+      debounceMs={0}
+      disabled={disabled}
+      required
+      clearable={false}
+    />
   );
 }
 
