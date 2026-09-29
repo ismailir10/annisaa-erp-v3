@@ -129,9 +129,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
 
   const fmtIdDate = (d: Date | string) =>
-    new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
   const fmtIdDateShort = (d: Date | string) =>
-    new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
 
   const totalDue = Number(invoice.totalDue);
   const totalPaid = Number(invoice.totalPaid);
