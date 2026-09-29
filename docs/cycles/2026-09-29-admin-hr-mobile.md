@@ -84,3 +84,6 @@ No schema migration, no new dependency, nothing in auth/session code (HR-17 is a
 - Behaviour changes worth a release note: creating a semester in a year that already has an active semester now creates it inactive (was: silently took over as active); year "Nonaktifkan" is replaced by "Arsipkan" (the old action posted a status the API rejects); payroll generate refuses future periods and negative-net slips, and approve refuses a run with a negative-net slip.
 - Not done, for the lead: HR-17 (needs an auth-helper change or breaks three `admin-school-admin.spec.ts` assertions); raport list badge for drifted attendance; parent-level `/admin/guardians` status toggle does not touch primary links (different record).
 - Rollback: revert the PR (no data migration to undo; a synced raport attendance stays synced).
+
+- Playwright (lead): full local suite on `f8a06a3` (staging through #579 merged in) against a production build (`DEMO_MODE=true`) and a **freshly seeded** DB with the date-relative seed: **161 passed, 0 failed, 1 skipped** (the existing `sibling-detect` fixme). CI `Playwright E2E` also gates the merge.
+- Ship route: **local demo-auth verification**. No login, OAuth, session, cookie or auth-guard change. HR-17 was left out on purpose because it would need an auth-guard change.
