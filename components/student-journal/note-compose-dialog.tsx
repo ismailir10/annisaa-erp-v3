@@ -79,9 +79,15 @@ export function NoteComposeDialog({
   // not describe what it recomputed for.
   const today = getTodayInTimezone(PORTAL_TIMEZONE);
   const dateOptions = useMemo(() => {
-    if (mode === "edit") return weekDates;
+    // An edited note may predate the week on screen (the thread is not
+    // week-scoped), so its own date must stay selectable/displayed.
+    if (mode === "edit") {
+      return initialDate && !weekDates.includes(initialDate)
+        ? [initialDate, ...weekDates]
+        : weekDates;
+    }
     return weekDates.filter((d) => d <= today);
-  }, [mode, weekDates, today]);
+  }, [mode, weekDates, today, initialDate]);
 
   const [date, setDate] = useState<string>(() =>
     pickDefaultDate(dateOptions, today, initialDate),

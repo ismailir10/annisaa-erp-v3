@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/portal/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
+import { NoteDeleteDialog } from "@/components/student-journal/note-delete-dialog";
 import { ApiError, userMessage } from "@/lib/api/client-errors";
 import { BookHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -93,8 +94,14 @@ export default function TeacherStudentWeekPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadRequestId = useRef(0);
 
-  // Add-note dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Note composer: create, or edit one of the teacher's own notes (X-4)
+  const [noteDialog, setNoteDialog] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; noteId: string; date: string; body: string }
+    | null
+  >(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   // Bumped after a save so the thread refetches from its first page.
   const [noteReloadToken, setNoteReloadToken] = useState(0);
   const [noteDate, setNoteDate] = useState(today);
@@ -130,6 +137,19 @@ export default function TeacherStudentWeekPage() {
   useEffect(() => {
     loadWeek(ws);
   }, [loadWeek, ws]);
+
+  // Who am I — edit/delete are offered on the teacher's own notes only. The API
+  // enforces authorship (403); this only decides whether to show the controls.
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { id?: string } | null) => {
+        if (json?.id) setCurrentUserId(json.id);
+      })
+      .catch(() => {
+        // Non-fatal: without an id the controls simply do not render.
+      });
+  }, []);
 
   function prevWeek() {
     setWs((prev) => addDays(prev, -7));
@@ -170,7 +190,7 @@ export default function TeacherStudentWeekPage() {
                 className="tap-target"
                 onClick={() => {
                   setNoteDate(computeDefaultNoteDate(ws, today));
-                  setDialogOpen(true);
+                  setNoteDialog({ mode: "create" });
                 }}
               >
                 <Plus size={14} className="mr-1" aria-hidden="true" />
@@ -181,6 +201,15 @@ export default function TeacherStudentWeekPage() {
               studentId={studentId}
               audience="teacher"
               reloadToken={noteReloadToken}
+              canEdit={(note) =>
+                note.authorRole === "TEACHER" &&
+                !!currentUserId &&
+                note.authorUserId === currentUserId
+              }
+              onEdit={(noteId, n) =>
+                setNoteDialog({ mode: "edit", noteId, date: n.date, body: n.body })
+              }
+              onDelete={(noteId) => setDeleteTarget(noteId)}
             />
           </section>
   );
@@ -284,20 +313,36 @@ export default function TeacherStudentWeekPage() {
       )}
 
       <NoteComposeDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        mode="create"
+        open={noteDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setNoteDialog(null);
+        }}
+        mode={noteDialog?.mode ?? "create"}
         studentId={studentId}
         weekDates={data?.dates ?? [noteDate]}
-        initialDate={noteDate}
-        title={student ? `Tambah catatan untuk ${student.name}` : "Tambah catatan"}
+        initialDate={noteDialog?.mode === "edit" ? noteDialog.date : noteDate}
+        initialBody={noteDialog?.mode === "edit" ? noteDialog.body : undefined}
+        noteId={noteDialog?.mode === "edit" ? noteDialog.noteId : undefined}
+        title={
+          noteDialog?.mode === "edit"
+            ? "Ubah catatan"
+            : student
+              ? `Tambah catatan untuk ${student.name}`
+              : "Tambah catatan"
+        }
         audience="teacher"
         placeholder="Tulis catatan di sini…"
         onSaved={() => {
-          setDialogOpen(false);
+          setNoteDialog(null);
           setNoteDate(computeDefaultNoteDate(ws, today));
           setNoteReloadToken((n) => n + 1);
         }}
+      />
+
+      <NoteDeleteDialog
+        noteId={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => setNoteReloadToken((n) => n + 1)}
       />
     </div>
   );

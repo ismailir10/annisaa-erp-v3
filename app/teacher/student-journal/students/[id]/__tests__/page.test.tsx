@@ -143,7 +143,13 @@ describe("TeacherStudentWeekPage", () => {
     const first = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     const second = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     let calls = 0;
-    vi.stubGlobal("fetch", vi.fn(() => ++calls === 1 ? first.promise : second.promise));
+    // Only week loads are counted: the page also asks /api/auth/me who the
+    // teacher is (to offer edit/delete on her own notes), which is not a week.
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      String(url).includes("/week")
+        ? (++calls === 1 ? first.promise : second.promise)
+        : Promise.resolve({ ok: true, json: async () => ({}) }),
+    ));
     render(<TeacherStudentWeekPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Pekan berikutnya" }));
