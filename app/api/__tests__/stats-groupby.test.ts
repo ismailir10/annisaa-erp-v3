@@ -8,11 +8,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const invoiceGroupBy = vi.fn();
 const studentGroupBy = vi.fn();
+// FIN-13: invoice stats also aggregates this month's collected Rupiah.
+const paymentAggregate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { groupBy: invoiceGroupBy },
     student: { groupBy: studentGroupBy },
+    payment: { aggregate: paymentAggregate },
   },
 }));
 
@@ -46,6 +49,7 @@ function makeReq(url: string) {
 describe("stats endpoints — single GROUP BY contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    paymentAggregate.mockResolvedValue({ _sum: { amount: null } });
   });
 
   describe("GET /api/invoices/stats", () => {

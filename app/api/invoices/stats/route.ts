@@ -2,6 +2,9 @@ import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
+import { jakartaMonthRangeUtc } from "@/lib/finance/jakarta-month";
+import { UNPAID_INVOICE_STATUSES } from "@/lib/finance/student-invoice-summary";
 
 /**
  * GET /api/invoices/stats
@@ -11,6 +14,10 @@ import { getSession, isAdminRole } from "@/lib/auth";
  * list queries in parallel from the client to read only `pagination.total`.
  * The four-card sum also missed `PARTIALLY_PAID` + `PENDING_PAYMENT_LINK`
  * before, so the totals never reconciled.
+ *
+ * FIN-13: also returns Rupiah totals — `outstanding` (sum of remaining on
+ * SENT / PARTIALLY_PAID / OVERDUE) and `collectedThisMonth` (non-reversed
+ * payments whose `paidAt` falls in the current Jakarta month).
  */
 export async function GET(_req: NextRequest) {
   const session = await getSession();
@@ -18,17 +25,29 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const groups = await prisma.invoice.groupBy({
-    by: ["status"],
-    where: { tenantId: session.tenantId },
-    _count: { _all: true },
-    _sum: { totalDue: true, totalPaid: true },
-  });
+  const month = jakartaMonthRangeUtc();
+  const [groups, collected] = await Promise.all([
+    prisma.invoice.groupBy({
+      by: ["status"],
+      where: { tenantId: session.tenantId },
+      _count: { _all: true },
+      _sum: { totalDue: true, totalPaid: true },
+    }),
+    prisma.payment.aggregate({
+      where: {
+        ...ACTIVE_PAYMENT_FILTER,
+        paidAt: { gte: month.start, lt: month.end },
+        invoice: { tenantId: session.tenantId },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const byStatus: Record<string, number> = {};
   let totalDue = 0;
   let totalPaid = 0;
   let total = 0;
+  let outstanding = 0;
 
   for (const g of groups) {
     const count = g._count._all ?? 0;
@@ -36,6 +55,9 @@ export async function GET(_req: NextRequest) {
     total += count;
     totalDue += Number(g._sum.totalDue ?? 0);
     totalPaid += Number(g._sum.totalPaid ?? 0);
+    if ((UNPAID_INVOICE_STATUSES as readonly string[]).includes(g.status)) {
+      outstanding += Number(g._sum.totalDue ?? 0) - Number(g._sum.totalPaid ?? 0);
+    }
   }
 
   return NextResponse.json({
@@ -49,5 +71,7 @@ export async function GET(_req: NextRequest) {
     pendingPaymentLink: byStatus.PENDING_PAYMENT_LINK ?? 0,
     totalDue,
     totalPaid,
+    outstanding,
+    collectedThisMonth: Number(collected._sum.amount ?? 0),
   });
 }

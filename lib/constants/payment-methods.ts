@@ -7,6 +7,23 @@ export const PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "XENDIT", "DOKU", "OTHE
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/** Methods the payment gateways write; an admin never records these by hand. */
+export const GATEWAY_PAYMENT_METHODS = ["XENDIT", "DOKU"] as const;
+
+/**
+ * Methods an admin may pick when recording a payment by hand. Gateway rails
+ * are excluded: a hand-typed "Virtual Account" row would sit in reconciliation
+ * as if the gateway had delivered it (FIN-23).
+ */
+export const MANUAL_PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "OTHER"] as const;
+
+/** True for a payment the gateway created (cannot be reversed from the app). */
+export function isGatewayPayment(p: { method: string; xenditPaymentId?: string | null }): boolean {
+  return (
+    (GATEWAY_PAYMENT_METHODS as readonly string[]).includes(p.method) || !!p.xenditPaymentId
+  );
+}
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: "Tunai",
   BANK_TRANSFER: "Transfer Bank",
