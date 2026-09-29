@@ -60,7 +60,7 @@ No schema migration, no new dependency, nothing in auth/session code (HR-17 is a
 - Gates after T4+T5 (one combined run, source tree = both): `npm run build` exit 0; `npx vitest run` 440 files passed / 4143 tests passed.
 - Task 6/7: `data-table-mobile-meta.test.tsx` (2), `stat-card-long-value.test.tsx` (2), `data-table-empty-filtered.test.tsx` (2), `responsive-form-dialog-focus.test.tsx` (1; passes in jsdom because Base UI already returns focus there — the browser check below is the real evidence), students `page.test.tsx` adjusted (mobile meta repeats the placements).
 - Spec checklist: all items met except HR-17 (see Task 7) and the per-row raport-list badge (Task 5). Playwright: full suite run by lead serially before PR; CI `Playwright E2E` gates the merge. No e2e spec was changed or added.
-- Final gate on source SHA 4e1a1ba-plus-the-CORE-12 refocus tweak (staging #579 merged in): `npm run build` exit 0; `npx tsc --noEmit` clean; `npm run lint` 0 errors / 55 pre-existing warnings; `npx vitest run` tail:
+- Final gate on source SHA 826952e + the CORE-12 refocus tweak in the final commit (staging #579 merged in): `npm run build` exit 0; `npx tsc --noEmit` clean; `npm run lint` 0 errors / 55 pre-existing warnings; `npx vitest run` tail:
   ```
    Test Files  464 passed | 2 skipped (466)
         Tests  4296 passed | 42 todo (4338)
