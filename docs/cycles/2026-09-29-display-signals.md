@@ -66,3 +66,4 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Behaviour changes to call out on the PR: (a) first-time viewers now see an unread badge for existing other-party notes until they open the thread; (b) recalculating attendance variables now keeps manual line adjustments; (c) X-11 intentionally not changed — see Assumption 3.
 - Rollback: revert the PR (no data written in a new shape; `adjustmentAmount`/`adjustmentNote` are existing columns).
 <!-- task 2 committed -->
+<!-- task 3 committed -->
