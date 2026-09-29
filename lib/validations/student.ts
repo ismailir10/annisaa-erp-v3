@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalTrimmed } from "./zod-helpers";
+import { optionalTrimmed, partialWithoutDefaults } from "./zod-helpers";
 
 /**
  * Trim; empty (or unset) becomes an explicit `null`, never `undefined`.
@@ -96,7 +96,7 @@ export const studentFormSchema = createStudentSchema
     status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]),
   });
 
-export const updateStudentSchema = createStudentSchema.partial().extend({
+export const updateStudentSchema = partialWithoutDefaults(createStudentSchema).extend({
   status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN"]).optional(),
   // Inline edit from Student detail "Riwayat Status" sub-card.
   // Withdrawal date is set by the /withdraw lifecycle API and stays read-only.

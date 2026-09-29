@@ -282,6 +282,7 @@ export default function SalaryComponentsPage() {
               label="Kode"
               required
               id="salary-component-code"
+              description="Pengenal permanen. Huruf, angka, _ atau -, tanpa spasi."
               render={({ field, controlProps }) => <Input {...field} {...controlProps} placeholder="tunjangan_baru" />}
             />
           )}

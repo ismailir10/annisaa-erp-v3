@@ -101,7 +101,15 @@ export default function CampusesPage() {
     try {
       await sendJson(
         editing ? `/api/config/campuses/${editing.id}` : "/api/config/campuses",
-        { method: editing ? "PUT" : "POST", body: values },
+        {
+          method: editing ? "PUT" : "POST",
+          // The form drops blank optionals (undefined -> key omitted). PUT only
+          // writes keys it receives, so an edit must send explicit nulls for
+          // the fields the admin blanked, or they could never be cleared.
+          body: editing
+            ? { ...values, address: values.address ?? null, lat: values.lat ?? null, lng: values.lng ?? null }
+            : values,
+        },
         "Gagal menyimpan kampus. Periksa kolom yang ditandai.",
       );
       toast.success(editing ? "Kampus diperbarui" : "Kampus ditambahkan");

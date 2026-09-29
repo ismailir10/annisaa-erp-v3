@@ -10,11 +10,30 @@ import { optionalTrimmed } from "@/lib/validations/zod-helpers";
 // from <Input type="number">, while programmatic callers may send numbers.
 // Both pass through z.coerce.number() so the route handler can rely on
 // numeric values without a separate parseFloat() ternary.
+//
+// Coordinates are bounded (HR-9, cycle 2026-09-29 data-integrity): the columns
+// are numeric(10,8) / numeric(11,8), so lat=999 or lng=-500 overflowed
+// Postgres and answered a bare 500. Real-world bounds are tighter than the
+// column and give a field error instead.
+const latitude = z.coerce
+  .number({ message: "Harus berupa angka" })
+  .min(-90, "Latitude harus antara -90 dan 90")
+  .max(90, "Latitude harus antara -90 dan 90");
+const longitude = z.coerce
+  .number({ message: "Harus berupa angka" })
+  .min(-180, "Longitude harus antara -180 dan 180")
+  .max(180, "Longitude harus antara -180 dan 180");
+
+// PUT semantics: an omitted key is left alone, an explicit `null` (or blank
+// string) clears the column.
+const nullableCoordinate = (inner: z.ZodType<number>) =>
+  z.preprocess((v) => (v === "" ? null : v), inner.optional().nullable());
+
 export const updateCampusSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi").max(120).optional(),
   address: z.string().max(500).optional().nullable(),
-  lat: z.coerce.number().optional().nullable(),
-  lng: z.coerce.number().optional().nullable(),
+  lat: nullableCoordinate(latitude),
+  lng: nullableCoordinate(longitude),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -24,16 +43,14 @@ export const updateCampusSchema = z.object({
 // (`Number("")` is `0`), so an empty coordinate first collapses to
 // `undefined` and only then goes through z.coerce.number(), matching the
 // route's previous `lat ? parseFloat(lat) : null` (falsy string → null).
-const optionalCoercedNumber = z.preprocess(
-  (v) => (v === "" || v === null ? undefined : v),
-  z.coerce.number({ message: "Harus berupa angka" }).optional(),
-);
+const optionalCoordinate = (inner: z.ZodType<number>) =>
+  z.preprocess((v) => (v === "" || v === null ? undefined : v), inner.optional());
 
 export const createCampusSchema = z.object({
   name: z.string().trim().min(1, "Nama wajib diisi").max(120, "Nama maksimal 120 karakter"),
   address: optionalTrimmed(z.string().max(500, "Alamat maksimal 500 karakter")),
-  lat: optionalCoercedNumber,
-  lng: optionalCoercedNumber,
+  lat: optionalCoordinate(latitude),
+  lng: optionalCoordinate(longitude),
 });
 
 export type CreateCampusInput = z.infer<typeof createCampusSchema>;

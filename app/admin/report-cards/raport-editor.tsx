@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/admin/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useUnsavedChangesGuard } from "@/components/admin/unsaved-changes-provider";
 import { templateFor } from "@/lib/raport/templates";
+import { raportAttendanceSchema } from "@/lib/validations/raport";
 import { toast } from "sonner";
 import { ArrowLeft, Download } from "lucide-react";
 import {
@@ -60,6 +61,17 @@ type TemplateGridPayload = {
   filledCount: number;
   totalSlots: number;
 };
+type AttKey = "permitted" | "sick" | "unexcused" | "total";
+type AttErrors = Partial<Record<AttKey, string>>;
+
+// API/schema field name -> editor state key, for mapping field errors back.
+const ATT_KEY_BY_FIELD: Record<string, AttKey> = {
+  permittedAbsenceDays: "permitted",
+  sickDays: "sick",
+  unexcusedAbsenceDays: "unexcused",
+  totalSchoolDays: "total",
+};
+
 type Payload = {
   student: { id: string; name: string; nickname: string | null };
   term: { id: string; number: number; semesterNumber: number; academicYear: string };
@@ -97,6 +109,7 @@ export function RaportEditor({
   const [levels, setLevels] = useState<Record<string, string>>({});
   const [narratives, setNarratives] = useState<Record<string, string>>({});
   const [att, setAtt] = useState({ permitted: "0", sick: "0", unexcused: "0", total: "0" });
+  const [attErrors, setAttErrors] = useState<AttErrors>({});
   const [hafalan, setHafalan] = useState("");
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
@@ -214,7 +227,33 @@ export function RaportEditor({
     load();
   }, [load]);
 
+  const setAttField = (key: AttKey, value: string) => {
+    setAtt((p) => ({ ...p, [key]: value }));
+    // A stale message would keep claiming the old value is wrong (FIN-2 class).
+    setAttErrors({});
+  };
+
   const save = async (): Promise<boolean> => {
+    // ACAD-1: Sakit / Izin / Alpa and their sum must fit inside Hari sekolah.
+    // Same schema the PUT route enforces, so the message is identical.
+    const attCheck = raportAttendanceSchema.safeParse({
+      permittedAbsenceDays: Number(att.permitted) || 0,
+      sickDays: Number(att.sick) || 0,
+      unexcusedAbsenceDays: Number(att.unexcused) || 0,
+      totalSchoolDays: Number(att.total) || 0,
+    });
+    if (!attCheck.success) {
+      const next: AttErrors = {};
+      for (const issue of attCheck.error.issues) {
+        const key = ATT_KEY_BY_FIELD[String(issue.path[0])];
+        if (key && !next[key]) next[key] = issue.message;
+      }
+      setAttErrors(next);
+      toast.error("Periksa kolom kehadiran yang ditandai.");
+      return false;
+    }
+    setAttErrors({});
+
     setSaving(true);
     try {
       const sectionLevels: Record<string, string> = {};
@@ -238,8 +277,22 @@ export function RaportEditor({
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        toast.error(body.error ?? "Gagal menyimpan rapor.");
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          errors?: { field?: string; message?: string }[];
+        };
+        // Surface a server-side attendance rejection on its field too.
+        const next: AttErrors = {};
+        for (const e of body.errors ?? []) {
+          const key = e.field ? ATT_KEY_BY_FIELD[e.field] : undefined;
+          if (key && e.message && !next[key]) next[key] = e.message;
+        }
+        if (Object.keys(next).length > 0) {
+          setAttErrors(next);
+          toast.error("Periksa kolom kehadiran yang ditandai.");
+        } else {
+          toast.error(body.error ?? "Gagal menyimpan rapor.");
+        }
         return false;
       }
       if (status === "NONE") setStatus("DRAFT");
@@ -354,10 +407,10 @@ export function RaportEditor({
           Kehadiran terisi otomatis dari data presensi pada rentang triwulan — sunting bila perlu.
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <NumField id="absence-sick" label="Sakit" value={att.sick} onChange={(v) => setAtt((p) => ({ ...p, sick: v }))} />
-          <NumField id="absence-permitted" label="Izin" value={att.permitted} onChange={(v) => setAtt((p) => ({ ...p, permitted: v }))} />
-          <NumField id="absence-unexcused" label="Alpa" value={att.unexcused} onChange={(v) => setAtt((p) => ({ ...p, unexcused: v }))} />
-          <NumField id="absence-total" label="Hari sekolah" value={att.total} onChange={(v) => setAtt((p) => ({ ...p, total: v }))} />
+          <NumField id="absence-sick" label="Sakit" value={att.sick} error={attErrors.sick} onChange={(v) => setAttField("sick", v)} />
+          <NumField id="absence-permitted" label="Izin" value={att.permitted} error={attErrors.permitted} onChange={(v) => setAttField("permitted", v)} />
+          <NumField id="absence-unexcused" label="Alpa" value={att.unexcused} error={attErrors.unexcused} onChange={(v) => setAttField("unexcused", v)} />
+          <NumField id="absence-total" label="Hari sekolah" value={att.total} error={attErrors.total} onChange={(v) => setAttField("total", v)} />
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mt-4">
           {/* StudentMeasurement.height/weight are nullable and publish
@@ -507,12 +560,15 @@ function NumField({
   onChange,
   step,
   optional = false,
+  error,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   step?: string;
+  /** Inline validation message; marks the input invalid and announces it. */
+  error?: string;
   /** Drops the asterisk and the required/aria-required attributes. */
   optional?: boolean;
 }) {
@@ -526,9 +582,12 @@ function NumField({
         step={step}
         required={!optional}
         aria-required={optional ? undefined : "true"}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+      {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
     </Field>
   );
 }

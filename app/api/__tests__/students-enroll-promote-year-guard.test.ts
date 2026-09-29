@@ -124,6 +124,7 @@ describe("POST /api/students/[id]/enroll — academic-year guard", () => {
         studentEnrollment: {
           findFirst: vi.fn().mockResolvedValue(null),
           count: vi.fn().mockResolvedValue(0),
+          findUnique: vi.fn().mockResolvedValue(null),
           create: vi
             .fn()
             .mockResolvedValue({ id: "e1", studentId: "s1", classSectionId: "cs1" }),

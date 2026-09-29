@@ -76,7 +76,7 @@ export async function GET(
     totalIncome: Number(item.grossAmount),
     totalDeductions: Number(item.deductions),
     netPay: Number(item.netAmount),
-    generatedDate: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }),
+    generatedDate: new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" }),
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

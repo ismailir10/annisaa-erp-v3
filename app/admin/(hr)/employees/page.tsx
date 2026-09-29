@@ -213,6 +213,22 @@ export default function EmployeesPage() {
     }
   });
 
+  // F-6 collapse: single /api/employees/stats endpoint replaces the two
+  // pageSize=1 filtered list calls. Also re-run after deactivate / restore
+  // (HR-13) — the cards used to keep the mount-time counts until a reload.
+  const fetchStats = useCallback(() => {
+    fetch("/api/employees/stats", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) =>
+        setStats({
+          total: s.total ?? 0,
+          active: s.active ?? 0,
+          inactive: s.inactive ?? 0,
+        }),
+      )
+      .catch(() => toast.error("Gagal memuat ringkasan karyawan"));
+  }, []);
+
   // Fetch campuses + positions + stats once
   useEffect(() => {
     fetch("/api/config/campuses")
@@ -234,21 +250,8 @@ export default function EmployeesPage() {
         setPositions(arr.length === 0 ? DEFAULT_POSITIONS : arr);
       })
       .catch(() => toast.error("Gagal memuat daftar jabatan"));
-    // F-6 collapse: single /api/employees/stats endpoint replaces the
-    // two pageSize=1 filtered list calls that ran full filtered counts
-    // under the hood. Same data, half the round-trips, no full-table
-    // scan repeated per status bucket.
-    fetch("/api/employees/stats")
-      .then((r) => r.json())
-      .then((s) =>
-        setStats({
-          total: s.total ?? 0,
-          active: s.active ?? 0,
-          inactive: s.inactive ?? 0,
-        }),
-      )
-      .catch(() => toast.error("Gagal memuat ringkasan karyawan"));
-  }, []);
+    fetchStats();
+  }, [fetchStats]);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -308,11 +311,12 @@ export default function EmployeesPage() {
       toast.success(`${deactivateTarget.nama} dinonaktifkan`);
       setDeactivateTarget(null);
       fetchEmployees();
+      fetchStats();
     } else {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal menonaktifkan karyawan");
     }
-  }, [deactivateTarget, fetchEmployees]);
+  }, [deactivateTarget, fetchEmployees, fetchStats]);
 
   const handleRestore = useCallback(async () => {
     if (!restoreTarget) return;
@@ -325,11 +329,12 @@ export default function EmployeesPage() {
       toast.success(`${restoreTarget.nama} diaktifkan kembali`);
       setRestoreTarget(null);
       fetchEmployees();
+      fetchStats();
     } else {
       const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal mengaktifkan karyawan");
     }
-  }, [restoreTarget, fetchEmployees]);
+  }, [restoreTarget, fetchEmployees, fetchStats]);
 
   const columnsWithActions = useMemo<ColumnDef<Employee>[]>(
     () => [

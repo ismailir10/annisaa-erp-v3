@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
+import { partialWithoutDefaults } from "./zod-helpers";
 
 export const scopeSchema = z.enum(["SCHOOL", "HOME"]);
 
@@ -27,7 +28,8 @@ export const createCategorySchema = z.object({
   scope: scopeSchema,
   order: z.number().int().nonnegative().default(0),
 });
-export const updateCategorySchema = createCategorySchema.partial().extend({
+export const updateCategorySchema = // partialWithoutDefaults: a status-only toggle must not reset `order` to 0 (DRV-1).
+partialWithoutDefaults(createCategorySchema).extend({
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -36,7 +38,7 @@ export const createIndicatorSchema = z.object({
   label: z.string().trim().min(1, "Label indikator wajib diisi"),
   order: z.number().int().nonnegative().default(0),
 });
-export const updateIndicatorSchema = createIndicatorSchema.partial().extend({
+export const updateIndicatorSchema = partialWithoutDefaults(createIndicatorSchema).extend({
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
