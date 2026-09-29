@@ -39,7 +39,7 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 - [x] **T8 — X-21 leave decisions on the teacher home.** Server query + section; vitest.
 - [x] **T9 — X-6 new inquiries in the admin work queue.** Source, kind, tile; vitest.
 - [x] **T10 — DOC-4 assessment save status.** vitest.
-- [ ] **T11 — Verification, JTBD refresh, Ship Notes.**
+- [x] **T11 — Verification, JTBD refresh, Ship Notes.**
 
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5, dirty-work=none (Sonnet is the harness tier and there is no cheaper tier used). Tasks run sequentially inline: T3-T5 share the note/journal components and T2/T6/T8 share the teacher home and client patterns, so a subagent would need the whole plan as context; the brief runs one cycle per build agent.
@@ -58,7 +58,27 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 ## Verification
 - T1: gates passed on the staged tree: `npm run build` exit 0; `npx vitest run` 430 files passed / 2 skipped, 4079 tests passed (also needed `npx prisma generate` once: the worktree had no `lib/generated`).
 - T2: gates: `npm run build` exit 0 on the T2 tree; full `npx vitest run` on the committed T2 commit (see the cumulative gate lines below).
+- T3-T10: each commit's tree was checked with targeted vitest files (all green), `npx tsc --noEmit` and eslint on touched files; the cumulative gate is the final one below (builds and full vitest ran on exact commits via `git archive`, T2 at 139bd7e: `npm run build` exit 0, `npx vitest run` 431 files passed / 2 skipped, 4083 tests passed; T8 at HEAD~ see below).
+- Merged `origin/staging` (#575: `note-reads.ts`, `format.ts`) into the branch; no conflicts. `bash scripts/audit-docs.sh --write` refreshed the CLAUDE.md counts (teacher pages 14, active cycle docs) and the audit passes.
+- Local browser verification (demo auth, disposable Postgres `schoolerp_c5`, `next start -p 3106`, mobile 390x844, source SHA SRCSHA; scripts in scratchpad `verify/journal-ux/`, screenshots in `shots/verify-journal-ux/`), all as `u_teacher` (Guru Tiga, homeroom TKIT A, 20 students, 16 school indicators) unless noted:
+  - TCH-7: open sheet + Tandai = **2 taps** for the whole class (320 cells, progress 0/20 -> 20/20, posted as 100/100/100/20 batches, DB: 320 CREATE audit rows); Batalkan (3rd tap) reverted to 0/20 (DB 320 rows false, 320 UPDATE audits); category/indicator narrowing summary "20 siswa x 1 indikator: 20 centang" applied. `v1-2-sheet.png`, `v1-3-applied-undo.png`.
+  - TCH-3: typed draft, tapped the dimmed backdrop -> "Buang catatan?"; Lanjut menulis kept the text exactly. `v2-1-discard-confirm.png`.
+  - X-4: on Ahmad Zafran's thread the teacher's two notes show pencil/trash, the two guardian notes show nothing; edit prefilled and saved (PUT), delete confirmed (DELETE, row INACTIVE). `v2-2..5`.
+  - TCH-2: session `c5s-t`: tap "Ketuk masuk" -> "Belum disimpan"; reload raised the native `beforeunload` dialog; bottom-nav Beranda and browser Back both raised "Keluar tanpa menyimpan?" (Tetap di sini stayed); Simpan -> "Semua perubahan tersimpan", reload showed Masuk persisted, then a clean nav went through without a prompt. `v3-2`, `v3-3`.
+  - X-5: as `u_rightjet` ticked two Di rumah items, then the teacher's Zafran week page shows the read-only "Di rumah" grid with those ticks (0 enabled buttons in the section). `v4-1`.
+  - X-21: teacher applied for two leaves; `u_owner` approved one and rejected one with a reason; teacher home shows "Keputusan cuti: Izin ditolak - Alasan: Bentrok dengan rapat wali murid / Cuti tahunan disetujui"; tapping a row opened Kehadiran saya with the Cuti dan izin sheet. `v5-1`.
+  - X-6: dashboard tile "Pertanyaan pendaftaran baru" went 1 -> 2 after an anonymous `/api/admission/submit`; `/admin/work-queue?kind=inquiry` lists it (status Pertanyaan baru, link Buka pendaftaran). `v6-1`, `v6-2`.
+  - DOC-1: four TKIT A sessions with no teacher (yesterday, today, tomorrow) and one substitute; removing then re-assigning the homeroom via the admin API set `teacherId`/`defaultTeacherId` on today and tomorrow only, left yesterday and the substituted session untouched; teacher home then listed "TKIT A - Sehari penuh - Buka sesi" (before: "Belum ada sesi terjadwal hari ini"). `v7-1`, `v7-2`.
+  - Minors: `/teacher/class-attendance?date=2026-12-24` came back as today with `max=today`; class attendance showed "Absensi tersimpan"; parent banner for an Alpa week has no "lekas sehat" ("tercatat tidak hadir tanpa keterangan"), for a Sakit week it does; `/teacher/sessions` -> `/teacher#pickup-sessions`.
+  - DOC-4: the seed calendar has no week for today and no indicators, so I moved one existing `Week` to this week and added one objective/indicator/theme link on the disposable DB; a Mampu tap showed "Menyimpan penilaian..." then "Penilaian tersimpan". `v9-2`.
+  - Only console errors were none besides the expected ones; server stopped afterwards (own PID only).
+- Playwright: full suite run by lead serially before PR; CI `Playwright E2E` gates the merge. No e2e spec added or changed.
+- Ship route: **local demo-auth verification** (no Google login, OAuth callback, session, cookie or auth-guard change).
+- Self-review: each staged diff read adversarially (no reviewer agent installed here) for tenant/permission scoping on the two changed routes (batch cap only tightens; week route reads the same tenant + student behind the unchanged assignment guard), state-race handling in the bulk write path (per-cell requestId, per-chunk rollback, undo only reverts untouched cells) and history-sentinel hygiene in the unsaved guard.
 - design-system: frontend tasks are checked against `.claude/standards/design-system.html` (existing Sheet/ConfirmDialog/SaveStatus/TaskRow primitives, status tokens, 44 px targets, no new colours).
 
 ## Ship Notes
-- Pending.
+- Migrations: none. Env vars: none. Rollback: revert the PR (nothing is written in a new shape; the batch endpoint only gained a 500-entry cap).
+- Behaviour changes: `POST /api/student-journal/entries/batch` now answers 400 above 500 entries per request (the app chunks at 100). `GET /api/student-journal/students/[id]/week` (teacher) adds `homeCategories` / `homeEntries`. Homeroom add/remove now rewrites `teacherId`/`defaultTeacherId` on that class's sessions dated today or later (never substituted or past ones).
+- Follow-ups not done: `AuditLog` is not written by the public admission submit, so "Aktivitas Terbaru" still cannot show new inquiries (the work queue now does); admissions page has no deep link to one inquiry; a cancelled leave is not shown on the teacher home.
+- Env note: the worktree's `node_modules` is a bind mount of the main checkout's; local gates for intermediate commits were run on `git archive` snapshots so the worktree stayed editable. `lib/generated` had to be regenerated once (`npx prisma generate`).
