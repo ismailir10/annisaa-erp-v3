@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
+import { validateBody } from "@/lib/api/validate";
 import { updateCampusSchema } from "@/lib/validations/campus";
 
 export async function PUT(
@@ -18,22 +19,20 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const parsed = updateCampusSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
+  const parsed = await validateBody(updateCampusSchema, await req.json().catch(() => null));
+  if (parsed.error) return parsed.error;
   const body = parsed.data;
 
   const campus = await prisma.campus.update({
     where: { id },
     data: {
       name: body.name?.trim(),
-      address: body.address?.trim() || null,
-      lat: body.lat ?? null,
-      lng: body.lng ?? null,
+      // Only keys present in the body are written: `PUT { status: "ACTIVE" }`
+      // (Reaktivasi) used to null address/lat/lng. Explicit null / blank
+      // still clears (the edit dialog sends null for a blanked field).
+      address: body.address === undefined ? undefined : body.address?.trim() || null,
+      lat: body.lat,
+      lng: body.lng,
       status: body.status,
     },
   });

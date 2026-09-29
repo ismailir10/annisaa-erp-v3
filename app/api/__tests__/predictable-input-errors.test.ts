@@ -10,6 +10,7 @@ import type { SessionUser } from "@/lib/auth";
 const db = vi.hoisted(() => ({
   academicYear: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   feeComponentDef: { create: vi.fn(), count: vi.fn() },
+  salaryComponentDef: { create: vi.fn() },
   program: { findFirst: vi.fn() },
   programFeeStructure: { upsert: vi.fn() },
   $transaction: vi.fn(),
@@ -144,5 +145,29 @@ describe("PUT /api/fee-structure (FIN-5)", () => {
     expect(json.error).toBe("Nominal maksimal Rp 10.000.000.000");
     expect(json.errors[0].field).toBe("fees.0.amount");
     expect(db.programFeeStructure.upsert).not.toHaveBeenCalled();
+  });
+});
+
+// HR-10 — salary component code. Separate mock scope: this file mocks the DB
+// once at the top, so the salary route only needs the permission guard here.
+describe("POST /api/salary-components (HR-10)", () => {
+  it("400 with a code field error for spaces/punctuation, nothing written", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/auth-guards", () => ({
+      requirePermission: vi.fn().mockResolvedValue({ session: { tenantId: "t-1", id: "u1", role: "SCHOOL_ADMIN" } }),
+    }));
+    vi.doMock("@/lib/payroll/salary-component-ordering", () => ({
+      checkSalaryComponentOrdering: vi.fn().mockResolvedValue(null),
+    }));
+    const { POST } = await import("../salary-components/route");
+    const res = await POST(
+      req("POST", { code: "E2E HR Bonus!", label: "Bonus", category: "INCOME", calcType: "FIXED" }),
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.errors[0].field).toBe("code");
+    expect(json.errors[0].message).toMatch(/tanpa spasi/);
+    vi.doUnmock("@/lib/auth-guards");
+    vi.doUnmock("@/lib/payroll/salary-component-ordering");
   });
 });
