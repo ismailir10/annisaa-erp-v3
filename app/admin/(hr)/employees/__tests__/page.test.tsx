@@ -224,8 +224,17 @@ describe("EmployeesPage stat cards (HR-13)", () => {
     await waitFor(() => expect(card("Aktif")).toHaveTextContent("Aktif: 2"));
     expect(card("Tidak Aktif")).toHaveTextContent("Tidak Aktif: 1");
 
-    await user.click(await screen.findByRole("button", { name: "Nonaktifkan baris" }));
-    const dialog = await screen.findByRole("alertdialog");
+    // The list renders more than once while its fetches settle, so a button
+    // found early can be detached by the time it is clicked (the click is then
+    // a no-op and the dialog never opens — a ~1-in-3 flake). Re-query and
+    // click the live button until the confirm dialog is open.
+    await waitFor(() => {
+      if (!screen.queryByRole("alertdialog")) {
+        fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan baris" }));
+      }
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+    const dialog = screen.getByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
 
     await waitFor(() => expect(card("Aktif")).toHaveTextContent("Aktif: 1"));
