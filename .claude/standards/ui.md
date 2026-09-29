@@ -67,6 +67,7 @@ Retrofitting existing pages against this scale is a follow-up cycle — new page
 
 - **Dialog on desktop, Sheet on mobile.** Use `ResponsiveFormDialog` for create/edit forms; it owns the breakpoint switch and preserves the active form while open.
 - **Confirms go through `<ConfirmDialog>`, always.** Delete, void, cancel, hard-deactivate, restore, approve — all through `<ConfirmDialog>` (it wraps `<AlertDialog>`; pass `destructive` for the irreversible ones). Never import `<AlertDialog>` directly outside `confirm-dialog.tsx`. Cancel-left (ghost), destructive-right (red, `variant="destructive"`).
+- **Discarding a dirty form is asked inside that form, not over it.** A "Buang perubahan?" guard on an open Dialog/Sheet swaps the form's footer for an inline confirm row (`role="alert"`, focus on the safe choice, Escape = keep editing) instead of mounting a `<ConfirmDialog>` on top. Reference: `components/student-journal/note-compose-dialog.tsx`.
 - **Toasts stack, overlays don't.** Multiple toasts allowed; they auto-dismiss. Sonner's default 3–5s timing is correct for success; errors should stay longer (or be persistent via `toast.error(..., { duration: Infinity })` for critical failures).
 - **Body copy states the consequence.** "Data akan hilang selamanya" for hard delete; "Bisa diaktifkan kembali kapan saja" for soft delete. See `voice.md` for audience-matched copy.
 

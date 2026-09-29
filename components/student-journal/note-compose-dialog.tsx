@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -13,7 +13,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -96,6 +95,7 @@ export function NoteComposeDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const keepWritingRef = useRef<HTMLButtonElement>(null);
 
   // Reset form whenever the dialog reopens or its inputs change
   useEffect(() => {
@@ -119,13 +119,24 @@ export function NoteComposeDialog({
   // recovered, and the dimmed backdrop is easy to hit one-handed (TCH-3). Every
   // way of dismissing — outside tap, Escape, Batal — goes through here; only a
   // saved note or an explicit "Buang" closes over a changed draft.
+  //
+  // The "Buang catatan?" question is asked inside this dialog's footer, not in
+  // a second overlay on top of it (ui.md: one overlay at a time). While it is
+  // showing, Escape / outside tap mean "keep writing".
   const dirty = body.trim() !== (initialBody ?? "").trim();
+  useEffect(() => {
+    if (confirmDiscard) keepWritingRef.current?.focus();
+  }, [confirmDiscard]);
   function requestClose(nextOpen: boolean) {
     if (nextOpen) {
       onOpenChange(true);
       return;
     }
     if (submitting) return;
+    if (confirmDiscard) {
+      setConfirmDiscard(false);
+      return;
+    }
     if (dirty) {
       setConfirmDiscard(true);
       return;
@@ -186,7 +197,6 @@ export function NoteComposeDialog({
   }
 
   return (
-    <>
     <ResponsiveFormDialog
       open={open}
       onOpenChange={requestClose}
@@ -195,19 +205,41 @@ export function NoteComposeDialog({
       size="sm"
       contentClassName="p-card"
       footer={
-        <>
-          <Button
-            variant="ghost"
-            className="tap-target"
-            onClick={() => requestClose(false)}
-            disabled={submitting}
-          >
-            Batal
-          </Button>
-          <Button className="tap-target" onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </>
+        confirmDiscard ? (
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div role="alert" className="text-sm">
+              <p className="font-medium">Buang catatan?</p>
+              <p className="text-muted-foreground">Catatan yang belum disimpan akan hilang.</p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                ref={keepWritingRef}
+                variant="ghost"
+                className="tap-target"
+                onClick={() => setConfirmDiscard(false)}
+              >
+                Lanjut menulis
+              </Button>
+              <Button variant="destructive" className="tap-target" onClick={() => onOpenChange(false)}>
+                Buang
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              className="tap-target"
+              onClick={() => requestClose(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button className="tap-target" onClick={handleSubmit} disabled={!canSubmit}>
+              {submitting ? "Menyimpan…" : "Simpan"}
+            </Button>
+          </>
+        )
       }
     >
       <Field>
@@ -260,16 +292,5 @@ export function NoteComposeDialog({
         </div>
       </Field>
     </ResponsiveFormDialog>
-    <ConfirmDialog
-      open={confirmDiscard}
-      onOpenChange={setConfirmDiscard}
-      title="Buang catatan?"
-      description="Catatan yang belum disimpan akan hilang."
-      confirmLabel="Buang"
-      cancelLabel="Lanjut menulis"
-      destructive
-      onConfirm={() => onOpenChange(false)}
-    />
-    </>
   );
 }

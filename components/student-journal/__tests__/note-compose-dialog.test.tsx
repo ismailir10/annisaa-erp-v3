@@ -70,6 +70,30 @@ describe("NoteComposeDialog discard guard (TCH-3)", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
+  it("asks inside the composer: no second overlay is stacked on top (ui.md one overlay at a time)", async () => {
+    const { onOpenChange } = setup();
+    type("draft");
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+
+    expect(await screen.findByText("Buang catatan?")).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByLabelText("Isi catatan")).toHaveValue("draft");
+    expect(screen.queryByRole("button", { name: "Simpan" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Lanjut menulis" })).toHaveFocus());
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("Escape while the question is showing means keep writing, not discard", async () => {
+    const { onOpenChange } = setup();
+    type("draft");
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    await screen.findByText("Buang catatan?");
+    fireEvent.keyDown(screen.getByLabelText("Isi catatan"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText("Buang catatan?")).toBeNull());
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Isi catatan")).toHaveValue("draft");
+  });
+
   it("does not treat an untouched edit as a draft, but does treat a changed one as one", async () => {
     const { onOpenChange } = setup({ mode: "edit", noteId: "n1", initialBody: "Catatan lama" });
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
