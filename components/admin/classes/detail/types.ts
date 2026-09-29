@@ -48,8 +48,13 @@ export type Employee = { id: string; nama: string; formalName?: string | null };
 export type StudentOption = {
   id: string;
   name: string;
+  nickname?: string | null;
   nis: string | null;
   status: string;
+  /** YYYY-MM-DD — shown so homonyms can be told apart (CORE-3). */
+  dateOfBirth?: string | null;
+  /** Classes the student is already ACTIVE in, for the same reason. */
+  enrollments?: { classSection?: { name: string } | null }[];
 };
 
 export const ROLE_LABEL: Record<TeachingRole, string> = {

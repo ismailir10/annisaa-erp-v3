@@ -152,4 +152,28 @@ describe("POST /api/payroll/[id]/approve — CAS", () => {
       data: { isLocked: true },
     });
   });
+
+  it("HR-12: refuses to approve a run with a negative net slip and names the employee", async () => {
+    await mockSession(makeSession("SUPER_ADMIN"));
+    findUnique.mockResolvedValueOnce({
+      id: "p1",
+      tenantId: "t1",
+      status: "DRAFT",
+      periodStart: "2026-04-01",
+      periodEnd: "2026-04-30",
+    });
+    itemFindMany.mockResolvedValueOnce([
+      { employeeId: "e1", netAmount: "1500000.00", employee: { nama: "Guru Satu" } },
+      { employeeId: "e2", netAmount: "-50000.00", employee: { nama: "Guru Dua" } },
+    ]);
+
+    const { POST } = await import("../payroll/[id]/approve/route");
+    const res = await POST({} as never, { params: Promise.resolve({ id: "p1" }) });
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("Guru Dua");
+    expect(body.error).not.toContain("Guru Satu");
+    expect(updateMany).not.toHaveBeenCalled();
+  });
 });

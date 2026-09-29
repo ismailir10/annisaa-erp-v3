@@ -19,6 +19,8 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     studentGuardian: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
       update: vi.fn(),
     },
     parent: { update: vi.fn() },
@@ -158,51 +160,95 @@ describe("PUT /api/guardians/[id]", () => {
 /**
  * T2 — deactivating a guardian via PATCH must clear isPrimary in the same
  * write (finance code later bills a deactivated-but-still-primary parent).
- * Reactivation must NOT touch isPrimary — re-promotion stays an explicit
- * admin act.
+ * CORE-4 — and the student must not be left without an ACTIVE primary: the
+ * next active guardian is promoted (or the admin's pick), reactivating into
+ * an empty primary slot re-promotes.
  */
-describe("PATCH /api/guardians/[id] — status toggle clears isPrimary (T2)", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('writes status: "INACTIVE", isPrimary: false when deactivating', async () => {
+describe("PATCH /api/guardians/[id] — status toggle keeps one active primary (T2 / CORE-4)", () => {
+  async function arrange(guardian: Record<string, unknown>) {
     const { getSession } = await import("@/lib/auth");
     const { prisma } = await import("@/lib/db");
+    vi.clearAllMocks();
     vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(baseGuardian() as never);
-    vi.mocked(prisma.studentGuardian.update).mockResolvedValue({ id: "g-1", status: "INACTIVE", isPrimary: false } as never);
-
+    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(guardian as never);
+    vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) => cb(prisma)) as never);
+    vi.mocked(prisma.studentGuardian.update).mockImplementation((async ({ where, data }: { where: { id: string }; data: object }) => ({ id: where.id, ...data })) as never);
+    return prisma;
+  }
+  const call = async (body: unknown) => {
     const { PATCH } = await import("../guardians/[id]/route");
-    const res = await PATCH(makePatchReq({ status: "INACTIVE" }) as never, {
-      params: Promise.resolve({ id: "g-1" }),
-    });
+    return PATCH(makePatchReq(body) as never, { params: Promise.resolve({ id: "g-1" }) });
+  };
+
+  it('writes status: "INACTIVE", isPrimary: false when deactivating', async () => {
+    const prisma = await arrange(baseGuardian());
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([]);
+
+    const res = await call({ status: "INACTIVE" });
 
     expect(res.status).toBe(200);
     expect(prisma.studentGuardian.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "g-1" },
-        data: { status: "INACTIVE", isPrimary: false },
-      }),
+      expect.objectContaining({ where: { id: "g-1" }, data: { status: "INACTIVE", isPrimary: false } }),
     );
   });
 
-  it('writes status: "ACTIVE" with no isPrimary key when reactivating', async () => {
-    const { getSession } = await import("@/lib/auth");
-    const { prisma } = await import("@/lib/db");
-    vi.mocked(getSession).mockResolvedValue(makeSession());
-    vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue({
-      ...baseGuardian(),
-      status: "INACTIVE",
-    } as never);
-    vi.mocked(prisma.studentGuardian.update).mockResolvedValue({ id: "g-1", status: "ACTIVE" } as never);
+  it("promotes the remaining active guardian when the primary is deactivated", async () => {
+    const prisma = await arrange({ ...baseGuardian(), isPrimary: true });
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([
+      { id: "g-2", relationship: "IBU", isPrimary: false, parent: { name: "Ibu Sari" } },
+    ] as never);
 
-    const { PATCH } = await import("../guardians/[id]/route");
-    const res = await PATCH(makePatchReq({ status: "ACTIVE" }) as never, {
-      params: Promise.resolve({ id: "g-1" }),
-    });
+    const res = await call({ status: "INACTIVE" });
+    const body = await res.json();
 
     expect(res.status).toBe(200);
-    const call = vi.mocked(prisma.studentGuardian.update).mock.calls[0][0] as { data: Record<string, unknown> };
-    expect(call.data).toEqual({ status: "ACTIVE" });
-    expect("isPrimary" in call.data).toBe(false);
+    expect(prisma.studentGuardian.update).toHaveBeenCalledWith({ where: { id: "g-2" }, data: { isPrimary: true } });
+    expect(body.promotedPrimary).toEqual({ id: "g-2", name: "Ibu Sari" });
+    expect(body.noActiveGuardian).toBe(false);
+  });
+
+  it("promotes the guardian the admin chose, and rejects one who is not an active guardian of the student", async () => {
+    const prisma = await arrange({ ...baseGuardian(), isPrimary: true });
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([
+      { id: "g-2", relationship: "IBU", isPrimary: false, parent: { name: "Ibu Sari" } },
+      { id: "g-3", relationship: "WALI", isPrimary: false, parent: { name: "Om Joko" } },
+    ] as never);
+
+    const ok = await call({ status: "INACTIVE", newPrimaryId: "g-3" });
+    expect((await ok.json()).promotedPrimary).toEqual({ id: "g-3", name: "Om Joko" });
+
+    const bad = await call({ status: "INACTIVE", newPrimaryId: "g-999" });
+    expect(bad.status).toBe(400);
+  });
+
+  it("says so when the deactivated primary was the last active guardian", async () => {
+    const prisma = await arrange({ ...baseGuardian(), isPrimary: true });
+    vi.mocked(prisma.studentGuardian.findMany).mockResolvedValue([]);
+
+    const body = await (await call({ status: "INACTIVE" })).json();
+
+    expect(body.promotedPrimary).toBeNull();
+    expect(body.noActiveGuardian).toBe(true);
+  });
+
+  it("reactivating keeps isPrimary untouched when another active primary exists", async () => {
+    const prisma = await arrange({ ...baseGuardian(), status: "INACTIVE" });
+    vi.mocked(prisma.studentGuardian.count).mockResolvedValue(1);
+
+    const res = await call({ status: "ACTIVE" });
+
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(prisma.studentGuardian.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(arg.data).toEqual({ status: "ACTIVE" });
+  });
+
+  it("reactivating into an empty primary slot makes that guardian the primary", async () => {
+    const prisma = await arrange({ ...baseGuardian(), status: "INACTIVE" });
+    vi.mocked(prisma.studentGuardian.count).mockResolvedValue(0);
+
+    await call({ status: "ACTIVE" });
+
+    const arg = vi.mocked(prisma.studentGuardian.update).mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(arg.data).toEqual({ status: "ACTIVE", isPrimary: true });
   });
 });

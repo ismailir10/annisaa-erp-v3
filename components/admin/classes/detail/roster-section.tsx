@@ -48,10 +48,6 @@ export function RosterSection({
   const [removeStudentTarget, setRemoveStudentTarget] = useState<Enrollment | null>(null);
 
   const enrolledCount = enrollments.length;
-  const enrolledStudentIds = useMemo(
-    () => new Set(enrollments.map((e) => e.student.id)),
-    [enrollments],
-  );
 
   const rosterColumns: ColumnDef<Enrollment>[] = useMemo(
     () => [
@@ -181,7 +177,6 @@ export function RosterSection({
         open={addStudentOpen}
         onOpenChange={setAddStudentOpen}
         classId={classId}
-        enrolledStudentIds={enrolledStudentIds}
         onAdded={onChanged}
       />
 

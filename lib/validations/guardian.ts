@@ -84,6 +84,9 @@ export const updateGuardianSchema = z.object({
 
 export const toggleGuardianStatusSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE"]),
+  // CORE-4: when deactivating the primary guardian, the admin may pick which
+  // remaining ACTIVE guardian becomes the new primary (else the server picks).
+  newPrimaryId: z.string().min(1).optional(),
 });
 
 // ---------------------------------------------------------------------------

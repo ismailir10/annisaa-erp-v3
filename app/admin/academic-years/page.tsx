@@ -24,7 +24,7 @@ import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeactivateConfirmDialog } from "@/components/admin/deactivate-confirm-dialog";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
-import { Plus, ArrowRightCircle } from "lucide-react";
+import { Plus, ArrowRightCircle, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateShort } from "@/lib/format";
 import { academicYearFormSchema } from "@/lib/validations/academic-year";
@@ -33,6 +33,7 @@ import { rollForwardSchema } from "@/lib/validations/roll-forward";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
+import { activationDescription, archiveDescription } from "@/lib/academic-year/activation-copy";
 
 type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 type Program = { id: string; code: string; name: string; description: string | null; type: string; ageMin: number | null; ageMax: number | null; status: string; _count: { classSections: number } };
@@ -66,6 +67,10 @@ export default function AcademicPage() {
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<{ type: string; id: string; name: string } | null>(null);
+  // CORE-6: activating / archiving a year each have their own confirm that
+  // states the real effect; PLANNING years can be archived too.
+  const [activateYearTarget, setActivateYearTarget] = useState<AcademicYear | null>(null);
+  const [archiveYearTarget, setArchiveYearTarget] = useState<AcademicYear | null>(null);
   const [programStatusFilter, setProgramStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE">("ACTIVE");
   const [yearStatusFilter, setYearStatusFilter] = useState<"all" | "ACTIVE" | "INACTIVE" | "PLANNING" | "ARCHIVED">("all");
   const [programQuery, setProgramQuery] = useState("");
@@ -161,6 +166,42 @@ export default function AcademicPage() {
     });
     if (res.ok) { toast.success("Diaktifkan"); setReactivateTarget(null); fetchAll(); }
     else { const d = await res.json(); toast.error(d.error || "Gagal"); }
+  }
+
+  async function handleActivateYear() {
+    if (!activateYearTarget) return;
+    const res = await fetch(`/api/academic-years/${activateYearTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ACTIVE" }),
+    });
+    if (res.ok) {
+      toast.success(`${activateYearTarget.name} kini menjadi tahun ajaran aktif`);
+      setActivateYearTarget(null);
+      fetchAll();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengaktifkan tahun ajaran");
+    }
+  }
+
+  async function handleArchiveYear() {
+    if (!archiveYearTarget) return;
+    const res = await fetch(`/api/academic-years/${archiveYearTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ARCHIVED" }),
+    });
+    if (res.ok) {
+      toast.success(`${archiveYearTarget.name} diarsipkan`);
+      setArchiveYearTarget(null);
+      fetchAll();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error || "Gagal mengarsipkan tahun ajaran");
+      // Keep the dialog open so the reason stays readable next to the action.
+      throw new Error("archive failed");
+    }
   }
 
   const handleRollForward = rollForwardForm.handleSubmit(async (values) => {
@@ -325,17 +366,26 @@ export default function AcademicPage() {
             yearForm.reset({ name: y.name, startDate: y.startDate, endDate: y.endDate });
             setYearDialog(true);
           }}
-          onDeactivate={() => setDeactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
-          onActivate={() => setReactivateTarget({ type: "year", id: row.original.id, name: row.original.name })}
+          onActivate={() => setActivateYearTarget(row.original)}
           isActive={row.original.status === "ACTIVE"}
-          extraActions={[{
-            label: "Salin Kelas ke Tahun Ini",
-            icon: <ArrowRightCircle size={14} />,
-            onClick: () => {
-              setRollForwardTarget(row.original);
-              rollForwardForm.reset(EMPTY_ROLL_FORWARD_FORM);
+          extraActions={[
+            {
+              label: "Salin Kelas ke Tahun Ini",
+              icon: <ArrowRightCircle size={14} />,
+              onClick: () => {
+                setRollForwardTarget(row.original);
+                rollForwardForm.reset(EMPTY_ROLL_FORWARD_FORM);
+              },
             },
-          }]}
+            ...(row.original.status !== "ARCHIVED"
+              ? [{
+                  label: "Arsipkan",
+                  icon: <Archive size={14} />,
+                  destructive: true,
+                  onClick: () => setArchiveYearTarget(row.original),
+                }]
+              : []),
+          ]}
         />
       ),
     },
@@ -632,6 +682,26 @@ export default function AcademicPage() {
         onOpenChange={(o) => !o && setDeactivateTarget(null)}
         entityName={deactivateTarget?.name ?? ""}
         onConfirm={handleDeactivate}
+      />
+
+      {/* CORE-6: activating a year switches the whole school — say so. */}
+      <ConfirmDialog
+        open={!!activateYearTarget}
+        onOpenChange={(o) => !o && setActivateYearTarget(null)}
+        title={`Aktifkan tahun ajaran ${activateYearTarget?.name ?? ""}?`}
+        description={activateYearTarget ? activationDescription(activateYearTarget, years) : undefined}
+        onConfirm={handleActivateYear}
+        confirmLabel="Aktifkan"
+      />
+
+      <ConfirmDialog
+        open={!!archiveYearTarget}
+        onOpenChange={(o) => !o && setArchiveYearTarget(null)}
+        title={`Arsipkan tahun ajaran ${archiveYearTarget?.name ?? ""}?`}
+        description={archiveYearTarget ? archiveDescription(archiveYearTarget) : undefined}
+        onConfirm={handleArchiveYear}
+        confirmLabel="Arsipkan"
+        destructive
       />
 
       {/* Reactivate Confirm */}

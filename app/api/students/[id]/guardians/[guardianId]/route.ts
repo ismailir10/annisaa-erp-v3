@@ -5,6 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
+import { changeGuardianLinkStatus, GuardianPrimaryError } from "@/lib/guardians/primary";
 
 export async function PUT(
   req: NextRequest,
@@ -150,16 +151,24 @@ export async function PATCH(
 
   const result = await validateBody(toggleGuardianStatusSchema, await req.json().catch(() => ({})));
   if (result.error) return result.error;
-  const { status: newStatus } = result.data;
+  const { status: newStatus, newPrimaryId: parsedNewPrimaryId } = result.data;
 
-  const updated = await prisma.studentGuardian.update({
-    where: { id: guardianId },
-    // T2: deactivating clears isPrimary in the same write — an INACTIVE
-    // guardian must never stay billed/contacted as primary. Reactivation
-    // leaves isPrimary untouched; re-promotion stays an explicit admin act.
-    data: newStatus === "INACTIVE" ? { status: newStatus, isPrimary: false } : { status: newStatus },
-    include: { parent: true },
-  });
+  // CORE-4: keep exactly one ACTIVE primary across the status change.
+  try {
+    const { link, promoted, noActiveGuardian } = await changeGuardianLinkStatus(prisma, {
+      linkId: guardianId,
+      studentId: studentId,
+      wasPrimary: guardian.isPrimary,
+      status: newStatus,
+      newPrimaryId: parsedNewPrimaryId,
+    });
+    return NextResponse.json({ ...link, promotedPrimary: promoted, noActiveGuardian });
+  } catch (e) {
+    if (e instanceof GuardianPrimaryError) return NextResponse.json({ error: e.message }, { status: 400 });
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return NextResponse.json({ error: "Konflik penyimpanan, coba lagi." }, { status: 409 });
+    }
+    throw e;
+  }
 
-  return NextResponse.json(updated);
 }

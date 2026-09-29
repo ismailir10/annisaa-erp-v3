@@ -2,6 +2,7 @@ import { hasPermission } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-guards";
+import { findNegativeNet } from "@/lib/payroll/generation-guards";
 
 export async function POST(
   _req: NextRequest,
@@ -17,6 +18,26 @@ export async function POST(
   const payroll = await prisma.payrollRun.findUnique({ where: { id } });
   if (!payroll || payroll.tenantId !== session.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // HR-12: a slip with a negative net amount must be fixed (adjustment, variable
+  // edit, salary structure) before the run can be approved.
+  const items = await prisma.payrollItem.findMany({
+    where: { payrollRunId: id },
+    select: { employeeId: true, netAmount: true, employee: { select: { nama: true } } },
+  });
+  const negativeItems = findNegativeNet(
+    items.map((i) => ({ nama: i.employee?.nama ?? i.employeeId, netAmount: Number(i.netAmount) })),
+  );
+  if (negativeItems.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Tidak bisa disetujui: gaji bersih negatif untuk ${negativeItems
+          .map((i) => i.nama)
+          .join(", ")}. Perbaiki penyesuaian atau struktur gaji lebih dulu.`,
+      },
+      { status: 422 },
+    );
   }
 
   // Compare-and-swap on status. Two concurrent approve requests both used to
@@ -45,11 +66,6 @@ export async function POST(
   // failure here leaves the run APPROVED but with attendance still mutable —
   // the lock is a payroll-rerun guard, not a financial primitive. A future
   // background job can reconcile any rare gap.
-  const items = await prisma.payrollItem.findMany({
-    where: { payrollRunId: id },
-    select: { employeeId: true },
-  });
-
   if (items.length > 0) {
     await prisma.attendanceRecord.updateMany({
       where: {

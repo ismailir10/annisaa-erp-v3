@@ -371,3 +371,52 @@ describe("RaportEditor app-shell unsaved-changes guard", () => {
     expect(routerPush).toHaveBeenCalledExactlyOnceWith("/admin/report-cards");
   });
 });
+
+// ACAD-2 — the saved raport is a snapshot; when live presensi moves away from it
+// the admin is told and can re-sync in one click.
+describe("RaportEditor attendance drift (ACAD-2)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  function driftedPayload() {
+    const p = publishedPayload();
+    p.data.saved!.sickDays = 1;
+    p.data.saved!.permittedAbsenceDays = 1;
+    p.data.saved!.totalSchoolDays = 2;
+    p.data.draft.attendance = { permittedAbsenceDays: 1, sickDays: 0, unexcusedAbsenceDays: 0, totalSchoolDays: 2 };
+    return p;
+  }
+
+  it("shows the warning with both sets of numbers and re-syncs on click", async () => {
+    const calls: string[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      return Promise.resolve({ ok: true, json: async () => (url.includes("sync-attendance") ? { data: {} } : driftedPayload()) } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    const alert = await screen.findByTestId("attendance-drift");
+    expect(alert).toHaveTextContent("Kehadiran berubah sejak rapor diterbitkan");
+    expect(alert).toHaveTextContent("Di rapor: Sakit 1 · Izin 1 · Alpa 0 · dari 2 hari sekolah");
+    expect(alert).toHaveTextContent("Presensi terbaru: Sakit 0 · Izin 1 · Alpa 0 · dari 2 hari sekolah");
+
+    await user.click(screen.getByRole("button", { name: "Perbarui kehadiran" }));
+
+    await waitFor(() => expect(calls).toContain("POST /api/admin/report-cards/stu-1/term-1/sync-attendance"));
+    // Reloads the editor afterwards (a second GET of the entry).
+    await waitFor(() => expect(calls.filter((c) => c === "GET /api/admin/report-cards/stu-1/term-1").length).toBe(2));
+    expect(toast.success).toHaveBeenCalledWith("Kehadiran rapor diperbarui dari presensi terbaru.");
+  });
+
+  it("shows nothing when the snapshot still matches live presensi", async () => {
+    stubFetchPublished();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    expect(screen.queryByTestId("attendance-drift")).not.toBeInTheDocument();
+  });
+});
