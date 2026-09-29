@@ -118,9 +118,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
       if (e.message === "CANCELLED") return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
       if (e.message === "PAID") return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // Land the message on the Jumlah field, not just a banner (FIN-8).
-      if (e.message === "OVERPAYMENT") return fieldErrorResponse("amount", (e as any).msg, 400);
+      if (e.message === "OVERPAYMENT") {
+        return fieldErrorResponse("amount", (e as Error & { msg: string }).msg, 400);
+      }
     }
     throw e;
   }
