@@ -47,7 +47,11 @@ export default async function AdminDashboard() {
   ]);
 
   const items = buildAdminWorkQueue(sources);
-  const urgent = rankUrgent(items).slice(0, 5);
+  // Four rows keeps the dashboard inside one 1440x900 screen (e2e
+  // admin-dashboard "fits one screen") even when the queue is full — with
+  // admission inquiries as a queue source it usually is. The full list is one
+  // click away via "Lihat semua".
+  const urgent = rankUrgent(items).slice(0, 4);
   const summary = summarizeQueue(sources);
 
   return <>

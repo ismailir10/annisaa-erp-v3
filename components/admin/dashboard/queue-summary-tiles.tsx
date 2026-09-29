@@ -31,7 +31,7 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
   }
 
   return (
-    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       {items.map((item) =>
         item.status === "unavailable" ? (
           <div key={item.kind} className="space-y-2 rounded-lg border p-card">
