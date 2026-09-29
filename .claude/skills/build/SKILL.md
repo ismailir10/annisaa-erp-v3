@@ -144,7 +144,7 @@ Then move to the next task.
 2. Fill `## Ship Notes` in the cycle doc with anything the shipper needs to know:
    - Database migrations to run
    - New env vars
-   - Manual smoke-test steps on preview URL
+   - Signed-in flows the staging deployment must pass after merge (auth-impacting changes only — there are no PR previews)
    - Rollback plan if the change is risky
 3. Commit the Ship Notes update as the final commit of the cycle.
 4. Hand off to `/ship`.

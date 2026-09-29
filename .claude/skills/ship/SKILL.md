@@ -1,13 +1,15 @@
 ---
 name: ship
-description: Ship a completed cycle via PR. Classifies the actual diff to select local verification or signed-in preview verification, then watches CI and self-merges once the selected verification route and all four required checks are green. Never pushes directly to staging or main. Use after /build has completed all tasks in the current cycle doc. `/ship --to-main` promotes staging → main and is user-initiated only — never invoke it yourself.
+description: Ship a completed cycle via PR. Classifies the actual diff to select local verification (plus a post-merge signed-in staging check for auth-impacting changes), then watches CI and self-merges once the selected verification route and all four required checks are green. Never pushes directly to staging or main. Use after /build has completed all tasks in the current cycle doc. `/ship --to-main` promotes staging → main and is user-initiated only — never invoke it yourself.
 ---
 
 # /ship — verify the actual change, then merge it green
 
 You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens or continues a PR, selects the verification route from the actual diff, and merges once that route and all required checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
-> **Merge gate:** GitHub branch protection enforces PR + four required checks. You may self-merge when the selected verification route is clean and all four checks are green — never on red or pending. Signed-in preview verification is required for auth-impacting or uncertain changes. If that route is required but this environment lacks signed-in browser access, leave the PR open with `needs-preview-verify` and continue any independent shipping work already authorized.
+> **Merge gate:** GitHub branch protection enforces PR + four required checks. You may self-merge when the selected verification route is clean and all four checks are green — never on red or pending. Auth-impacting or uncertain changes pass local verification first, merge, then get a signed-in check on the **staging deployment**; until that check passes the merged PR carries `needs-staging-verify` and `/ship --to-main` refuses to promote.
+
+> **One staging deployment, no PR previews.** `vercel.json`'s `ignoreCommand` (`scripts/vercel-ignore.sh`) builds only `staging` and `main`; every other branch is skipped before it spends build minutes. Never rely on a per-PR Vercel preview URL — there is none. Pre-merge evidence is the four CI checks plus local verification.
 
 ## Invocation modes
 
@@ -46,7 +48,7 @@ If the user's message contains `--to-main`, jump to the **Step 2 (--to-main)** s
 8. **JTBD library fresh?** If this cycle added, removed, or changed user-facing capabilities (check `## Implementation` for portal pages/API changes), confirm `docs/uat/jobs/<portal>.md` was updated by `/build`. If not, warn the user — the `/uat` library may be stale.
 9. **Select the verification route from the actual diff (blocking).** For a new PR, inspect `origin/staging...HEAD`; for an existing authorized PR, inspect that PR's base-to-head diff. Do not classify from the cycle doc alone. Record the compared head SHA and changed paths in cycle Verification. Choose exactly one route:
    - **Documentation-only:** every changed file is documentation content (for example Markdown under `docs/`, `CLAUDE.md`, or `.claude/skills/`). Any package manifest or lockfile, build/CI/config file, schema or migration, generated artifact, or runtime source makes this ineligible. Skip browser and database verification; CI still applies.
-   - **Auth-impacting or uncertain:** changes to Google login, OAuth callback, session, cookies, auth guards, auth dependencies, or dependency behavior that may affect authentication require signed-in preview verification, even if demo mode passes. When impact is unclear, choose this route.
+   - **Auth-impacting or uncertain:** changes to Google login, OAuth callback, session, cookies, auth guards, auth dependencies, or dependency behavior that may affect authentication. Run the Local route below before merge, then signed-in staging verification after merge (Step 3 · Signed-in staging), even if demo mode passes. When impact is unclear, choose this route.
    - **Other code changes:** use local verification. For app behavior, run the app with demo auth and verify the changed flows in a browser against a disposable local Postgres database. For non-UI code, run the relevant local checks against disposable local services as needed. Demo auth alone does not satisfy the database part.
    Classify before checking browser-tool availability; route based on the required evidence, never on model or harness name. Re-run the selected route after every code or integration update. A commit that only records verification evidence or other documentation does not invalidate evidence for the recorded source SHA. Keep that source SHA distinct from the latest PR head, which is refreshed and pinned immediately before merge; do not claim evidence against a later code SHA.
 
@@ -236,13 +238,22 @@ Only runs when the user invoked `/ship --to-main`. Skip the default Step 2 entir
    fi
    ```
 
-3. **Summarize cycles being promoted.** Collect titles of every cycle doc merged since main diverged:
+3. **No unverified auth change on staging.** Promotion is the last gate before production, and auth-impacting PRs are only signed-in-verified on staging:
+   ```bash
+   PENDING=$(gh pr list --base staging --state merged --label needs-staging-verify --json number,title --jq '.[] | "#\(.number) \(.title)"')
+   if [ -n "$PENDING" ]; then
+     echo "Refusing to promote — signed-in staging check still pending for:"; echo "$PENDING"; exit 1
+   fi
+   ```
+   Run the signed-in staging check for each (Step 3.0) or have the user confirm it by hand, remove the label, then re-run.
+
+4. **Summarize cycles being promoted.** Collect titles of every cycle doc merged since main diverged:
    ```bash
    CYCLES=$(git log --format='%s' origin/main..origin/staging -- docs/cycles/ | grep -oE 'docs/cycles/[^ ]+\.md' | sort -u)
    ```
    Fall back to `git log --format='- %s' origin/main..origin/staging` if no cycle files are referenced.
 
-4. **Open the PR staging → main and capture its number:**
+5. **Open the PR staging → main and capture its number:**
    ```bash
    MODEL=$(grep '^model=' .claude/session-role | cut -d= -f2-)
    PR_URL=$(gh pr create \
@@ -266,7 +277,7 @@ BODY
    PR_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
    ```
 
-5. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number and captured head SHA substituted. Before merging, the user must refresh the PR head/base and confirm all four required checks have successful conclusions for that exact head; missing, skipped, cancelled, pending, neutral, or failed checks are not success. Two deviations from the `feat/* → staging` flow, both deliberate: **`--merge`, never `--squash`** (a squashed promotion collapses staging's commits into one new SHA on main, so git can no longer see staging as an ancestor and the two branches permanently diverge — this is what broke PR #381 → #406), and no `--delete-branch` (`staging` is a permanent branch).
+6. **Stop and hand off to the user.** Do not invoke `gh pr merge`. Print the PR URL followed by exactly these two commands, with the real PR number and captured head SHA substituted. Before merging, the user must refresh the PR head/base and confirm all four required checks have successful conclusions for that exact head; missing, skipped, cancelled, pending, neutral, or failed checks are not success. Two deviations from the `feat/* → staging` flow, both deliberate: **`--merge`, never `--squash`** (a squashed promotion collapses staging's commits into one new SHA on main, so git can no longer see staging as an ancestor and the two branches permanently diverge — this is what broke PR #381 → #406), and no `--delete-branch` (`staging` is a permanent branch).
    ```
    staging → main PR opened: $PR_URL
 
@@ -284,32 +295,35 @@ Only the default `/ship` flow reaches this step. A `/ship --to-main` invocation 
 
 **Goal:** verify the changed behavior at the level its risk requires. Record the source head SHA, route, exercised flows, and evidence in the cycle doc's `## Verification`.
 
-**Boundary with Playwright:** Playwright remains a required deterministic CI regression gate. Local browser verification and signed-in preview verification supplement it; neither replaces the four protected CI checks.
+**Boundary with Playwright:** Playwright remains a required deterministic CI regression gate. Local browser verification and signed-in staging verification supplement it; neither replaces the four protected CI checks.
 
 ### 3.0 Route and capability gate
 
 Use the route from Preflight, which was selected from the actual PR diff:
 
 - **Documentation-only:** confirm the PR diff contains documentation files only and record the changed paths plus compared head SHA; set `$VERIFIED_SHA` to that compared head. Skip browser and database verification; proceed to Step 4e to publish evidence. This skip is invalid if the diff includes any manifest, lockfile, build/CI/config, schema, migration, generated artifact, or runtime source.
-- **Local:** for app behavior, run the app with demo auth and verify the changed flows in a browser using a disposable local Postgres database. Confirm the app's `DATABASE_URL` points to that local database. Scope `DEMO_MODE=true` to the app build/server process only; do not export it across Vitest, whose auth and payment unit assertions expect normal mode. In `next dev`, use the demo login picker. A local production build has an auth-login guard that returns 403 even with demo mode enabled; use the existing E2E fixture identity mechanism instead (for example, `context.addCookies` with the `school-erp-session` cookie and seeded local user IDs used by `e2e/admin-dashboard.spec.ts`). Limit those fixture cookies to `localhost`/`127.0.0.1` and the disposable local database. Never weaken the production auth guard or reuse these cookies on a preview or shared host. Walk the changed flow and capture rendered content, primary interactions, console messages, network responses, and screenshots. Classify findings using 3e. For non-UI code, run relevant local checks against disposable local services where needed. Record source SHA, flow list, findings, and evidence; proceed to Step 4e to publish evidence when clean.
-- **Signed-in preview:** requires browser access to the user's current signed-in profile and the Vercel PR preview. Check available tools directly; do not infer capability from `model=`. If this environment cannot access that profile, keep the PR open, add `needs-preview-verify`, report the missing capability, and continue other independent PRs or queue items already authorized. Do not mark this route passed or merge it.
+- **Local:** for app behavior, run the app with demo auth and verify the changed flows in a browser using a disposable local Postgres database. Confirm the app's `DATABASE_URL` points to that local database. Scope `DEMO_MODE=true` to the app build/server process only; do not export it across Vitest, whose auth and payment unit assertions expect normal mode. In `next dev`, use the demo login picker. A local production build has an auth-login guard that returns 403 even with demo mode enabled; use the existing E2E fixture identity mechanism instead (for example, `context.addCookies` with the `school-erp-session` cookie and seeded local user IDs used by `e2e/admin-dashboard.spec.ts`). Limit those fixture cookies to `localhost`/`127.0.0.1` and the disposable local database. Never weaken the production auth guard or reuse these cookies on staging or any shared host. Walk the changed flow and capture rendered content, primary interactions, console messages, network responses, and screenshots. Classify findings using 3e. For non-UI code, run relevant local checks against disposable local services where needed. Record source SHA, flow list, findings, and evidence; proceed to Step 4e to publish evidence when clean.
+- **Auth-impacting (pre-merge half):** run the Local route above. It is the merge gate for this PR; the signed-in half runs on staging after merge (below).
 
 When the selected route passes, set `$VERIFIED_SHA` to the exact code head exercised by that route and include it in the cycle doc evidence.
 
-If the PR already has `needs-preview-verify` and Preflight selects Local or Documentation-only, remove that label after recording the route and evidence. Add it only when signed-in preview is required and unavailable.
+**Signed-in staging (auth-impacting, post-merge half).** There are no PR previews (see the note at the top), so the signed-in check runs once, on the shared staging deployment, right after Step 5 merges the PR:
 
-Signed-in preview is mandatory for changes to Google login, OAuth callbacks, sessions, cookies, auth guards, auth dependencies, or dependency behavior that can affect authentication. If uncertain, require signed-in preview even when demo auth works.
+1. Add the `needs-staging-verify` label to the merged PR, and record in the cycle doc's Ship Notes (before merge) which signed-in flows staging must pass.
+2. Steps 3a–3e below, against the staging deployment of the merge commit. This needs browser access to the user's signed-in profile; check available tools directly, never infer capability from `model=`.
+3. **Pass** → post one `[staging-verify]` comment on the merged PR (merge SHA, deployment URL, flows, blockers=0, minors) and remove `needs-staging-verify`.
+4. **Blockers** → staging is now broken for real users of staging. Fix forward immediately with a new `fix(...)` cycle PR (or a revert PR when the fix is not obvious); keep the label on the original PR until a staging check passes.
+5. **Capability unavailable** → leave `needs-staging-verify` on the merged PR, tell the user, and continue other authorized work. `/ship --to-main` refuses to promote while any merged PR carries this label.
 
-### 3a. Wait for preview ready (signed-in preview route only)
+Signed-in staging verification is mandatory for changes to Google login, OAuth callbacks, sessions, cookies, auth guards, auth dependencies, or dependency behavior that can affect authentication. If uncertain, require it even when demo auth works.
 
-Prefer the Vercel MCP tool over the CLI fallback:
+### 3a. Wait for the staging deployment (signed-in staging only)
 
-1. **Vercel MCP preferred:** call `mcp__2037f9b7-455d-46a1-965a-fe464b218823__get_deployment` with the feature branch (`$FEAT_BRANCH`) or the head SHA. Loop with 10s sleep until `state == READY` (or terminal-fail). Cap at 5 minutes. Capture `url` (the preview URL).
-2. **CLI fallback:** `bash scripts/wait-preview-ready.sh $PR_NUMBER`. Exit 0 prints the URL on stdout.
+Vercel builds `staging` on every merge. Find the deployment for the merge commit with the Vercel MCP (`list_deployments` / `get_deployment` for project `annisaa-erp-v3`, branch `staging`, matching the merge SHA). Poll every 10s until `READY` (or a terminal failure), capped at 5 minutes. The stable URL is `https://annisaa-erp-v3-git-staging-ismails-projects-196d40d3.vercel.app`.
 
-If both fail after 5 minutes, stop and tell the user: *"Preview did not become ready in 5 minutes — investigate `vercel deployments list` or the Vercel dashboard."* Do not proceed.
+If it is not ready after 5 minutes, stop and tell the user: *"Staging did not become ready in 5 minutes — investigate the Vercel dashboard."* A failed staging build is a red staging branch: fix forward before anything else.
 
-### 3b. Derive flows from the actual diff (signed-in preview route)
+### 3b. Derive flows from the actual diff (signed-in staging)
 
 Inspect the PR base-to-head diff first. Use the cycle's `## Implementation` section as context, not as the source of scope. Extract each changed user-facing route or auth flow and build a focused flow list:
 
@@ -325,7 +339,7 @@ If the PR diff has documentation files only, use the Documentation-only route in
 
 For each flow, identify the fixtures it needs. Use the **Seed-via-CRUD playbook** table above to choose the admin pages to walk.
 
-**Never call `/api/admin/seed` or `npx prisma db seed` against the preview.** Use Chrome MCP to create fixtures the same way a real user would — list page → "New" button → form → save.
+**Never call `/api/admin/seed` or `npx prisma db seed` against staging.** Use Chrome MCP to create fixtures the same way a real user would — list page → "New" button → form → save.
 
 Reuse existing fixtures where possible: list the admin entity first; only create what's missing.
 
@@ -348,9 +362,9 @@ For each flow, use Chrome MCP to:
 | teacher (`/teacher/**`) | `ismail10rabbanii@gmail.com` |
 | parent (`/parent/**`) | `rightjet.hq@gmail.com` |
 
-When the preview prompts for Google auth, use Chrome MCP to click the account picker and pick the **account for the portal under test** (sign out / switch account between portals so admin flows aren't walked as the parent identity, etc.). Do **not** type credentials — fail if that account is not already signed into the profile (surface to the user with `AskUserQuestion`). Accounts live in `.claude/verify-accounts.json` — read from there, never hardcode in a flow.
+When staging prompts for Google auth, use Chrome MCP to click the account picker and pick the **account for the portal under test** (sign out / switch account between portals so admin flows aren't walked as the parent identity, etc.). Do **not** type credentials — fail if that account is not already signed into the profile (surface to the user with `AskUserQuestion`). Accounts live in `.claude/verify-accounts.json` — read from there, never hardcode in a flow.
 
-### 3e. Classify findings (local browser and signed-in preview)
+### 3e. Classify findings (local browser and signed-in staging)
 
 For every observation from the selected route, classify as **blocker** or **minor**.
 
@@ -374,14 +388,9 @@ For every observation from the selected route, classify as **blocker** or **mino
 
 After all flows are walked (or relevant local checks are complete):
 
-1. **Append to cycle doc `## Verification`** a sub-block with the actual source SHA, route, flows, result, and evidence. For signed-in preview:
-   ```markdown
-   - Signed-in preview-verify source SHA <SHA>, iteration N (<PREVIEW_URL>): flows=[...], blockers=N, minors=M
-     - Screenshots: docs/cycles/screenshots/<slug>/iter-N/*.png
-   ```
-   For Local, record `route=demo-auth browser + disposable local Postgres`, the changed flows, blocker/minor counts, command output, and screenshot paths. For Documentation-only, record the exact changed paths and compared source SHA.
+1. **Append to cycle doc `## Verification`** a sub-block with the actual source SHA, route, flows, result, and evidence. (Signed-in staging runs after merge, so its evidence goes in the `[staging-verify]` PR comment instead — see Step 3.0.) For Local, record `route=demo-auth browser + disposable local Postgres`, the changed flows, blocker/minor counts, command output, and screenshot paths. For Documentation-only, record the exact changed paths and compared source SHA.
 2. **If blockers > 0**, fall through to **Step 4** (fix loop). Do NOT post the minors-comment yet — wait until the fix loop converges.
-3. **If blockers == 0 and minors > 0**, post a single PR comment via `gh pr comment $PR_NUMBER --body "<markdown>"`. Subject the comment with `[preview-verify]` so humans can filter. List minors with screenshots referenced.
+3. **If blockers == 0 and minors > 0** on signed-in staging, list them in the `[staging-verify]` comment on the merged PR.
 4. **If blockers == 0**, proceed to **Step 4e** to finalize, commit, and publish the evidence before Step 5.
 
 ## Step 4: Fix and re-verify loop
@@ -390,7 +399,7 @@ Reached only when the selected verification route reports blockers. The cycle's 
 
 ### 4a. Triage each blocker
 
-For each blocker observation captured in Step 3 (local browser or signed-in preview):
+For each blocker observation captured by the Local route (signed-in staging blockers fix forward in a new cycle — see Step 3.0):
 
 1. Read the available evidence (browser screenshot, console/network trace, local command output, and changed flow).
 2. Identify the offending source file. Common shapes:
@@ -407,9 +416,9 @@ For each blocker (or grouped commit per file where multiple blockers share one f
 ```bash
 git add <files-touched>
 git commit -m "$(cat <<EOF
-fix(<scope>): <one-line description of what was broken on preview>
+fix(<scope>): <one-line description of what was broken>
 
-Found by preview-verify iteration $ITER. See cycle doc Verification.
+Found by local verification iteration $ITER. See cycle doc Verification.
 
 Cycle: docs/cycles/<current-cycle>.md
 EOF
@@ -434,7 +443,7 @@ if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" != "$LOCAL_HEAD_SHA" ]; then
 fi
 ```
 
-The push triggers CI and, for the signed-in preview route, a new Vercel preview build. Increment the iteration counter, then return to Step 3 and repeat the selected route against that code SHA. Step 3a-3f apply to signed-in preview; local verification repeats the same changed flows against the disposable local database. After the route passes, set `$VERIFIED_SHA=$PR_HEAD_SHA`. A later evidence-only documentation commit may advance the PR head without invalidating route evidence; Step 5 refreshes and pins the newer PR head after confirming no code or integration changed.
+The push triggers CI (no Vercel build — feature branches are skipped). Increment the iteration counter, then return to Step 3 and repeat the selected route against that code SHA; local verification repeats the same changed flows against the disposable local database. After the route passes, set `$VERIFIED_SHA=$PR_HEAD_SHA`. A later evidence-only documentation commit may advance the PR head without invalidating route evidence; Step 5 refreshes and pins the newer PR head after confirming no code or integration changed.
 
 ### 4d. Soft escalation every 3 iterations
 
@@ -462,10 +471,9 @@ Answer routing:
 
 ### 4e. Clean exit and publish evidence
 
-When the selected route returns no blockers, post a minors-comment only for signed-in preview findings. Ensure the applicable final `## Verification` bullet identifies `$VERIFIED_SHA`; keep already committed evidence and do not add a duplicate bullet:
+When the selected route returns no blockers, ensure the applicable final `## Verification` bullet identifies `$VERIFIED_SHA`; keep already committed evidence and do not add a duplicate bullet:
 
 ```markdown
-- Signed-in preview-verify passed for source SHA $VERIFIED_SHA on iteration N: $ITER iteration(s), $TOTAL_FIX_COMMITS fix commit(s), final preview $PREVIEW_URL.
 - Local verification passed for source SHA $VERIFIED_SHA: route=demo-auth browser + disposable local Postgres (or relevant local checks), flows=[...].
 - Documentation-only verification skipped for source SHA $VERIFIED_SHA: changed paths=[...]; no runtime files were in the PR diff.
 ```
@@ -513,7 +521,7 @@ Reached only when the selected route in Step 3 is clean (or documentation-only w
    gh pr merge "$PR_NUMBER" --squash --delete-branch --match-head-commit "$PR_HEAD_SHA"
    ```
 
-5. **Confirm post-merge staging deploy.** Staging auto-deploys within ~60s. Optionally re-check the staging URL via Chrome MCP for a final smoke. Print:
+5. **Confirm post-merge staging deploy.** Staging auto-deploys after the merge (the only non-production Vercel build). For an auth-impacting PR, run **Signed-in staging** now (Step 3.0). Print:
    ```
    Merged PR $PR_URL → staging (selected verification route + CI green). Staging deploying (~60s).
    ```
@@ -522,23 +530,16 @@ Reached only when the selected route in Step 3 is clean (or documentation-only w
 
 **Why self-merging is allowed:** the user approved the Spec before code was written, the selected verification route is clean, and all four protected checks are green. Never merge on red or pending.
 
-**When signed-in preview is required but unavailable, do not reach this step.** Leave the PR open with `needs-preview-verify`; a capable environment can finish it:
-
-```
-gh pr checks $PR_NUMBER --watch
-gh pr merge $PR_NUMBER --squash --delete-branch --match-head-commit $PR_HEAD_SHA
-```
-
 ### Post-ship checklist
 
-- [ ] Once merged, check the Vercel preview deploy on staging succeeded
-- [ ] For auth-impacting changes verified on the PR preview, confirm the staging deploy and repeat the relevant signed-in smoke after merge. For local-route changes, check deployment health; a signed-in staging smoke is not a default gate.
+- [ ] Once merged, check the Vercel staging deploy succeeded
+- [ ] For auth-impacting changes, the signed-in staging check passed and `needs-staging-verify` is removed (or it is left on, and the user told, when signed-in browser access is unavailable). For local-route changes, check deployment health only.
 - [ ] Reclaim disk + reduce next-session noise: `bash scripts/cleanup-merged.sh --yes` from the main checkout. Removes the worktree + local branch for any feat/* PR that was squash-merged. SessionStart already prints the same candidates in `--report` mode on every new session.
 - [ ] Staging → main promotion is a separate `/ship --to-main` call, CTO-initiated
 
 ## Seed-via-CRUD playbook
 
-Reference for the preview-verification step. When the cycle's flows need fixtures, the AI uses Chrome MCP to create them **through the admin UI** — never via `/api/admin/seed` or direct DB writes. The table below maps cycle scope (keyword in the cycle's `## Implementation` section) to the fixture chain.
+Reference for the signed-in staging step. When the cycle's flows need fixtures, the AI uses Chrome MCP to create them **through the admin UI** — never via `/api/admin/seed` or direct DB writes. The table below maps cycle scope (keyword in the cycle's `## Implementation` section) to the fixture chain.
 
 | Cycle scope keyword(s) | Fixtures needed (in order) | Admin pages to walk |
 |---|---|---|
@@ -556,7 +557,7 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 **Rules**
 
 - **Use existing fixtures where possible.** Re-running the chain on every iteration is wasteful — check the admin lists first; only create what's missing.
-- **Clean up on a clean-pass loop only when the cycle's scope is destructive** (e.g., a soft-delete cycle); otherwise leave fixtures in place — they aid the next cycle's preview-verify.
+- **Clean up on a clean-pass loop only when the cycle's scope is destructive** (e.g., a soft-delete cycle); otherwise leave fixtures in place — they aid the next staging check.
 - **Never escalate scope.** If the playbook for the cycle's scope keyword doesn't exist, fall back to: walk every admin page mentioned in `## Implementation`, create minimum fixtures inline. Do not invent new fixture chains.
 - **Authoritative source on entities.** When the chain references entities not yet documented here, consult `prisma/schema.prisma` for required fields, never the CRUD form's optional fields.
 
@@ -564,7 +565,7 @@ Reference for the preview-verification step. When the cycle's flows need fixture
 
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
-- **Merge when the selected verification route and CI are green.** Watch `gh pr checks <number> --watch`; merge only after the route required by the actual diff is clean and all four required checks pass. Never merge on red or pending. Add `needs-preview-verify` only when signed-in preview is required but unavailable. Feature PRs use `--squash --delete-branch`; staging promotions use `--merge` and are user-initiated only.
+- **Merge when the selected verification route and CI are green.** Watch `gh pr checks <number> --watch`; merge only after the route required by the actual diff is clean and all four required checks pass. Never merge on red or pending. Auth-impacting PRs get `needs-staging-verify` on merge until the signed-in staging check passes. Feature PRs use `--squash --delete-branch`; staging promotions use `--merge` and are user-initiated only.
 - **Promotions merge, feature PRs squash.** `feat/* → staging` uses `--squash --delete-branch`. `staging → main` (and any reconcile PR) uses **`--merge`**, with no `--delete-branch`. Squashing a promotion rewrites staging's commits into a single new SHA on main, so staging stops being an ancestor of main and the branches diverge for good — PR #381 did exactly that and the next promotion (#406) came up CONFLICTING and had to be closed.
 - **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.
