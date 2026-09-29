@@ -232,3 +232,34 @@ it("does not apply an earlier date's failed save to the newly loaded date",async
  await act(async()=>{save.reject(Error("late failure"));});
  expect(screen.queryByRole("alert")).toBeNull();expect(screen.queryByRole("button",{name:"Coba lagi"})).toBeNull();
 });
+
+describe("class attendance never offers a future day (TCH-9)", () => {
+  const stubFetch = () =>
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(ok(url.includes("teaching-assignments") ? assignment : roster))));
+
+  it("caps the date input at today and ignores a typed future date", async () => {
+    vi.unstubAllGlobals(); navigation.params = new URLSearchParams(); navigation.replace.mockClear();
+    stubFetch();
+    render(<ClassAttendancePage />);
+    await pick("Aisyah", "Hadir");
+    const input = screen.getByLabelText("Tanggal kehadiran") as HTMLInputElement;
+    const today = input.value;
+    expect(input.max).toBe(today);
+    const future = new Date(`${today}T12:00:00Z`); future.setUTCDate(future.getUTCDate() + 3);
+    navigation.replace.mockClear();
+    fireEvent.change(input, { target: { value: future.toISOString().slice(0, 10) } });
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(input.value).toBe(today);
+  });
+
+  it("pulls a future ?date= back to today instead of loading an unmarkable day", async () => {
+    vi.unstubAllGlobals();
+    navigation.params = new URLSearchParams("classId=c1&date=2999-01-01"); navigation.replace.mockClear();
+    stubFetch();
+    render(<ClassAttendancePage />);
+    await pick("Aisyah", "Hadir");
+    const input = screen.getByLabelText("Tanggal kehadiran") as HTMLInputElement;
+    expect(input.value).toBe(input.max);
+    expect(input.value).not.toBe("2999-01-01");
+  });
+});

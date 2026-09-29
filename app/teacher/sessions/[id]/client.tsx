@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { LogIn, LogOut, Users } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/portal/page-header";
@@ -8,6 +8,9 @@ import { BackLink } from "@/components/portal/back-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusBadge, getStatusConfig } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SaveStatus } from "@/components/portal/save-status";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -63,6 +66,23 @@ export type RosterRow = {
   pickedUpByName: string | null;
 };
 
+/**
+ * What "saved" means for a roster: the fields the save request carries. The
+ * name is compared as text so null and "" (an untouched vs. cleared box) agree.
+ */
+function rosterKey(rows: RosterRow[]): string {
+  return JSON.stringify(
+    rows.map((r) => [
+      r.studentId,
+      r.status,
+      r.checkInTime,
+      r.checkOutTime,
+      r.pickedUpByRelation,
+      (r.pickedUpByName ?? "").trim(),
+    ]),
+  );
+}
+
 export function SessionRosterClient({
   sessionId,
   className,
@@ -78,6 +98,13 @@ export function SessionRosterClient({
 }) {
   const [rows, setRows] = useState<RosterRow[]>(roster);
   const [saving, setSaving] = useState(false);
+  // Masuk / pulang / penjemput only reach the server on "Simpan absensi", so
+  // the page has to say so — a reload used to drop taps silently (TCH-2).
+  const [savedKey, setSavedKey] = useState(() => rosterKey(roster));
+  const [savedOnce, setSavedOnce] = useState(false);
+  const rowsKey = useMemo(() => rosterKey(rows), [rows]);
+  const dirty = rowsKey !== savedKey;
+  const guard = useUnsavedChangesGuard(dirty);
 
   const update = useCallback(
     (studentId: string, patch: Partial<RosterRow>) => {
@@ -120,6 +147,7 @@ export function SessionRosterClient({
     }
 
     setSaving(true);
+    const submitted = rows;
     try {
       const res = await fetch(
         `/api/teacher/sessions/${sessionId}/attendance`,
@@ -127,7 +155,7 @@ export function SessionRosterClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            rows: rows.map((r) => ({
+            rows: submitted.map((r) => ({
               studentId: r.studentId,
               status: r.status,
               checkInTime: r.checkInTime,
@@ -148,6 +176,8 @@ export function SessionRosterClient({
         return;
       }
       const body = await res.json().catch(() => ({ saved: 0, total: 0 }));
+      setSavedKey(rosterKey(submitted));
+      setSavedOnce(true);
       toast.success(`Absensi tersimpan · ${body.total} siswa`);
     } catch {
       toast.error("Koneksi terputus. Coba lagi sebentar ya.");
@@ -298,6 +328,19 @@ export function SessionRosterClient({
           </div>
 
           <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-page-x mt-4 border-t border-border bg-background px-page-x py-3 supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur">
+            {/* Space is reserved so the line appearing never moves the button under a thumb. */}
+            <div className="mb-2 min-h-6" data-testid="roster-save-state">
+              {saving ? (
+                <SaveStatus state="saving" message="Menyimpan absensi…" />
+              ) : dirty ? (
+                <p role="status" className="inline-flex min-h-6 items-center gap-1.5 text-small font-medium text-status-late-text">
+                  <span aria-hidden="true" className="size-2 rounded-full bg-status-late" />
+                  Belum disimpan · ketuk Simpan absensi
+                </p>
+              ) : savedOnce ? (
+                <SaveStatus state="saved" message="Semua perubahan tersimpan" />
+              ) : null}
+            </div>
             <Button
               type="button"
               className="tap-target w-full"
@@ -313,6 +356,19 @@ export function SessionRosterClient({
           </p>
         </>
       )}
+
+      <ConfirmDialog
+        open={guard.confirmOpen}
+        onOpenChange={(open) => {
+          if (!open) guard.stay();
+        }}
+        title="Keluar tanpa menyimpan?"
+        description="Ketukan masuk, pulang, dan data penjemput yang belum disimpan akan hilang."
+        confirmLabel="Keluar tanpa menyimpan"
+        cancelLabel="Tetap di sini"
+        destructive
+        onConfirm={guard.confirmLeave}
+      />
     </div>
   );
 }

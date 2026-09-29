@@ -6,6 +6,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { teachingAssignmentAddSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
+import { backfillSessionTeacher } from "@/lib/sessions/teacher-backfill";
 import {
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -126,6 +127,10 @@ export async function POST(
       },
     });
 
+    if (role === "HOMEROOM") {
+      await syncSessionTeacher(classId, session.tenantId);
+    }
+
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
     if (err instanceof HomeroomExists) {
@@ -148,6 +153,26 @@ export async function POST(
       );
     }
     throw err;
+  }
+}
+
+/**
+ * A class's sessions are generated once, so they keep whatever teacher the
+ * class had at that moment — none, for a class whose wali kelas is assigned
+ * afterwards. The teacher home reads sessions by teacher, so the new wali saw
+ * "Belum ada sesi terjadwal" until an admin re-generated them (DOC-1).
+ * Re-derives today-and-later, non-substituted sessions; idempotent.
+ * Failure-isolated: the assignment is already saved, and a missed backfill is
+ * repaired by the next assignment change.
+ */
+async function syncSessionTeacher(classId: string, tenantId: string) {
+  try {
+    await backfillSessionTeacher(classId, tenantId);
+  } catch (err) {
+    console.error(
+      `[class teaching-assignments] backfillSessionTeacher failed for section ${classId}:`,
+      err,
+    );
   }
 }
 
@@ -226,6 +251,10 @@ export async function DELETE(
       role: assignment.role,
     },
   });
+
+  if (assignment.role === "HOMEROOM") {
+    await syncSessionTeacher(classId, session.tenantId);
+  }
 
   return NextResponse.json({ ok: true });
 }
