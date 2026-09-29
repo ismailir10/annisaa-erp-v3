@@ -13,6 +13,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDateShort } from "@/lib/format";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -88,6 +89,7 @@ export function NoteComposeDialog({
   const [body, setBody] = useState<string>(initialBody ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   // Reset form whenever the dialog reopens or its inputs change
   useEffect(() => {
@@ -96,6 +98,7 @@ export function NoteComposeDialog({
       setBody(initialBody ?? "");
       setError(null);
       setSubmitting(false);
+      setConfirmDiscard(false);
     }
   }, [open, initialDate, initialBody, dateOptions, today]);
 
@@ -105,6 +108,24 @@ export function NoteComposeDialog({
     trimmedLen <= MAX_LEN &&
     !submitting &&
     (mode === "edit" || dateOptions.includes(date));
+
+  // A half-written catatan is the one thing in this dialog that cannot be
+  // recovered, and the dimmed backdrop is easy to hit one-handed (TCH-3). Every
+  // way of dismissing — outside tap, Escape, Batal — goes through here; only a
+  // saved note or an explicit "Buang" closes over a changed draft.
+  const dirty = body.trim() !== (initialBody ?? "").trim();
+  function requestClose(nextOpen: boolean) {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+    if (submitting) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onOpenChange(false);
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -159,9 +180,10 @@ export function NoteComposeDialog({
   }
 
   return (
+    <>
     <ResponsiveFormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={requestClose}
       title={title ?? (mode === "create" ? "Tulis catatan" : "Edit catatan")}
       description={audience ? AUDIENCE_HINT[audience] : undefined}
       size="sm"
@@ -171,7 +193,7 @@ export function NoteComposeDialog({
           <Button
             variant="ghost"
             className="tap-target"
-            onClick={() => onOpenChange(false)}
+            onClick={() => requestClose(false)}
             disabled={submitting}
           >
             Batal
@@ -232,5 +254,16 @@ export function NoteComposeDialog({
         </div>
       </Field>
     </ResponsiveFormDialog>
+    <ConfirmDialog
+      open={confirmDiscard}
+      onOpenChange={setConfirmDiscard}
+      title="Buang catatan?"
+      description="Catatan yang belum disimpan akan hilang."
+      confirmLabel="Buang"
+      cancelLabel="Lanjut menulis"
+      destructive
+      onConfirm={() => onOpenChange(false)}
+    />
+    </>
   );
 }
