@@ -25,7 +25,7 @@ import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
 import { formatRupiah, formatMonthLabel } from "@/lib/format";
 import { StudentPicker, type Student } from "@/components/admin/student-picker";
-import { manualInvoiceFormSchema } from "@/lib/validations/invoice";
+import { DUPLICATE_LINES_MESSAGE, manualInvoiceFormSchema } from "@/lib/validations/invoice";
 
 // ------------------------------------------------------------------
 // Types
@@ -92,6 +92,19 @@ export function ManualInvoiceDialog({
     | { root?: { message?: string }; message?: string }
     | undefined;
   const linesMessage = linesError?.root?.message ?? linesError?.message;
+
+  // FIN-2: the duplicate-component error is array-level, so react-hook-form
+  // does not re-run it when a single line's Select changes or a line is
+  // removed — the red banner then outlived the fix until the next submit.
+  // Once the components are unique again, drop that message. The array-level
+  // refine only runs after every per-line field parsed cleanly, so no
+  // per-line error can be lost by clearing `lines` here.
+  const lineComponentIds = lines?.map((l) => l.feeComponentId) ?? [];
+  const linesAreUnique = new Set(lineComponentIds).size === lineComponentIds.length;
+  const { clearErrors } = form;
+  useEffect(() => {
+    if (linesAreUnique && linesMessage === DUPLICATE_LINES_MESSAGE) clearErrors("lines");
+  }, [linesAreUnique, linesMessage, clearErrors]);
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [feeComponents, setFeeComponents] = useState<FeeComponent[]>([]);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { partialWithoutDefaults } from "./zod-helpers";
 
 // F-10 (cycle 2026-05-13 staging-sweep-majors-cycle1): Bank and Rekening must
 // be either both set or both empty. The sweep found Ismail Teacher Test had
@@ -83,8 +84,11 @@ export const createEmployeeSchema = employeeBaseObject.superRefine(refineBankAcc
 // Bank pair refinement also applies to partial updates: a PATCH that sets
 // bankName without bankAccountNo (or vice-versa) is rejected the same way.
 // Partial-only updates that touch neither field are unaffected.
-export const updateEmployeeSchema = employeeBaseObject
-  .partial()
+//
+// `partialWithoutDefaults`, not `.partial()`: Zod 4 keeps `.default()` inside a
+// partial, so `bpjsEnrolled` would parse to `false` on a body that omitted it
+// and the PUT handler would silently un-enrol the employee (DRV-1 / HR-7).
+export const updateEmployeeSchema = partialWithoutDefaults(employeeBaseObject)
   .superRefine(refineBankAccountPair);
 
 export const employeeStatusReasonSchema = z.object({
@@ -108,8 +112,7 @@ export const employeeStatusReasonSchema = z.object({
 //    rejection earlier, onto the field, instead of letting a cleared value
 //    collapse into "omit the key, keep the existing date".
 // Bank-pair reuses `refineBankAccountPair` verbatim — same rule, same paths.
-export const employeeEditFormSchema = employeeBaseObject
-  .partial()
+export const employeeEditFormSchema = partialWithoutDefaults(employeeBaseObject)
   .omit({ role: true })
   .extend({
     nama: z.string().trim().min(1, "Nama wajib diisi"),

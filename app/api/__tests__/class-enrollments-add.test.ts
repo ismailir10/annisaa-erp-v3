@@ -90,12 +90,20 @@ function makeTx(opts: {
   }>;
   activeCount?: number;
   createResult?: Record<string, unknown>;
+  existingRow?: { id: string; status: string } | null;
 }) {
   const conflicts = opts.conflicts ?? [];
   return {
     $executeRaw: vi.fn().mockResolvedValue(undefined),
     studentEnrollment: {
       count: vi.fn().mockResolvedValue(opts.activeCount ?? 0),
+      findUnique: vi.fn().mockResolvedValue(opts.existingRow ?? null),
+      update: vi.fn().mockResolvedValue({
+        id: opts.existingRow?.id ?? "e1",
+        enrollDate: "2026-09-29",
+        status: "ACTIVE",
+        student: { id: "s1", name: "Anak", nis: "001" },
+      }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       findFirst: vi.fn(async ({ where }: any) => {
         const match = conflicts.find(
@@ -193,6 +201,25 @@ describe("POST /api/admin/classes/[id]/enrollments", () => {
 
     const res = await POST(req({ studentId: "s1" }), ctx);
     expect(res.status).toBe(201);
+  });
+
+  it("reactivates a WITHDRAWN row for the same class instead of inserting (CORE-2)", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.classSection.findFirst.mockResolvedValue(makeClassSection());
+    db.student.findFirst.mockResolvedValue({ id: "s1", name: "Anak", dateOfBirth: null });
+    const tx = makeTx({ existingRow: { id: "e-withdrawn", status: "WITHDRAWN" } });
+    db.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(tx));
+
+    const res = await POST(req({ studentId: "s1" }), ctx);
+    expect(res.status).toBe(201);
+    expect(tx.studentEnrollment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "e-withdrawn" },
+        data: { status: "ACTIVE", enrollDate: expect.any(String) },
+      }),
+    );
+    expect(tx.studentEnrollment.create).not.toHaveBeenCalled();
+    expect((await res.json()).status).toBe("ACTIVE");
   });
 
   it("returns 422 CAPACITY_EXCEEDED when the class is full (existing behaviour preserved)", async () => {

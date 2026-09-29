@@ -49,3 +49,33 @@ describe("updateCampusSchema (unchanged)", () => {
     expect(updateCampusSchema.safeParse({ status: "ACTIVE" }).success).toBe(true);
   });
 });
+
+describe("campus coordinates are range-checked (HR-9)", () => {
+  it("rejects out-of-range latitude/longitude on create with field paths", () => {
+    const res = createCampusSchema.safeParse({ name: "K", lat: "999", lng: "-500" });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      const byPath = Object.fromEntries(res.error.issues.map((i) => [i.path.join("."), i.message]));
+      expect(byPath.lat).toBe("Latitude harus antara -90 dan 90");
+      expect(byPath.lng).toBe("Longitude harus antara -180 dan 180");
+    }
+  });
+
+  it("accepts the boundary values and ordinary coordinates", () => {
+    expect(createCampusSchema.safeParse({ name: "K", lat: "-90", lng: "180" }).success).toBe(true);
+    expect(createCampusSchema.safeParse({ name: "K", lat: -6.2, lng: 106.8 }).success).toBe(true);
+  });
+
+  it("rejects non-numeric coordinates with an Indonesian message", () => {
+    const res = createCampusSchema.safeParse({ name: "K", lat: "abc" });
+    expect(res.success).toBe(false);
+    if (!res.success) expect(res.error.issues[0].message).toBe("Harus berupa angka");
+  });
+
+  it("update: same bounds, omitted stays omitted, null/blank clears", () => {
+    expect(updateCampusSchema.safeParse({ lat: 91 }).success).toBe(false);
+    expect(updateCampusSchema.safeParse({ lng: -181 }).success).toBe(false);
+    expect(updateCampusSchema.parse({ status: "ACTIVE" })).toEqual({ status: "ACTIVE" });
+    expect(updateCampusSchema.parse({ lat: null, lng: "" })).toEqual({ lat: null, lng: null });
+  });
+});

@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { enrollmentAddSchema } from "@/lib/validations/class";
 import { ensureYearWritableForClass } from "@/lib/classes/year-guard";
 import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
-import { findStreamConflict } from "@/lib/enrollment/active";
+import { findStreamConflict, findWithdrawnEnrollment } from "@/lib/enrollment/active";
 import {
   CLASS_WRITE_BUDGET,
   CLASS_WRITE_WINDOW_MS,
@@ -163,20 +163,30 @@ export async function POST(
         });
       }
 
-      const newEnrollment = await tx.studentEnrollment.create({
-        data: {
-          studentId,
-          classSectionId: classId,
-          enrollDate: today,
-          status: "ACTIVE",
-        },
-        select: {
-          id: true,
-          enrollDate: true,
-          status: true,
-          student: { select: { id: true, name: true, nis: true } },
-        },
-      });
+      const enrollmentSelect = {
+        id: true,
+        enrollDate: true,
+        status: true,
+        student: { select: { id: true, name: true, nis: true } },
+      } as const;
+      // CORE-2: reactivate a WITHDRAWN row for this exact (student, class)
+      // pair instead of tripping the unique key — see findWithdrawnEnrollment.
+      const withdrawn = await findWithdrawnEnrollment(tx, { studentId, classSectionId: classId });
+      const newEnrollment = withdrawn
+        ? await tx.studentEnrollment.update({
+            where: { id: withdrawn.id },
+            data: { status: "ACTIVE", enrollDate: today },
+            select: enrollmentSelect,
+          })
+        : await tx.studentEnrollment.create({
+            data: {
+              studentId,
+              classSectionId: classId,
+              enrollDate: today,
+              status: "ACTIVE",
+            },
+            select: enrollmentSelect,
+          });
 
       // The age band was out of range and the admin supplied an override
       // reason — persist it. The `tx` form of recordAudit re-throws on
