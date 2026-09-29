@@ -19,7 +19,7 @@ import { OverrideModal } from "@/components/attendance/override-modal";
 import { UserCheck, Clock, UserX, CalendarDays, Download, Replace } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/format";
 import { toast } from "sonner";
-import { computeAbsentCount, isNonWorkingDay } from "./absent-stat";
+import { computeAbsentCount, computeExcusedCount, isNonWorkingDay } from "./absent-stat";
 import { parseWorkingDays } from "@/lib/payroll/working-days";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
@@ -130,7 +130,7 @@ export default function AttendancePage() {
   // F-20 (fixed Cycle 3 T8): weekends and holidays are never "tidak hadir",
   // whether the selected date is in the past, is today, or is in the future.
   const absent = computeAbsentCount({ selectedDate: date, data, holidays, workingDays });
-  const leave = data.filter((d) => d.attendance?.status === "LEAVE").length;
+  const leave = computeExcusedCount(data);
   // Drives the status column below: a row with no attendance record on a
   // non-working day is "Libur" (closed), not "Alpa" (should have shown up).
   const nonWorkingDay = isNonWorkingDay(date, holidays, workingDays);
