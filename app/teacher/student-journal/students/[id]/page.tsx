@@ -58,6 +58,9 @@ type WeekData = {
   student?: Student | null;
   categories: Category[];
   entries: Entry[];
+  /** The wali's "Di rumah" checklist for the same week — read-only here (X-5). */
+  homeCategories?: Category[];
+  homeEntries?: Entry[];
   notes: Note[];
 };
 
@@ -302,6 +305,28 @@ export default function TeacherStudentWeekPage() {
             dates={data?.dates ?? []}
             emptyWeekMessage="Belum ada centang di pekan ini."
           />
+
+          {/*
+            What the wali ticked at home. The parent tab tells her it is there
+            "to help Ustadzah keep an eye on ibadah and routines at home", and
+            until now the class teacher could not see it (X-5). Read-only: the
+            teacher records the school day, never the home one.
+          */}
+          {(data?.homeCategories?.length ?? 0) > 0 ? (
+            <section className="mt-6" aria-label="Di rumah" data-testid="home-section">
+              <h2 className="text-h2 font-semibold">Di rumah</h2>
+              <p className="mb-3 mt-1 text-xs text-muted-foreground">
+                Diisi wali murid di rumah — hanya bisa dilihat di sini.
+              </p>
+              <WeekGrid
+                categories={data?.homeCategories ?? []}
+                entries={data?.homeEntries ?? []}
+                dates={data?.dates ?? []}
+                emptyWeekMessage="Belum ada centang dari wali di pekan ini."
+                featureLabel="Di rumah"
+              />
+            </section>
+          ) : null}
 
           {/*
             The thread is NOT week-scoped, unlike the grid above it: a catatan
