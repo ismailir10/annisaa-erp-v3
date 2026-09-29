@@ -8,6 +8,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { employeeStatusReasonSchema } from "@/lib/validations/employee";
 import { recordAudit } from "@/lib/audit";
+import { mayToggleLinkedLogin } from "@/lib/security/role-escalation";
 
 /**
  * F-13: dedicated employee deactivation endpoint.
@@ -29,7 +30,9 @@ import { recordAudit } from "@/lib/audit";
  *   - Revokes login (HR-4): the linked `User` (by `employeeId`) is set INACTIVE
  *     in the same transaction and its cached session is dropped. The acting
  *     admin's own User and SUPER_ADMIN Users are never touched, so an owner
- *     cannot be locked out through an employee record. The idempotent path
+ *     cannot be locked out through an employee record; a SCHOOL_ADMIN User is
+ *     only touched when the actor holds `users.edit` (`mayToggleLinkedLogin`,
+ *     same authority as the users page). The idempotent path
  *     still syncs the User, which heals employees deactivated before this fix.
  */
 export async function POST(
@@ -68,7 +71,7 @@ export async function POST(
   const revokedEmails: string[] = [];
   const updated = await prisma.$transaction(async (tx) => {
     const revokeLogin = async () => {
-      const linked = await tx.user.findMany({
+      const found = await tx.user.findMany({
         where: {
           employeeId: id,
           tenantId: session.tenantId,
@@ -76,8 +79,10 @@ export async function POST(
           role: { not: "SUPER_ADMIN" },
           id: { not: session.id },
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, role: true },
       });
+      // A SCHOOL_ADMIN login needs `users.edit` to disable (same as the users page).
+      const linked = found.filter((u) => mayToggleLinkedLogin(session, u.role));
       if (linked.length === 0) return;
       await tx.user.updateMany({
         where: { id: { in: linked.map((u) => u.id) } },
