@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -8,20 +8,36 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client-errors";
+import { formatDate } from "@/lib/format";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { enrollmentAddSchema } from "@/lib/validations/class";
 
 import type { StudentOption } from "./types";
+
+const PICKER_PAGE_SIZE = 20;
+
+/** "Name · NIS 123" — the trigger label once a student is picked. */
+function studentLabel(s: StudentOption): string {
+  return `${s.name}${s.nis ? ` · ${s.nis}` : ""}`;
+}
+
+/** NIS · birth date · current class(es): what tells two "Abdul Zahra" apart. */
+function studentDetail(s: StudentOption): string {
+  const classes = (s.enrollments ?? [])
+    .map((e) => e.classSection?.name)
+    .filter((n): n is string => !!n);
+  return [
+    s.nis ? `NIS ${s.nis}` : "NIS belum ada",
+    s.dateOfBirth ? `Lahir ${formatDate(s.dateOfBirth)}` : null,
+    classes.length ? `Kelas ${classes.join(", ")}` : "Belum ada kelas",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /**
  * "Tambah Siswa" dialog — split out of `app/admin/classes/[id]/client.tsx`
@@ -39,17 +55,19 @@ export function AddStudentDialog({
   open,
   onOpenChange,
   classId,
-  enrolledStudentIds,
   onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   classId: string;
-  enrolledStudentIds: Set<string>;
   onAdded: () => void;
 }) {
   const formId = useId();
-  const [studentOptions, setStudentOptions] = useState<StudentOption[]>([]);
+  // The combobox shows the picked student's label; the form field only holds the id.
+  const [pickedStudent, setPickedStudent] = useState<StudentOption | null>(null);
+  const [pickerTotal, setPickerTotal] = useState(0);
+  // "Tampilkan lebih banyak" grows the page; a new search starts back at one page.
+  const [pickerPageSize, setPickerPageSize] = useState(PICKER_PAGE_SIZE);
   const studentForm = useZodForm(enrollmentAddSchema, { defaultValues: { studentId: "" } });
   const [addingStudent, setAddingStudent] = useState(false);
   // Advisory age-band / dual-enrollment confirm step — populated from the
@@ -83,35 +101,38 @@ export function AddStudentDialog({
     enrollBannerRef.current?.focus();
   }, [enrollBlock]);
 
-  // Lazy on open: reset the picker + advisory state and (re)load the
-  // active-student list, filtered against the current roster.
+  // Reset the picker + advisory state whenever the dialog (re)opens.
   useEffect(() => {
     if (!open) return;
     studentForm.reset({ studentId: "" });
+    setPickedStudent(null);
+    setPickerPageSize(PICKER_PAGE_SIZE);
     setEnrollBlock(null);
     setAgeOverrideReason("");
-    loadStudentOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  async function loadStudentOptions() {
-    try {
-      // `/api/students` caps pageSize at 100. For preschool tenants this is
-      // adequate; the picker filters client-side against the current
-      // enrollments. If a tenant has >100 ACTIVE students, the dialog will
-      // surface a truncation hint (parallel to the swap drawer).
-      const res = await fetch("/api/students?status=ACTIVE&pageSize=100");
-      if (!res.ok) {
-        toast.error("Gagal memuat daftar siswa");
-        return;
-      }
+  // CORE-3: server-side search + paging instead of one 100-row preload. Students
+  // already ACTIVE in this class are excluded by the API (`notEnrolledInClass`),
+  // so an eligible student is never crowded out of the page by an enrolled one.
+  const fetchStudents = useCallback(
+    async (query: string, signal: AbortSignal): Promise<StudentOption[]> => {
+      const params = new URLSearchParams({
+        status: "ACTIVE",
+        notEnrolledInClass: classId,
+        pageSize: String(pickerPageSize),
+      });
+      const q = query.trim();
+      if (q) params.set("search", q);
+      const res = await fetch(`/api/students?${params.toString()}`, { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const list: StudentOption[] = Array.isArray(json) ? json : json?.data ?? [];
-      setStudentOptions(list.filter((s) => !enrolledStudentIds.has(s.id)));
-    } catch {
-      toast.error("Gagal memuat daftar siswa");
-    }
-  }
+      setPickerTotal(Array.isArray(json) ? list.length : (json?.pagination?.total ?? list.length));
+      return list;
+    },
+    [classId, pickerPageSize],
+  );
 
   // Closes the dialog and clears the advisory-warning step — the single
   // choke point every close path (success, Batal, escape, overlay click)
@@ -243,35 +264,50 @@ export function AddStudentDialog({
           label="Siswa"
           required
           id="class-student"
-          description="Hanya siswa berstatus aktif yang muncul. Batas usia program dan kelas lain yang sudah diikuti siswa akan diperiksa saat disimpan."
+          description="Hanya siswa aktif yang belum terdaftar di kelas ini yang muncul. Batas usia program dan kelas lain yang sudah diikuti siswa diperiksa saat disimpan."
           render={({ field, controlProps }) => (
-            <Select
-              value={field.value}
-              onValueChange={(v) => {
-                if (v == null) return;
-                field.onChange(v);
+            <AsyncCombobox<StudentOption>
+              id={controlProps.id}
+              aria-invalid={controlProps["aria-invalid"]}
+              value={pickedStudent}
+              onChange={(s) => {
+                setPickedStudent(s);
+                field.onChange(s?.id ?? "");
                 setEnrollBlock(null);
                 setAgeOverrideReason("");
               }}
-            >
-              <SelectTrigger {...controlProps} onBlur={field.onBlur}>
-                <SelectValue placeholder="Pilih siswa..." />
-              </SelectTrigger>
-              <SelectContent>
-                {studentOptions.length === 0 ? (
-                  <SelectItem value="__empty" disabled>
-                    Tidak ada siswa tersedia
-                  </SelectItem>
-                ) : (
-                  studentOptions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                      {s.nis ? ` · ${s.nis}` : ""}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+              fetcher={fetchStudents}
+              getKey={(s) => s.id}
+              getLabel={studentLabel}
+              renderItem={(s) => (
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate">{s.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{studentDetail(s)}</span>
+                </span>
+              )}
+              placeholder="Pilih siswa..."
+              searchPlaceholder="Cari nama atau NIS..."
+              idleText="Ketik nama atau NIS untuk mencari siswa."
+              emptyText={(q) => (q ? `Tidak ada siswa aktif yang cocok dengan "${q}".` : "Tidak ada siswa aktif yang belum terdaftar di kelas ini.")}
+              errorText="Gagal memuat daftar siswa. Coba lagi."
+              clearAriaLabel="Hapus pilihan siswa"
+              footer={(results) =>
+                pickerTotal > results.length ? (
+                  <div className="flex flex-col items-center gap-1 border-t px-3 py-2 text-center text-xs text-muted-foreground">
+                    <span>{`Menampilkan ${results.length} dari ${pickerTotal} siswa. Persempit pencarian atau`}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPickerPageSize((n) => Math.min(n + PICKER_PAGE_SIZE, 100))}
+                      disabled={pickerPageSize >= 100}
+                    >
+                      Tampilkan lebih banyak
+                    </Button>
+                  </div>
+                ) : null
+              }
+            />
           )}
         />
       </form>

@@ -99,8 +99,8 @@ const classDetail = {
 };
 
 const students = [
-  { id: "stu-1", name: "Bilal Ahmad", nis: "2025001", status: "ACTIVE" },
-  { id: "stu-2", name: "Zahra Amalia", nis: "2025002", status: "ACTIVE" },
+  { id: "stu-1", name: "Bilal Ahmad", nis: "2025001", status: "ACTIVE", dateOfBirth: "2021-03-04", enrollments: [{ classSection: { name: "KB Aster" } }] },
+  { id: "stu-2", name: "Zahra Amalia", nis: "2025002", status: "ACTIVE", dateOfBirth: null, enrollments: [] },
 ];
 
 const AGE_MESSAGE =
@@ -137,8 +137,10 @@ function stubFetch(enrollResponses: EnrollResponse[]) {
 
 async function openAddStudentAndPick(user: ReturnType<typeof userEvent.setup>, studentName: string) {
   await user.click(await screen.findByRole("button", { name: "Tambah Siswa" }));
-  await screen.findByLabelText(/^Siswa\*?$/);
-  await user.click(screen.getByRole("option", { name: new RegExp(studentName) }));
+  // CORE-3: the picker is a search combobox now — open it, results load on the
+  // debounced fetch, then pick.
+  await user.click(await screen.findByLabelText(/^Siswa\*?$/));
+  await user.click(await screen.findByRole("option", { name: new RegExp(studentName) }));
 }
 
 // ── Teacher-swap dialog (T6) ────────────────────────────────────────
@@ -580,5 +582,33 @@ describe("ClassDetailClient — teacher-swap dialog (T6)", () => {
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Guru pengganti")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Simpan" })).not.toBeInTheDocument();
+  });
+});
+
+// CORE-3 — the picker is server-side searched and tells homonyms apart.
+describe("ClassDetailClient — Tambah Siswa picker (CORE-3)", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("queries the API with the typed search and the class exclusion, and shows NIS / birth date / current class", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch([]);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Siswa" }));
+    await user.click(await screen.findByLabelText(/^Siswa\*?$/));
+    const option = await screen.findByRole("option", { name: /Bilal Ahmad/ });
+    expect(option).toHaveTextContent("NIS 2025001");
+    expect(option).toHaveTextContent("Lahir");
+    expect(option).toHaveTextContent("Kelas KB Aster");
+    expect(screen.getByRole("option", { name: /Zahra Amalia/ })).toHaveTextContent("Belum ada kelas");
+
+    await user.type(screen.getByPlaceholderText("Cari nama atau NIS..."), "zahra");
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([i]) => (typeof i === "string" ? i : i.toString()));
+      expect(urls.some((u) => u.includes("search=zahra") && u.includes("notEnrolledInClass=class-1") && u.includes("status=ACTIVE"))).toBe(true);
+    });
   });
 });
