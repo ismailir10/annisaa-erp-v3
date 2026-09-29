@@ -1,6 +1,6 @@
 # Teacher Portal — Jobs to be Done
 
-> Last audited: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
+> Last audited: 2026-09-29 in cycle `journal-ux` (class-level journal bulk, own-note edit/delete, discard + roster guards, Di rumah, leave decisions). Prior: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-08-03 `teacher-mobile-nav-review`.
 > Portal root: `app/teacher/`
 > Default persona: Bu Sari (see `.claude/personas/bu-sari.md`)
 
@@ -218,6 +218,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   6. Return to the roster, repeat for the next student
   7. Each toggle fires `POST /api/student-journal/entries/batch` with a single-entry payload; the tapped cell pulses while saving and settles when persisted
   8. Navigate away at any point — nothing is lost; reload shows updated completion counts
+  9. **Whole class at once (cycle `journal-ux`):** on the entry page tap **Isi cepat satu kelas** → the bottom sheet defaults to *Semua indikator* × *Semua siswa* → tap **Tandai (n)**. One gesture, one batched write (posted in chunks of 100); an inline **Batalkan** strip undoes it. Narrow by category/indicator or by student first when needed; **Kosongkan (n)** clears. Per-student edits in the accordion still win afterwards. Target: a full class in ≤3 taps.
 - **Done when:** Every toggled cell persists across reload without any explicit save action. A failed save visibly reverts the tapped cell and shows the "Catatan belum tersimpan. Ketuk ulang ya." toast. Rapid re-taps settle to the last tapped state (stale responses ignored). The roster list scrolls vertically on mobile; the per-student cell grid is reached only via drill-down.
 - **Why this job matters:** Bu Sari's daily after-circle ritual — 5 minutes max before parents come in for pickup. Before per-tap save, taps were silently lost when she navigated away without pressing Simpan (ui-sweep T8 user-harm item); autosave-on-tap removes that failure mode entirely.
 - **Expected perf:** roster load <1.5s for a 25-student class; per-student drill-down load <1s; tap-to-toggle latency <100ms (optimistic client state); per-tap save settle <2s.
@@ -225,6 +226,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Network drop on a tap → cell reverts to its pre-tap state + error toast; re-tap retries cleanly (no double-submit — requestId guard)
   - Rapid repeated taps on one cell → final visible state matches the last tap, no stale-response flicker
   - Switch class mid-entry → safe: all prior taps are already persisted
+  - Class-level bulk: apply, undo, and a failed chunk (only that chunk's cells revert, one toast, "Coba simpan lagi"); Kosongkan then Batalkan restores the ticks
   - Missing class/date link → picker recovery explains that class and date must be chosen; grid-fetch failure offers local `Coba lagi` rather than an empty roster
 - **Known friction (from last UAT):** Entry page is a roster list, not a cell grid — UAT must drill into individual students to reach the indicator checkboxes.
 
@@ -240,10 +242,13 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   3. Tap "+" to open the shared add-note composer; desktop renders as a dialog and mobile can render as the responsive sheet variant
   4. Pick a date within this week, write a note (≤2000 chars), save
   5. See the note appear in the thread with `GURU` badge and the chosen date
+  6. On her own note tap the pencil (edit) or trash (delete → "Hapus catatan ini?" confirm); on a colleague's or a parent's note no such controls exist
+  7. Scroll below the school grid: a read-only **Di rumah** grid shows what the wali ticked at home that week (only when the school has a home checklist)
 - **Done when:** The note is created via `POST /api/student-journal/notes`, attached to the right student + date. Week navigation works on touch (chevrons) without layout shift. The responsive composer dismisses on success and the thread updates without a full reload. The teacher page uses the same shared note composer as the journal thread, not a duplicate local modal.
 - **Why this job matters:** Mid-week observations ("Aisha was withdrawn today after lunch") are how Bu Sari builds the qualitative narrative parents read at term-end. If add-note is buried or breaks, the journal becomes attendance-only and loses its formative value.
 - **Expected perf:** week view load <1.5s; week prev/next <1s; note save click-to-visible-in-thread <1s.
 - **Error scenarios to verify:**
+  - Half-written note then tap outside / Escape / Batal → "Buang catatan?" (Lanjut menulis keeps the text; Buang closes)
   - Empty body → client-side block
   - Body >2000 chars → server 400 + toast
   - Date in the future → absent from the shared date select; if the visible week is entirely in the future, submit stays disabled
@@ -281,6 +286,7 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
 - **Preconditions:** Multiple assigned classes; saved and missing attendance; one fully checked school journal, one partial journal, and an unread guardian reply. Repeat without a generated daily session.
 - **Steps:** Read the class/date context; open the primary action; confirm its selected class/date; save one record; reload; open each child's unread thread; open the session pickup workflow separately.
 - **Done when:** The next action is obvious without interpreting an invented percentage. Attendance counts saved student records. Journal completion requires every active SCHOOL indicator for each active student; zero configured indicators is explained. All assigned-class and session destinations remain available, and each guardian-reply label opens that child's thread.
+- **Leave decisions (cycle `journal-ux`):** when admin approved or rejected the teacher's own leave in the last 7 days, a **Keputusan cuti** section appears above the class card ("Cuti tahunan disetujui" / "Izin ditolak · Alasan: …"); each row opens Kehadiran saya with the Cuti dan izin sheet.
 - **Recovery checks:** Change class/date during a slow or failed save; the late response must not overwrite the new context. Refresh after saving and confirm the summary agrees with the domain record.
 - **Verification status:** Acceptance contract updated after engineering review; results belong in the cycle's Verification section, separately from representative-user observations.
 
@@ -322,10 +328,10 @@ Teacher mobile navigation keeps four daily destinations direct — `Beranda`, `A
   - Demo cookie set (pattern from `e2e/teacher.spec.ts`)
 - **Steps (user intent, not UI clicks):**
   1. Open `/teacher` → the "Sesi Hari Ini" card lists today's session(s)
-  2. Tap a session → navigate to `/teacher/sessions/[id]` roster
+  2. Tap a session → navigate to `/teacher/sessions/[id]` roster (`/teacher/sessions` itself redirects to the "Sesi & penjemputan" list on the home page)
   3. For each student: cycle the status badge (PRESENT/ABSENT/SICK/PERMISSION); tap **Tap Masuk** to stamp `checkInTime`; later tap **Tap Pulang** to stamp `checkOutTime`; pick a `pickedUpByRelation` (PARENT/GUARDIAN/GRANDPARENT/SIBLING/DRIVER/HOUSEHOLD_HELPER/OTHER) and enter `pickedUpByName` (required when OTHER)
   4. Tap **Simpan** → bulk `POST /api/teacher/sessions/[id]/attendance` upserts the whole roster keyed on `(studentId, sessionId)`
-  5. Reload — the persisted state shows again
+  5. Reload — the persisted state shows again. Until Simpan the page shows **Belum disimpan**; reload, an in-app link (bottom nav / back link) or the Back button asks "Keluar tanpa menyimpan?" (cycle `journal-ux`).
 - **Done when:** Each student's status, times, and pickup info show on reload; the substitute trail (when the session was a swap day) is intact — `defaultTeacherId` is NOT touched.
 - **Why this job matters:** The daily hot path for early-childhood teachers. Tap-In + Tap-Out + pickup is the structured replacement for the legacy session-agnostic attendance entry. Pickup data feeds the late-pickup leaderboard once Layer 2 lands.
 - **Expected perf:** session list page load <1.5s; tap-in/out client response <500ms; Simpan round-trip <1.5s on 4G; full daily flow (morning check-in → midday pickup) completes in <3 min for a 20-student class.

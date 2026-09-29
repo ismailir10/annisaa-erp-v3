@@ -14,6 +14,11 @@ describe("QueueSummaryTiles", () => {
     expect(screen.getByRole("link", { name: "5 Link pembayaran belum tersedia" })).toHaveAttribute("href", "/admin/work-queue?kind=invoice");
   });
 
+  it("surfaces new admission inquiries with a link to the filtered queue (X-6)", () => {
+    render(<QueueSummaryTiles items={[{ kind: "inquiry", status: "ready", count: 2 }]} />);
+    expect(screen.getByRole("link", { name: "2 Pertanyaan pendaftaran baru" })).toHaveAttribute("href", "/admin/work-queue?kind=inquiry");
+  });
+
   it("shows a retry affordance instead of a false zero for an unavailable source", () => {
     render(<QueueSummaryTiles items={[{ kind: "payroll", status: "unavailable", count: 0 }]} />);
     expect(screen.getByText("—")).toBeVisible();

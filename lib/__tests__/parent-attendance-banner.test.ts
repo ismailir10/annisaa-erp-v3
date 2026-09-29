@@ -26,6 +26,7 @@ describe("attendanceBannerState", () => {
     ).toEqual({
       kind: "attention",
       tone: "warm",
+      reason: "sick",
       line: "Hadir 3 · Sakit 1 · Alpa 0",
     });
   });
@@ -36,6 +37,7 @@ describe("attendanceBannerState", () => {
     ).toEqual({
       kind: "attention",
       tone: "warm",
+      reason: "absent",
       line: "Hadir 2 · Sakit 0 · Alpa 1",
     });
   });
@@ -46,6 +48,7 @@ describe("attendanceBannerState", () => {
     ).toEqual({
       kind: "attention",
       tone: "neutral",
+      reason: "permission",
       line: "Hadir 3 · Sakit 0 · Alpa 0 · Izin 1",
     });
   });
@@ -61,6 +64,7 @@ describe("attendanceBannerState", () => {
     expect(state).toEqual({
       kind: "attention",
       tone: "warm",
+      reason: "sick",
       line: "Hadir 2 · Sakit 1 · Alpa 0 · Izin 1",
     });
   });

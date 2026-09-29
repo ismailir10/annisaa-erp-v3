@@ -143,7 +143,13 @@ describe("TeacherStudentWeekPage", () => {
     const first = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     const second = deferred<{ ok: boolean; json: () => Promise<unknown> }>();
     let calls = 0;
-    vi.stubGlobal("fetch", vi.fn(() => ++calls === 1 ? first.promise : second.promise));
+    // Only week loads are counted: the page also asks /api/auth/me who the
+    // teacher is (to offer edit/delete on her own notes), which is not a week.
+    vi.stubGlobal("fetch", vi.fn((url: string) =>
+      String(url).includes("/week")
+        ? (++calls === 1 ? first.promise : second.promise)
+        : Promise.resolve({ ok: true, json: async () => ({}) }),
+    ));
     render(<TeacherStudentWeekPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Pekan berikutnya" }));
@@ -166,5 +172,30 @@ describe("TeacherStudentWeekPage", () => {
       screen.getByText("Riwayat penghubung — hanya bisa dilihat di sini"),
     ).toBeInTheDocument();
     expect(screen.getByText("3 Agu – 4 Agu 2026")).toBeInTheDocument();
+  });
+
+  it("shows what the wali ticked at home, read-only and apart from the school grid (X-5)", async () => {
+    const withHome = {
+      data: {
+        ...weekData.data,
+        homeCategories: [{ id: "h", name: "Rumah", scope: "HOME", indicators: [{ id: "h1", label: "Sholat 5 waktu", order: 1 }] }],
+        homeEntries: [{ id: "e", indicatorId: "h1", date: "2026-08-03", checked: true }],
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => withHome }));
+    render(<TeacherStudentWeekPage />);
+    const section = await screen.findByTestId("home-section");
+
+    expect(screen.getByRole("heading", { level: 2, name: "Di rumah" })).toBeInTheDocument();
+    expect(section).toHaveTextContent("hanya bisa dilihat di sini");
+    // Two grids: the school week and the home week. Neither is editable (mock has no toggle).
+    expect(screen.getAllByTestId("week-grid")).toHaveLength(2);
+  });
+
+  it("omits the Di rumah section when the school has no home checklist", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => weekData }));
+    render(<TeacherStudentWeekPage />);
+    await screen.findByTestId("week-grid");
+    expect(screen.queryByTestId("home-section")).toBeNull();
   });
 });

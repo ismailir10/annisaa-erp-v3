@@ -55,14 +55,24 @@ export const indicatorFormSchema = createIndicatorSchema.pick({ label: true });
 export type CategoryFormInput = z.infer<typeof categoryFormSchema>;
 export type IndicatorFormInput = z.infer<typeof indicatorFormSchema>;
 
+/**
+ * Hard bound on one batch write. A class-level bulk fill (roster x indicators)
+ * is chunked by the client well below this; the cap exists so a single request
+ * cannot hold an interactive transaction (upsert + audit per entry) open long
+ * enough to time out, whoever sends it.
+ */
+export const JOURNAL_BATCH_MAX_ENTRIES = 500;
+
 export const entryBatchSchema = z.object({
   classSectionId: z.string().min(1),
   date: ymd,
-  entries: z.array(z.object({
-    studentId: z.string().min(1),
-    indicatorId: z.string().min(1),
-    checked: z.boolean(),
-  })),
+  entries: z
+    .array(z.object({
+      studentId: z.string().min(1),
+      indicatorId: z.string().min(1),
+      checked: z.boolean(),
+    }))
+    .max(JOURNAL_BATCH_MAX_ENTRIES, `Maksimal ${JOURNAL_BATCH_MAX_ENTRIES} entri per permintaan`),
 });
 
 export const homeEntryBatchSchema = z.object({

@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import type { AdminWorkItem } from "@/lib/dashboard/admin-work-queue";
 
 /**
- * Top-N ranked work items (caller passes `rankUrgent(items).slice(0, 5)`),
+ * Top-N ranked work items (caller passes `rankUrgent(items).slice(0, 4)`),
  * with a footer link to the full `/admin/work-queue` table. `total` is the
  * full queue count (across all visible sources), independent of how many
  * items are actually rendered here.

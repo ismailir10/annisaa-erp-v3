@@ -13,6 +13,14 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 const week = {
   id: "week-1",
   number: 3,
@@ -141,5 +149,37 @@ describe("WeeklyClient radio groups", () => {
     belum.focus();
     await user.keyboard("{Enter}");
     await expectLevelSelected(belum);
+  });
+
+  describe("save status (DOC-4)", () => {
+    it("says nothing before the first tap, then saving, then saved", async () => {
+      const user = userEvent.setup();
+      const save = deferred<{ ok: boolean }>();
+      vi.stubGlobal("fetch", vi.fn().mockReturnValue(save.promise));
+      renderWeeklyClient();
+      expect(within(screen.getByTestId("weekly-save-state")).queryByRole("status")).toBeNull();
+
+      await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+      expect(await screen.findByRole("status")).toHaveTextContent("Menyimpan penilaian");
+
+      save.resolve({ ok: true });
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+    });
+
+    it("says the tap did not save when the request fails, and recovers on the next tap", async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, json: async () => ({ error: "x" }) })
+        .mockResolvedValue({ ok: true });
+      vi.stubGlobal("fetch", fetchMock);
+      renderWeeklyClient();
+
+      await user.click(screen.getByRole("radio", { name: "Belum untuk Aisyah" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Penilaian belum tersimpan");
+
+      await user.click(screen.getByRole("radio", { name: "Mampu untuk Aisyah" }));
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Penilaian tersimpan"));
+    });
   });
 });
