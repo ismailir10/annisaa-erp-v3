@@ -33,7 +33,16 @@ export async function GET(req: NextRequest) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { nickname: { contains: search, mode: "insensitive" } },
+      // NIS too: homonyms are told apart by their number (CORE-3 picker).
+      { nis: { contains: search, mode: "insensitive" } },
     ];
+  }
+  // Class "Tambah Siswa" picker: leave out students already ACTIVE in that
+  // class server-side, so the paged result never hides an eligible student
+  // behind an already-enrolled one (CORE-3).
+  const notEnrolledInClass = searchParams.get("notEnrolledInClass");
+  if (notEnrolledInClass) {
+    where.enrollments = { none: { classSectionId: notEnrolledInClass, status: "ACTIVE" } };
   }
 
   const [students, total] = await Promise.all([

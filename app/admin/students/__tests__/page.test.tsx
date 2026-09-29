@@ -121,9 +121,10 @@ describe("StudentsPage — Kelas column shows both enrollments (T9)", () => {
 
     // Primary (SEMESTER/sekolah) shown first, daycare second — never hidden.
     expect(screen.getByText("Taman Kanak-kanak")).toBeInTheDocument();
-    expect(screen.getByText(/TKIT A/)).toBeInTheDocument();
+    // (The mobile-only meta under the name repeats the placements, hidden from md up — hence getAll.)
+    expect(screen.getAllByText(/TKIT A/).length).toBeGreaterThan(0);
     expect(screen.getByText("Daycare")).toBeInTheDocument();
-    expect(screen.getByText(/Daycare 1/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Daycare 1/).length).toBeGreaterThan(0);
 
     // The assertions above only prove both are present. Pin the ordering the
     // comment claims, and that the two placements are stacked as separate

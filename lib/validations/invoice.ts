@@ -17,6 +17,10 @@ export const recordPaymentSchema = z.object({
   // coerce: the record-payment dialog posts its form state verbatim, so
   // `amount` arrives as the <Input>'s string value.
   amount: z.coerce.number().positive("Jumlah harus lebih dari 0"),
+  // Full Payment.method vocabulary (enum-conformance test pins it to the Prisma
+  // comment). The route additionally refuses the gateway rails XENDIT/DOKU for a
+  // manual record (FIN-23) — kept out of the schema so the form schema can keep
+  // `.extend()`-ing this one.
   method: z.enum(["CASH", "BANK_TRANSFER", "XENDIT", "DOKU", "OTHER"]).default("CASH"),
   reference: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -133,3 +137,15 @@ export const invoicePaymentFormSchema = recordPaymentSchema.extend({
 });
 
 export type InvoicePaymentFormInput = z.infer<typeof invoicePaymentFormSchema>;
+
+// Reversal of a MANUAL payment. The reason is mandatory: it is the only
+// record of why money that was booked as received was taken back.
+export const reversePaymentSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Alasan wajib diisi (minimal 5 karakter)")
+    .max(300, "Alasan maksimal 300 karakter"),
+});
+
+export type ReversePaymentInput = z.infer<typeof reversePaymentSchema>;

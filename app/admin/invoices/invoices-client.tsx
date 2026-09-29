@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,12 @@ import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2 } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
 import {
   runBulkRetry,
   type BulkRetrySnapshot,
@@ -72,12 +74,22 @@ const columns: ColumnDef<Invoice>[] = [
       const inv = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+          <div className="hidden w-8 h-8 rounded-full bg-muted items-center justify-center shrink-0 md:flex">
             <FileText size={14} className="text-primary" />
           </div>
           <DataTableLinkCell
             href={`/admin/invoices/${inv.id}`}
-            description={<span className="font-currency">{inv.invoiceNumber}</span>}
+            className="whitespace-normal"
+            description={
+              <>
+                <span className="font-currency">{inv.invoiceNumber}</span>
+                {/* Status + due date follow the name below `md` (FIN-21). */}
+                <DataTableMobileMeta className="mt-1">
+                  <StatusBadge status={inv.status} />
+                  <span>Tempo {formatDateShort(inv.dueDate)}</span>
+                </DataTableMobileMeta>
+              </>
+            }
           >
             {inv.student.name}
           </DataTableLinkCell>
@@ -106,7 +118,7 @@ const columns: ColumnDef<Invoice>[] = [
       const remaining = Number(inv.totalDue) - Number(inv.totalPaid);
       return (
         <div className="text-right">
-          <p className="font-currency text-sm font-bold">
+          <p className="font-currency text-sm font-bold whitespace-nowrap">
             {formatRupiah(Number(inv.totalDue))}
           </p>
           {Number(inv.totalPaid) > 0 && Number(inv.totalPaid) < Number(inv.totalDue) && (
@@ -114,7 +126,7 @@ const columns: ColumnDef<Invoice>[] = [
               Dibayar: {formatRupiah(Number(inv.totalPaid))}
             </p>
           )}
-          {remaining > 0 && inv.status !== "DRAFT" && (
+          {remaining > 0 && inv.status !== "DRAFT" && inv.status !== "CANCELLED" && (
             <p className="font-currency text-xs text-destructive">
               Sisa: {formatRupiah(remaining)}
             </p>
@@ -140,6 +152,7 @@ const columns: ColumnDef<Invoice>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -261,6 +274,8 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
     overdue: 0,
     cancelled: 0,
     pendingPaymentLink: 0,
+    outstanding: 0,
+    collectedThisMonth: 0,
   });
 
   const fetchStats = useCallback(() => {
@@ -278,6 +293,8 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           overdue: s.overdue ?? 0,
           cancelled: s.cancelled ?? 0,
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
+          outstanding: Number(s.outstanding ?? 0),
+          collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
       })
       .catch(() => setStatsState("error"));
@@ -478,7 +495,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
       fetchInvoices();
       fetchStats();
     } else {
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal membatalkan tagihan");
     }
   }
@@ -491,7 +508,13 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
         header: "",
         cell: ({ row }) => {
           const inv = row.original;
-          const canVoid = capabilities.void && ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"].includes(inv.status);
+          // Overdue invoices can be cancelled too (FIN-9) — but only while no
+          // money sits on them; with payments, the detail page explains that
+          // they must be reversed first.
+          const canVoid =
+            capabilities.void &&
+            (VOIDABLE_INVOICE_STATUSES as readonly string[]).includes(inv.status) &&
+            Number(inv.totalPaid) === 0;
           const isRetryRow = capabilities.create && inv.status === "PENDING_PAYMENT_LINK";
           const isRetryingThisRow = retryingRowId === inv.id;
           return (
@@ -637,6 +660,25 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
         )}
       </StatsCardsRow>}
+      {/* FIN-13: Rupiah next to the counts — what is still owed, and what came in this month. */}
+      {statsState === "ready" && <StatsCardsRow cols={2}>
+        <StatCard
+          label="Piutang"
+          value={formatRupiah(stats.outstanding)}
+          sublabel={`${stats.sent + stats.partiallyPaid + stats.overdue} tagihan belum lunas`}
+          icon={Wallet}
+          color="warning"
+          index={6}
+        />
+        <StatCard
+          label="Diterima Bulan Ini"
+          value={formatRupiah(stats.collectedThisMonth)}
+          sublabel="Pembayaran tercatat, tanpa yang dibatalkan"
+          icon={Banknote}
+          color="success"
+          index={7}
+        />
+      </StatsCardsRow>}
 
       <DataTableToolbar
         searchPlaceholder="Cari siswa atau nomor tagihan..."
@@ -686,6 +728,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           loading={loading}
           emptyTitle="Belum ada tagihan"
           emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
+          isFiltered={search.trim() !== "" || statusFilter !== "all"}
         />
       )}
 

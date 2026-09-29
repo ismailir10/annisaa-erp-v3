@@ -6,6 +6,8 @@ import { calculatePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { generatePayrollSchema } from "@/lib/validations/payroll";
+import { findNegativeNet, isFuturePayrollPeriod } from "@/lib/payroll/generation-guards";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
 
 /**
  * F-15: mirrors `assertGajiPokokSortOrder`'s selection (find the tenant's
@@ -43,6 +45,18 @@ export async function POST(req: NextRequest) {
   const result = await validateBody(generatePayrollSchema, rawBody);
   if (result.error) return result.error;
   const { periodStart, periodEnd } = result.data;
+
+  // HR-12: a period that has not started yet has no attendance — generating it
+  // produced pro-rata Rp 0 income with fixed deductions (net < 0).
+  if (isFuturePayrollPeriod(periodStart, getTodayInTimezone("Asia/Jakarta"))) {
+    return NextResponse.json(
+      {
+        error: "Validasi gagal",
+        errors: [{ field: "periodStart", message: "Periode penggajian belum dimulai. Pilih periode yang sudah berjalan atau sudah selesai." }],
+      },
+      { status: 400 },
+    );
+  }
 
   // Parallelise the 4 independent setup queries — none depend on each other
   // (overlap + duplicate check happen atomically inside the $transaction below)
@@ -164,6 +178,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: describeMisorderedComponents(components) }, { status: 400 });
     }
     throw e;
+  }
+
+  // HR-12: never write a run that pays someone a negative net amount without
+  // the admin knowing — block and name the employees so the salary structure
+  // (or the period) can be fixed first.
+  const negativeNet = findNegativeNet(
+    employees.map((e) => ({
+      id: e.id,
+      kode: e.kode,
+      nama: e.nama,
+      netAmount: results.get(e.id)?.netAmount ?? 0,
+    })),
+  );
+  if (negativeNet.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Gaji bersih negatif untuk beberapa karyawan. Periksa struktur gaji atau periode sebelum membuat penggajian",
+        employees: negativeNet.map((e) => ({
+          id: e.id,
+          kode: e.kode,
+          nama: e.nama,
+          reason: "negative net pay",
+        })),
+      },
+      { status: 422 },
+    );
   }
 
   // Pre-generate item IDs so PayrollItemLines can reference them without an

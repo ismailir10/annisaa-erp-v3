@@ -21,7 +21,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
 
   if (!invoice || invoice.tenantId !== session.tenantId) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ...invoice, capabilities: invoiceCapabilities(session) });
+
+  // FIN-7: Payment.createdBy is a bare User id (no relation) — resolve names
+  // here, tenant-scoped, so the history can say "Dicatat oleh <nama>".
+  const actorIds = [...new Set(invoice.payments.map((p) => p.createdBy).filter((v): v is string => !!v))];
+  const actors = actorIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: actorIds }, tenantId: session.tenantId },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const actorName = new Map(actors.map((u) => [u.id, u.name || u.email]));
+  const payments = invoice.payments.map((p) => ({
+    ...p,
+    createdByName: p.createdBy ? (actorName.get(p.createdBy) ?? null) : null,
+  }));
+
+  return NextResponse.json({ ...invoice, payments, capabilities: invoiceCapabilities(session) });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

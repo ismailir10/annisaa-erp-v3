@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
+import { schoolContactPhone } from "@/lib/contact";
 
 /**
  * GET /api/guardian/invoices/[id]
@@ -69,6 +71,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         orderBy: { feeComponent: { sortOrder: "asc" } },
       },
       payments: {
+        // A reversed manual payment is not money received — keep it out of the
+        // parent's history and the receipt, consistent with totalPaid.
+        where: ACTIVE_PAYMENT_FILTER,
         select: {
           id: true,
           amount: true,
@@ -132,6 +137,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     totalPaid: Number(invoice.totalPaid),
     status: invoice.status,
     xenditPaymentUrl: invoice.xenditPaymentUrl,
+    // PAR-7: shown when the invoice has no payment link. Null when the school
+    // has not configured SCHOOL_CONTACT_PHONE.
+    schoolContactPhone: schoolContactPhone(),
     sentAt: invoice.sentAt?.toISOString() ?? null,
     paidAt: invoice.paidAt?.toISOString() ?? null,
     lines: invoice.lines.map((l) => ({

@@ -6,14 +6,17 @@
  * `$transaction` to invoke the callback with a tx mock that exposes the
  * methods the route uses (`$executeRaw`, `invoice.findUnique`, `invoice.update`).
  *
- * Status guard: only DRAFT / SENT / PENDING_PAYMENT_LINK are voidable;
- * anything else (PAID, CANCELLED, etc.) → 409.
+ * Status guard: DRAFT / SENT / PENDING_PAYMENT_LINK / OVERDUE are voidable
+ * provided the invoice holds no active (non-reversed) payment (FIN-9);
+ * everything else → 409 with a human Indonesian message (FIN-10).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const txExecuteRaw = vi.fn();
 const txInvoiceFindUnique = vi.fn();
 const txInvoiceUpdate = vi.fn();
+const txPaymentFindMany = vi.fn();
+const txAuditCreate = vi.fn();
 const $transaction = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -21,6 +24,8 @@ vi.mock("@/lib/db", () => ({
     $transaction,
   },
 }));
+
+vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
@@ -51,6 +56,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   txExecuteRaw.mockResolvedValue(undefined);
   txInvoiceUpdate.mockResolvedValue({ id: "inv-1", status: "CANCELLED" });
+  txPaymentFindMany.mockResolvedValue([]);
+  txAuditCreate.mockResolvedValue({});
   // Default: pass the inner callback a tx-shaped object and propagate any thrown error.
   $transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
     return cb({
@@ -59,6 +66,8 @@ beforeEach(() => {
         findUnique: txInvoiceFindUnique,
         update: txInvoiceUpdate,
       },
+      payment: { findMany: txPaymentFindMany },
+      auditLog: { create: txAuditCreate },
     });
   });
 });
@@ -110,6 +119,82 @@ describe("POST /api/invoices/[id]/void", () => {
     expect(txInvoiceUpdate).toHaveBeenCalled();
   });
 
+  it("voids an OVERDUE invoice with no payments (FIN-9)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    txInvoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "OVERDUE", totalPaid: 0,
+    });
+
+    const { POST } = await import("../invoices/[id]/void/route");
+    const res = await POST(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    expect(res.status).toBe(200);
+    expect(txInvoiceUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "CANCELLED" }) }),
+    );
+    expect(txAuditCreate.mock.calls[0][0].data).toMatchObject({
+      entity: "Invoice", action: "void", actorId: "u-1",
+    });
+    // only NON-reversed payments block a void
+    expect(txPaymentFindMany.mock.calls[0][0].where).toMatchObject({
+      invoiceId: "inv-1",
+      status: { not: "REVERSED" },
+    });
+  });
+
+  it("409 explains that manual payments must be reversed first (no raw enum)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    txInvoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "OVERDUE", totalPaid: 300_000,
+    });
+    txPaymentFindMany.mockResolvedValueOnce([
+      { amount: 300_000, method: "CASH", xenditPaymentId: null },
+    ]);
+
+    const { POST } = await import("../invoices/[id]/void/route");
+    const res = await POST(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    expect(res.status).toBe(409);
+    const { error } = await res.json();
+    expect(error).toContain("Rp 300.000");
+    expect(error).toContain("Batalkan pembayarannya");
+    expect(error).not.toMatch(/OVERDUE|PARTIALLY_PAID|PENDING_PAYMENT_LINK|DRAFT|SENT/);
+    expect(txInvoiceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("409 for gateway-paid invoices says it cannot be undone from here", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    txInvoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "PAID", totalPaid: 500_000,
+    });
+    txPaymentFindMany.mockResolvedValueOnce([
+      { amount: 500_000, method: "XENDIT", xenditPaymentId: "gw-1" },
+    ]);
+
+    const { POST } = await import("../invoices/[id]/void/route");
+    const res = await POST(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/gateway/);
+  });
+
+  it("409 for an already-cancelled invoice reads 'sudah dibatalkan'", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    txInvoiceFindUnique.mockResolvedValueOnce({
+      id: "inv-1", tenantId: "tnt-1", status: "CANCELLED", totalPaid: 0,
+    });
+
+    const { POST } = await import("../invoices/[id]/void/route");
+    const res = await POST(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Tagihan ini sudah dibatalkan.");
+  });
+
   it("409 when invoice is PAID (status guard)", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(adminSession());
@@ -117,6 +202,7 @@ describe("POST /api/invoices/[id]/void", () => {
       id: "inv-1",
       tenantId: "tnt-1",
       status: "PAID",
+      totalPaid: 0,
     });
 
     const { POST } = await import("../invoices/[id]/void/route");

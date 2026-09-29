@@ -10,6 +10,8 @@ import {
   FileText,
   Info,
   Landmark,
+  MessageCircle,
+  Phone,
   type LucideIcon,
 } from "lucide-react";
 import { formatRupiah, formatDate, formatInvoicePeriod } from "@/lib/format";
@@ -20,6 +22,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { InvoiceDetailSkeleton } from "./invoice-detail-skeleton";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
+import { telHref, whatsappHrefWithText } from "@/lib/contact";
 
 type InvoiceLine = {
   id: string;
@@ -47,6 +50,8 @@ type InvoiceDetail = {
   totalPaid: number;
   status: string;
   xenditPaymentUrl: string | null;
+  /** School contact for invoices without a link; null when not configured. */
+  schoolContactPhone?: string | null;
   sentAt: string | null;
   paidAt: string | null;
   lines: InvoiceLine[];
@@ -172,6 +177,10 @@ export function InvoiceDetailSheet({
         <div className="px-card pb-card pt-4 space-y-6">
           {/* Focal amount card */}
           <div className="rounded-xl border border-border bg-card p-4 md:p-6">
+            {/* PAR-8: name what the big number is. */}
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              {isPaid || isCancelled ? "Total tagihan" : "Sisa tagihan"}
+            </p>
             <Amount
               value={focalAmount}
               size="display"
@@ -196,8 +205,7 @@ export function InvoiceDetailSheet({
                 <>
                   <AmountStatus tone="partial">Dibayar sebagian</AmountStatus>
                   <span>
-                    Sudah dibayar <b className="text-foreground">{formatRupiah(invoice.totalPaid)}</b> · sisa
-                    jatuh tempo{" "}
+                    Jatuh tempo{" "}
                     <b className="text-foreground">
                       {formatDate(invoice.dueDate, { day: "numeric", month: "long", year: "numeric" })}
                     </b>
@@ -239,6 +247,25 @@ export function InvoiceDetailSheet({
                 </li>
               ))}
             </ul>
+            {/* PAR-8: Total / Sudah dibayar / Sisa, always in that order. */}
+            <dl className="mt-1 space-y-1.5 border-t border-border pt-3 text-sm" data-testid="invoice-totals">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-muted-foreground">Total tagihan</dt>
+                <dd><Amount value={invoice.totalDue} size="line" /></dd>
+              </div>
+              {invoice.totalPaid > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted-foreground">Sudah dibayar</dt>
+                  <dd><Amount value={invoice.totalPaid} size="line" tone="paid" /></dd>
+                </div>
+              ) : null}
+              {remaining > 0 && !isCancelled ? (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="font-medium text-foreground">Sisa tagihan</dt>
+                  <dd><Amount value={remaining} size="line" /></dd>
+                </div>
+              ) : null}
+            </dl>
           </section>
 
           {/* Cara bayar — unpaid only, single Xendit card */}
@@ -307,8 +334,9 @@ export function InvoiceDetailSheet({
                           {METHOD_LABELS[p.method] ?? p.method}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
+                          {/* The admin's reference ("Cicilan-1", transfer no.) is
+                              internal bookkeeping, not something a wali needs. */}
                           {formatDate(p.paidAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" })}
-                          {p.reference ? ` · ${p.reference}` : ""}
                         </p>
                       </div>
                       <Amount value={p.amount} size="row" tone="paid" className="shrink-0" />
@@ -354,11 +382,34 @@ export function InvoiceDetailSheet({
                   </div>
                 </>
               ) : (
-                <div className="flex items-start gap-2 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text">
-                  <Info size={14} className="mt-0.5 shrink-0" />
-                  <span>
-                    Link pembayaran belum tersedia. Silakan <strong>hubungi admin sekolah</strong> untuk info pembayaran.
-                  </span>
+                <div className="space-y-3 rounded-lg border border-status-late bg-status-late-subtle p-3 text-xs text-status-late-text" data-testid="contact-school">
+                  <div className="flex items-start gap-2">
+                    <Info size={14} className="mt-0.5 shrink-0" />
+                    <span>
+                      Link pembayaran belum tersedia. Silakan <strong>hubungi admin sekolah</strong> untuk info
+                      pembayaran dan sebutkan nomor tagihan <strong>{invoice.invoiceNumber}</strong>.
+                    </span>
+                  </div>
+                  {(() => {
+                    const message = `Assalamu'alaikum, saya ingin menanyakan pembayaran tagihan ${invoice.invoiceNumber} (${invoice.student.name}) sisa ${formatRupiah(remaining)}.`;
+                    const wa = whatsappHrefWithText(invoice.schoolContactPhone, message);
+                    const tel = telHref(invoice.schoolContactPhone);
+                    if (!wa && !tel) return null;
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {wa ? (
+                          <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                            <MessageCircle size={16} aria-hidden="true" /> Hubungi via WhatsApp
+                          </a>
+                        ) : null}
+                        {tel ? (
+                          <a href={tel} className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground">
+                            <Phone size={16} aria-hidden="true" /> Telepon sekolah
+                          </a>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
