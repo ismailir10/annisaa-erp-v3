@@ -97,6 +97,8 @@ vi.mock("@/lib/generated/prisma/client", () => {
 
 const txProxy = {
   studentGuardian: {
+    // changeGuardianLinkStatus re-reads isPrimary inside the transaction.
+    findUnique: vi.fn(async () => ({ isPrimary: state.guardian?.isPrimary ?? false })),
     findMany: vi.fn(async () => [] as unknown[]),
     count: vi.fn(async () => 1),
     updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {

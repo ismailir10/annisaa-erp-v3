@@ -19,6 +19,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     studentGuardian: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
@@ -171,6 +172,8 @@ describe("PATCH /api/guardians/[id] — status toggle keeps one active primary (
     vi.clearAllMocks();
     vi.mocked(getSession).mockResolvedValue(makeSession());
     vi.mocked(prisma.studentGuardian.findFirst).mockResolvedValue(guardian as never);
+    // changeGuardianLinkStatus re-reads isPrimary inside the transaction.
+    vi.mocked(prisma.studentGuardian.findUnique).mockResolvedValue({ isPrimary: guardian.isPrimary } as never);
     vi.mocked(prisma.$transaction).mockImplementation((async (cb: (tx: unknown) => unknown) => cb(prisma)) as never);
     vi.mocked(prisma.studentGuardian.update).mockImplementation((async ({ where, data }: { where: { id: string }; data: object }) => ({ id: where.id, ...data })) as never);
     return prisma;
