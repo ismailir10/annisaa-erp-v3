@@ -94,7 +94,7 @@ export function SalaryEditor({
   values: SalaryValueRow[];
   canEdit?: boolean;
   saving: boolean;
-  onSave: (payload: { componentDefId: string; value: number }[]) => void | Promise<void>;
+  onSave: (payload: { componentDefId: string; value: number | null }[]) => void | Promise<void>;
 }) {
   const initial = useMemo(() => buildSalaryRows(components, values), [components, values]);
   const [draft, setDraft] = useState<Record<string, number | null>>(() =>
@@ -123,11 +123,15 @@ export function SalaryEditor({
   const unsetCount = initial.length - setCount;
   const dirty = initial.some((r) => (draft[r.componentDefId] ?? null) !== r.value);
 
+  // A cleared component that had a stored value is sent as `value: null` so the
+  // API deletes it; dropping it from the payload left the old amount in payroll.
   const submit = () =>
     onSave(
-      initial
-        .filter((r) => draft[r.componentDefId] !== null && draft[r.componentDefId] !== undefined)
-        .map((r) => ({ componentDefId: r.componentDefId, value: Number(draft[r.componentDefId]) })),
+      initial.flatMap((r): { componentDefId: string; value: number | null }[] => {
+        const d = draft[r.componentDefId] ?? null;
+        if (d !== null) return [{ componentDefId: r.componentDefId, value: Number(d) }];
+        return r.value !== null ? [{ componentDefId: r.componentDefId, value: null }] : [];
+      }),
     );
 
   return (

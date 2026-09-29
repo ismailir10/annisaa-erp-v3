@@ -13,6 +13,7 @@ import type { SessionUser } from "@/lib/auth";
 import { getSystemRolePermissions } from "@/lib/permissions";
 
 const salaryUpsert = vi.fn();
+const salaryDeleteMany = vi.fn();
 const salaryFindMany = vi.fn();
 const auditCreate = vi.fn();
 const transaction = vi.fn();
@@ -21,6 +22,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     employeeSalaryValue: {
       upsert: salaryUpsert,
+      deleteMany: salaryDeleteMany,
       findMany: salaryFindMany,
     },
     auditLog: {
@@ -83,6 +85,7 @@ beforeEach(() => {
     cb({
       employeeSalaryValue: {
         upsert: salaryUpsert,
+        deleteMany: salaryDeleteMany,
         findMany: salaryFindMany,
       },
       auditLog: { create: auditCreate },
@@ -90,10 +93,28 @@ beforeEach(() => {
   );
   salaryFindMany.mockResolvedValue([]);
   salaryUpsert.mockResolvedValue({});
+  salaryDeleteMany.mockResolvedValue({ count: 1 });
   auditCreate.mockResolvedValue({});
 });
 
 describe("PUT /api/employees/[id]/salary — F-05", () => {
+  it("value: null deletes the stored row; 0 is a real value and is upserted", async () => {
+    await mockSession(makeSession("SUPER_ADMIN"));
+    const { PUT } = await import("../employees/[id]/salary/route");
+    const req = new Request("http://localhost/api/employees/emp-1/salary", {
+      method: "PUT",
+      body: JSON.stringify([
+        { componentDefId: "comp-1", value: null },
+        { componentDefId: "comp-2", value: 0 },
+      ]),
+    });
+    const res = await PUT(req as never, { params: Promise.resolve({ id: "emp-1" }) });
+    expect(res.status).toBe(200);
+    expect(salaryDeleteMany).toHaveBeenCalledWith({ where: { employeeId: "emp-1", componentDefId: "comp-1" } });
+    expect(salaryUpsert).toHaveBeenCalledTimes(1);
+    expect(salaryUpsert).toHaveBeenCalledWith(expect.objectContaining({ update: { value: 0 } }));
+  });
+
   it("403 when caller has only payroll.view (writes require payroll.edit)", async () => {
     await mockSession(viewOnlySession());
 

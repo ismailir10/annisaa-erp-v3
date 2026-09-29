@@ -157,7 +157,7 @@ export default function EmployeeDetailPage() {
     }
   });
 
-  async function handleSaveSalary(payload: { componentDefId: string; value: number }[]) {
+  async function handleSaveSalary(payload: { componentDefId: string; value: number | null }[]) {
     setSavingSalary(true);
     try {
       // The editor already coerces to numbers: Prisma serialises Decimal columns

@@ -74,6 +74,13 @@ export async function PUT(
     });
 
     for (const item of items) {
+      if (item.value === null) {
+        // Cleared in the editor: remove the row rather than store 0.
+        await tx.employeeSalaryValue.deleteMany({
+          where: { employeeId: id, componentDefId: item.componentDefId },
+        });
+        continue;
+      }
       await tx.employeeSalaryValue.upsert({
         where: {
           employeeId_componentDefId: {

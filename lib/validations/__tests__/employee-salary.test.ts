@@ -10,8 +10,13 @@ describe("updateEmployeeSalarySchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it("accepts an empty array (clearing all values)", () => {
+  it("accepts an empty array (a no-op: components not listed are untouched)", () => {
     const r = updateEmployeeSalarySchema.safeParse([]);
+    expect(r.success).toBe(true);
+  });
+
+  it("accepts value === null (remove the stored value)", () => {
+    const r = updateEmployeeSalarySchema.safeParse([{ componentDefId: "comp-1", value: null }]);
     expect(r.success).toBe(true);
   });
 
