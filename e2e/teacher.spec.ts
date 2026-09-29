@@ -150,14 +150,16 @@ test.describe("Teacher flows", () => {
     }
   });
 
-  // Daily session flow (academic-hierarchy-refactor Task 9). The Part-A seed
-  // change generates ClassSession rows across both semesters of AY 2025/2026.
-  // "Today" can land on a seeded holiday (reconcileSessions correctly skips
-  // those — e.g. 2026-05-15 is "Cuti Bersama"), so this test discovers a
-  // session on ANY recent working day the teacher actually teaches — via the
-  // dated /api/teacher/sessions param — then drives the roster page (which is
-  // date-agnostic): set a status, Tap In, Tap Out, set a pickup relation,
-  // Simpan, then reload and assert the entered data persisted.
+  // Daily session flow (academic-hierarchy-refactor Task 9). The seed is
+  // date-relative (prisma/seed.ts): it generates ClassSession rows across both
+  // semesters of the ACTIVE academic year and leaves the most recent school day
+  // partly unmarked, so a fresh row is always available. "Today" can still be a
+  // weekend or a seeded holiday (reconcileSessions correctly skips those), so
+  // this test discovers a session on ANY recent working day the teacher
+  // actually teaches — via the dated /api/teacher/sessions param — then drives
+  // the roster page (which is date-agnostic): set a status, Tap In, Tap Out,
+  // set a pickup relation, Simpan, then reload and assert the entered data
+  // persisted.
   test("teacher daily session flow: record roster attendance and verify it persists", async ({ page }) => {
     // Scan back over the last ~21 days for a date on which this teacher has a
     // session with enrolled students. The dated query param mirrors the
@@ -231,8 +233,9 @@ test.describe("Teacher flows", () => {
     await targetRow.getByRole("combobox").click();
     await page.getByRole("option", { name: "Orang tua" }).click();
 
-    // Save — success toast confirms the bulk upsert landed.
-    await page.getByRole("button", { name: /^Simpan$/ }).click();
+    // Save — the sticky footer button reads "Simpan absensi · N siswa"; the
+    // success toast confirms the bulk upsert landed.
+    await page.getByRole("button", { name: /^Simpan absensi/ }).click();
     await expect(page.getByText(/Absensi tersimpan/)).toBeVisible({ timeout: 15_000 });
 
     // Reload — re-locate the SAME student row by name; the persisted check-in
@@ -258,15 +261,24 @@ test.describe("Teacher flows", () => {
     if (!assignmentsRes.ok()) {
       test.skip(true, "demo seed has no /api/teaching-assignments/my endpoint or auth missing");
     }
-    const assignments = (await assignmentsRes.json()) as { data?: Array<{ classSectionId: string }> };
-    const classId = assignments.data?.[0]?.classSectionId;
+    // The endpoint returns a bare array of assignments (not a { data } envelope).
+    const assignmentsJson = (await assignmentsRes.json()) as
+      | Array<{ classSectionId: string }>
+      | { data?: Array<{ classSectionId: string }> };
+    const assignments = Array.isArray(assignmentsJson) ? assignmentsJson : assignmentsJson.data ?? [];
+    const classId = assignments[0]?.classSectionId;
     if (!classId) {
       test.skip(true, "teacher has no assigned classes in demo seed");
     }
     const today = new Date().toISOString().slice(0, 10);
     await page.goto(`/teacher/student-journal/entry?classId=${classId}&date=${today}`);
     const chevron = page.locator('[data-testid="open-week-view"]').first();
-    const isVisible = await chevron.isVisible({ timeout: 5_000 }).catch(() => false);
+    // NB: `isVisible()` ignores its timeout option and answers instantly — wait for
+    // the roster to render instead, so a slow first paint is not read as "no students".
+    const isVisible = await chevron
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
     if (!isVisible) {
       test.skip(true, "class has no enrolled students in demo seed");
     }
