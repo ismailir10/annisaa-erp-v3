@@ -7,7 +7,7 @@ description: Ship a completed cycle via PR. Classifies the actual diff to select
 
 You are shipping a completed cycle. `/build` has finished all tasks and filled `## Ship Notes`. This command opens or continues a PR, selects the verification route from the actual diff, and merges once that route and all required checks are green. No direct pushes to `staging` or `main`, ever — the `pre-push` hook rejects them.
 
-> **Merge gate:** GitHub branch protection enforces PR + four required checks. You may self-merge when the selected verification route is clean and all four checks are green — never on red or pending. Auth-impacting or uncertain changes pass local verification first, merge, then get a signed-in check on the **staging deployment**; until that check passes the merged PR carries `needs-staging-verify` and `/ship --to-main` refuses to promote.
+> **Merge gate:** GitHub branch protection enforces PR + four required checks. You may self-merge when the selected verification route is clean and all four checks are green — never on red or pending. Auth-impacting or uncertain changes pass local verification first, merge, then get a signed-in check on the **staging deployment**. The PR is labelled `needs-staging-verify` *before* it merges and keeps the label until that check passes, so there is no moment when an unverified auth change sits on staging unlabelled; `/ship --to-main` refuses to promote while any merged PR carries it.
 
 > **One staging deployment, no PR previews.** `vercel.json`'s `ignoreCommand` (`scripts/vercel-ignore.sh`) builds only `staging` and `main`; every other branch is skipped before it spends build minutes. Never rely on a per-PR Vercel preview URL — there is none. Pre-merge evidence is the four CI checks plus local verification.
 
@@ -309,7 +309,7 @@ When the selected route passes, set `$VERIFIED_SHA` to the exact code head exerc
 
 **Signed-in staging (auth-impacting, post-merge half).** There are no PR previews (see the note at the top), so the signed-in check runs once, on the shared staging deployment, right after Step 5 merges the PR:
 
-1. Add the `needs-staging-verify` label to the merged PR, and record in the cycle doc's Ship Notes (before merge) which signed-in flows staging must pass.
+1. **Before** Step 5 merges the PR, add the `needs-staging-verify` label to it and record in the cycle doc's Ship Notes which signed-in flows staging must pass. Labelling after the merge would leave a window in which a concurrent `/ship --to-main` sees no label and promotes the unverified change.
 2. Steps 3a–3e below, against the staging deployment of the merge commit. This needs browser access to the user's signed-in profile; check available tools directly, never infer capability from `model=`.
 3. **Pass** → post one `[staging-verify]` comment on the merged PR (merge SHA, deployment URL, flows, blockers=0, minors) and remove `needs-staging-verify`.
 4. **Blockers** → staging is now broken for real users of staging. Fix forward immediately with a new `fix(...)` cycle PR (or a revert PR when the fix is not obvious); keep the label on the original PR until a staging check passes.
@@ -565,7 +565,7 @@ Reference for the signed-in staging step. When the cycle's flows need fixtures, 
 
 - **No direct pushes to `staging` or `main`, ever.** The `pre-push` hook rejects them locally; GitHub branch protection is the server-side boundary. All shipping is PR-based.
 - **Never bypass hooks** (`--no-verify`).
-- **Merge when the selected verification route and CI are green.** Watch `gh pr checks <number> --watch`; merge only after the route required by the actual diff is clean and all four required checks pass. Never merge on red or pending. Auth-impacting PRs get `needs-staging-verify` on merge until the signed-in staging check passes. Feature PRs use `--squash --delete-branch`; staging promotions use `--merge` and are user-initiated only.
+- **Merge when the selected verification route and CI are green.** Watch `gh pr checks <number> --watch`; merge only after the route required by the actual diff is clean and all four required checks pass. Never merge on red or pending. Auth-impacting PRs are labelled `needs-staging-verify` before they merge and keep it until the signed-in staging check passes. Feature PRs use `--squash --delete-branch`; staging promotions use `--merge` and are user-initiated only.
 - **Promotions merge, feature PRs squash.** `feat/* → staging` uses `--squash --delete-branch`. `staging → main` (and any reconcile PR) uses **`--merge`**, with no `--delete-branch`. Squashing a promotion rewrites staging's commits into a single new SHA on main, so staging stops being an ancestor of main and the branches diverge for good — PR #381 did exactly that and the next promotion (#406) came up CONFLICTING and had to be closed.
 - **Keep server-side enforcement aligned.** `staging` and `main` must require PRs and these checks: `Docs sync`, `Lint, Typecheck & Test`, `Build`, `Playwright E2E`. Local hooks are helpful, but GitHub protection is the real boundary.
 - **Single source of truth.** Don't update README.md or CLAUDE.md in `/ship` — that's `/build`'s job via the cycle doc. `/ship` only moves bits, it doesn't author docs.

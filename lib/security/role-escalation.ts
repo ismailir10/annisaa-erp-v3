@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSystemRolePermissions } from "@/lib/permissions";
+import { getSystemRolePermissions, hasPermission } from "@/lib/permissions";
 
 /**
  * Privilege-escalation guards for role / user management (HR-1).
@@ -44,4 +44,23 @@ export function escalationForbidden(missing: string[]): NextResponse {
     },
     { status: 403 },
   );
+}
+
+/**
+ * May `actor` flip the login status (ACTIVE <-> INACTIVE) of a user with
+ * `targetRole` as a side effect of an employee deactivate / restore?
+ *
+ * Same authority as `PUT /api/users/[id]`: a SUPER_ADMIN login is only
+ * touched by a SUPER_ADMIN, a SCHOOL_ADMIN login only by an actor holding
+ * `users.edit`. Everyone else's login (teachers, staff, custom roles) follows
+ * the employee, which is the HR-4 case. Without this, `employees.edit` alone
+ * was enough to disable or revive an admin login.
+ */
+export function mayToggleLinkedLogin(
+  actor: { role: string; permissions?: string[] | null },
+  targetRole: string,
+): boolean {
+  if (targetRole === "SUPER_ADMIN") return actor.role === "SUPER_ADMIN";
+  if (targetRole === "SCHOOL_ADMIN") return hasPermission(actor, "users.edit");
+  return true;
 }

@@ -44,6 +44,24 @@ describe("<SalaryEditor>", () => {
     expect(onSave).toHaveBeenCalledWith([{ componentDefId: "c1", value: 3500000 }]);
   });
 
+  it("clearing a saved component sends value: null so it is removed, not silently kept", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const def = { code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", sortOrder: 1 };
+    render(
+      <SalaryEditor
+        components={[gapok, tunj]}
+        values={[{ componentDefId: "c1", value: "5000000.00", componentDef: def }]}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    await user.clear(screen.getByRole("textbox", { name: "Nilai Gaji Pokok" }));
+    await user.click(screen.getByRole("button", { name: /Simpan Semua Nilai/ }));
+    // c1 had a stored row -> explicit null (delete); c2 never had one -> omitted.
+    expect(onSave).toHaveBeenCalledWith([{ componentDefId: "c1", value: null }]);
+  });
+
   it("links to Komponen Gaji instead of the old dead-end hint when nothing is enabled", () => {
     render(<SalaryEditor components={[]} values={[]} saving={false} onSave={vi.fn()} />);
     expect(screen.getByText("Belum ada komponen gaji aktif")).toBeInTheDocument();

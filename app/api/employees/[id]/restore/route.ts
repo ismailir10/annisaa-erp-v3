@@ -8,6 +8,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
 import { employeeStatusReasonSchema } from "@/lib/validations/employee";
 import { recordAudit } from "@/lib/audit";
+import { mayToggleLinkedLogin } from "@/lib/security/role-escalation";
 
 /**
  * F-13: dedicated employee restore (re-activation) endpoint.
@@ -23,7 +24,9 @@ import { recordAudit } from "@/lib/audit";
  *   - Idempotent: restoring an already-ACTIVE employee is a 200 no-op.
  *   - Optional `{reason: string}` carried into audit metadata.
  *   - Re-enables login (HR-4): the linked `User` goes back to ACTIVE, mirroring
- *     what `/deactivate` revoked.
+ *     what `/deactivate` revoked — but only logins the actor could re-enable on
+ *     the users page (`mayToggleLinkedLogin`). An admin login disabled there
+ *     stays disabled for someone holding only `employees.edit`.
  */
 export async function POST(
   req: NextRequest,
@@ -59,10 +62,11 @@ export async function POST(
   const restoredEmails: string[] = [];
   const updated = await prisma.$transaction(async (tx) => {
     const restoreLogin = async () => {
-      const linked = await tx.user.findMany({
+      const found = await tx.user.findMany({
         where: { employeeId: id, tenantId: session.tenantId, status: { not: "ACTIVE" } },
-        select: { id: true, email: true },
+        select: { id: true, email: true, role: true },
       });
+      const linked = found.filter((u) => mayToggleLinkedLogin(session, u.role));
       if (linked.length === 0) return;
       await tx.user.updateMany({
         where: { id: { in: linked.map((u) => u.id) } },

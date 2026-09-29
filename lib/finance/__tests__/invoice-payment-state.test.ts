@@ -79,3 +79,34 @@ describe("recomputeInvoiceFromPayments", () => {
     });
   });
 });
+
+describe("paidAt is the settlement date, not the last recompute", () => {
+  const SETTLED = new Date("2026-09-05T03:00:00.000Z");
+
+  it("a PAID invoice that stays PAID keeps its original paidAt", () => {
+    const r = deriveInvoicePaymentState({ ...base, status: "PAID", paidAt: SETTLED }, D(1_000_000), "2026-09-15");
+    expect(r).toEqual({ status: "PAID", paidAt: SETTLED });
+  });
+
+  it("a PAID invoice with no stored paidAt falls back to now", () => {
+    const r = deriveInvoicePaymentState({ ...base, status: "PAID", paidAt: null }, D(1_000_000), "2026-09-15");
+    expect(r.paidAt).toBeInstanceOf(Date);
+  });
+
+  it("an invoice crossing into PAID gets a fresh paidAt, never a stale one", () => {
+    const r = deriveInvoicePaymentState({ ...base, status: "PARTIALLY_PAID", paidAt: SETTLED }, D(1_000_000), "2026-09-20");
+    expect(r.status).toBe("PAID");
+    expect(r.paidAt).not.toBe(SETTLED);
+  });
+
+  it("reversing a manual payment on an overpaid invoice that stays covered keeps paidAt", async () => {
+    const findMany = vi.fn().mockResolvedValue([{ amount: D(1_100_000) }]); // gateway overpayment remains
+    const update = vi.fn();
+    const tx = { payment: { findMany }, invoice: { update } } as never;
+    await recomputeInvoiceFromPayments(tx, { ...base, status: "PAID", paidAt: SETTLED, id: "inv-1" }, "2026-09-15");
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { totalPaid: expect.anything(), status: "PAID", paidAt: SETTLED },
+    });
+  });
+});

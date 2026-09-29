@@ -24,7 +24,7 @@ The skills are the source of truth for procedure. Below are only the rules that 
 
 **Non-negotiable ship rules:**
 - **No direct pushes to `staging` or `main`, ever.** Use `/ship`.
-- Self-merge only when the verification route selected from the actual diff is clean and all four required checks are green — never on red or pending. App changes use local demo-auth browser verification with disposable local Postgres. Auth-impacting or uncertain changes also get a signed-in check on the **staging deployment** after merge; the merged PR carries `needs-staging-verify` until it passes, and `/ship --to-main` refuses to promote while any does.
+- Self-merge only when the verification route selected from the actual diff is clean and all four required checks are green — never on red or pending. App changes use local demo-auth browser verification with disposable local Postgres. Auth-impacting or uncertain changes also get a signed-in check on the **staging deployment** after merge; the PR is labelled `needs-staging-verify` before it merges and keeps it until that check passes, and `/ship --to-main` refuses to promote while any does.
 - **Vercel builds only `staging` and `main`.** `vercel.json` `ignoreCommand` → `scripts/vercel-ignore.sh` skips every other branch, so PRs get no preview deployment. This keeps the project inside the free tier; do not re-enable per-PR previews without the user's say-so.
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
 - Playwright status must be recorded in the cycle doc's Verification before `/ship`: a local pass, or an explicit deferral to the required CI `Playwright E2E` check.
@@ -292,7 +292,7 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 | `components/ui/*.tsx` | 69 |
 | `e2e/*.spec.ts` | 35 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 63 / 233 |
+| `docs/cycles` active / archived | 64 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.
