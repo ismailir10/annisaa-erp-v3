@@ -50,6 +50,14 @@ export default function TeacherAttendancePage() {
   const abortRef = useRef<AbortController | null>(null);
 
   const [leaveSheetOpen, setLeaveSheetOpen] = useState(false);
+  // The home's "Keputusan cuti" rows land here with ?cuti=1: open the sheet the
+  // decision lives in instead of leaving the guru to find the card (X-21).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("cuti") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLeaveSheetOpen(true);
+    }
+  }, []);
 
   // Prefetch leave data on page mount so the sheet opens with instant content.
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
