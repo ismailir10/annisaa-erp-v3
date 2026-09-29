@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
+import { fieldErrorResponse } from "@/lib/api/field-errors";
 
 export async function GET(
   _req: NextRequest,
@@ -63,6 +64,22 @@ export async function PUT(
   const result = await validateBody(updateEmployeeSchema, rawBody);
   if (result.error) return result.error;
   const body = result.data;
+
+  // HR-5: another Employee in the tenant must not share this email
+  // (case-insensitive). Skipped when the address is unchanged so a legacy
+  // duplicate row can still be edited for other fields.
+  const nextEmail = body.email?.trim();
+  if (nextEmail && nextEmail.toLowerCase() !== existing.email.trim().toLowerCase()) {
+    const taken = await prisma.employee.findFirst({
+      where: {
+        tenantId: session.tenantId,
+        id: { not: id },
+        email: { equals: nextEmail, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (taken) return fieldErrorResponse("email", "Email sudah dipakai karyawan lain");
+  }
 
   // Block re-assignment to INACTIVE/cross-tenant campus — see POST guard.
   if (body.campusId) {

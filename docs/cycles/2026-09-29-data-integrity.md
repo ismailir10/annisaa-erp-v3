@@ -8,7 +8,7 @@ Root cause of the first family: Zod 4.3.x applies `.default()` inside `.partial(
 ## Spec
 - [x] Update schemas derived from create schemas never introduce default keys (shared helper `partialWithoutDefaults` in `lib/validations/zod-helpers.ts`); a sweep test covers every exported `update*Schema` / `*UpdateSchema`.
 - [x] Status-only PUT on an admission keeps `source`; status-only PUT on journal category/indicator keeps `order`; partial employee PUT only writes keys present.
-- [ ] Employee create/update rejects an email another Employee in the tenant already has (case-insensitive) with 409 + field error `email`; create never modifies an existing User linked to another employee or holding a different role (409 explaining).
+- [x] Employee create/update rejects an email another Employee in the tenant already has (case-insensitive) with 409 + field error `email`; create never modifies an existing User linked to another employee or holding a different role (409 explaining).
 - [ ] Admission convert with `mergeWithDetected` links the new Student to `detectedParentId` (tenant-checked); falls back to email upsert only when there is no detected parent.
 - [ ] Re-enrolling a student with a WITHDRAWN enrollment row in the same class succeeds (row reactivated) without a migration.
 - [ ] Report-card attendance: each count and their sum are non-negative and <= schoolDays (server schema refine + admin raport form field error).
@@ -24,7 +24,7 @@ Root cause of the first family: Zod 4.3.x applies `.default()` inside `.partial(
 
 ## Tasks
 - [x] **T1 — Defaults-free update schemas.** Helper, admission/journal/employee/student schemas, employee PUT writes only present keys, vitest (schemas + routes).
-- [ ] **T2 — HR-5 employee email uniqueness.** POST/PUT guards, 409s, vitest.
+- [x] **T2 — HR-5 employee email uniqueness.** POST/PUT guards, 409s, vitest.
 - [ ] **T3 — X-1 convert merges into detected parent.** Route + vitest.
 - [ ] **T4 — CORE-2 re-enroll WITHDRAWN rows.** Route + vitest.
 - [ ] **T5 — ACAD-1 raport attendance bounds.** Schema refine + form field error + vitest.
@@ -33,11 +33,12 @@ Root cause of the first family: Zod 4.3.x applies `.default()` inside `.partial(
 
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5, dirty-work=none (sonnet is the harness tier; no cheaper tier used). All tasks sequential and inline: the tasks share validation helpers and each needs the previous task's route/test patterns; the brief runs each cycle in a single build agent.
-
 - T1: new `partialWithoutDefaults(schema)` in `lib/validations/zod-helpers.ts` (strips top-level `ZodDefault` then `.partial()`); used by `updateAdmissionSchema`, `updateCategorySchema`, `updateIndicatorSchema`, `updateEmployeeSchema`, `employeeEditFormSchema` and `updateStudentSchema`. Grepped all of `lib/validations/**` and `app/api/**` for `.default(` + `.partial()`: those four files were the only `.partial()` users; every other update schema (program, class, fee-component, guardian, curriculum ...) is a hand-written optional object with no defaults. `PUT /api/employees/[id]` now passes `undefined` (Prisma skips) for omitted formalName/noHp/bank*/bpjsEnrolled instead of `|| null` / `?? false`; explicit blank/null still clears. Tests: `lib/validations/__tests__/partial-update-defaults.test.ts` (helper, per-schema, and a glob sweep of every `update*Schema`), `app/api/__tests__/update-routes-partial-body.test.ts` (admission/category/indicator/employee PUT).
 - Env note: the worktree's `node_modules` symlink makes Turbopack panic ("points out of the filesystem root"), so it was replaced with a real copy (untracked, gitignored).
+- T2: new `lib/api/field-errors.ts` (`fieldErrorResponse(field, message, status=409)` in the `validateBody` envelope so `applyServerErrors` lands it on the field; `isUniqueViolation` for P2002). `POST /api/employees` now checks, inside the existing tenant advisory lock, for (a) another Employee with the email (case-insensitive) and (b) an existing User with the email that is linked to another employee or holds a different role -> 409 on `email`; an unlinked same-role User is only linked (`employeeId`), never rewritten (the `user.upsert` that rewrote role/name is gone). `PUT /api/employees/[id]` rejects an email another employee holds (skipped when unchanged so legacy duplicate rows stay editable). Tests: `app/api/__tests__/employees-email-uniqueness.test.ts`.
 
 ## Verification
 - T1: schema tests fail on the pre-fix schemas (10 failures) and pass after. `npm run build` exit 0; `npx vitest run` 424 files passed / 2 skipped, 4005 tests passed.
+- T2: tsc clean; `npm run build` exit 0; `npx vitest run` 425 files passed / 2 skipped, 4013 tests passed.
 
 ## Ship Notes
