@@ -29,6 +29,7 @@ import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
 import { sendJson } from "@/lib/api/send-json";
 import { feeComponentFormSchema, type CreateFeeComponentInput } from "@/lib/validations/fee-component";
+import { MAX_FEE_AMOUNT } from "@/lib/validations/fee-structure";
 
 type FeeComponent = { id: string; code: string; label: string; category: string; isRecurring: boolean; isEnabled: boolean; sortOrder: number };
 type Program = { id: string; code: string; name: string; status: string };
@@ -194,14 +195,14 @@ export default function FeesPage() {
       await sendJson(
         editingFee ? `/api/fee-components/${editingFee.id}` : "/api/fee-components",
         { method: editingFee ? "PUT" : "POST", body: values },
-        "Gagal",
+        "Gagal menyimpan komponen biaya",
       );
       toast.success(editingFee ? "Komponen diperbarui" : "Komponen biaya ditambahkan");
       setComponentDialog(false);
       setEditingFee(null);
       fetchAll();
     } catch (err) {
-      applyServerErrors(componentForm, err, "Gagal");
+      applyServerErrors(componentForm, err, "Gagal menyimpan komponen biaya");
     }
   });
 
@@ -263,6 +264,13 @@ export default function FeesPage() {
   useEffect(() => { fetchStructure(); }, [selectedProgram, selectedYear]);
 
   async function saveStructure() {
+    // FIN-5: catch an oversized tarif here with the component named, instead
+    // of a server round trip that used to end in a bare "Gagal menyimpan".
+    const tooBig = components.find((c) => c.isEnabled && (structureAmounts[c.id] ?? 0) > MAX_FEE_AMOUNT);
+    if (tooBig) {
+      toast.error(`Tarif ${tooBig.label} maksimal ${formatRupiah(MAX_FEE_AMOUNT)}`);
+      return;
+    }
     setStructureSaving(true);
     // Unchanged payload shape — inactive components are read-only in the UI
     // (see `storedIds` below) and are deliberately never sent here,
@@ -270,7 +278,11 @@ export default function FeesPage() {
     const fees = components.filter(c => c.isEnabled).map(c => ({ feeComponentId: c.id, amount: structureAmounts[c.id] ?? 0 }));
     const res = await fetch("/api/fee-structure", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ programId: selectedProgram, academicYearId: selectedYear, fees }) });
     if (res.ok) { toast.success("Struktur biaya disimpan"); fetchStructure(); }
-    else toast.error("Gagal menyimpan");
+    else {
+      // Show the server's reason (e.g. nominal too large) rather than a bare failure.
+      const d = await res.json().catch(() => ({}));
+      toast.error(typeof d.error === "string" && d.error ? d.error : "Gagal menyimpan struktur biaya");
+    }
     setStructureSaving(false);
   }
 
@@ -559,7 +571,7 @@ export default function FeesPage() {
               label="Kode"
               required
               id="fee-code"
-              description="Pengenal unik, permanen setelah dibuat — dipakai untuk impor dan seed data, bukan yang tampil di tagihan (itu memakai Label)."
+              description="Pengenal unik, permanen setelah dibuat — dipakai untuk impor dan seed data, bukan yang tampil di tagihan (itu memakai Label). Huruf, angka, _ atau -, tanpa spasi."
               render={({ field, controlProps }) => (
                 <Input {...field} {...controlProps} disabled={!!editingFee} placeholder="spp" />
               )}

@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const {
   admissionFindUnique,
   parentFindUnique,
+  parentFindFirst,
   studentCreate,
   parentUpsert,
   parentCreate,
@@ -14,6 +15,8 @@ const {
   // T10: pre-tx email-conflict gate calls prisma.parent.findUnique outside
   // the transaction.
   parentFindUnique: vi.fn(),
+  // X-1: detected-parent lookup (tenant-scoped findFirst) outside the tx.
+  parentFindFirst: vi.fn(),
   studentCreate: vi.fn(),
   parentUpsert: vi.fn(),
   parentCreate: vi.fn(),
@@ -24,7 +27,7 @@ const {
 vi.mock("@/lib/db", () => ({
   prisma: {
     admission: { findUnique: admissionFindUnique },
-    parent: { findUnique: parentFindUnique },
+    parent: { findUnique: parentFindUnique, findFirst: parentFindFirst },
     $transaction: vi.fn((fn: (tx: Record<string, unknown>) => unknown) =>
       fn({
         student: { create: studentCreate },
@@ -78,6 +81,7 @@ function makeAdmission(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   parentFindUnique.mockResolvedValue(null);
+  parentFindFirst.mockResolvedValue(null);
   studentCreate.mockResolvedValue({ id: "stu-1" });
   parentUpsert.mockResolvedValue({ id: "par-1" });
   parentCreate.mockResolvedValue({ id: "par-1" });
@@ -268,6 +272,73 @@ describe("POST /api/admissions/[id]/convert — sibling-detect + email-conflict 
     const res = await POST(postReq({ mergeWithDetected: false }), { params: Promise.resolve({ id: "adm-1" }) });
     expect(res.status).toBe(200);
     expect(parentFindUnique).not.toHaveBeenCalled();
+    expect(parentCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// X-1 — "Gabungkan dengan wali" must link to admission.detectedParentId
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/admissions/[id]/convert — merge into detected parent (X-1)", () => {
+  const params = { params: Promise.resolve({ id: "adm-1" }) };
+
+  it("links the new Student to detectedParentId instead of creating/upserting a Parent (emails differ)", async () => {
+    admissionFindUnique.mockResolvedValue(
+      makeAdmission({ detectedParentId: "par-detected", parentEmail: "other@test.com" }),
+    );
+    parentFindFirst.mockResolvedValue({ id: "par-detected" });
+
+    const res = await POST(postReq({ mergeWithDetected: true }), params);
+    expect(res.status).toBe(200);
+    expect(parentFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "par-detected", tenantId: "t-1" } }),
+    );
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(studentGuardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ studentId: "stu-1", parentId: "par-detected", isPrimary: true }),
+    });
+  });
+
+  it("links to the detected parent when the admission has no email at all", async () => {
+    admissionFindUnique.mockResolvedValue(
+      makeAdmission({ detectedParentId: "par-detected", parentEmail: null }),
+    );
+    parentFindFirst.mockResolvedValue({ id: "par-detected" });
+
+    await POST(postReq({ mergeWithDetected: true }), params);
+    expect(parentCreate).not.toHaveBeenCalled();
+    expect(studentGuardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ parentId: "par-detected" }),
+    });
+  });
+
+  it("default (no body) also merges into the detected parent", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ detectedParentId: "par-detected" }));
+    parentFindFirst.mockResolvedValue({ id: "par-detected" });
+    const req = new NextRequest("http://localhost/api/admissions/adm-1/convert", { method: "POST" });
+    await POST(req, params);
+    expect(parentUpsert).not.toHaveBeenCalled();
+    expect(studentGuardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ parentId: "par-detected" }),
+    });
+  });
+
+  it("stale / cross-tenant detectedParentId (lookup misses) falls back to the email upsert", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ detectedParentId: "par-gone" }));
+    parentFindFirst.mockResolvedValue(null);
+    await POST(postReq({ mergeWithDetected: true }), params);
+    expect(parentUpsert).toHaveBeenCalledTimes(1);
+    expect(studentGuardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ parentId: "par-1" }),
+    });
+  });
+
+  it("mergeWithDetected=false ignores detectedParentId and creates a new Parent", async () => {
+    admissionFindUnique.mockResolvedValue(makeAdmission({ detectedParentId: "par-detected" }));
+    await POST(postReq({ mergeWithDetected: false }), params);
+    expect(parentFindFirst).not.toHaveBeenCalled();
     expect(parentCreate).toHaveBeenCalledTimes(1);
   });
 });

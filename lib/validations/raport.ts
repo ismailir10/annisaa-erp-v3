@@ -66,29 +66,76 @@ export const termUpdateSchema = z
 
 // ── Report card entry upsert ─────────────────────────────────
 
-const dayCount = z.number().int().min(0).max(366);
+const dayCount = z
+  .number({ message: "Harus berupa angka" })
+  .int("Harus bilangan bulat")
+  .min(0, "Tidak boleh negatif")
+  .max(366, "Maksimal 366 hari");
 
-export const raportUpsertSchema = z.object({
-  // Partial maps keyed by section (zod v4 `record` with an enum key is
-  // exhaustive — `partialRecord` allows a subset). Bucketed sections carry a
-  // level; any section may carry a narrative. Closing sections never carry a level.
-  sectionLevels: z.partialRecord(bucketedSectionSchema, achievementLevelSchema),
-  sectionNarratives: z.partialRecord(reportSectionSchema, z.string().max(10_000)),
-
+// Attendance counts — shared by the PUT schema and the admin editor so both
+// reject the same impossible values (ACAD-1: sickDays=99 with 4 school days
+// was accepted and published to parents). Each of Sakit / Izin / Alpa must fit
+// inside Hari sekolah, and so must their sum.
+const attendanceShape = {
   permittedAbsenceDays: dayCount,
   sickDays: dayCount,
   unexcusedAbsenceDays: dayCount,
   totalSchoolDays: dayCount,
+};
 
-  parentMeetingAttendance: z
-    .record(z.string().max(50), z.string().max(200).nullable())
-    .optional()
-    .nullable(),
-  memorizationNotes: z.string().max(10_000).optional().nullable(),
-  homeroomTeacherId: z.string().optional().nullable(),
+type AttendanceCounts = { [K in keyof typeof attendanceShape]: number };
 
-  heightCm: z.number().positive().max(300).optional().nullable(),
-  weightKg: z.number().positive().max(200).optional().nullable(),
-});
+const ATTENDANCE_LABELS = {
+  sickDays: "Sakit",
+  permittedAbsenceDays: "Izin",
+  unexcusedAbsenceDays: "Alpa",
+} as const;
+
+function refineAttendanceCounts(v: AttendanceCounts, ctx: z.RefinementCtx) {
+  let anyOver = false;
+  for (const key of Object.keys(ATTENDANCE_LABELS) as (keyof typeof ATTENDANCE_LABELS)[]) {
+    if (v[key] > v.totalSchoolDays) {
+      anyOver = true;
+      ctx.addIssue({
+        code: "custom",
+        path: [key],
+        message: `${ATTENDANCE_LABELS[key]} (${v[key]}) tidak boleh melebihi hari sekolah (${v.totalSchoolDays})`,
+      });
+    }
+  }
+  const sum = v.sickDays + v.permittedAbsenceDays + v.unexcusedAbsenceDays;
+  if (!anyOver && sum > v.totalSchoolDays) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["totalSchoolDays"],
+      message: `Jumlah sakit, izin, dan alpa (${sum}) melebihi hari sekolah (${v.totalSchoolDays})`,
+    });
+  }
+}
+
+/** Attendance block on its own — what the admin editor validates before saving. */
+export const raportAttendanceSchema = z.object(attendanceShape).superRefine(refineAttendanceCounts);
+
+export const raportUpsertSchema = z
+  .object({
+    // Partial maps keyed by section (zod v4 `record` with an enum key is
+    // exhaustive — `partialRecord` allows a subset). Bucketed sections carry a
+    // level; any section may carry a narrative. Closing sections never carry a level.
+    sectionLevels: z.partialRecord(bucketedSectionSchema, achievementLevelSchema),
+    sectionNarratives: z.partialRecord(reportSectionSchema, z.string().max(10_000)),
+
+    ...attendanceShape,
+
+    parentMeetingAttendance: z
+      .record(z.string().max(50), z.string().max(200).nullable())
+      .optional()
+      .nullable(),
+    memorizationNotes: z.string().max(10_000).optional().nullable(),
+    homeroomTeacherId: z.string().optional().nullable(),
+
+    heightCm: z.number().positive().max(300).optional().nullable(),
+    weightKg: z.number().positive().max(200).optional().nullable(),
+  })
+  .superRefine(refineAttendanceCounts);
 
 export type RaportUpsertInput = z.infer<typeof raportUpsertSchema>;

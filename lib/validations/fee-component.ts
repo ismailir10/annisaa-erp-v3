@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { componentCodeSchema } from "./component-code";
 
 // fee-components had no Zod schema (CRUD correctness audit, 2026-06-20 cycle,
 // finding R3) — the POST route hand-checked `code`/`label` and let `category`
@@ -16,14 +17,10 @@ export const FEE_COMPONENT_CATEGORIES = [
 const categorySchema = z.enum(FEE_COMPONENT_CATEGORIES);
 
 export const createFeeComponentSchema = z.object({
-  // Lowercased here so the (tenantId, code) unique key is case-insensitive in
-  // practice — the route previously did this inline.
-  code: z
-    .string()
-    .trim()
-    .min(1, "Kode wajib diisi")
-    .max(64)
-    .transform((s) => s.toLowerCase()),
+  // Slug rule + lowercasing live in `component-code.ts` (shared with salary
+  // components) so the (tenantId, code) unique key is case-insensitive in
+  // practice and codes can't carry spaces/punctuation (FIN-4).
+  code: componentCodeSchema,
   label: z.string().trim().min(1, "Label wajib diisi").max(120),
   category: categorySchema.default("TUITION"),
   isRecurring: z.boolean().default(true),

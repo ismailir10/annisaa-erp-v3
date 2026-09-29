@@ -95,7 +95,7 @@ describe("SalaryComponentsPage — Tambah Komponen dialog", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Tambah Komponen" }));
 
-    expect(await within(dialog).findByText("Code wajib diisi")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Kode wajib diisi")).toBeInTheDocument();
     expect(within(dialog).getByText("Label wajib diisi")).toBeInTheDocument();
 
     expect(

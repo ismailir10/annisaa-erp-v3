@@ -71,6 +71,9 @@ const manualInvoiceBaseSchema = z.object({
     .min(1, "Tambahkan minimal satu komponen"),
 });
 
+/** Message for the array-level "same component twice" rule (also read by the dialog to clear it). */
+export const DUPLICATE_LINES_MESSAGE = "Komponen biaya tidak boleh duplikat";
+
 function rejectDuplicateFeeComponents(
   data: { lines: { feeComponentId: string }[] },
   ctx: z.RefinementCtx
@@ -78,7 +81,7 @@ function rejectDuplicateFeeComponents(
   if (new Set(data.lines.map((l) => l.feeComponentId)).size !== data.lines.length) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Komponen biaya tidak boleh duplikat",
+      message: DUPLICATE_LINES_MESSAGE,
       path: ["lines"],
     });
   }

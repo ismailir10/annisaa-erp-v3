@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth-guards";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { updateEmployeeSchema } from "@/lib/validations/employee";
+import { fieldErrorResponse } from "@/lib/api/field-errors";
 
 export async function GET(
   _req: NextRequest,
@@ -64,6 +65,22 @@ export async function PUT(
   if (result.error) return result.error;
   const body = result.data;
 
+  // HR-5: another Employee in the tenant must not share this email
+  // (case-insensitive). Skipped when the address is unchanged so a legacy
+  // duplicate row can still be edited for other fields.
+  const nextEmail = body.email?.trim();
+  if (nextEmail && nextEmail.toLowerCase() !== existing.email.trim().toLowerCase()) {
+    const taken = await prisma.employee.findFirst({
+      where: {
+        tenantId: session.tenantId,
+        id: { not: id },
+        email: { equals: nextEmail, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (taken) return fieldErrorResponse("email", "Email sudah dipakai karyawan lain");
+  }
+
   // Block re-assignment to INACTIVE/cross-tenant campus — see POST guard.
   if (body.campusId) {
     const activeCampus = await prisma.campus.findFirst({
@@ -78,19 +95,26 @@ export async function PUT(
     }
   }
 
+  // Only keys present in the parsed body are written. `undefined` is skipped
+  // by Prisma, so a partial PUT such as `{ email }` leaves formalName/noHp/
+  // bank*/bpjsEnrolled alone (HR-7); an explicit `null` or blank string still
+  // clears a nullable column.
+  const nullableTrim = (v: string | null | undefined) =>
+    v === undefined ? undefined : v?.trim() || null;
+
   const employee = await prisma.employee.update({
     where: { id },
     data: {
       nama: body.nama?.trim(),
-      formalName: body.formalName?.trim() || null,
+      formalName: nullableTrim(body.formalName),
       email: body.email?.trim(),
-      noHp: body.noHp?.trim() || null,
+      noHp: nullableTrim(body.noHp),
       jabatan: body.jabatan?.trim(),
       campusId: body.campusId,
       hireDate: body.hireDate,
-      bankName: body.bankName?.trim() || null,
-      bankAccountNo: body.bankAccountNo?.trim() || null,
-      bpjsEnrolled: body.bpjsEnrolled ?? false,
+      bankName: nullableTrim(body.bankName),
+      bankAccountNo: nullableTrim(body.bankAccountNo),
+      bpjsEnrolled: body.bpjsEnrolled,
       // Undefined keys are omitted by Prisma — a blank input leaves the
       // existing balance untouched (no reset to default on every edit).
       leaveBalanceAnnual: body.leaveBalanceAnnual,

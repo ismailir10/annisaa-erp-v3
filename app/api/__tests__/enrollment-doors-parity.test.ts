@@ -133,6 +133,8 @@ function txForConflict(
         return null;
       }),
       count: vi.fn().mockResolvedValue(0),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
       create: vi.fn().mockResolvedValue({ id: "e-new", studentId: "s1", classSectionId: "cs1" }),
     },
     $queryRaw: vi.fn().mockResolvedValue([{ id: "cs1", capacity: 10 }]),

@@ -189,6 +189,60 @@ describe("PUT /api/admin/report-cards/[studentId]/[termId]", () => {
     const bad = JSON.stringify({ sectionLevels: { RELIGIOUS_MORAL: "WAT" }, sectionNarratives: {}, permittedAbsenceDays: 0, sickDays: 0, unexcusedAbsenceDays: 0, totalSchoolDays: 0 });
     expect((await entryPUT(req("http://t/x", { method: "PUT", body: bad }), ctx("s1", "term1"))).status).toBe(400);
   });
+  describe("attendance bounds (ACAD-1)", () => {
+    const withAtt = (att: Record<string, number>) =>
+      JSON.stringify({
+        sectionLevels: {},
+        sectionNarratives: {},
+        permittedAbsenceDays: 0,
+        sickDays: 0,
+        unexcusedAbsenceDays: 0,
+        totalSchoolDays: 4,
+        ...att,
+      });
+    async function put(att: Record<string, number>) {
+      requirePermission.mockResolvedValue(ALLOW);
+      db.term.findFirst.mockResolvedValue(TERM);
+      db.student.findFirst.mockResolvedValue({ id: "s1", name: "Ali", nickname: null });
+      db.reportCardEntry.upsert.mockResolvedValue({ id: "rce1", status: "DRAFT" });
+      return entryPUT(req("http://t/x", { method: "PUT", body: withAtt(att) }), ctx("s1", "term1"));
+    }
+
+    it("400 with a sickDays field error when sickDays=99 exceeds 4 school days", async () => {
+      const res = await put({ sickDays: 99 });
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.errors).toEqual([
+        { field: "sickDays", message: "Sakit (99) tidak boleh melebihi hari sekolah (4)" },
+      ]);
+      expect(db.reportCardEntry.upsert).not.toHaveBeenCalled();
+    });
+
+    it("400 when permit or absent alone exceed school days", async () => {
+      expect((await put({ permittedAbsenceDays: 5 })).status).toBe(400);
+      expect((await put({ unexcusedAbsenceDays: 5 })).status).toBe(400);
+    });
+
+    it("400 on the sum when each fits but together exceed school days", async () => {
+      const res = await put({ sickDays: 2, permittedAbsenceDays: 2, unexcusedAbsenceDays: 1 });
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.errors[0].field).toBe("totalSchoolDays");
+      expect(json.errors[0].message).toMatch(/Jumlah sakit, izin, dan alpa \(5\)/);
+    });
+
+    it("400 on negative counts", async () => {
+      const res = await put({ sickDays: -1 });
+      expect(res.status).toBe(400);
+      expect((await res.json()).errors[0].message).toBe("Tidak boleh negatif");
+    });
+
+    it("200 at the exact boundary (sum == school days) and for an all-zero block", async () => {
+      expect((await put({ sickDays: 2, permittedAbsenceDays: 1, unexcusedAbsenceDays: 1 })).status).toBe(200);
+      expect((await put({ totalSchoolDays: 0 })).status).toBe(200);
+    });
+  });
+
   it("200 upsert + measurement + audit", async () => {
     requirePermission.mockResolvedValue(ALLOW);
     db.term.findFirst.mockResolvedValue(TERM);

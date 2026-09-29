@@ -22,10 +22,16 @@ import { ManualInvoiceDialog } from "../manual-invoice-dialog";
 const FEE_COMPONENT = { id: "fc-1", label: "SPP Bulanan", isEnabled: true, status: "ACTIVE" };
 const STUDENT = { id: "stu-1", name: "Ahmad Fauzi", nickname: null, nis: "12345" };
 
-function fixture({ withFeeComponent = true }: { withFeeComponent?: boolean } = {}) {
+const OTHER_COMPONENT = { id: "fc-2", label: "Uang Pangkal", isEnabled: true, status: "ACTIVE" };
+
+function fixture({
+  withFeeComponent = true,
+  withSecondComponent = false,
+}: { withFeeComponent?: boolean; withSecondComponent?: boolean } = {}) {
   const fetchMock = vi.fn(async (input: string, _init?: RequestInit) => {
     if (input.startsWith("/api/fee-components")) {
-      return { ok: true, json: async () => (withFeeComponent ? [FEE_COMPONENT] : []) };
+      const list = withFeeComponent ? [FEE_COMPONENT, ...(withSecondComponent ? [OTHER_COMPONENT] : [])] : [];
+      return { ok: true, json: async () => list };
     }
     if (input.startsWith("/api/students")) {
       return { ok: true, json: async () => ({ data: [STUDENT], pagination: { total: 1 } }) };
@@ -157,6 +163,34 @@ describe("ManualInvoiceDialog", () => {
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/invoices")),
     ).toBe(false);
+  });
+
+  it("clears the duplicate-line error once a different component is picked (FIN-2)", async () => {
+    fixture({ withSecondComponent: true });
+    const user = userEvent.setup();
+    render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+
+    const studentTrigger = screen.getAllByRole("combobox")[0]!;
+    await user.click(studentTrigger);
+    await user.type(await screen.findByPlaceholderText("Cari nama siswa..."), "Ahmad");
+    await user.click(await screen.findByRole("option", { name: new RegExp(STUDENT.name) }));
+    await expect.poll(() => studentTrigger.textContent).toContain(STUDENT.name);
+
+    await waitFor(() => expect(screen.getAllByRole("combobox")[1]).toHaveTextContent(FEE_COMPONENT.label));
+    await user.type(screen.getByLabelText(/^Jumlah 1/), "100000");
+    await user.click(screen.getByRole("button", { name: "Tambah Komponen" }));
+    await waitFor(() => expect(screen.getAllByRole("combobox")[2]).toHaveTextContent(FEE_COMPONENT.label));
+    await user.type(screen.getByLabelText(/^Jumlah 2/), "50000");
+    await user.click(screen.getByRole("button", { name: "Buat Tagihan" }));
+    expect(await screen.findByText("Komponen biaya tidak boleh duplikat")).toBeInTheDocument();
+
+    // Picking a different component for line 2 fixes the duplicate — the stale
+    // banner must disappear without another submit.
+    await user.click(screen.getAllByRole("combobox")[2]!);
+    await user.click(await screen.findByRole("option", { name: OTHER_COMPONENT.label }));
+    await waitFor(() =>
+      expect(screen.queryByText("Komponen biaya tidak boleh duplikat")).not.toBeInTheDocument(),
+    );
   });
 
   it("adds and removes line rows", async () => {
