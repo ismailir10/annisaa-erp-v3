@@ -72,6 +72,11 @@ describe("NoteComposeDialog discard guard (TCH-3)", () => {
 
   it("asks inside the composer: no second overlay is stacked on top (ui.md one overlay at a time)", async () => {
     const { onOpenChange } = setup();
+    // Let the dialog finish opening first, as a person would. base-ui moves
+    // focus to the first field one microtask + one animation frame after open;
+    // interacting before that lets its queued focus land after ours (CI flake
+    // on #581, reproduced with rAF = setTimeout 0).
+    await waitFor(() => expect(document.activeElement).not.toBe(document.body));
     type("draft");
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
 
