@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
+import { validateBody } from "@/lib/api/validate";
+import { fieldErrorResponse, isUniqueViolation } from "@/lib/api/field-errors";
 import { updateAcademicYearSchema } from "@/lib/validations/academic-year";
 
 // Shared archive guard: block transition-to-ARCHIVED (whether via PUT
@@ -32,13 +34,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const existing = await prisma.academicYear.findFirst({ where: { id, tenantId: session.tenantId } });
   if (!existing) return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
 
-  const parsed = updateAcademicYearSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Validasi gagal", issues: parsed.error.issues },
-      { status: 400 },
-    );
-  }
+  const parsed = await validateBody(updateAcademicYearSchema, await req.json().catch(() => null));
+  if (parsed.error) return parsed.error;
   const body = parsed.data;
 
   if (body.status === "ARCHIVED") {
@@ -62,14 +59,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Activating this year must demote every other ACTIVE year for the tenant —
   // at most one ACTIVE year per tenant (single-active invariant). Atomic so a
   // failed update never leaves zero or two active years.
-  const year =
-    body.status === "ACTIVE"
-      ? await prisma.$transaction(async (tx) => {
-          await demoteOtherActiveYears(tx, tenantId, id);
-          return tx.academicYear.update({ where: { id }, data });
-        })
-      : await prisma.academicYear.update({ where: { id }, data });
-  return NextResponse.json(year);
+  try {
+    const year =
+      body.status === "ACTIVE"
+        ? await prisma.$transaction(async (tx) => {
+            await demoteOtherActiveYears(tx, tenantId, id);
+            return tx.academicYear.update({ where: { id }, data });
+          })
+        : await prisma.academicYear.update({ where: { id }, data });
+    return NextResponse.json(year);
+  } catch (error) {
+    // Renaming onto an existing (tenantId, name) — same field error as create.
+    if (isUniqueViolation(error)) {
+      return fieldErrorResponse("name", "Nama tahun ajaran sudah dipakai");
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

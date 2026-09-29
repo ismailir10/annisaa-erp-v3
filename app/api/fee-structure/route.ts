@@ -45,7 +45,10 @@ export async function PUT(req: NextRequest) {
   const parsed = saveFeeStructureSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Data tidak valid" },
+      {
+        error: parsed.error.issues[0]?.message ?? "Data tidak valid",
+        errors: parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })),
+      },
       { status: 400 },
     );
   }
