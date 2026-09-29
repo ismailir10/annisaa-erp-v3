@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { formatRupiah } from "@/lib/format";
+import { formatDateTime, formatRupiah } from "@/lib/format";
 
 /**
  * Aktivitas Pembayaran — admin-side audit panel rendered on the invoice
@@ -88,21 +88,8 @@ function formatPaymentMethod(raw: string): string {
 }
 
 function formatPaidAt(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  // "26 Apr 2026 · 16:23"
-  const date = d.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${date} · ${time}`;
+  // "26 Apr 2026 · 16:23", pinned to Asia/Jakarta so SSR and the browser agree.
+  return formatDateTime(iso);
 }
 
 /**

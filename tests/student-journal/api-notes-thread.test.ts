@@ -158,15 +158,18 @@ describe("GET /api/student-journal/notes — week-independent thread", () => {
     expect(mocks.noteFindMany.mock.calls[0][0].take).toBe(51); // MAX 50 + look-ahead
   });
 
-  it("reports zero unread when the reader has no watermark yet", async () => {
+  it("counts every other-party note as unread when the reader has no watermark yet (X-3)", async () => {
     mocks.noteFindMany.mockResolvedValue([note("n1")]);
     mocks.readFindUnique.mockResolvedValue(null);
+    mocks.noteCount.mockResolvedValue(1);
 
     const res = await GET(
       buildReq("http://localhost/api/student-journal/notes?studentId=stu-1"),
     );
-    expect((await res.json()).data.unreadCount).toBe(0);
-    expect(mocks.noteCount).not.toHaveBeenCalled();
+    expect((await res.json()).data.unreadCount).toBe(1);
+    const where = mocks.noteCount.mock.calls[0][0].where;
+    expect(where).toMatchObject({ authorUserId: { not: "teacher-1" } });
+    expect(where).not.toHaveProperty("createdAt");
   });
 
   it("counts only other people's notes written after the watermark", async () => {

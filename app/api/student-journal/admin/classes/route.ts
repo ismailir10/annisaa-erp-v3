@@ -15,7 +15,10 @@ import { JAKARTA_TZ } from "@/lib/sessions/dates";
  * - studentCount: active enrollments
  * - checkedCount: checked SCHOOL entries in the week (raw, not derived)
  * - completionPct: (checkedCount / (studentCount * indicatorCount * 5)) * 100
- * - lastFilledAt: MAX(updatedAt) for entries in that class-week scope
+ * - lastFilledAt: MAX(updatedAt) over the *checked* entries in that class-week
+ *   scope — the same set `checkedCount` counts, so "filled" means one thing:
+ *   `checkedCount > 0` ⇔ `lastFilledAt != null` (ACAD-8: the monitor's "Kelas
+ *   sudah isi" card and "Terakhir diisi" column used to disagree)
  *
  * Plus a tenant-level `summary.activeStudentCount` — DISTINCT students, not a
  * sum of per-class counts (a student may hold more than one active enrollment).
@@ -145,7 +148,8 @@ export async function GET(req: NextRequest) {
       .map((e) => [e.classSectionId, e._count.id]),
   );
 
-  // Get last filled timestamp per class
+  // Get last filled timestamp per class. Same `checked: true` predicate as the
+  // count above — an entry that was toggled off again is not "filled".
   const lastFilledRows = await prisma.studentJournalEntry.groupBy({
     by: ["classSectionId"],
     where: {
@@ -153,6 +157,7 @@ export async function GET(req: NextRequest) {
       classSectionId: { in: classSectionIds },
       scope: "SCHOOL",
       date: { gte: ws, lte: weekEnd },
+      checked: true,
     },
     _max: { updatedAt: true },
   });
