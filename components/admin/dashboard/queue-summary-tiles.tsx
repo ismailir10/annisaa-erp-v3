@@ -3,6 +3,7 @@ import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
 import type { QueueSummaryItem } from "@/lib/dashboard/admin-work-queue";
 
 const tileLabel: Record<QueueSummaryItem["kind"], string> = {
+  inquiry: "Pertanyaan pendaftaran baru",
   enrollment: "Formulir menunggu tinjauan",
   leave: "Pengajuan cuti menunggu",
   invoice: "Link pembayaran belum tersedia",
@@ -30,7 +31,7 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
   }
 
   return (
-    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div data-testid="dashboard-queue-tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
       {items.map((item) =>
         item.status === "unavailable" ? (
           <div key={item.kind} className="space-y-2 rounded-lg border p-card">

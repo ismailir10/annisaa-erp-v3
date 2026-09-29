@@ -54,7 +54,6 @@ export default function TeacherAttendancePage() {
   // decision lives in instead of leaving the guru to find the card (X-21).
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("cuti") === "1") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLeaveSheetOpen(true);
     }
   }, []);

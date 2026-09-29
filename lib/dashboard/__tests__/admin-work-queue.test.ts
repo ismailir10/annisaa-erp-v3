@@ -4,6 +4,7 @@ import { buildAdminWorkQueue, rankUrgent, summarizeQueue, unavailableAdminQueueS
 const hidden = { status: "hidden" } as const;
 
 const fullSources: AdminQueueSources = {
+  inquiries: { status: "ready", count: 1, records: [{ id: "aq-1", childName: "Zahra", parentName: "Ibu Nur", createdAt: "2026-09-27T03:00:00.000Z" }] },
   enrollments: { status: "ready", count: 1, records: [{ id: "en-1", childName: "Alya", status: "SUBMITTED", updatedAt: "2026-09-20T00:00:00.000Z" }] },
   leave: { status: "ready", count: 1, records: [{ id: "lv-1", leaveType: "SICK", startDate: "2026-09-25", endDate: "2026-09-26", status: "PENDING", employee: { nama: "Ustadzah Rina" } }] },
   invoices: { status: "ready", count: 1, records: [{ id: "inv-1", invoiceNumber: "INV-1", periodLabel: "September", status: "PENDING_PAYMENT_LINK", dueDate: "2026-09-22", student: { name: "Bima" } }] },
@@ -13,6 +14,7 @@ const fullSources: AdminQueueSources = {
 describe("admin work queue", () => {
   it("maps authoritative domain records to their real destinations", () => {
     expect(buildAdminWorkQueue(fullSources).map(({ id, href, state }) => ({ id, href, state }))).toEqual([
+      { id: "inquiry:aq-1", href: "/admin/admissions", state: "INQUIRY" },
       { id: "enrollment:en-1", href: "/admin/enrollments/en-1", state: "SUBMITTED" },
       { id: "leave:lv-1", href: "/admin/leave-requests?requestId=lv-1", state: "PENDING" },
       { id: "invoice:inv-1", href: "/admin/invoices/inv-1", state: "PENDING_PAYMENT_LINK" },
@@ -22,18 +24,19 @@ describe("admin work queue", () => {
 
   it("does not invent zeroes for unavailable or unauthorized modules", () => {
     const sources: AdminQueueSources = {
+      inquiries: { status: "unavailable" },
       enrollments: { status: "unavailable" },
       leave: hidden,
       invoices: hidden,
       payroll: hidden,
     };
     expect(buildAdminWorkQueue(sources)).toEqual([]);
-    expect(unavailableAdminQueueSections(sources)).toEqual(["enrollment"]);
+    expect(unavailableAdminQueueSections(sources)).toEqual(["inquiry", "enrollment"]);
   });
 });
 
 describe("rankUrgent", () => {
-  it("sorts by sortDate ascending: payroll (09-01) < enrollment (09-20) < invoice (09-22) < leave (09-25)", () => {
+  it("sorts by sortDate ascending: payroll (09-01) < enrollment (09-20) < invoice (09-22) < leave (09-25) < inquiry (09-27)", () => {
     const items = buildAdminWorkQueue(fullSources);
     const ranked = rankUrgent(items);
     expect(ranked.map((i) => i.id)).toEqual([
@@ -41,6 +44,7 @@ describe("rankUrgent", () => {
       "enrollment:en-1",
       "invoice:inv-1",
       "leave:lv-1",
+      "inquiry:aq-1",
     ]);
   });
 
@@ -55,17 +59,19 @@ describe("summarizeQueue", () => {
   it("reports per-kind counts for visible sources and a grand total", () => {
     expect(summarizeQueue(fullSources)).toEqual({
       items: [
+        { kind: "inquiry", status: "ready", count: 1 },
         { kind: "enrollment", status: "ready", count: 1 },
         { kind: "leave", status: "ready", count: 1 },
         { kind: "invoice", status: "ready", count: 1 },
         { kind: "payroll", status: "ready", count: 1 },
       ],
-      total: 4,
+      total: 5,
     });
   });
 
   it("omits hidden sources and never invents a zero for an unavailable one", () => {
     const sources: AdminQueueSources = {
+      inquiries: hidden,
       enrollments: { status: "unavailable" },
       leave: hidden,
       invoices: { status: "ready", count: 3, records: [] },
