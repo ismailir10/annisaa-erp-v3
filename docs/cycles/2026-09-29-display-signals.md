@@ -61,12 +61,26 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Task 5: `lib/payroll/__tests__/adjustments.test.ts` (5) + route test "manual adjustments survive a recalculation".
 - Task 7: `monitoring/__tests__/page.test.tsx` (KB 4 entries / 0% counts as filled: "2 / 3", belum isi 1) + `admin/classes/__tests__/route.test.ts`.
 
+- Existing tests updated for the new contracts: `tests/student-journal/api-notes-thread.test.ts` ("zero unread with no watermark" now asserts the X-3 behaviour) and `app/api/__tests__/payroll-variables-tx.test.ts` (tx mock gains `payrollItemLine.findMany`). The employees stat-card test stubs `DataTableRowActions` because the Base UI row menu swallowed a click right after opening ~1 run in 4.
+- Playwright: full suite run by lead serially before PR; CI `Playwright E2E` gates the merge. No e2e spec changed or added.
+- End-of-cycle gate at source SHA 20adec5 (+ this doc): `npm run build` exit 0; `npx vitest run` tail:
+  ```
+   Test Files  425 passed | 2 skipped (427)
+        Tests  3960 passed | 42 todo (4002)
+   Duration  190.17s
+  ```
+  (One earlier full run had 1 unidentified failure that did not reproduce on two reruns; the run before it had the 2 genuine contract failures above, fixed.) `npx tsc --noEmit` clean; `npm run lint` 0 errors / 55 pre-existing warnings.
+- Local browser verification (demo auth, `DEMO_MODE=true` on the app process only, port 3103, disposable DB `schoolerp_c2b`, Chromium `timezoneId: Asia/Jakarta`), scripts in scratchpad `verify/display-signals/`, screenshots `shots/verify-display-signals/`:
+  - TCH-1: `/teacher` as u_teacher → SSR HTML now says `Masuk 07.02 · pulang 16.19` (was `00.02 · 09.19` on the UTC server), zero pageerror/console errors (no #418). `tch1-x3-teacher-home.png`.
+  - X-3: same page shows "Balasan dari wali — 1 baru" for the seeded parent note although u_teacher has no read row.
+  - HR-6: `/admin/employee-attendance` 29 Sep as super admin → HADIR 25, TERLAMBAT 2, ALPA 1, IZIN 1 (was ALPA 0). `hr6-employee-attendance.png`.
+  - FIN-1: Tagihan Manual, typed 1500000 in Jumlah 1 → Total `Rp 1.500.000` immediately (was Rp 0). `fin1-total-1.png`.
+  - HR-2: on the DRAFT run, adjusted Gaji Pokok +100.000 ("verif HR-2") then PUT variables `outdoorDays: 2` → DB keeps `adjustmentAmount=100000.00`, note, `finalAmount=736364.00` (calculated 636364 + 100000); item net 1.436.364. `hr2-payroll-after-recalc.png`.
+  - ACAD-8: `/admin/student-journal/monitoring` → KELAS SUDAH ISI 1 / 6, BELUM ISI 5; the only row with a "Terakhir diisi" date is TKIT A (1%). `acad8-monitoring.png`.
+  - HR-13 covered by the jsdom page test only (not driven in the browser).
+- `bash scripts/audit-docs.sh --write` refreshed the counts block; audit 13 ok / 1 warn (pre-existing ADR window) / 0 fail.
+
 ## Ship Notes
 - Migrations: none. Env vars: none. Dependencies: none.
 - Behaviour changes to call out on the PR: (a) first-time viewers now see an unread badge for existing other-party notes until they open the thread; (b) recalculating attendance variables now keeps manual line adjustments; (c) X-11 intentionally not changed — see Assumption 3.
 - Rollback: revert the PR (no data written in a new shape; `adjustmentAmount`/`adjustmentNote` are existing columns).
-<!-- task 2 committed -->
-<!-- task 3 committed -->
-<!-- task 4 committed -->
-<!-- task 5 committed -->
-<!-- task 7 committed -->
