@@ -309,6 +309,14 @@ async function _getSession(): Promise<SessionUser | null> {
           where: { employeeId: employee.id },
           include: { customRole: true },
         });
+        // A linked User that is not ACTIVE was deliberately deactivated
+        // (users page, or employee deactivate). The ACTIVE-only lookup above
+        // missed it, so without this guard the reconcile path would hand the
+        // session back and the deactivation would be a no-op (HR-4). An
+        // INACTIVE Employee with no User yet must not be auto-provisioned.
+        if (linked ? linked.status !== "ACTIVE" : employee.status !== "ACTIVE") {
+          return null;
+        }
         user = (linked
           ? linked.email === authUser.email
             ? linked

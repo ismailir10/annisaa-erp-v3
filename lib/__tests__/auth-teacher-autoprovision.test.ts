@@ -45,6 +45,7 @@ const EMPLOYEE = {
   tenantId: "t1",
   nama: "Guru Baru",
   email: AUTH_EMAIL,
+  status: "ACTIVE",
 };
 
 beforeEach(() => {
@@ -74,6 +75,7 @@ describe("_getSession teacher auto-provision", () => {
       tenantId: "t1",
       employeeId: "emp1",
       parentId: null,
+      status: "ACTIVE",
       customRoleId: null,
       customRole: null,
       lastLoginAt: new Date(), // recent → skip lastLogin write
@@ -130,5 +132,39 @@ describe("_getSession teacher auto-provision", () => {
     expect(session?.role).toBe("TEACHER");
     expect(session?.email).toBe(AUTH_EMAIL);
     expect(prismaMock.user.create).toHaveBeenCalledOnce();
+  });
+
+  // HR-4: the ACTIVE-only lookup misses a deactivated User, and the
+  // reconcile-by-employeeId path used to hand that row straight back.
+  it("Employee's linked User is INACTIVE → no session, no email sync, no create", async () => {
+    const { getSession } = await loadAuth();
+
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.employee.findFirst.mockResolvedValue(EMPLOYEE);
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "u_off",
+      email: "old-placeholder@seed.test",
+      role: "TEACHER",
+      tenantId: "t1",
+      employeeId: "emp1",
+      status: "INACTIVE",
+      customRole: null,
+      lastLoginAt: new Date(),
+    });
+
+    expect(await getSession()).toBeNull();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("INACTIVE Employee with no User yet → not auto-provisioned", async () => {
+    const { getSession } = await loadAuth();
+
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.employee.findFirst.mockResolvedValue({ ...EMPLOYEE, status: "INACTIVE" });
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    expect(await getSession()).toBeNull();
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 });

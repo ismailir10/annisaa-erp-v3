@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
+import { invalidateUserCache } from "@/lib/auth";
 import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -21,6 +22,8 @@ import { recordAudit } from "@/lib/audit";
  *   - Tenant ownership + rate limit + atomic audit.
  *   - Idempotent: restoring an already-ACTIVE employee is a 200 no-op.
  *   - Optional `{reason: string}` carried into audit metadata.
+ *   - Re-enables login (HR-4): the linked `User` goes back to ACTIVE, mirroring
+ *     what `/deactivate` revoked.
  */
 export async function POST(
   req: NextRequest,
@@ -53,7 +56,21 @@ export async function POST(
   if (result.error) return result.error;
   const { reason } = result.data;
 
+  const restoredEmails: string[] = [];
   const updated = await prisma.$transaction(async (tx) => {
+    const restoreLogin = async () => {
+      const linked = await tx.user.findMany({
+        where: { employeeId: id, tenantId: session.tenantId, status: { not: "ACTIVE" } },
+        select: { id: true, email: true },
+      });
+      if (linked.length === 0) return;
+      await tx.user.updateMany({
+        where: { id: { in: linked.map((u) => u.id) } },
+        data: { status: "ACTIVE" },
+      });
+      restoredEmails.push(...linked.map((u) => u.email));
+    };
+
     const before = await tx.employee.findUnique({
       where: { id },
       select: { status: true },
@@ -68,6 +85,7 @@ export async function POST(
       where: { id },
       data: { status: "ACTIVE" },
     });
+    await restoreLogin();
 
     await recordAudit(
       {
@@ -89,6 +107,7 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  invalidateUserCache(...restoredEmails);
   revalidateTag("employees-count", { expire: 0 });
   return NextResponse.json(updated);
 }

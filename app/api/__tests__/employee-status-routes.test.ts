@@ -19,6 +19,11 @@ const employeeFindUnique = vi.fn();
 const employeeUpdate = vi.fn();
 const auditCreate = vi.fn();
 const transaction = vi.fn();
+// HR-4: the routes also flip the linked User; these suites only care about the
+// Employee + audit contract, so no linked User exists here (covered in
+// employees/[id]/__tests__/status-login.test.ts).
+const userFindMany = vi.fn();
+const userUpdateMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -85,8 +90,10 @@ beforeEach(() => {
         update: employeeUpdate,
       },
       auditLog: { create: auditCreate },
+      user: { findMany: userFindMany, updateMany: userUpdateMany },
     }),
   );
+  userFindMany.mockResolvedValue([]);
   employeeUpdate.mockResolvedValue({ id: "emp-1", status: "INACTIVE" });
   auditCreate.mockResolvedValue({});
 });
