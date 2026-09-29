@@ -1,8 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // E2E for the C3 admin objectives surface. Demo session as SUPER_ADMIN —
-// only role with curriculum.write. Seed places Semester + 2 Themes; this
-// spec creates / mutates LearningObjective + AchievementIndicator +
+// only role with curriculum.write. The date-relative seed places one ACTIVE
+// Semester (objectives can only be added to an ACTIVE semester) with 6 Themes;
+// this spec creates / mutates LearningObjective + AchievementIndicator +
 // IndicatorThemeLink rows via the C3 admin APIs, then asserts the
 // rendered admin page reflects the seeded state. Unit tests in
 // `app/api/__tests__/curriculum-routes.test.ts` cover the mutation
@@ -66,7 +67,7 @@ test.describe("Admin curriculum — objectives (C3)", () => {
 
   test("page renders + filter chips change visible rows", async ({ page }) => {
     const semRes = await page.request.get(
-      "/api/admin/curriculum/semesters?pageSize=1",
+      "/api/admin/curriculum/semesters?status=ACTIVE&pageSize=1",
     );
     const semesterId = (await semRes.json()).data?.[0]?.id;
     test.skip(!semesterId, "no semester in seed");
@@ -117,7 +118,7 @@ test.describe("Admin curriculum — objectives (C3)", () => {
     page,
   }) => {
     const semRes = await page.request.get(
-      "/api/admin/curriculum/semesters?pageSize=1",
+      "/api/admin/curriculum/semesters?status=ACTIVE&pageSize=1",
     );
     const semesterId = (await semRes.json()).data?.[0]?.id;
     test.skip(!semesterId, "no semester in seed");

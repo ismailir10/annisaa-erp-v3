@@ -52,6 +52,7 @@ Goal: a fresh `prisma db push` + `prisma db seed` on an empty database, on **any
 ## Verification
 - Task 1: `npx vitest run prisma/data` 19 passed.
 - Task 2: `prisma db push` + `prisma db seed` on an empty database seeds clean (~19 s) and passes the seed's own invariants.
+- Task 3: specs fixed; suite green on fresh DBs (see below).
 _(rest filled in T4)_
 
 ## Ship Notes

@@ -5,13 +5,12 @@ import { test, expect } from "@playwright/test";
 // writes are open to any TEACHER (no center-assignment gate), so the
 // walas demo also covers the sentra path.
 //
-// Today (2026-05-XX runtime) is outside the seeded curriculum weeks
-// (2025-07-14..09-05) on a fresh demo DB. The page therefore renders
-// the no_active_week empty state for today; we pin to ?date=2025-07-15
-// (Pekan 1) to exercise the active-week chrome. Save flow is covered
-// by the 11 vitest cases on POST + 8 on GET — replicating the full
-// session POST end-to-end would require setting up an indicator +
-// theme link per spec run for marginal gain.
+// The seed is date-relative (prisma/seed.ts) — curriculum weeks cover the whole
+// active semester — so the active-week branch is exercised on a live week
+// discovered through the curriculum API rather than a pinned calendar date. Save
+// flow is covered by the 11 vitest cases on POST + 8 on GET — replicating the
+// full session POST end-to-end would require setting up an indicator + theme
+// link per spec run for marginal gain.
 
 const TEACHER_ID = "u_teacher";
 
@@ -82,31 +81,32 @@ test.describe("Teacher — Sentra (CENTER) assessment (C5)", () => {
     ).toBeVisible();
   });
 
-  // Seeded Week (2025-07-14 → 2025-09-01 in prisma/seed.ts) is sometimes
-  // absent in CI runs — test passes locally + some CI runs, fails others.
-  // Suspected cause: another spec in the serial pool wipes / re-seeds
-  // PekanIKTP between runs, leaving GET to return no_active_week which
-  // renders EmptyState (neither picker nor banner). Marked fixme to unblock
-  // /ship of an unrelated UI-blockers cycle; follow-up: stabilize seed
-  // isolation for assessments-center.
-  test.fixme("active-week branch renders indicator picker on a seeded date", async ({
+  // Active-week branch: pick a live curriculum week via the admin API (the seed
+  // is date-relative, so no calendar date is pinned) and switch the date input
+  // to its Monday — the GET then reaches the active-week path and the page shows
+  // either the IKTP picker or the "no IKTP for this theme" banner.
+  test("active-week branch renders indicator picker on a seeded date", async ({
     page,
   }) => {
-    // Pin to a date inside the seeded Week range so the GET reaches the
-    // active-week branch. The page calls the GET API on mount via the
-    // client; we change the date input to switch dates and trigger refetch.
+    const weekRes = await page.request.get(
+      "/api/admin/curriculum/weeks?status=ACTIVE&pageSize=1",
+      { headers: { Cookie: "school-erp-session=u_super_admin" } },
+    );
+    expect(weekRes.ok()).toBeTruthy();
+    const liveDate = ((await weekRes.json()) as { data?: Array<{ startDate: string }> })
+      .data?.[0]?.startDate?.slice(0, 10);
+    expect(liveDate, "seed must provide at least one ACTIVE curriculum week").toBeTruthy();
+
     await page.goto("/teacher/assessments/center/worship");
     await page.waitForURL("**/teacher/assessments/center/worship", {
       timeout: 15_000,
     });
-    await page
-      .locator('[data-testid="center-date"]')
-      .fill("2025-07-15");
+    await page.locator('[data-testid="center-date"]').fill(liveDate!);
     // Wait for the GET to settle: the indicator picker OR the no-IKTP
-    // banner (either branch proves the active-week path reached). Bumped
-    // from 15s → 60s for cold-CI tolerance — the date-change fetch races
-    // a setLoading(true) DOM clear, so the poll has to wait through the
-    // request round-trip plus the re-hydration of the picker list.
+    // banner (either branch proves the active-week path reached). The
+    // date-change fetch races a setLoading(true) DOM clear, so the poll has
+    // to wait through the request round-trip plus the re-hydration of the
+    // picker list.
     await expect
       .poll(
         async () => {
