@@ -1,4 +1,10 @@
 /**
+ * finance-safety (2026-09-29): recording is now two steps — "Tinjau
+ * Pembayaran" opens a review (invoice, student, Rp amount, method, date,
+ * resulting status) and only "Catat Rp …" POSTs. Also covers reversal,
+ * reversed-row rendering, "Dicatat oleh", cancel for OVERDUE invoices, and
+ * the FIN-11/20/23 details.
+ *
  * T6 (2026-09-27 admin-finish-standard) — the "Catat Pembayaran" dialog
  * migrated from a 4-field `useState` onto react-hook-form + zod
  * (`invoicePaymentFormSchema`, lib/validations/invoice.ts). POST
@@ -18,7 +24,7 @@ vi.mock("sonner", () => ({
 import { toast } from "sonner";
 import InvoiceDetailPage from "../page";
 
-const invoice = {
+const baseInvoice = {
   capabilities: { create: true, recordPayment: true, void: true },
   id: "inv-1",
   invoiceNumber: "INV-2026-001",
@@ -27,22 +33,36 @@ const invoice = {
   totalDue: 1000000,
   totalPaid: 400000,
   status: "PARTIALLY_PAID",
-  xenditPaymentUrl: null,
+  xenditPaymentUrl: null as string | null,
   paymentLinkError: null,
   student: { name: "Ahmad", nickname: null, guardians: [] },
   lines: [],
-  payments: [],
+  payments: [] as Array<Record<string, unknown>>,
+};
+
+const cashPayment = {
+  id: "pay-1", amount: 400000, method: "CASH", reference: null, notes: null,
+  paidAt: "2026-09-10T03:00:00.000Z", status: "RECORDED", createdBy: "u-9", createdByName: "Bu Nur",
 };
 
 function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 400) {
   return { ok, status, json: async () => body };
 }
 
-function fixture(overrides: { postStatus?: number; postBody?: unknown } = {}) {
+function fixture(
+  overrides: { postStatus?: number; postBody?: unknown; invoice?: Partial<typeof baseInvoice> } = {},
+) {
   const { postStatus = 201, postBody = { id: "pay-1" } } = overrides;
+  const invoice = { ...baseInvoice, ...overrides.invoice };
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
     if (input === "/api/invoices/inv-1/payments" && init?.method === "POST") {
       return Promise.resolve(jsonResponse(postBody, postStatus < 400, postStatus));
+    }
+    if (input.endsWith("/reverse") && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({ ok: true }));
+    }
+    if (input === "/api/invoices/inv-1/void" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({ ok: true }));
     }
     if (input === "/api/invoices/inv-1") return Promise.resolve(jsonResponse(invoice));
     // PaymentActivityCard always fetches this on mount and expects an array.
@@ -51,6 +71,16 @@ function fixture(overrides: { postStatus?: number; postBody?: unknown } = {}) {
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+const posts = (fetchMock: ReturnType<typeof fixture>, urlPart = "/payments") =>
+  fetchMock.mock.calls.filter(
+    ([url, init]) => String(url).includes(urlPart) && (init as RequestInit | undefined)?.method === "POST",
+  );
+
+async function openDialog() {
+  fireEvent.click(await screen.findByRole("button", { name: "Catat Pembayaran" }));
+  return screen.findByRole("dialog", { name: "Catat Pembayaran" });
 }
 
 describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
@@ -64,39 +94,38 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     const user = userEvent.setup();
     render(<InvoiceDetailPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Catat Pembayaran" }));
-    const dialog = await screen.findByRole("dialog", { name: "Catat Pembayaran" });
+    const dialog = await openDialog();
     await user.clear(within(dialog).getByRole("textbox", { name: "Jumlah" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Catat Pembayaran" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
 
     expect(await within(dialog).findByText("Jumlah pembayaran wajib diisi")).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST"),
-    ).toBe(false);
+    expect(posts(fetchMock)).toHaveLength(0);
   });
 
-  it("submits amount + method + reference + notes as the POST body", async () => {
+  it("FIN-6: the primary button only opens a review; nothing is POSTed until 'Catat Rp …'", async () => {
     const fetchMock = fixture();
     const user = userEvent.setup();
     render(<InvoiceDetailPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Catat Pembayaran" }));
-    const dialog = await screen.findByRole("dialog", { name: "Catat Pembayaran" });
-    // Amount is left at its default (the invoice's remaining balance).
+    const dialog = await openDialog();
+    // The remaining balance stays prefilled (convenience kept).
+    expect(within(dialog).getByRole("textbox", { name: "Jumlah" })).toHaveValue("600.000");
     await user.type(within(dialog).getByRole("textbox", { name: "Referensi" }), "TRX-001");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Catat Pembayaran" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
 
-    await waitFor(() => {
-      const postCall = fetchMock.mock.calls.find(
-        ([url, init]) =>
-          url === "/api/invoices/inv-1/payments" && (init as RequestInit | undefined)?.method === "POST",
-      );
-      expect(postCall).toBeTruthy();
-    });
-    const [, postInit] = fetchMock.mock.calls.find(
-      ([url, init]) =>
-        url === "/api/invoices/inv-1/payments" && (init as RequestInit | undefined)?.method === "POST",
-    )!;
+    const review = await within(dialog).findByTestId("payment-review");
+    expect(posts(fetchMock)).toHaveLength(0);
+    expect(within(review).getByText("INV-2026-001")).toBeInTheDocument();
+    expect(within(review).getByText("Ahmad")).toBeInTheDocument();
+    expect(within(review).getByTestId("payment-review-amount")).toHaveTextContent("Rp 600.000");
+    expect(within(review).getByText("Tunai")).toBeInTheDocument();
+    expect(within(review).getByText("TRX-001")).toBeInTheDocument();
+    expect(within(review).getByText("Lunas")).toBeInTheDocument(); // 600k settles the 600k balance
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Catat Rp 600.000" }));
+
+    await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+    const [, postInit] = posts(fetchMock)[0];
     expect(JSON.parse((postInit as RequestInit).body as string)).toEqual({
       amount: 600000, // totalDue (1,000,000) - totalPaid (400,000)
       method: "CASH",
@@ -106,7 +135,56 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pembayaran dicatat"));
   });
 
-  it("maps a validateBody field error from the server back onto Jumlah", async () => {
+  it("review of a partial amount says 'Dibayar Sebagian' with the remainder; 'Ubah' returns to the form", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    const dialog = await openDialog();
+    const amount = within(dialog).getByRole("textbox", { name: "Jumlah" });
+    await user.clear(amount);
+    await user.type(amount, "250000");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+
+    const review = await within(dialog).findByTestId("payment-review");
+    expect(within(review).getByText("Dibayar Sebagian")).toBeInTheDocument();
+    expect(review).toHaveTextContent("Sisa Rp 350.000");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ubah" }));
+    expect(await within(dialog).findByRole("textbox", { name: "Jumlah" })).toHaveValue("250.000");
+    expect(posts(fetchMock)).toHaveLength(0);
+  });
+
+  it("FIN-8: an overpayment is stopped on the Jumlah field with Rupiah amounts, no review, no POST", async () => {
+    const fetchMock = fixture();
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    const dialog = await openDialog();
+    const amount = within(dialog).getByRole("textbox", { name: "Jumlah" });
+    await user.clear(amount);
+    await user.type(amount, "700000");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+
+    expect(
+      await within(dialog).findByText("Jumlah pembayaran (Rp 700.000) melebihi sisa tagihan (Rp 600.000)"),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByTestId("payment-review")).not.toBeInTheDocument();
+    expect(posts(fetchMock)).toHaveLength(0);
+  });
+
+  it("FIN-23: the manual method list offers Tunai, Transfer Bank and Lainnya only", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    const dialog = await openDialog();
+    await user.click(within(dialog).getByRole("combobox", { name: /Metode Pembayaran/ }));
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Tunai", "Transfer Bank", "Lainnya"]);
+  });
+
+  it("maps a validateBody field error from the server back onto Jumlah (returns to the form)", async () => {
     fixture({
       postStatus: 400,
       postBody: { error: "Validasi gagal", errors: [{ field: "amount", message: "Jumlah harus lebih dari 0" }] },
@@ -114,13 +192,121 @@ describe("InvoiceDetailPage — Catat Pembayaran dialog", () => {
     const user = userEvent.setup();
     render(<InvoiceDetailPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Catat Pembayaran" }));
-    const dialog = await screen.findByRole("dialog", { name: "Catat Pembayaran" });
+    const dialog = await openDialog();
     const amountInput = within(dialog).getByRole("textbox", { name: "Jumlah" });
     await user.clear(amountInput);
     await user.type(amountInput, "1");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Catat Pembayaran" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tinjau Pembayaran" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Catat Rp 1" }));
 
     expect(await within(dialog).findByText("Jumlah harus lebih dari 0")).toBeInTheDocument();
+  });
+});
+
+describe("InvoiceDetailPage — payment history, reversal and cancel", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("FIN-7: shows 'Dicatat oleh <nama>'; a REVERSED payment is struck through and labelled Dibatalkan with no reverse button", async () => {
+    fixture({
+      invoice: {
+        payments: [
+          cashPayment,
+          { ...cashPayment, id: "pay-2", amount: 100000, status: "REVERSED", notes: "Dibatalkan 2026-09-11 oleh Bu Nur: salah input" },
+        ],
+      },
+    });
+    render(<InvoiceDetailPage />);
+
+    const active = await screen.findByTestId("payment-row-pay-1");
+    expect(active).toHaveTextContent("Dicatat oleh Bu Nur");
+    expect(within(active).getByRole("button", { name: /Batalkan pembayaran/ })).toBeInTheDocument();
+
+    const reversed = screen.getByTestId("payment-row-pay-2");
+    expect(reversed).toHaveAttribute("data-status", "REVERSED");
+    expect(within(reversed).getByText("Dibatalkan")).toBeInTheDocument();
+    expect(within(reversed).getByText("Rp 100.000").className).toMatch(/line-through/);
+    expect(within(reversed).queryByRole("button", { name: /Batalkan pembayaran/ })).not.toBeInTheDocument();
+    expect(reversed).toHaveTextContent("salah input");
+  });
+
+  it("gateway payments have no reverse button", async () => {
+    fixture({
+      invoice: { payments: [{ ...cashPayment, id: "pay-gw", method: "XENDIT", xenditPaymentId: "gw-1", createdBy: null, createdByName: null }] },
+    });
+    render(<InvoiceDetailPage />);
+    const row = await screen.findByTestId("payment-row-pay-gw");
+    expect(within(row).queryByRole("button", { name: /Batalkan pembayaran/ })).not.toBeInTheDocument();
+  });
+
+  it("reversal requires a reason, then POSTs it to the reverse endpoint and refreshes", async () => {
+    const fetchMock = fixture({ invoice: { payments: [cashPayment] } });
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Batalkan pembayaran/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ya, Batalkan Pembayaran" }));
+    expect(await within(dialog).findByText("Alasan wajib diisi (minimal 5 karakter)")).toBeInTheDocument();
+    expect(posts(fetchMock, "/reverse")).toHaveLength(0);
+
+    await user.type(within(dialog).getByRole("textbox", { name: /Alasan pembatalan/ }), "Salah input nominal");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ya, Batalkan Pembayaran" }));
+
+    await waitFor(() => expect(posts(fetchMock, "/reverse")).toHaveLength(1));
+    const [url, init] = posts(fetchMock, "/reverse")[0];
+    expect(url).toBe("/api/invoices/inv-1/payments/pay-1/reverse");
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ reason: "Salah input nominal" });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pembayaran dibatalkan"));
+  });
+
+  it("FIN-9: an OVERDUE invoice with no payments can be cancelled from the menu", async () => {
+    const fetchMock = fixture({ invoice: { status: "OVERDUE", totalPaid: 0, payments: [] } });
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Aksi lainnya" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Batalkan Tagihan" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Ya, Batalkan" }));
+
+    await waitFor(() => expect(posts(fetchMock, "/void")).toHaveLength(1));
+  });
+
+  it("FIN-9: an invoice with payments explains that payments must be reversed first (no POST)", async () => {
+    const fetchMock = fixture({ invoice: { status: "OVERDUE", payments: [cashPayment] } });
+    const user = userEvent.setup();
+    render(<InvoiceDetailPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Aksi lainnya" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Batalkan Tagihan" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Tagihan sudah menerima pembayaran");
+    expect(dialog).toHaveTextContent("Rp 400.000");
+    expect(dialog).toHaveTextContent("Batalkan pembayarannya lebih dulu");
+    expect(posts(fetchMock, "/void")).toHaveLength(0);
+  });
+
+  it("FIN-11: a cancelled invoice shows no red 'Sisa' row", async () => {
+    fixture({ invoice: { status: "CANCELLED", totalPaid: 0 } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByText("Sisa")).not.toBeInTheDocument();
+  });
+
+  it("FIN-20: a PAID invoice drops the live payment link card and the gateway refresh button", async () => {
+    fixture({ invoice: { status: "PAID", totalPaid: 1000000, xenditPaymentUrl: "https://pay.example/abc" } });
+    render(<InvoiceDetailPage />);
+    await screen.findByText("Total Tagihan");
+    expect(screen.queryByText("Link Pembayaran")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("invoice-refresh-payment-btn")).not.toBeInTheDocument();
+  });
+
+  it("FIN-20: an unpaid invoice with a link labels the refresh action 'Cek status di gateway'", async () => {
+    fixture({ invoice: { xenditPaymentUrl: "https://pay.example/abc" } });
+    render(<InvoiceDetailPage />);
+    expect(await screen.findByTestId("invoice-refresh-payment-btn")).toHaveTextContent("Cek status di gateway");
   });
 });
