@@ -103,6 +103,8 @@ describe("PUT /api/payroll/[id]/items/[itemId]/variables — atomic rebuild", ()
           findMany: vi.fn().mockResolvedValue([]),
         },
         payrollItemLine: {
+          // HR-2: existing manual adjustments are read before the rebuild.
+          findMany: vi.fn().mockResolvedValue([]),
           deleteMany: vi.fn().mockImplementation(() => {
             calls.push("payrollItemLine.deleteMany");
             return Promise.resolve({ count: 0 });

@@ -70,3 +70,41 @@ describe("PUT .../variables — F-15 ordering guard", () => {
     expect(db.$transaction).not.toHaveBeenCalled();
   });
 });
+
+describe("PUT .../variables — HR-2 manual adjustments survive a recalculation", () => {
+  it("re-applies adjustmentAmount/adjustmentNote onto the rebuilt lines and totals", async () => {
+    db.salaryComponentDef.findMany.mockResolvedValue([
+      { id: "gp1", code: "gaji_pokok", label: "Gaji Pokok", category: "INCOME", calcType: "FIXED", isProRated: false, sortOrder: 1 },
+    ]);
+    const tx = {
+      payrollItem: {
+        update: vi.fn().mockResolvedValue({
+          employeeId: "e1", overtimeHours: 0, outdoorDays: 2, holidayWorkedDays: 0, dcDays: 0,
+        }),
+      },
+      employeeSalaryValue: { findMany: vi.fn().mockResolvedValue([{ componentDefId: "gp1", value: 0 }]) },
+      attendanceRecord: { findMany: vi.fn().mockResolvedValue([]) },
+      payrollItemLine: {
+        findMany: vi.fn().mockResolvedValue([
+          { componentDefId: "gp1", adjustmentAmount: "100000.00", adjustmentNote: "Koreksi manual" },
+        ]),
+        deleteMany: vi.fn(),
+        createMany: vi.fn(),
+      },
+    };
+    db.$transaction.mockImplementation(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
+
+    const res = await PUT(req({ outdoorDays: 2 }), { params } as never);
+    expect(res.status).toBe(200);
+
+    const rows = tx.payrollItemLine.createMany.mock.calls[0]![0].data;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].adjustmentNote).toBe("Koreksi manual");
+    expect(rows[0].adjustmentAmount.toString()).toBe("100000");
+    expect(rows[0].finalAmount.toString()).toBe("100000");
+
+    const totals = tx.payrollItem.update.mock.calls.at(-1)![0].data;
+    expect(totals.grossAmount.toString()).toBe("100000");
+    expect(totals.netAmount.toString()).toBe("100000");
+  });
+});
