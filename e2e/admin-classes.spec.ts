@@ -45,7 +45,7 @@ test.describe("Admin /admin/classes", () => {
     const [campusRes, programRes, yearRes] = await Promise.all([
       page.request.get("/api/config/campuses?status=ACTIVE"),
       page.request.get("/api/programs"),
-      page.request.get("/api/admin/academic-years"),
+      page.request.get("/api/academic-years"),
     ]);
     if (!campusRes.ok() || !programRes.ok() || !yearRes.ok()) {
       test.skip(true, "Reference data endpoints unavailable in demo seed");
@@ -73,6 +73,8 @@ test.describe("Admin /admin/classes", () => {
         programId: programList[0].id,
         academicYearId: activeYear.id,
         name: className,
+        // Kelompok usia (A/B) is required since the 2026-05-20 curriculum cutover.
+        ageGroup: "A",
         capacity: 5,
         slotTemplate: "FULL_DAY",
       },
