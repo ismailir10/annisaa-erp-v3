@@ -78,19 +78,26 @@ export async function PUT(
     }
   }
 
+  // Only keys present in the parsed body are written. `undefined` is skipped
+  // by Prisma, so a partial PUT such as `{ email }` leaves formalName/noHp/
+  // bank*/bpjsEnrolled alone (HR-7); an explicit `null` or blank string still
+  // clears a nullable column.
+  const nullableTrim = (v: string | null | undefined) =>
+    v === undefined ? undefined : v?.trim() || null;
+
   const employee = await prisma.employee.update({
     where: { id },
     data: {
       nama: body.nama?.trim(),
-      formalName: body.formalName?.trim() || null,
+      formalName: nullableTrim(body.formalName),
       email: body.email?.trim(),
-      noHp: body.noHp?.trim() || null,
+      noHp: nullableTrim(body.noHp),
       jabatan: body.jabatan?.trim(),
       campusId: body.campusId,
       hireDate: body.hireDate,
-      bankName: body.bankName?.trim() || null,
-      bankAccountNo: body.bankAccountNo?.trim() || null,
-      bpjsEnrolled: body.bpjsEnrolled ?? false,
+      bankName: nullableTrim(body.bankName),
+      bankAccountNo: nullableTrim(body.bankAccountNo),
+      bpjsEnrolled: body.bpjsEnrolled,
       // Undefined keys are omitted by Prisma — a blank input leaves the
       // existing balance untouched (no reset to default on every edit).
       leaveBalanceAnnual: body.leaveBalanceAnnual,

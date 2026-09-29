@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalTrimmed, optionalEnum } from "./zod-helpers";
+import { optionalTrimmed, optionalEnum, partialWithoutDefaults } from "./zod-helpers";
 
 /**
  * Admin-side create/update schemas for Admission rows.
@@ -41,6 +41,8 @@ export const createAdmissionSchema = z.object({
   followUpDate: optionalTrimmed(z.string()),
 });
 
-export const updateAdmissionSchema = createAdmissionSchema.partial().extend({
+// partialWithoutDefaults: a bare `.partial()` keeps `source`'s WALK_IN default in
+// Zod 4, so a status-only PUT reset the lead source (CORE-1 / X-2).
+export const updateAdmissionSchema = partialWithoutDefaults(createAdmissionSchema).extend({
   status: z.enum(["INQUIRY", "VISIT_SCHEDULED", "VISITED", "ADMITTED", "CANCELLED"]).optional(),
 });
