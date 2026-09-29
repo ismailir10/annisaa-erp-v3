@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RupiahInput } from "@/components/ui/rupiah-input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { SalaryEditor, type SalaryComponentRow } from "@/components/admin/employees/salary-editor";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -59,6 +58,7 @@ export default function EmployeeDetailPage() {
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [salaryValues, setSalaryValues] = useState<SalaryValue[] | null>(null);
+  const [salaryComponents, setSalaryComponents] = useState<SalaryComponentRow[] | null>(null);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [positions, setPositions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,13 +121,15 @@ export default function EmployeeDetailPage() {
 
   const fetchEmployee = useCallback(async () => {
     try {
-      const [emp, sal, camps, pos] = await Promise.all([
+      const [emp, sal, comps, camps, pos] = await Promise.all([
         fetch(`/api/employees/${id}`).then(r => r.json()),
         fetch(`/api/employees/${id}/salary`).then(r => r.ok ? r.json() : null),
+        // Every salary component, so components with no value row yet can be filled in (HR-3).
+        fetch("/api/salary-components").then(r => r.ok ? r.json() : null).catch(() => null),
         fetch("/api/config/campuses").then(r => r.json()),
         fetch("/api/employees/positions").then(r => r.json()),
       ]);
-      setEmployee(emp); setSalaryValues(sal); setCampuses(camps); setPositions(pos);
+      setEmployee(emp); setSalaryValues(sal); setSalaryComponents(Array.isArray(comps) ? comps : null); setCampuses(camps); setPositions(pos);
     } catch {
       toast.error("Gagal memuat data karyawan");
     } finally {
@@ -155,35 +157,34 @@ export default function EmployeeDetailPage() {
     }
   });
 
-  async function handleSaveSalary() {
+  async function handleSaveSalary(payload: { componentDefId: string; value: number }[]) {
     setSavingSalary(true);
-    if (!salaryValues) { setSavingSalary(false); return; }
-    // FIND-020-NEW: Prisma serialises Decimal columns as strings in JSON, so
-    // unedited rows arrive with `sv.value` as a string. The PUT schema
-    // requires `z.number()`, so we coerce here before submit — pre-fix this
-    // produced an opaque HTTP 400 "Gagal menyimpan" toast.
-    const payload = salaryValues.map(sv => ({
-      componentDefId: sv.componentDefId,
-      value: Number(sv.value),
-    }));
-    const res = await fetch(`/api/employees/${id}/salary`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      toast.success("Nilai gaji disimpan");
-    } else {
-      // Surface the Zod field error (validateBody returns `{ error, errors: [{ field, message }] }`)
-      // so admins see *why* the save failed instead of a bare "Gagal menyimpan".
-      let detail: string | undefined;
-      try {
-        const d = await res.json();
-        detail = d?.errors?.[0]?.message ?? d?.error;
-      } catch { /* non-JSON body — fall back to generic */ }
-      toast.error(detail ?? "Gagal menyimpan");
+    try {
+      // The editor already coerces to numbers: Prisma serialises Decimal columns
+      // as strings and the PUT schema requires `z.number()` (FIND-020-NEW).
+      const res = await fetch(`/api/employees/${id}/salary`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast.success("Nilai gaji disimpan");
+        // Refetch so newly created rows come back with their ids.
+        const sal = await fetch(`/api/employees/${id}/salary`).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (sal) setSalaryValues(sal);
+      } else {
+        // Surface the Zod field error (validateBody returns `{ error, errors: [{ field, message }] }`)
+        // so admins see *why* the save failed instead of a bare "Gagal menyimpan".
+        let detail: string | undefined;
+        try {
+          const d = await res.json();
+          detail = d?.errors?.[0]?.message ?? d?.error;
+        } catch { /* non-JSON body — fall back to generic */ }
+        toast.error(detail ?? "Gagal menyimpan");
+      }
+    } finally {
+      setSavingSalary(false);
     }
-    setSavingSalary(false);
   }
 
   async function handleDeactivate() {
@@ -570,51 +571,12 @@ export default function EmployeeDetailPage() {
               open={openSections[SECTION_SALARY] ?? true}
               onOpenChange={(o) => setSectionOpen(SECTION_SALARY, o)}
             >
-              {salaryValues.length === 0 ? <EmptyState title="Belum ada komponen gaji" description="Tambahkan komponen di Pengaturan." /> : (
-                <div className="space-y-3">
-                  {salaryValues.map(sv => (
-                    <div key={sv.componentDefId} className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{sv.componentDef.label}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <StatusBadge
-                            status={sv.componentDef.category}
-                            label={sv.componentDef.category === "INCOME" ? "Pendapatan" : "Potongan"}
-                          />
-                          <span className="text-xs text-muted-foreground">{sv.componentDef.calcType === "FIXED" ? "Tetap" : sv.componentDef.calcType === "ATTENDANCE_BASED" ? "Per hari" : "% Pokok"}</span>
-                        </div>
-                      </div>
-                      <div className="w-40">
-                        {sv.componentDef.calcType === "PCT_OF_BASE" ? (
-                          // PCT_OF_BASE is a percentage of gaji_pokok (lib/payroll/engine.ts
-                          // `amount = gajiPokokAmount * (baseValue / 100)`), not a rupiah
-                          // amount — RupiahInput would strip "2.5" down to "25"/"2" and
-                          // stamp an incorrect "Rp" prefix on it.
-                          <InputGroup>
-                            <InputGroupInput
-                              aria-label={`Nilai ${sv.componentDef.label}`}
-                              type="number"
-                              inputMode="decimal"
-                              step="any"
-                              value={sv.value}
-                              onChange={(ev) => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: parseFloat(ev.target.value) || 0 } : s))}
-                              className="text-right tabular-nums"
-                            />
-                            <InputGroupAddon align="inline-end">%</InputGroupAddon>
-                          </InputGroup>
-                        ) : (
-                          <RupiahInput
-                            aria-label={`Nilai ${sv.componentDef.label}`}
-                            value={sv.value}
-                            onChange={(v) => setSalaryValues(svs => (svs ?? []).map(s => s.componentDefId === sv.componentDefId ? { ...s, value: v ?? 0 } : s))}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <Button onClick={handleSaveSalary} disabled={savingSalary} className="mt-2"><Save size={14} className="mr-1.5" /> {savingSalary ? "Menyimpan..." : "Simpan Semua Nilai"}</Button>
-                </div>
-              )}
+              <SalaryEditor
+                components={salaryComponents}
+                values={salaryValues}
+                saving={savingSalary}
+                onSave={handleSaveSalary}
+              />
             </DossierSection>
           )}
 

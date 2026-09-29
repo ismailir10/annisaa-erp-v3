@@ -10,6 +10,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
+import { PayrollGenerateBlockersAlert, type GenerateBlockers } from "@/components/admin/payroll/generate-blockers";
 import { StatCard } from "@/components/admin/stat-card";
 import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { Button } from "@/components/ui/button";
@@ -113,10 +114,12 @@ export default function PayrollListPage() {
   const [data, setData] = useState<PayrollRun[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const createFormId = useId();
+  const [blockers, setBlockers] = useState<GenerateBlockers | null>(null);
   const createForm = useZodForm(generatePayrollSchema, { defaultValues: defaultPayrollPeriod() });
 
   const openCreate = useCallback(() => {
     createForm.reset(defaultPayrollPeriod());
+    setBlockers(null);
     setCreateOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -131,6 +134,7 @@ export default function PayrollListPage() {
 
   const handleGenerate = createForm.handleSubmit(async (values) => {
     const fallback = "Gagal membuat draft";
+    setBlockers(null);
     try {
       const res = await fetch("/api/payroll/generate", {
         method: "POST",
@@ -145,17 +149,12 @@ export default function PayrollListPage() {
         return;
       }
       const d = await res.json().catch(() => ({}));
-      // F-10: 422 with `employees` array lists offenders missing Rekening.
-      // Surface each one in a separate toast so the admin can click into
-      // each Karyawan to fix the data, then retry. This is a domain-shaped
-      // error the standard `{ error, errors[] }` fieldErrors envelope
-      // doesn't carry, so it stays a direct toast rather than going through
-      // applyServerErrors.
+      // 422 with an `employees` array (missing Rekening / salary structure /
+      // negative net): a domain-shaped error the standard `{ error, errors[] }`
+      // envelope doesn't carry. Keep it on screen inside the dialog, with a link
+      // per employee, instead of a toast that vanishes (HR-3).
       if (res.status === 422 && Array.isArray(d.employees) && d.employees.length > 0) {
-        toast.error(
-          `${d.error}: ${d.employees.map((e: { kode: string; nama: string }) => `${e.kode} ${e.nama}`).join(", ")}`,
-          { duration: 8000 },
-        );
+        setBlockers({ error: String(d.error ?? fallback), employees: d.employees });
         return;
       }
       applyServerErrors(createForm, new ApiError(d.error || fallback, { status: res.status }), fallback);
@@ -301,7 +300,7 @@ export default function PayrollListPage() {
       {/* Create Payroll */}
       <ResponsiveFormDialog
         open={createOpen}
-        onOpenChange={(o) => { setCreateOpen(o); if (!o) createForm.reset(defaultPayrollPeriod()); }}
+        onOpenChange={(o) => { setCreateOpen(o); if (!o) { createForm.reset(defaultPayrollPeriod()); setBlockers(null); } }}
         title="Buat Penggajian Baru"
         size="lg"
         footer={
@@ -316,6 +315,7 @@ export default function PayrollListPage() {
       >
         <form id={createFormId} onSubmit={handleGenerate} noValidate className="space-y-field">
           <FormRootError formState={createForm.formState} />
+          {blockers && <PayrollGenerateBlockersAlert blockers={blockers} />}
           <PayrollPeriodBody control={createForm.control} />
         </form>
       </ResponsiveFormDialog>
