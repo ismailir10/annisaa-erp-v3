@@ -10,7 +10,7 @@
  *     attendance record.
  */
 import { describe, it, expect } from "vitest";
-import { computeAbsentCount, isNonWorkingDay, isWeekend } from "../absent-stat";
+import { computeAbsentCount, computeExcusedCount, isNonWorkingDay, isWeekend } from "../absent-stat";
 
 const ROWS = [
   { attendance: { id: "a1" } }, // present
@@ -144,3 +144,50 @@ describe("isNonWorkingDay — tenant working days", () => {
   });
 });
 
+
+describe("computeAbsentCount — explicit ABSENT records (HR-6)", () => {
+  const none = new Set<string>();
+  const roster = [
+    { attendance: { status: "PRESENT" } },
+    { attendance: { status: "LATE" } },
+    { attendance: { status: "ABSENT" } }, // rendered "Alpa" in the table
+    { attendance: { status: "LEAVE" } },
+    { attendance: null },
+  ];
+
+  it("counts an explicit ABSENT record on a working day, alongside no-record rows", () => {
+    expect(computeAbsentCount({ selectedDate: "2026-09-29", data: roster, holidays: none })).toBe(2);
+  });
+
+  it("counts an explicit ABSENT record even when nobody else has a record", () => {
+    expect(
+      computeAbsentCount({ selectedDate: "2026-09-29", data: [{ attendance: { status: "ABSENT" } }], holidays: none }),
+    ).toBe(1);
+  });
+
+  it("still ignores no-record rows on a holiday but keeps the explicit ABSENT one", () => {
+    expect(computeAbsentCount({ selectedDate: "2026-09-29", data: roster, holidays: new Set(["2026-09-29"]) })).toBe(1);
+  });
+
+  it("KPI cards add up to the roster: hadir + terlambat + alpa + izin covers every row", () => {
+    const data = roster;
+    const present = data.filter((d) => d.attendance && ["PRESENT", "LATE", "PRESENT_NO_CHECKOUT"].includes(d.attendance.status)).length;
+    const alpa = computeAbsentCount({ selectedDate: "2026-09-29", data, holidays: none });
+    const izin = computeExcusedCount(data);
+    expect(present + alpa + izin).toBe(data.length);
+  });
+});
+
+describe("computeExcusedCount", () => {
+  it("counts LEAVE, SICK and PERMISSION, nothing else", () => {
+    expect(
+      computeExcusedCount([
+        { attendance: { status: "LEAVE" } },
+        { attendance: { status: "SICK" } },
+        { attendance: { status: "PERMISSION" } },
+        { attendance: { status: "ABSENT" } },
+        { attendance: null },
+      ]),
+    ).toBe(3);
+  });
+});

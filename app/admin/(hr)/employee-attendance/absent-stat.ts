@@ -43,7 +43,8 @@ export function isNonWorkingDay(
 }
 
 /**
- * Compute the absent count for the dashboard.
+ * Compute the absent ("Alpa") count for the dashboard: explicit ABSENT records
+ * plus, on a working day, employees with no record at all.
  *
  * @param selectedDate ISO date currently displayed (`YYYY-MM-DD`)
  * @param data the `EmployeeAttendance[]` rows backing the table
@@ -64,6 +65,27 @@ export function computeAbsentCount(args: {
   workingDays?: string[] | null;
 }): number {
   const { selectedDate, data, holidays, workingDays } = args;
-  if (isNonWorkingDay(selectedDate, holidays, workingDays)) return 0;
-  return data.filter((d) => !d.attendance).length;
+  // An explicit ABSENT record is "Alpa" in the table on any day, so it always
+  // counts (HR-6: the card read 0 while a row said Alpa). Rows with *no*
+  // record only count as absent on a day the school was open.
+  const explicitAbsent = data.filter((d) => recordStatus(d.attendance) === "ABSENT").length;
+  if (isNonWorkingDay(selectedDate, holidays, workingDays)) return explicitAbsent;
+  const noRecord = data.filter((d) => !d.attendance).length;
+  return explicitAbsent + noRecord;
+}
+
+function recordStatus(attendance: unknown): string | null {
+  if (attendance && typeof attendance === "object" && "status" in attendance) {
+    const status = (attendance as { status?: unknown }).status;
+    return typeof status === "string" ? status : null;
+  }
+  return null;
+}
+
+/** Statuses the "Izin" card counts — every excused-absence status, not just LEAVE. */
+const EXCUSED_STATUSES = new Set(["LEAVE", "SICK", "PERMISSION"]);
+
+/** Count of rows whose record is an excused absence (izin / sakit / cuti). */
+export function computeExcusedCount(data: { attendance: unknown }[]): number {
+  return data.filter((d) => EXCUSED_STATUSES.has(recordStatus(d.attendance) ?? "")).length;
 }

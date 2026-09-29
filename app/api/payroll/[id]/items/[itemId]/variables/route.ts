@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { calculateEmployeePayroll, SalaryComponent } from "@/lib/payroll/engine";
 import { countAttendanceDays } from "@/lib/payroll/working-days";
+import { applyLineAdjustments } from "@/lib/payroll/adjustments";
 import { validateBody } from "@/lib/api/validate";
 import { payrollVariablesSchema } from "@/lib/validations/payroll";
 
@@ -112,15 +113,26 @@ export async function PUT(
       }
     );
 
+    // HR-2: the engine only knows calculated amounts. Read the admin's manual
+    // adjustments before the lines are rebuilt and layer them back on, or every
+    // "Simpan & Hitung Ulang" silently zeroes them.
+    const existingLines = await tx.payrollItemLine.findMany({
+      where: { payrollItemId: itemId },
+      select: { componentDefId: true, adjustmentAmount: true, adjustmentNote: true },
+    });
+    const recomputed = applyLineAdjustments(result.lines, existingLines);
+
     await tx.payrollItemLine.deleteMany({ where: { payrollItemId: itemId } });
 
     await tx.payrollItemLine.createMany({
-      data: result.lines.map((line) => ({
+      data: recomputed.lines.map((line) => ({
         payrollItemId: itemId,
         componentDefId: line.componentDefId,
         labelSnapshot: line.labelSnapshot,
         categorySnapshot: line.categorySnapshot,
         calculatedAmount: line.calculatedAmount,
+        adjustmentAmount: line.adjustmentAmount,
+        adjustmentNote: line.adjustmentNote,
         finalAmount: line.finalAmount,
       })),
     });
@@ -128,9 +140,9 @@ export async function PUT(
     await tx.payrollItem.update({
       where: { id: itemId },
       data: {
-        grossAmount: result.grossAmount,
-        deductions: result.deductions,
-        netAmount: result.netAmount,
+        grossAmount: recomputed.grossAmount,
+        deductions: recomputed.deductions,
+        netAmount: recomputed.netAmount,
       },
     });
   });
