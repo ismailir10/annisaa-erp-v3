@@ -67,25 +67,36 @@ export function ResponsiveFormDialog({
   // CORE-12: these dialogs are opened by state from a plain button (no Trigger
   // element), so nothing hands focus back when they close and it fell to <body>
   // — keyboard users restarted from the top of the page. Remember what had
-  // focus when the dialog opened and put it back afterwards. A layout effect
-  // runs before the popup's own (passive) focus move, so this reads the opener.
+  // focus at the moment the dialog opens and put it back afterwards. The
+  // opener is read during the render that opens the dialog: by the time any
+  // effect runs the popup has already moved focus into itself.
   const returnFocusRef = React.useRef<HTMLElement | null>(null);
+  const wasOpenRef = React.useRef(false);
+  if (open && !wasOpenRef.current && typeof document !== "undefined") {
+    const active = document.activeElement;
+    returnFocusRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+  }
   React.useLayoutEffect(() => {
-    if (open) {
-      const active = document.activeElement;
-      returnFocusRef.current =
-        active instanceof HTMLElement && active !== document.body ? active : null;
-      return;
-    }
+    wasOpenRef.current = open;
+    if (open) return;
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
     if (!target) return;
-    // After the popup has unmounted and released its focus trap.
-    const id = window.setTimeout(() => {
-      if (target.isConnected && (document.activeElement === document.body || !document.activeElement)) {
-        target.focus();
+    // The popup keeps focus while its exit transition runs and only drops it to
+    // <body> once it unmounts — so wait for that instead of guessing a delay,
+    // and never steal focus the user has already moved somewhere else.
+    let id: number | undefined;
+    let tries = 0;
+    const restore = () => {
+      const active = document.activeElement;
+      if (!active || active === document.body) {
+        if (target.isConnected) target.focus();
+        return;
       }
-    }, 0);
+      if (tries++ < 30) id = window.setTimeout(restore, 50);
+    };
+    id = window.setTimeout(restore, 0);
     return () => window.clearTimeout(id);
   }, [open]);
 
