@@ -36,6 +36,7 @@ import { GET as termsGET, POST as termsPOST } from "@/app/api/admin/terms/route"
 import { GET as rosterGET } from "@/app/api/admin/report-cards/route";
 import { GET as entryGET, PUT as entryPUT } from "@/app/api/admin/report-cards/[studentId]/[termId]/route";
 import { POST as publishPOST } from "@/app/api/admin/report-cards/[studentId]/[termId]/publish/route";
+import { POST as syncAttendancePOST } from "@/app/api/admin/report-cards/[studentId]/[termId]/sync-attendance/route";
 
 const ALLOW = { session: { tenantId: "t1", id: "u1", role: "SCHOOL_ADMIN" } };
 const DENY = { error: Response.json({ error: "forbidden", missing: "reportCard.read" }, { status: 403 }) };
@@ -274,5 +275,49 @@ describe("POST publish", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).data.status).toBe("PUBLISHED");
     expect(recordAudit).toHaveBeenCalled();
+  });
+});
+
+// ACAD-2: a saved raport's attendance snapshot can be re-synced from live presensi.
+describe("POST sync-attendance", () => {
+  it("403 when the caller cannot write raports", async () => {
+    requirePermission.mockResolvedValue(DENY);
+    expect((await syncAttendancePOST(req("http://t/x", { method: "POST" }), ctx("s1", "term1"))).status).toBe(403);
+    expect(requirePermission).toHaveBeenCalledWith("reportCard.write");
+  });
+
+  it("404 when the raport was never saved", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.term.findFirst.mockResolvedValue(TERM);
+    db.reportCardEntry.findFirst.mockResolvedValue(null);
+    expect((await syncAttendancePOST(req("http://t/x", { method: "POST" }), ctx("s1", "term1"))).status).toBe(404);
+    expect(db.reportCardEntry.update).not.toHaveBeenCalled();
+  });
+
+  it("rewrites only the four attendance columns from live presensi, keeps publish state, and audits before/after", async () => {
+    requirePermission.mockResolvedValue(ALLOW);
+    db.term.findFirst.mockResolvedValue(TERM);
+    db.reportCardEntry.findFirst.mockResolvedValue({
+      id: "rce1", status: "PUBLISHED", permittedAbsenceDays: 1, sickDays: 1, unexcusedAbsenceDays: 0, totalSchoolDays: 2,
+    });
+    loadRaportDraft.mockResolvedValue({
+      sections: {},
+      attendance: { permittedAbsenceDays: 1, sickDays: 0, unexcusedAbsenceDays: 0, totalSchoolDays: 2 },
+    });
+    db.reportCardEntry.update.mockResolvedValue({ id: "rce1", status: "PUBLISHED", sickDays: 0 });
+
+    const res = await syncAttendancePOST(req("http://t/x", { method: "POST" }), ctx("s1", "term1"));
+
+    expect(res.status).toBe(200);
+    const arg = db.reportCardEntry.update.mock.calls[0][0];
+    expect(arg.data).toEqual({ permittedAbsenceDays: 1, sickDays: 0, unexcusedAbsenceDays: 0, totalSchoolDays: 2 });
+    expect(arg.data).not.toHaveProperty("status");
+    expect(recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "sync-attendance",
+        before: expect.objectContaining({ sickDays: 1 }),
+        after: expect.objectContaining({ sickDays: 0 }),
+      }),
+    );
   });
 });
