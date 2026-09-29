@@ -147,19 +147,57 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   if (diffHour < 24) return `${diffHour} jam lalu`;
   const diffDay = Math.round(diffHour / 24);
   if (diffDay < 30) return `${diffDay} hari lalu`;
-  return formatDateShort(then.toISOString());
+  // Calendar day as the school reads it (WIB), not the UTC date part of the
+  // ISO string — a 00:30 WIB timestamp is still "yesterday" in UTC.
+  return then.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: DISPLAY_TIME_ZONE,
+  });
 }
 
 /**
- * Format time from ISO datetime string.
+ * School wall-clock zone. Every timestamp the UI shows is read in WIB, never
+ * the process zone: SSR on Vercel runs in UTC, the teacher's phone in WIB, and
+ * a zoneless `toLocale*String` renders "00.02" on the server and "07.02" in the
+ * browser — a React #418 hydration error on every load, and wrong times for
+ * any device that is not on WIB.
+ */
+export const DISPLAY_TIME_ZONE = "Asia/Jakarta";
+
+/**
+ * Format time from ISO datetime string, always in Asia/Jakarta (see
+ * `DISPLAY_TIME_ZONE`). `hourCycle: "h23"` keeps midnight as "00.05" — a bare
+ * `hour12: false` can print "24.05" on some ICU builds.
  */
 export function formatTime(iso: string | null): string {
   if (!iso) return "--:--";
-  return new Date(iso).toLocaleTimeString("id-ID", {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
+    timeZone: DISPLAY_TIME_ZONE,
   });
+}
+
+/**
+ * Format an ISO timestamp as "26 Apr 2026 · 16:23" in Asia/Jakarta.
+ * Returns "—" for null or an unparseable value.
+ */
+export function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: DISPLAY_TIME_ZONE,
+  });
+  return `${date} · ${formatTime(iso)}`;
 }
 
 /**

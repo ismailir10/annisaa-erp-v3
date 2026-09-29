@@ -14,11 +14,13 @@ export const MAX_NOTE_PAGE_SIZE = 50;
  *
  * - **Own notes never count.** A guru who writes three catatan should not come
  *   back to a badge of three.
- * - **A missing watermark means zero, not everything.** The row is created the
- *   first time the reader opens the thread; treating its absence as "all unread"
- *   would greet every wali on rollout with a badge counting months of history
- *   they have already read on paper. Documented in
- *   `docs/cycles/2026-08-26-journal-notes-cycle-b.md` as a product call.
+ * - **A missing watermark means "never opened", so every note from the other
+ *   party is unread.** The row is only created the first time the reader opens
+ *   the thread. The earlier rule (missing = zero, to spare wali a rollout badge
+ *   for history — `docs/cycles/2026-08-26-journal-notes-cycle-b.md`) meant the
+ *   *first* note in a thread could never raise a badge: a parent's first
+ *   message to the teacher was invisible until the teacher happened to open the
+ *   thread once (X-3, `docs/uat/reports/2026-09-29-full-e2e.md`).
  */
 export async function countUnreadNotes({
   tenantId,
@@ -33,7 +35,6 @@ export async function countUnreadNotes({
     where: { userId_studentId: { userId: readerUserId, studentId } },
     select: { lastReadAt: true },
   });
-  if (!watermark) return 0;
 
   return prisma.studentJournalNote.count({
     where: {
@@ -41,7 +42,8 @@ export async function countUnreadNotes({
       studentId,
       status: JournalStatus.ACTIVE,
       authorUserId: { not: readerUserId },
-      createdAt: { gt: watermark.lastReadAt },
+      // No watermark row = never opened = every note from the other party.
+      ...(watermark ? { createdAt: { gt: watermark.lastReadAt } } : {}),
     },
   });
 }
@@ -50,8 +52,9 @@ export async function countUnreadNotes({
  * Unread counts for many students at once — the class-day grid needs one badge
  * per row and must not fan out into N+1 queries across a roster.
  *
- * Same rules as {@link countUnreadNotes}: a student with no watermark row is
- * absent from the returned map (the caller reads that as zero).
+ * Same rules as {@link countUnreadNotes}: a student with no watermark row has
+ * never been opened by this reader, so all of the other party's notes count.
+ * Students with nothing unread are absent from the returned map (read as zero).
  */
 export async function countUnreadNotesByStudent({
   tenantId,
@@ -70,34 +73,42 @@ export async function countUnreadNotesByStudent({
     where: { userId: readerUserId, studentId: { in: studentIds } },
     select: { studentId: true, lastReadAt: true },
   });
-  if (watermarks.length === 0) return {};
+  const readAtByStudent = new Map(watermarks.map((w) => [w.studentId, w.lastReadAt]));
+  const neverOpened = studentIds.filter((id) => !readAtByStudent.has(id));
 
   // One query for the candidate notes, grouped in memory: the watermark differs
   // per student, which SQL cannot express in a single `count(*) group by`
   // without a join Prisma's groupBy does not offer here. The candidate set is
-  // bounded by "notes newer than the oldest watermark on this roster".
-  const oldest = watermarks.reduce(
-    (min, w) => (w.lastReadAt < min ? w.lastReadAt : min),
-    watermarks[0].lastReadAt,
-  );
+  // bounded: every note on a never-opened thread, plus notes newer than the
+  // oldest watermark on the rest of the roster.
+  const scopes: Array<Record<string, unknown>> = [];
+  if (neverOpened.length > 0) scopes.push({ studentId: { in: neverOpened } });
+  if (watermarks.length > 0) {
+    const oldest = watermarks.reduce(
+      (min, w) => (w.lastReadAt < min ? w.lastReadAt : min),
+      watermarks[0]!.lastReadAt,
+    );
+    scopes.push({
+      studentId: { in: watermarks.map((w) => w.studentId) },
+      createdAt: { gt: oldest },
+    });
+  }
 
   const candidates = await prisma.studentJournalNote.findMany({
     where: {
       tenantId,
-      studentId: { in: watermarks.map((w) => w.studentId) },
       status: JournalStatus.ACTIVE,
       authorUserId: { not: readerUserId },
       ...(authorRole ? { authorRole } : {}),
-      createdAt: { gt: oldest },
+      OR: scopes,
     },
     select: { studentId: true, createdAt: true },
   });
 
-  const readAtByStudent = new Map(watermarks.map((w) => [w.studentId, w.lastReadAt]));
   const counts: Record<string, number> = {};
   for (const note of candidates) {
     const readAt = readAtByStudent.get(note.studentId);
-    if (readAt && note.createdAt > readAt) {
+    if (!readAt || note.createdAt > readAt) {
       counts[note.studentId] = (counts[note.studentId] ?? 0) + 1;
     }
   }

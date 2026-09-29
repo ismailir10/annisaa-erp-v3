@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFieldArray } from "react-hook-form";
+import { useFieldArray, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 
@@ -75,7 +75,11 @@ export function ManualInvoiceDialog({
 
   const form = useZodForm(manualInvoiceFormSchema, { defaultValues: buildInitialForm() });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lines" });
-  const lines = form.watch("lines");
+  // `useWatch` hands back a fresh array on every field change. `form.watch()`
+  // returns react-hook-form's live, mutated-in-place array, so anything keyed
+  // on its reference (the old `useMemo` for Total) never recomputed while
+  // typing — Total lagged one edit behind, or read Rp 0.
+  const lines = useWatch({ control: form.control, name: "lines" });
 
   // `manualInvoiceFormSchema`'s duplicate-fee-component check issues at path
   // ["lines"] (the array field itself, not one line's index). Confirmed
@@ -109,14 +113,12 @@ export function ManualInvoiceDialog({
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [feeComponents, setFeeComponents] = useState<FeeComponent[]>([]);
 
-  const total = useMemo(
-    () =>
-      lines.reduce((sum, line) => {
-        const amt = line?.amount;
-        return typeof amt === "number" && amt > 0 ? sum + amt : sum;
-      }, 0),
-    [lines],
-  );
+  // Cheap arithmetic over a handful of rows — derive on every render rather
+  // than memoising on a reference that can be stale.
+  const total = (lines ?? []).reduce((sum, line) => {
+    const amt = line?.amount;
+    return typeof amt === "number" && amt > 0 ? sum + amt : sum;
+  }, 0);
 
   // Fee components are still loaded once at dialog open — small list, no
   // pagination concern. Students moved to the on-demand StudentPicker.
