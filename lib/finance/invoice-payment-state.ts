@@ -14,6 +14,12 @@ export const ACTIVE_PAYMENT_FILTER = { status: { not: "REVERSED" } } as const;
 
 type InvoiceForState = {
   status: string;
+  /**
+   * Existing settlement stamp. Kept when a PAID invoice stays PAID (reversing
+   * one payment of an overpaid invoice), so the parent's "Dibayar <date>" and
+   * the receipt keep the real settlement date.
+   */
+  paidAt?: Date | null;
   totalDue: Prisma.Decimal | number | string;
   dueDate: string; // YYYY-MM-DD (Jakarta calendar day)
   sentAt: Date | null;
@@ -52,7 +58,9 @@ export function deriveInvoicePaymentState(
   else if (status === "PAID" || status === "PARTIALLY_PAID") {
     status = unpaidStatusFor(invoice, todayYmd);
   }
-  return { status, paidAt: status === "PAID" ? new Date() : null };
+  if (status !== "PAID") return { status, paidAt: null };
+  const keep = invoice.status === "PAID" && invoice.paidAt ? invoice.paidAt : null;
+  return { status, paidAt: keep ?? new Date() };
 }
 
 /**
