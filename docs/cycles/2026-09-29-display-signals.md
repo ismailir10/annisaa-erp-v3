@@ -18,7 +18,7 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - [x] `/admin/employees` stat cards refresh after deactivate and restore without a reload.
 - [x] A thread with no read row for the viewer counts every note from the other party as unread (`countUnreadNotes`, `countUnreadNotesByStudent`) — teacher grid, teacher home, parent Jurnal page all use these.
 - [x] Saving Edit Variabel Kehadiran preserves each line's manual `adjustmentAmount`/`adjustmentNote`; `finalAmount = calculatedAmount + adjustmentAmount`; item totals derive from final amounts.
-- [ ] X-11: teacher slip visibility matches the state the admin UI actually releases — **deferred to lead** (Assumption 3).
+- [x] X-11: **closed as working as designed** by the lead. Slips become visible to teachers at `APPROVED`, per the documented product decision in `docs/cycles/2026-08-06-salary-slip-email-removal.md`. No code change.
 - [x] Monitoring "Kelas sudah isi" and "Terakhir diisi" share one definition (a class is filled iff it has a checked entry this week).
 - [x] A Vitest per finding that fails on the old code and passes on the new.
 
@@ -38,7 +38,7 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - [x] **T3 — HR-6 + HR-13: HR stat cards.** `computeAbsentCount` counts explicit ABSENT; Izin card counts LEAVE/SICK/PERMISSION; employees page refetches stats after deactivate/restore.
 - [x] **T4 — X-3: unread with no watermark.** `lib/student-journal/note-reads.ts`.
 - [x] **T5 — HR-2: keep manual payroll adjustments on recalc.** New `lib/payroll/adjustments.ts`, variables route.
-- [ ] **T6 — X-11: teacher slip visibility.** Investigated; deferred to lead (Assumption 3). No code change.
+- [x] **T6 — X-11: teacher slip visibility.** Investigated. The lead closed it as working as designed (Assumption 3). No code change.
 - [x] **T7 — ACAD-8: one "filled" definition on monitoring.** Page + `admin/classes` route.
 
 ## Implementation
@@ -62,7 +62,8 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Task 7: `monitoring/__tests__/page.test.tsx` (KB 4 entries / 0% counts as filled: "2 / 3", belum isi 1) + `admin/classes/__tests__/route.test.ts`.
 
 - Existing tests updated for the new contracts: `tests/student-journal/api-notes-thread.test.ts` ("zero unread with no watermark" now asserts the X-3 behaviour) and `app/api/__tests__/payroll-variables-tx.test.ts` (tx mock gains `payrollItemLine.findMany`). The employees stat-card test stubs `DataTableRowActions` because the Base UI row menu swallowed a click right after opening ~1 run in 4.
-- Playwright: full suite run by lead serially before PR; CI `Playwright E2E` gates the merge. No e2e spec changed or added.
+- Playwright: full local suite run by the lead on `67e0630` (staging merged in) against a production build (`DEMO_MODE=true`) and a fresh copy of the seed: **154 passed, 0 failed, 8 skipped**, the same as baseline. Vitest after the merge: 432 files passed (2 skipped), 4100 tests. No e2e spec changed. CI `Playwright E2E` also gates the merge.
+- Ship route: **local demo-auth verification**. No login, OAuth, session, cookie or auth-guard change.
 - End-of-cycle gate at source SHA 20adec5 (+ this doc): `npm run build` exit 0; `npx vitest run` tail:
   ```
    Test Files  425 passed | 2 skipped (427)
