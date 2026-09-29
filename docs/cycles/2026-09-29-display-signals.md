@@ -67,3 +67,4 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Rollback: revert the PR (no data written in a new shape; `adjustmentAmount`/`adjustmentNote` are existing columns).
 <!-- task 2 committed -->
 <!-- task 3 committed -->
+<!-- task 4 committed -->
