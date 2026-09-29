@@ -102,6 +102,27 @@ describe("ManualInvoiceDialog", () => {
     expect(body.lines).toEqual([{ feeComponentId: FEE_COMPONENT.id, amount: 100000 }]);
   });
 
+  it("keeps the Total row in step with every typed amount (FIN-1)", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<ManualInvoiceDialog open onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByRole("combobox")[1]).toHaveTextContent(FEE_COMPONENT.label));
+
+    const totalRow = () => screen.getByText("Total").parentElement!;
+    expect(totalRow()).toHaveTextContent("Rp 0");
+
+    // No blur / no extra re-render between edits: Total must follow the keystrokes.
+    await user.type(screen.getByLabelText(/^Jumlah 1/), "1500000");
+    expect(totalRow()).toHaveTextContent("Rp 1.500.000");
+
+    await user.click(screen.getByRole("button", { name: "Tambah Komponen" }));
+    await user.type(screen.getByLabelText(/^Jumlah 2/), "250000");
+    expect(totalRow()).toHaveTextContent("Rp 1.750.000");
+
+    await user.clear(screen.getByLabelText(/^Jumlah 1/));
+    expect(totalRow()).toHaveTextContent("Rp 250.000");
+  });
+
   it("shows an inline duplicate-line error and sends no request when two lines pick the same component", async () => {
     const fetchMock = fixture();
     const user = userEvent.setup();
