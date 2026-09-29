@@ -7,8 +7,8 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 
 ## Spec
 - [x] DOC-1: creating a HOMEROOM assignment (and removing one) re-derives the teacher on the class's sessions dated today or later via `backfillSessionTeacher`; substituted sessions are untouched; failure of the backfill never fails the assignment; running it twice is a no-op.
-- [ ] TCH-12/X-7: the "istirahat dulu, semoga lekas sehat" line shows only when the week has a Sakit day; Alpa-only and Izin-only weeks get their own copy.
-- [ ] TCH-9: the class-attendance date input cannot pick a future date. TCH-13: `/teacher/sessions` redirects to the sessions list on the teacher home.
+- [x] TCH-12/X-7: the "istirahat dulu, semoga lekas sehat" line shows only when the week has a Sakit day; Alpa-only and Izin-only weeks get their own copy.
+- [x] TCH-9: the class-attendance date input cannot pick a future date. TCH-13: `/teacher/sessions` redirects to the sessions list on the teacher home.
 - [ ] TCH-3: closing the note dialog (outside tap, Escape, Batal) with an unsaved draft asks "Buang catatan?"; nothing is asked for an untouched or just-saved dialog. Applies to teacher and parent composers (one shared component).
 - [ ] X-4: the teacher sees edit + delete (with confirm) on her own catatan only, on the per-student page; other authors' notes show no controls.
 - [ ] TCH-7: the teacher journal entry page has a class-level bulk sheet: choose "semua indikator" / a category / one indicator, choose all students or a selection, tap "Tandai" (or "Kosongkan"); the whole gesture is one batched write (chunked, bounded), shows a "Batalkan" undo, and per-student taps still work. Common case (all indicators, all students) is 3 taps: open, apply, (undo optional).
@@ -30,7 +30,7 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 
 ## Tasks
 - [x] **T1 — DOC-1 homeroom backfill.** Call `backfillSessionTeacher` from the teaching-assignments POST/DELETE for HOMEROOM; vitest.
-- [ ] **T2 — Minors TCH-12/X-7, TCH-9, TCH-13.** Banner copy by reason, future-date guard, sessions index redirect; vitest.
+- [x] **T2 — Minors TCH-12/X-7, TCH-9, TCH-13.** Banner copy by reason, future-date guard, sessions index redirect; vitest.
 - [ ] **T3 — TCH-3 discard guard in the note composer.** vitest (jsdom).
 - [ ] **T4 — X-4 teacher edit/delete own notes.** Shared delete confirm, teacher student page wiring; vitest.
 - [ ] **T5 — TCH-7 class-level bulk.** Batch bound + chunk helper, bulk sheet, undo; vitest.
@@ -45,9 +45,11 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 - Subagent plan: driver=claude-sonnet-5-5, dirty-work=none (Sonnet is the harness tier and there is no cheaper tier used). Tasks run sequentially inline: T3-T5 share the note/journal components and T2/T6/T8 share the teacher home and client patterns, so a subagent would need the whole plan as context; the brief runs one cycle per build agent.
 
 - T1 (DOC-1): `app/api/admin/classes/[id]/teaching-assignments/route.ts` — after a HOMEROOM assignment is created, and after a HOMEROOM is removed, the route calls the existing (but never wired) `backfillSessionTeacher(classId, tenantId)`, which re-points today-and-later non-substituted `ClassSession` rows (substituted sessions and past days are left alone; running it twice changes nothing). The call is failure-isolated in `syncSessionTeacher` (logged, never fails the already-saved assignment); ASSISTANT changes and a refused (409) HOMEROOM never trigger it. Test: `app/api/__tests__/teaching-assignments-backfill.test.ts` (6 cases; the existing `lib/sessions/__tests__/teacher-backfill.test.ts` already covers the substituted/past/null semantics).
+- T2 (TCH-12/X-7, TCH-9, TCH-13): `lib/parent-attendance-banner.ts` now carries `reason: "sick" | "absent" | "permission"` and `app/parent/attendance/page.tsx` shows "tercatat sakit pekan ini, semoga lekas sehat" (thermometer) only for a week with a Sakit day; an Alpa-only week says "tercatat tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar." (calendar icon); Izin-only copy unchanged. `app/teacher/class-attendance/page.tsx`: date input has `max=today`, a typed future date is ignored and a future `?date=` is pulled back to today (`clampToToday`), so the unrecoverable "Coba lagi" can no longer be reached. New `app/teacher/sessions/page.tsx` redirects to `/teacher#pickup-sessions` (was a 404). Tests: banner unit test (reason), `summary.test.ts` (Sakit vs Alpa vs Izin copy), class-attendance page (max + clamp), `app/teacher/sessions/__tests__/index.test.ts`.
 
 ## Verification
 - T1: gates passed on the staged tree: `npm run build` exit 0; `npx vitest run` 430 files passed / 2 skipped, 4079 tests passed (also needed `npx prisma generate` once: the worktree had no `lib/generated`).
+- T2: gates: `npm run build` exit 0 on the T2 tree; full `npx vitest run` on the committed T2 commit (see the cumulative gate lines below).
 - design-system: frontend tasks are checked against `.claude/standards/design-system.html` (existing Sheet/ConfirmDialog/SaveStatus/TaskRow primitives, status tokens, 44 px targets, no new colours).
 
 ## Ship Notes
