@@ -5,6 +5,9 @@ vi.mock("@/lib/db", () => ({
     invoice: {
       groupBy: vi.fn(),
     },
+    payment: {
+      aggregate: vi.fn(),
+    },
   },
 }));
 
@@ -34,7 +37,11 @@ function adminSession() {
 }
 
 describe("GET /api/invoices/stats", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: null } } as never);
+  });
 
   it("admin: returns expected shape with correct counts and totals across mixed statuses", async () => {
     const { getSession } = await import("@/lib/auth");
@@ -66,6 +73,9 @@ describe("GET /api/invoices/stats", () => {
       pendingPaymentLink: 0,
       totalDue: 675_000,
       totalPaid: 125_000,
+      // SENT 200k + PARTIALLY_PAID (100k - 50k) = 250k; DRAFT/PAID excluded
+      outstanding: 250_000,
+      collectedThisMonth: 0,
     });
 
     // Single groupBy call scoped to tenant.
@@ -97,7 +107,35 @@ describe("GET /api/invoices/stats", () => {
       pendingPaymentLink: 0,
       totalDue: 0,
       totalPaid: 0,
+      outstanding: 0,
+      collectedThisMonth: 0,
     });
+  });
+
+  it("FIN-13: outstanding sums remaining of unpaid/partial/overdue; collectedThisMonth sums non-reversed payments in the Jakarta month", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    vi.mocked(prisma.invoice.groupBy).mockResolvedValue([
+      { status: "SENT", _count: { _all: 1 }, _sum: { totalDue: 500_000, totalPaid: 0 } },
+      { status: "OVERDUE", _count: { _all: 2 }, _sum: { totalDue: 900_000, totalPaid: 100_000 } },
+      { status: "PARTIALLY_PAID", _count: { _all: 1 }, _sum: { totalDue: 400_000, totalPaid: 150_000 } },
+      { status: "CANCELLED", _count: { _all: 1 }, _sum: { totalDue: 123_456, totalPaid: 0 } },
+      { status: "DRAFT", _count: { _all: 1 }, _sum: { totalDue: 700_000, totalPaid: 0 } },
+    ] as never);
+    vi.mocked(prisma.payment.aggregate).mockResolvedValue({ _sum: { amount: "1250000.00" } } as never);
+
+    const body = await (await GET(makeReq() as never)).json();
+    // (500k) + (900k - 100k) + (400k - 150k) = 1.550k
+    expect(body.outstanding).toBe(1_550_000);
+    expect(body.collectedThisMonth).toBe(1_250_000);
+
+    const args = vi.mocked(prisma.payment.aggregate).mock.calls[0][0] as {
+      where: { status: unknown; paidAt: { gte: Date; lt: Date }; invoice: unknown };
+    };
+    expect(args.where.status).toEqual({ not: "REVERSED" });
+    expect(args.where.invoice).toEqual({ tenantId: "tnt-1" });
+    expect(args.where.paidAt.gte.getTime()).toBeLessThan(args.where.paidAt.lt.getTime());
   });
 
   it("returns 403 when no session", async () => {

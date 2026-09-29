@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
+import { isGatewayPayment } from "@/lib/constants/payment-methods";
+import { invoiceStatusLabel, VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
+import { formatRupiah } from "@/lib/format";
 
 export async function POST(
   _req: NextRequest,
@@ -25,12 +30,33 @@ export async function POST(
       if (!fresh || fresh.tenantId !== session.tenantId) {
         throw new Error("NOT_FOUND");
       }
-      if (
-        fresh.status !== "DRAFT" &&
-        fresh.status !== "SENT" &&
-        fresh.status !== "PENDING_PAYMENT_LINK"
-      ) {
-        throw new Error("INVALID_STATE");
+      if (fresh.status === "CANCELLED") throw new Error("ALREADY_CANCELLED");
+
+      // Money already booked on the invoice blocks a cancel: cancelling would
+      // leave received cash on a dead invoice. Manual payments must be
+      // reversed first (FIN-9); gateway payments cannot be reversed here.
+      const active = await tx.payment.findMany({
+        where: { invoiceId: id, ...ACTIVE_PAYMENT_FILTER, amount: { gt: 0 } },
+        select: { amount: true, method: true, xenditPaymentId: true },
+      });
+      // fresh.totalPaid is the belt to the payment rows' braces: a legacy row
+      // can carry a paid total without payment rows behind it.
+      if (active.length > 0 || Number(fresh.totalPaid) > 0) {
+        const total = Math.max(
+          active.reduce((sum, p) => sum + Number(p.amount), 0),
+          Number(fresh.totalPaid),
+        );
+        throw Object.assign(new Error("HAS_PAYMENTS"), {
+          total,
+          gateway: active.some((p) => isGatewayPayment(p)),
+        });
+      }
+
+      const voidable =
+        (VOIDABLE_INVOICE_STATUSES as readonly string[]).includes(fresh.status) ||
+        fresh.status === "PARTIALLY_PAID"; // all payments reversed -> nothing owed
+      if (!voidable) {
+        throw Object.assign(new Error("INVALID_STATE"), { status: fresh.status });
       }
       // Clear Xendit fields alongside the status flip. Closes the TOCTOU
       // race where the retry helper writes xenditSessionId/Url after this
@@ -47,11 +73,44 @@ export async function POST(
           paymentLinkError: null,
         },
       });
+      await recordAudit(
+        {
+          tenantId: session.tenantId!,
+          actorId: session.id,
+          entity: "Invoice",
+          entityId: id,
+          action: "void",
+          before: { status: fresh.status },
+          after: { status: "CANCELLED" },
+        },
+        tx,
+      );
     });
   } catch (e) {
     if (e instanceof Error) {
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Tagihan tidak ditemukan" }, { status: 404 });
-      if (e.message === "INVALID_STATE") return NextResponse.json({ error: "Hanya tagihan DRAFT, SENT, atau PENDING_PAYMENT_LINK yang bisa dibatalkan" }, { status: 409 });
+      if (e.message === "ALREADY_CANCELLED") {
+        return NextResponse.json({ error: "Tagihan ini sudah dibatalkan." }, { status: 409 });
+      }
+      if (e.message === "HAS_PAYMENTS") {
+        const { total, gateway } = e as Error & { total: number; gateway: boolean };
+        return NextResponse.json(
+          {
+            error: gateway
+              ? `Tagihan ini sudah menerima pembayaran ${formatRupiah(total)}, termasuk lewat gateway yang tidak bisa dibatalkan dari sini. Tagihan tidak bisa dibatalkan.`
+              : `Tagihan ini sudah menerima pembayaran ${formatRupiah(total)}. Batalkan pembayarannya lebih dulu di Riwayat Pembayaran, lalu batalkan tagihan.`,
+          },
+          { status: 409 },
+        );
+      }
+      if (e.message === "INVALID_STATE") {
+        return NextResponse.json(
+          {
+            error: `Tagihan berstatus ${invoiceStatusLabel((e as Error & { status: string }).status)} tidak bisa dibatalkan.`,
+          },
+          { status: 409 },
+        );
+      }
     }
     throw e;
   }

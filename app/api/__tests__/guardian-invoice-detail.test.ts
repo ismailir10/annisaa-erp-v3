@@ -101,6 +101,19 @@ describe("GET /api/guardian/invoices/[id]", () => {
     );
   });
 
+  it("asks Prisma for non-reversed payments only (a reversed payment is not money received)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    parentFindFirst.mockResolvedValueOnce({ guardians: [{ studentId: "stu-1" }] });
+    invoiceFindUnique.mockResolvedValueOnce(null);
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    const args = invoiceFindUnique.mock.calls[0][0];
+    expect(args.select.payments.where).toEqual({ status: { not: "REVERSED" } });
+  });
+
   it("names the SEMESTER (sekolah) class, never the daycare one, for a dual-enrolled student", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(guardianSession());

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { pickPrimaryEnrollment } from "@/lib/enrollment/active";
@@ -69,6 +70,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         orderBy: { feeComponent: { sortOrder: "asc" } },
       },
       payments: {
+        // A reversed manual payment is not money received — keep it out of the
+        // parent's history and the receipt, consistent with totalPaid.
+        where: ACTIVE_PAYMENT_FILTER,
         select: {
           id: true,
           amount: true,
