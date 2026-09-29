@@ -87,3 +87,6 @@ Overlap: PR #575 (`claude/fix-display-signals`) changes `lib/student-journal/not
 ### Lead fix after local Playwright (dashboard fits one screen)
 - The full local Playwright run on a fresh seed failed `e2e/admin-dashboard.spec.ts › fits one 1440x900 screen with no vertical scroll`. X-6 made admission inquiries a work-queue source, so the "Perlu perhatian" list is usually full (5 rows). With the new fifth tile wrapping to a second row at `lg:grid-cols-3`, the page measured 921px against a 900px viewport. Even with one tile row it was 903px, so a full 5-row list never fit; it just rarely filled before.
 - Fix: tiles use `lg:grid-cols-5` (one row for the five kinds), and the dashboard urgent list shows 4 rows (`app/admin/page.tsx`). "Lihat semua (N)" still links to the full queue. The spec passes 10/10 on a DB already full of inquiries (the worst case). Checked against design-system.html dashboard layout: tiles stay in one row and cards keep their spacing.
+
+- Playwright (lead): full local suite on `ee359b4` against a production build (`DEMO_MODE=true`) and a **freshly seeded** DB (empty → `db push` → `db seed`): **154 passed, 0 failed, 8 skipped**, the same as baseline. CI `Playwright E2E` also gates the merge.
+- Ship route: **local demo-auth verification**. No login, OAuth, session, cookie or auth-guard change.
