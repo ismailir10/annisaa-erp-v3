@@ -11,6 +11,8 @@ export const revalidate = 3600;
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  // HR-16: campus coordinates and employee counts are read by admin screens only.
+  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
   // FIND-004: support an optional `?status=` query so the Campus page can
   // surface deactivated rows for the reactivate flow. Default remains ACTIVE

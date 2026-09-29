@@ -11,6 +11,9 @@ export const revalidate = 3600; // 1h — org config is static between saves
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json(null, { status: 401 });
+  // HR-16: only admin screens read this (work hours, employee attendance);
+  // payroll period days are not for teacher/parent sessions.
+  if (!isAdminRole(session.role)) return NextResponse.json(null, { status: 403 });
 
   const config = await prisma.orgConfig.findUnique({
     where: { tenantId: session.tenantId },
