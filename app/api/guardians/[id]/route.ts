@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { updateGuardianSchema, toggleGuardianStatusSchema } from "@/lib/validations/guardian";
+import { changeGuardianLinkStatus, GuardianPrimaryError } from "@/lib/guardians/primary";
 
 /**
  * Standalone guardian routes — operate on a StudentGuardian record by its own ID.
@@ -154,15 +155,23 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Input tidak valid" }, { status: 400 });
   }
   const newStatus = parsed.data.status;
+  const parsedNewPrimaryId = parsed.data.newPrimaryId;
 
-  const updated = await prisma.studentGuardian.update({
-    where: { id },
-    // T2: deactivating clears isPrimary in the same write — an INACTIVE
-    // guardian must never stay billed/contacted as primary. Reactivation
-    // leaves isPrimary untouched; re-promotion stays an explicit admin act.
-    data: newStatus === "INACTIVE" ? { status: newStatus, isPrimary: false } : { status: newStatus },
-    include: { parent: true },
-  });
-
-  return NextResponse.json(updated);
+  // CORE-4: keep exactly one ACTIVE primary across the status change.
+  try {
+    const { link, promoted, noActiveGuardian } = await changeGuardianLinkStatus(prisma, {
+      linkId: id,
+      studentId: guardian.studentId,
+      wasPrimary: guardian.isPrimary,
+      status: newStatus,
+      newPrimaryId: parsedNewPrimaryId,
+    });
+    return NextResponse.json({ ...link, promotedPrimary: promoted, noActiveGuardian });
+  } catch (e) {
+    if (e instanceof GuardianPrimaryError) return NextResponse.json({ error: e.message }, { status: 400 });
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return NextResponse.json({ error: "Konflik penyimpanan, coba lagi." }, { status: 409 });
+    }
+    throw e;
+  }
 }

@@ -32,7 +32,7 @@ No schema migration, no new dependency, nothing in auth/session code (HR-17 is a
 
 ## Tasks
 - [x] **T1 — HR-3 / DOC-2 / HR-12: salary structure UI, persistent payroll blockers, period + negative-net guards.**
-- [ ] **T2 — CORE-4: primary guardian invariant on deactivate.**
+- [x] **T2 — CORE-4: primary guardian invariant on deactivate.**
 - [ ] **T3 — CORE-3: class add-student picker search + pagination.**
 - [ ] **T4 — CORE-6 / DOC-3: academic year activation, archive PLANNING, semester dialog + reorder.**
 - [ ] **T5 — ACAD-2: stale raport attendance warning + re-sync.**
@@ -42,10 +42,12 @@ No schema migration, no new dependency, nothing in auth/session code (HR-17 is a
 ## Implementation
 - Subagent plan: driver=claude-sonnet-5-5, no subagents — this is a fix-cycle agent run by the lead (single harness tier, no down-tier available); the seven slices share one finding list and touch mostly disjoint files, so fan-out would cost more than it saves.
 - Task 1: new `components/admin/employees/salary-editor.tsx` (`buildSalaryRows` merges `GET /api/salary-components` with the employee's value rows so every enabled component is listed; empty value = "Belum diatur"; save sends only the filled ones). Employee page uses it. New `components/admin/payroll/generate-blockers.tsx` — the payroll dialog keeps the 422 `{error, employees[]}` in an inline destructive Alert with a link per employee (`#salary` / `#profile`). New `lib/payroll/generation-guards.ts`; `app/api/payroll/generate/route.ts` returns a 400 field error for a future period and 422 (naming employees) for a negative net; `app/api/payroll/[id]/approve/route.ts` refuses to approve a run with a negative-net slip (one items read, reused for the attendance lock).
+- Task 2: new `lib/guardians/primary.ts` (`changeGuardianLinkStatus`, `pickReplacementPrimary`) — one serializable transaction: deactivating the primary promotes the admin's `newPrimaryId` (validated as a remaining ACTIVE guardian of the student, else 400) or the first by AYAH/IBU/WALI/OTHER; reactivating into an empty primary slot re-promotes; the response carries `promotedPrimary` + `noActiveGuardian`. Both PATCH routes (`/api/guardians/[id]`, `/api/students/[id]/guardians/[guardianId]`) use it; `toggleGuardianStatusSchema` gains optional `newPrimaryId`. `keluarga-section.tsx` confirm: a replacement Select when others exist, a destructive Alert when the primary is the last active guardian, toast names the new primary. `/admin/guardians` (Parent-level status) is a different record and is unchanged.
 
 ## Verification
 - Frontend diffs checked against `design-system.html` (shared `Alert`, `EmptyState`, `RupiahInput`, `StatusBadge` primitives; tokens only).
 - Task 1: Vitest `salary-editor.test.tsx`, `generate-blockers.test.tsx`, `generation-guards.test.ts`, `payroll-generate-hr12.test.ts`, `payroll-approve-cas.test.ts` (+1); existing `payroll/__tests__/page.test.tsx` and `accessibility-contract.test.ts` updated for the inline blockers alert and the moved salary inputs.
 - Task 1 gate: `npm run build` exit 0; `npx vitest run` 434 files passed, 2 failed (the two tests above, since fixed and re-run green).
+- Task 2: `lib/guardians/__tests__/primary.test.ts`, `guardians-id-route.test.ts` PATCH block rewritten (promote / choose / reject / last guardian / reactivate x2), students guardian route test mocks extended, jsdom `keluarga-deactivate-primary.test.tsx` (3).
 
 ## Ship Notes
