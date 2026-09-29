@@ -59,6 +59,16 @@ const SUMMARY_TONE: Record<Status, string> = {
   ABSENT: "text-status-absent-text",
 };
 
+/**
+ * A class cannot be marked ahead of time (the mark route rejects it), so the
+ * page never offers a future day: it used to let the teacher pick one, tap a
+ * status, and only then fail with a "Coba lagi" that could never succeed
+ * (TCH-9). A future `?date=` is pulled back to today for the same reason.
+ */
+function clampToToday(ymd: string, today: string) {
+  return ymd > today ? today : ymd;
+}
+
 export default function ClassAttendancePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -66,7 +76,8 @@ export default function ClassAttendancePage() {
   const requestedDate = searchParams?.get("date") ?? "";
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedClass, setSelectedClass] = useState("");
-  const [date, setDate] = useState(resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta")));
+  const todayYmd = getTodayInTimezone("Asia/Jakarta");
+  const [date, setDate] = useState(clampToToday(resolveTeacherDate(requestedDate, todayYmd), todayYmd));
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [loading, setLoading] = useState(true);
@@ -99,7 +110,8 @@ export default function ClassAttendancePage() {
       if (data.length > 0) {
         const validRequestedClass = data.some((a: Assignment) => a.classSection.id === requestedClass);
         const nextClass = validRequestedClass ? requestedClass : (data.find((a: Assignment) => a.classSection.status === "ACTIVE" && a.classSection.academicYear?.status === "ACTIVE") ?? data[0]).classSection.id;
-        const nextDate = resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta"));
+        const today = getTodayInTimezone("Asia/Jakarta");
+        const nextDate = clampToToday(resolveTeacherDate(requestedDate, today), today);
         setSelectedClass(nextClass); setDate(nextDate);
         if (nextClass !== requestedClass || nextDate !== requestedDate) router.replace(`/teacher/class-attendance?classId=${encodeURIComponent(nextClass)}&date=${nextDate}`, {scroll:false});
       }
@@ -149,7 +161,8 @@ export default function ClassAttendancePage() {
 
   // URL context survives reload/back. Only validated assigned classes are canonicalized.
   useEffect(() => {
-    setDate(resolveTeacherDate(requestedDate, getTodayInTimezone("Asia/Jakarta")));
+    const today = getTodayInTimezone("Asia/Jakarta");
+    setDate(clampToToday(resolveTeacherDate(requestedDate, today), today));
   }, [requestedDate]);
   function changeContext(nextClass: string, nextDate: string) {
     setSelectedClass(nextClass); setDate(nextDate);
@@ -293,7 +306,7 @@ export default function ClassAttendancePage() {
         <label htmlFor="class-attendance-date" className="sr-only">
           Tanggal kehadiran
         </label>
-        <Input id="class-attendance-date" type="date" value={date} onChange={e => { const valid = resolveTeacherDate(e.target.value, ""); if (valid) changeContext(selectedClass, valid); }} className="tap-target w-auto shrink-0" />
+        <Input id="class-attendance-date" type="date" value={date} max={todayYmd} onChange={e => { const valid = resolveTeacherDate(e.target.value, ""); if (valid && valid <= todayYmd) changeContext(selectedClass, valid); }} className="tap-target w-auto shrink-0" />
       </div>
 
       {/*

@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
 import { adminWorkPermissions, type AdminQueueSection, type AdminQueueSources } from "./admin-work-queue";
 
+/** How long an unanswered inquiry counts as "new" work. */
+export const INQUIRY_WINDOW_DAYS = 14;
+
 type PermissionSession = { role: string; permissions?: string[] | null };
 
 async function loadSection<T>(
@@ -19,8 +22,8 @@ async function loadSection<T>(
 }
 
 /**
- * Loads the four admin work-queue sources (enrollments, leave, invoices,
- * payroll), bounded to `take` records each but reporting the true total via
+ * Loads the five admin work-queue sources (inquiries, enrollments, leave,
+ * invoices, payroll), bounded to `take` records each but reporting the true total via
  * a parallel `count` query with the same `where`. Shared by the dashboard
  * (`take: 5`, most-urgent-first) and `/admin/work-queue` (`take: 200`, the
  * full triage table) so the four Prisma queries live in exactly one place.
@@ -32,7 +35,30 @@ export async function loadAdminQueueSources(
   const tenantId = session.tenantId;
   const permitted = adminWorkPermissions(session);
 
-  const [enrollments, leave, invoices, payroll] = await Promise.all([
+  const [inquiries, enrollments, leave, invoices, payroll] = await Promise.all([
+    // A public /daftar submission lands as an Admission in status INQUIRY and
+    // used to be visible only inside Pendaftaran (X-6). "New" = the last
+    // INQUIRY_WINDOW_DAYS days; "not yet followed up" = still INQUIRY (moving it
+    // to a visit, admitted or cancelled takes it off the queue); converted rows
+    // (studentId set) are done.
+    loadSection(permitted.inquiries, "inquiries", async () => {
+      const where = {
+        tenantId,
+        status: "INQUIRY",
+        studentId: null,
+        createdAt: { gte: new Date(Date.now() - INQUIRY_WINDOW_DAYS * 24 * 60 * 60 * 1000) },
+      };
+      const [count, records] = await Promise.all([
+        prisma.admission.count({ where }),
+        prisma.admission.findMany({
+          where,
+          select: { id: true, childName: true, parentName: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+          take,
+        }),
+      ]);
+      return { count, records: records.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) };
+    }),
     loadSection(permitted.enrollments, "enrollments", async () => {
       const where = { tenantId, studentId: null, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } };
       const [count, records] = await Promise.all([
@@ -87,5 +113,5 @@ export async function loadAdminQueueSources(
     }),
   ]);
 
-  return { enrollments, leave, invoices, payroll };
+  return { inquiries, enrollments, leave, invoices, payroll };
 }

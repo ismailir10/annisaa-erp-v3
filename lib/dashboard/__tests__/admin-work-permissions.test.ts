@@ -8,8 +8,12 @@ describe("dashboard destination and finance capabilities", () => {
     expect(adminWorkPermissions(session(["leave.view", "leave.approve", "payroll.view", "payroll.approve"]))).toMatchObject({ leave: false, payroll: false });
     expect(adminWorkPermissions(session(["hr.view", "leave.view", "leave.approve", "payroll.view", "payroll.approve"]))).toMatchObject({ leave: true, payroll: true });
   });
+  it("offers inquiry follow-up to whoever can edit admissions, and to nobody else", () => {
+    expect(adminWorkPermissions(session(["admissions.view", "admissions.edit"]))).toMatchObject({ inquiries: true, enrollments: true });
+    expect(adminWorkPermissions(session(["admissions.view"]))).toMatchObject({ inquiries: false });
+  });
   it("does not offer approvals to view-only roles", () => {
-    expect(adminWorkPermissions(session(["hr.view", "leave.view", "payroll.view", "admissions.view", "invoices.view"]))).toEqual({ enrollments: false, leave: false, payroll: false, invoices: false });
+    expect(adminWorkPermissions(session(["hr.view", "leave.view", "payroll.view", "admissions.view", "invoices.view"]))).toEqual({ inquiries: false, enrollments: false, leave: false, payroll: false, invoices: false });
   });
   it("does not reveal employee activity to HR roles lacking directory access", () => {
     expect(canViewAdminActivity(session(["hr.view"]), "/admin/employees")).toBe(false);

@@ -5,7 +5,7 @@ import { AdminWorkQueue } from "@/components/admin/dashboard/admin-work-queue";
 import { buildAdminWorkQueue, summarizeQueue, unavailableAdminQueueSections, type AdminWorkKind } from "@/lib/dashboard/admin-work-queue";
 import { loadAdminQueueSources } from "@/lib/dashboard/queue-sources";
 
-const VALID_KINDS: readonly AdminWorkKind[] = ["enrollment", "leave", "invoice", "payroll"];
+const VALID_KINDS: readonly AdminWorkKind[] = ["inquiry", "enrollment", "leave", "invoice", "payroll"];
 
 function parseKind(value: string | undefined): AdminWorkKind | undefined {
   return VALID_KINDS.includes(value as AdminWorkKind) ? (value as AdminWorkKind) : undefined;

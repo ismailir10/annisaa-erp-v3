@@ -8,16 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { PortalTabs } from "@/components/portal/portal-tabs";
 import { PageHeader } from "@/components/portal/page-header";
 import { ContextStrip } from "@/components/portal/context-strip";
@@ -25,6 +15,7 @@ import { WeekNavigator } from "@/components/portal/week-navigator";
 import { WeekGrid } from "@/components/portal/week-grid";
 import { NoteThreadPanel } from "@/components/student-journal/note-thread-panel";
 import { NoteComposeDialog } from "@/components/student-journal/note-compose-dialog";
+import { NoteDeleteDialog } from "@/components/student-journal/note-delete-dialog";
 import { weekStart, weekDates } from "@/lib/student-journal/week";
 import { homeEntryEditFloor } from "@/lib/student-journal/backfill";
 import { formatWeekRangeLabel } from "@/lib/format";
@@ -183,7 +174,6 @@ export default function ParentStudentJournalPage() {
   const [noteReloadToken, setNoteReloadToken] = useState(0);
   /** studentId → unread catatan, for the tab badge and the child pills. */
   const [unreadByChild, setUnreadByChild] = useState<Record<string, number>>({});
-  const [deleting, setDeleting] = useState(false);
   const activeWeekRef = useRef({ childId, week: currentWeek });
   activeWeekRef.current = { childId, week: currentWeek };
   const weekRequestRef = useRef(0);
@@ -555,56 +545,12 @@ export default function ParentStudentJournalPage() {
         />
       )}
 
-      {/* Delete confirm */}
-      <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus catatan ini?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Catatan yang dihapus tidak dapat dikembalikan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleting}
-              onClick={async () => {
-                if (!deleteTarget) return;
-                setDeleting(true);
-                try {
-                  const res = await fetch(
-                    `/api/student-journal/notes/${deleteTarget}`,
-                    { method: "DELETE" },
-                  );
-                  if (!res.ok) {
-                    const err = (await res
-                      .json()
-                      .catch(() => ({}))) as { error?: string };
-                    toast.error(err.error ?? "Catatan belum bisa dihapus. Coba lagi sebentar ya.");
-                    setDeleting(false);
-                    return;
-                  }
-                  toast.success("Catatan dihapus");
-                  setDeleteTarget(null);
-                  setNoteReloadToken((n) => n + 1);
-                } catch {
-                  toast.error("Koneksi terputus. Coba lagi sebentar ya.");
-                } finally {
-                  setDeleting(false);
-                }
-              }}
-            >
-              {deleting ? "Menghapus..." : "Hapus"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete confirm (shared with the teacher page) */}
+      <NoteDeleteDialog
+        noteId={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => setNoteReloadToken((n) => n + 1)}
+      />
     </div>
   );
 }
