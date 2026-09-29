@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
 
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+
 vi.mock("sonner", () => ({
   toast: { error: toastError, success: toastSuccess },
 }));
@@ -115,5 +118,61 @@ describe("SessionRosterClient", () => {
       "Isi nama penjemput untuk Aisyah (hubungan: Lainnya).",
     );
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  describe("unsaved changes (TCH-2)", () => {
+    const beforeUnloadPrevented = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    it("stays quiet until something changes, then says so and guards reload", () => {
+      vi.stubGlobal("fetch", vi.fn());
+      renderRoster();
+      expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+      expect(beforeUnloadPrevented()).toBe(false);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+      expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
+      expect(beforeUnloadPrevented()).toBe(true);
+    });
+
+    it("clears the warning once the roster is saved, and warns again on the next tap", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ saved: 2, total: 2 }) }));
+      renderRoster();
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
+      await screen.findByText("Semua perubahan tersimpan");
+      expect(screen.queryByText(/Belum disimpan/)).toBeNull();
+      expect(beforeUnloadPrevented()).toBe(false);
+
+      fireEvent.click(screen.getByRole("button", { name: /Ubah status Bilal/ }));
+      expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
+    });
+
+    it("keeps the warning when the save fails", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "x" }) }));
+      renderRoster();
+      fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Simpan absensi · 2 siswa" }));
+      await waitFor(() => expect(toastError).toHaveBeenCalled());
+      expect(screen.getByText(/Belum disimpan/)).toBeInTheDocument();
+    });
+
+    it("asks before an in-app link throws the taps away", () => {
+      vi.stubGlobal("fetch", vi.fn());
+      renderRoster();
+      fireEvent.click(screen.getAllByRole("button", { name: "Ketuk masuk" })[0]);
+      // The back link is a real anchor in the page.
+      const link = screen.getByRole("link", { name: /Beranda/ });
+      const record = (event: Event) => event.preventDefault(); // jsdom cannot navigate
+      document.addEventListener("click", record);
+      fireEvent.click(link);
+      document.removeEventListener("click", record);
+      expect(screen.getByText("Keluar tanpa menyimpan?")).toBeInTheDocument();
+      expect(router.push).not.toHaveBeenCalled();
+    });
   });
 });
