@@ -76,6 +76,7 @@ vi.mock("@/lib/db", () => ({
           create: semesterCreate,
           update: semesterUpdate,
           updateMany: semesterUpdateMany,
+          findFirst: semesterFindFirst,
         },
       }),
     theme: {
@@ -242,7 +243,7 @@ describe("POST /semesters", () => {
     expect(res.status).toBe(400);
     expect(academicYearFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "missing", tenantId: "t-curr", status: "ACTIVE" },
+        where: { id: "missing", tenantId: "t-curr", status: { not: "ARCHIVED" } },
       }),
     );
   });
@@ -282,6 +283,44 @@ describe("POST /semesters", () => {
           action: "create",
         }),
       }),
+    );
+  });
+
+  it("DOC-3: a new semester never steals ACTIVE from an existing one (created INACTIVE, no demote)", async () => {
+    const { POST } = await import("@/app/api/admin/curriculum/semesters/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    academicYearFindFirst.mockResolvedValue({ id: "ay1" });
+    semesterFindFirst.mockResolvedValue({ id: "sem-existing-active" });
+    semesterCreate.mockResolvedValue({
+      id: "sem2", academicYearId: "ay1", number: 2, status: "INACTIVE",
+      startDate: new Date("2027-01-04T00:00:00Z"), endDate: new Date("2027-06-19T00:00:00Z"),
+    });
+
+    const res = await POST(
+      jsonReq({ academicYearId: "ay1", number: 2, startDate: "2027-01-04", endDate: "2027-06-19" }) as never,
+    );
+    expect(res.status).toBe(201);
+    expect(semesterCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "INACTIVE" }) }),
+    );
+    expect(semesterUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("DOC-3: the first semester of a year (no ACTIVE sibling) is created ACTIVE", async () => {
+    const { POST } = await import("@/app/api/admin/curriculum/semesters/route");
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(superAdmin);
+    academicYearFindFirst.mockResolvedValue({ id: "ay1" });
+    semesterFindFirst.mockResolvedValue(null);
+    semesterCreate.mockResolvedValue({
+      id: "sem1", academicYearId: "ay1", number: 1, status: "ACTIVE",
+      startDate: new Date("2026-07-14T00:00:00Z"), endDate: new Date("2026-12-19T00:00:00Z"),
+    });
+
+    await POST(jsonReq({ academicYearId: "ay1", number: 1, startDate: "2026-07-14", endDate: "2026-12-19" }) as never);
+    expect(semesterCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "ACTIVE" }) }),
     );
   });
 

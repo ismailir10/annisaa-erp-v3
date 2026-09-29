@@ -7,11 +7,9 @@ import { validateBody } from "@/lib/api/validate";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { recordAudit } from "@/lib/audit";
 import { semesterCreateSchema, parseJakartaYmd } from "@/lib/validations/curriculum";
-import { demoteOtherActiveSemesters } from "@/lib/curriculum/semester-activate";
 import {
   CURRICULUM_WRITE_BUDGET,
   CURRICULUM_WRITE_WINDOW_MS,
-  ensureActiveParent,
   isUniqueViolation,
   semesterListSelect,
 } from "../_helpers";
@@ -71,26 +69,34 @@ export async function POST(req: NextRequest) {
   if (result.error) return result.error;
   const body = result.data;
 
-  const parent = await ensureActiveParent(
-    "academicYear",
-    body.academicYearId,
-    session.tenantId,
-    "Tahun ajaran",
-  );
-  if (parent instanceof NextResponse) return parent;
+  // DOC-3: a PLANNING year can already be set up (semesters for next year are
+  // created before that year is activated); only an ARCHIVED one is closed.
+  const parent = await prisma.academicYear.findFirst({
+    where: { id: body.academicYearId, tenantId: session.tenantId, status: { not: "ARCHIVED" } },
+    select: { id: true },
+  });
+  if (!parent) {
+    return NextResponse.json({ error: "Tahun ajaran tidak ditemukan atau sudah diarsipkan." }, { status: 400 });
+  }
 
-  // New semesters default to ACTIVE (schema default), so creating one must
-  // demote any existing ACTIVE semester in the same year first — at most one
-  // ACTIVE semester per year (single-active invariant). Atomic.
+  // DOC-3: creating a semester never changes which one is active. The new one
+  // becomes ACTIVE only when the year has no ACTIVE semester yet; otherwise it
+  // is created INACTIVE and the admin activates it explicitly (which demotes
+  // the sibling, with a confirm). Creating Semester 1 then 2 used to silently
+  // flip the active semester to whichever was created last.
   const tenantId = session.tenantId; // narrow before transaction closure re-widens it
   try {
     const created = await prisma.$transaction(async (tx) => {
-      await demoteOtherActiveSemesters(tx, tenantId, body.academicYearId);
+      const activeSibling = await tx.semester.findFirst({
+        where: { tenantId, academicYearId: body.academicYearId, status: "ACTIVE" },
+        select: { id: true },
+      });
       return tx.semester.create({
         data: {
           tenantId,
           academicYearId: body.academicYearId,
           number: body.number,
+          status: activeSibling ? "INACTIVE" : "ACTIVE",
           startDate: parseJakartaYmd(body.startDate),
           endDate: parseJakartaYmd(body.endDate),
         },
@@ -103,7 +109,7 @@ export async function POST(req: NextRequest) {
       entity: "Semester",
       entityId: created.id,
       action: "create",
-      after: { number: created.number, academicYearId: created.academicYearId },
+      after: { number: created.number, academicYearId: created.academicYearId, status: created.status },
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
