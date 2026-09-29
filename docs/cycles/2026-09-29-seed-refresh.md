@@ -50,7 +50,9 @@ Goal: a fresh `prisma db push` + `prisma db seed` on an empty database, on **any
 - Task 3: `e2e/admin-classes.spec.ts` (reference-data probe hit a non-existent `/api/admin/academic-years` list; POST lacked the `ageGroup` the API has required since the 2026-05-20 cutover), `e2e/teacher.spec.ts` (`/api/teaching-assignments/my` returns a bare array, not `{ data }`; the roster spec still looked for a `Simpan` button the UI renamed to `Simpan absensi · N siswa`), `e2e/admin-curriculum-objectives.spec.ts` (asks for the first semester by start date — now the INACTIVE one; objectives need an ACTIVE semester), `e2e/curriculum-admin.spec.ts` (year name pinned to `2025/2026`), `e2e/teacher-assessments-weekly.spec.ts` (asserted that today has *no* active week), `e2e/teacher-assessments-center.spec.ts` (`fixme`d test pinned to `2025-07-15`; now discovers a live week via the API and runs).
 
 ## Verification
-_(filled in T4)_
+- Task 1: `npx vitest run prisma/data` 19 passed.
+- Task 2: `prisma db push` + `prisma db seed` on an empty database seeds clean (~19 s) and passes the seed's own invariants.
+_(rest filled in T4)_
 
 ## Ship Notes
 _(filled in T4)_
