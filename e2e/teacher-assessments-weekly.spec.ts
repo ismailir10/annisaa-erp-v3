@@ -3,14 +3,14 @@ import { test, expect } from "@playwright/test";
 // E2E for the C4 walas weekly UI. Demo TEACHER resolves to a live HOMEROOM
 // employee in demo mode, so the walas-gate path renders across staging seeds.
 //
-// The seeded curriculum weeks span 2025-07-14..2025-09-05 only — they
-// do not bracket today's date. The page therefore renders the
-// no_active_week branch for today, but the walas-only header
-// "Penilaian pekanan" + the class-name subtitle still surface, proving the homeroom
-// + ageGroup detection works end-to-end.
-//
-// For the active-week path we discover a live week through the curriculum API
-// instead of pinning to stale seed dates.
+// The seed is date-relative (prisma/seed.ts): curriculum weeks cover the whole
+// active semester, so on a school day "today" resolves to a live Pekan and the
+// page renders the roster; on a weekend or holiday the current week does not
+// bracket today and the page falls back to the no_active_week branch. Both are
+// valid — the walas-only header "Penilaian pekanan" + the class-name subtitle
+// surface either way, proving the homeroom + ageGroup detection works
+// end-to-end — so the specs below accept either branch for "today" and pin the
+// active-week path to a live week discovered through the curriculum API.
 //
 // The 12 vitest cases on POST /api/teacher/assessment-entries +
 // 4 cases on the client pure helpers cover the upsert math and the
@@ -60,7 +60,7 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     ).toBeVisible();
   });
 
-  test("/teacher/assessments/weekly resolves walas + classSection (today renders no_active_week branch)", async ({
+  test("/teacher/assessments/weekly resolves walas + classSection (today renders the active week or the no_active_week branch)", async ({
     page,
   }) => {
     await page.goto("/teacher/assessments/weekly");
@@ -71,11 +71,15 @@ test.describe("Teacher — Weekly assessment (C4)", () => {
     await expect(
       page.locator("h1", { hasText: /^Penilaian pekanan$/ }),
     ).toBeVisible({ timeout: 10_000 });
-    // Today is outside the seeded curriculum weeks → empty-state branch.
-    // Use exact match to avoid the description paragraph collision.
+    // School day → the live week's roster; weekend / holiday / break → the
+    // empty-state branch. Use exact match to avoid the description paragraph
+    // collision.
     await expect(
-      page.getByText("Belum ada pekan aktif", { exact: true }),
-    ).toBeVisible();
+      page
+        .getByText("Belum ada pekan aktif", { exact: true })
+        .or(page.locator('[data-testid="weekly-roster"]'))
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("/teacher/assessments/weekly?date=<live week> renders active chrome or empty state", async ({
