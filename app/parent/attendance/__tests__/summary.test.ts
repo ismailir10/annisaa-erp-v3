@@ -28,4 +28,17 @@ describe("parent attendance mixed-day recovery",()=>{
   expect(html).toContain("Belum ada catatan kehadiran");expect(html).not.toContain("Catatan berbeda");
   expect(mocks.rows).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({studentId:{in:["child"]},student:{tenantId:"tenant"}})}));
  });
+ it("keeps the get-well line for Sakit and drops it for Alpa-only and Izin-only weeks (TCH-12 / X-7)",async()=>{
+  const week=["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25"];
+  const rowsWith=(fifth:string)=>week.map((date,i)=>({studentId:"child",classSectionId:"school",sessionId:null,date,status:i===4?fifth:"PRESENT",notes:null,classSection:{name:"TK A"}}));
+  const render=async()=>renderToStaticMarkup(await Page({searchParams:Promise.resolve({child:"child",week:"2026-09-21"})}));
+  mocks.rows.mockResolvedValue(rowsWith("SICK"));
+  expect(await render()).toContain("semoga lekas sehat");
+  mocks.rows.mockResolvedValue(rowsWith("ABSENT"));
+  const alpa=await render();
+  expect(alpa).not.toContain("lekas sehat");expect(alpa).toContain("tanpa keterangan");
+  mocks.rows.mockResolvedValue(rowsWith("PERMISSION"));
+  const izin=await render();
+  expect(izin).not.toContain("lekas sehat");expect(izin).toContain("sedang izin pekan ini");
+ });
 });

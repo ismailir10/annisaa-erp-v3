@@ -286,12 +286,12 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 |---|---|
 | `app/api/**/route.ts` | 198 |
 | `app/admin` pages | 43 |
-| `app/teacher` pages | 13 |
+| `app/teacher` pages | 14 |
 | `app/parent` pages | 8 |
 | `components/ui/*.tsx` | 68 |
 | `e2e/*.spec.ts` | 35 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 58 / 233 |
+| `docs/cycles` active / archived | 59 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

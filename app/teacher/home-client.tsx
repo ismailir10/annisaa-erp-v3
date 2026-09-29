@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookHeart, CalendarDays, CheckCircle2, ClipboardList, MessageCircle, Users } from "lucide-react";
+import { BookHeart, CalendarDays, CalendarX, CheckCircle2, ClipboardList, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/portal/page-header";
 import { TaskList, TaskRow } from "@/components/portal/task-list";
 import { SaveStatus } from "@/components/portal/save-status";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatDate, formatDateShort, formatTime } from "@/lib/format";
+import { LEAVE_TYPE_LABEL, type LeaveDecision } from "@/lib/teacher/leave-decisions";
 import type { TeacherClassSummary, TeacherSessionSummary } from "@/lib/teacher/home-progress";
 
 type TodayRecord = { status: string; checkInTime: string | null; checkOutTime: string | null };
@@ -22,9 +23,9 @@ export function nextStateAfterAction(record: TodayRecord | null, action: "check-
     : {status:record?.status??"PRESENT",checkInTime:record?.checkInTime??now,checkOutTime:record?.checkOutTime??now};
 }
 
-export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",classes=[],todaySessions=[],homeroomClassSectionName,attendanceUnavailable=false,classesUnavailable=false,sessionsUnavailable=false}: {
+export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",classes=[],todaySessions=[],leaveDecisions=[],homeroomClassSectionName,attendanceUnavailable=false,classesUnavailable=false,sessionsUnavailable=false}: {
   userName:string; todayRecord:TodayRecord|null; today:string; greeting?:string; classes?:TeacherClassSummary[];
-  todaySessions?:TeacherSessionSummary[]; homeroomClassSectionName?:string|null;
+  todaySessions?:TeacherSessionSummary[]; leaveDecisions?:LeaveDecision[]; homeroomClassSectionName?:string|null;
   attendanceUnavailable?:boolean; classesUnavailable?:boolean; sessionsUnavailable?:boolean;
 }) {
   const router=useRouter();
@@ -81,6 +82,10 @@ export function TeacherHomeClient({userName,todayRecord,today,greeting="datang",
   );
   return <div className="space-y-6">
     <PageHeader title={`Selamat ${greeting}, ${userName}`} subtitle={dateLabel} className="mb-0"/>
+    {leaveDecisions.length>0?<section aria-labelledby="leave-decisions" data-testid="leave-decisions"><h2 id="leave-decisions" className="mb-3 text-h2 font-semibold">Keputusan cuti</h2><TaskList>
+      {leaveDecisions.map(d=>{const approved=d.status==="APPROVED";const range=d.startDate===d.endDate?formatDateShort(d.startDate):`${formatDateShort(d.startDate)}–${formatDateShort(d.endDate)}`;
+        return <TaskRow key={d.id} title={`${LEAVE_TYPE_LABEL[d.leaveType]??d.leaveType} ${approved?"disetujui":"ditolak"}`} description={`${range}${!approved&&d.reviewNote?` · Alasan: ${d.reviewNote}`:""}`} meta="Lihat" href="/teacher/attendance?cuti=1" icon={approved?<CheckCircle2 className="size-5"/>:<CalendarX className="size-5"/>} tone={approved?"teal":"warm"}/>;})}
+    </TaskList></section>:null}
     {record?.checkInTime?personalAttendance:null}
     {classesUnavailable ? <EmptyState icon={Users} title="Kelas belum bisa dimuat" description="Periksa koneksi dan coba lagi." actionLabel="Coba lagi" onAction={()=>router.refresh()}/> : primary ? (
       <Card className="gap-4 border-primary/20 bg-secondary p-card" data-testid="current-class">

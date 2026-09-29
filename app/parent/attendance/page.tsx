@@ -134,14 +134,17 @@ export default async function ParentAttendancePage({
         <section className="rounded-xl border border-status-late bg-status-late-subtle p-4">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-lg bg-status-late-subtle text-status-late-text">
-              <Thermometer size={18} />
+              {bannerState.reason === "sick" ? <Thermometer size={18} /> : <CalendarClock size={18} />}
             </div>
             <div>
               <p className="text-sm font-semibold text-status-late-text">
                 {bannerState.line}
               </p>
+              {/* Get-well wishes only when the school actually recorded Sakit. */}
               <p className="mt-1 text-xs text-muted-foreground">
-                {childName} istirahat dulu, semoga lekas sehat.
+                {bannerState.reason === "sick"
+                  ? `${childName} tercatat sakit pekan ini, semoga lekas sehat.`
+                  : `${childName} tercatat tidak hadir tanpa keterangan. Hubungi Ustadzah jika ada kabar.`}
               </p>
             </div>
           </div>

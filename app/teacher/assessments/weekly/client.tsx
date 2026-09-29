@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useMemo, useState, useTransition } from "react";
+import { type KeyboardEvent, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { NotebookPen, Users } from "lucide-react";
@@ -9,6 +9,7 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { PageHeader } from "@/components/portal/page-header";
+import { SaveStatus } from "@/components/portal/save-status";
 import { BackLink } from "@/components/portal/back-link";
 import { WeekNavigator } from "@/components/portal/week-navigator";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -162,6 +163,11 @@ export function WeeklyClient({
     indicators[0]?.id ?? "",
   );
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
+  // Every level tap saves on its own, so the page says so: one status line,
+  // "saving" while any tap is in flight, "saved" only when none is left and the
+  // last one landed, "error" until the next tap (DOC-4).
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const inFlight = useRef(0);
 
   const days = useMemo(() => weekDays(week), [week]);
 
@@ -203,6 +209,8 @@ export function WeeklyClient({
       note: priorCell?.note ?? null,
     };
     setEntries((curr) => [...curr.filter((e) => !matchesCell(e)), provisional]);
+    inFlight.current += 1;
+    setSaveState("saving");
     try {
       const res = await fetch("/api/teacher/assessment-entries", {
         method: "POST",
@@ -225,7 +233,11 @@ export function WeeklyClient({
       }
       // Refresh server payload to get the persisted entry id.
       startTransition(() => router.refresh());
+      inFlight.current -= 1;
+      setSaveState((current) => (inFlight.current === 0 && current !== "error" ? "saved" : current));
     } catch (err) {
+      inFlight.current -= 1;
+      setSaveState("error");
       const message = userMessage(
         err,
         "Gagal menyimpan penilaian. Coba lagi sebentar ya.",
@@ -342,6 +354,24 @@ export function WeeklyClient({
           </NativeSelect>
         )}
       </div>
+
+      {students.length > 0 ? (
+        // Space is reserved so the line appearing never pushes the roster mid-tap.
+        <div className="min-h-6" data-testid="weekly-save-state">
+          {saveState !== "idle" ? (
+            <SaveStatus
+              state={saveState}
+              message={
+                saveState === "saving"
+                  ? "Menyimpan penilaian…"
+                  : saveState === "saved"
+                    ? "Penilaian tersimpan"
+                    : "Penilaian belum tersimpan. Ketuk ulang ya."
+              }
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       {students.length === 0 ? (
         <EmptyState
