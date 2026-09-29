@@ -1,14 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PortalHeader } from "@/components/portal/portal-header";
+import { signOut } from "@/lib/sign-out";
 
 export function TeacherHeader({ userName }: { userName: string }) {
-  const router = useRouter();
-
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
+    try {
+      await signOut();
+    } catch {
+      toast.error("Tidak bisa keluar. Coba lagi sebentar ya.");
+    }
   }
 
   const initial = userName?.[0]?.toUpperCase() ?? "G";

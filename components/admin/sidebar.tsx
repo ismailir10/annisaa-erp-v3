@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, LogOut } from "lucide-react";
 
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/collapsible";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
 import { GuardedLink } from "@/components/admin/guarded-link";
+import { signOut } from "@/lib/sign-out";
 import {
   adminNav,
   getActiveGroup,
@@ -102,7 +104,6 @@ function CollapsibleNavGroup({
 
 export function AppSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(adminNav.groups.map((g) => [g.id, true]))
   );
@@ -136,8 +137,11 @@ export function AppSidebar({ permissions }: { permissions: string[] }) {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
+    try {
+      await signOut();
+    } catch {
+      toast.error("Tidak bisa keluar. Coba lagi sebentar ya.");
+    }
   }
 
   return (
