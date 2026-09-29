@@ -69,3 +69,4 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 <!-- task 3 committed -->
 <!-- task 4 committed -->
 <!-- task 5 committed -->
+<!-- task 7 committed -->
