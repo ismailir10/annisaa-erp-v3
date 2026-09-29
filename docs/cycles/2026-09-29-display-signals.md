@@ -86,3 +86,6 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Migrations: none. Env vars: none. Dependencies: none.
 - Behaviour changes to call out on the PR: (a) first-time viewers now see an unread badge for existing other-party notes until they open the thread; (b) recalculating attendance variables now keeps manual line adjustments; (c) X-11 intentionally not changed — see Assumption 3.
 - Rollback: revert the PR (no data written in a new shape; `adjustmentAmount`/`adjustmentNote` are existing columns).
+
+### Follow-up (post-merge): deflake the HR-13 stat-card test
+- `app/admin/(hr)/employees/__tests__/page.test.tsx`: "refreshes TOTAL / AKTIF / TIDAK AKTIF after a deactivate" failed about 1 run in 3 on staging after #575 (3/8 locally, first seen in the full vitest run for #573). The employees list renders more than once while its fetches settle, so the "Nonaktifkan baris" button found first could be detached when clicked, and the confirm dialog never opened. The test now re-queries and clicks the live button inside `waitFor` until the `alertdialog` is open. After the fix: 0/12 failures under the same CPU contention. No product code changed.
