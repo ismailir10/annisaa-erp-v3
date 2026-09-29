@@ -5,6 +5,7 @@ import { getSession, isAdminRole } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { recordAudit } from "@/lib/audit";
+import { rateLimit } from "@/lib/rate-limit";
 import { reversePaymentSchema } from "@/lib/validations/invoice";
 import { isGatewayPayment } from "@/lib/constants/payment-methods";
 import { recomputeInvoiceFromPayments } from "@/lib/finance/invoice-payment-state";
@@ -22,6 +23,8 @@ import { getTodayInTimezone } from "@/lib/attendance/timezone";
  * Idempotent: reversing an already-reversed payment answers 200 with
  * `alreadyReversed: true` and changes nothing.
  * Permission: `payments.record` (whoever may record a payment may correct it).
+ * Rate limit: 20 reversals per user per minute (security.md: every write
+ * endpoint), checked before the advisory-lock transaction.
  */
 export async function POST(
   req: NextRequest,
@@ -32,6 +35,13 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const tenantId = session.tenantId;
+
+  if (!rateLimit(`reverse-payment:${session.id}`, 20, 60_000).success) {
+    return NextResponse.json(
+      { error: "Terlalu banyak pembatalan dalam waktu singkat. Tunggu sebentar lalu coba lagi." },
+      { status: 429 },
+    );
+  }
 
   const { id: invoiceId, paymentId } = await params;
   const parsed = await validateBody(reversePaymentSchema, await req.json().catch(() => null));

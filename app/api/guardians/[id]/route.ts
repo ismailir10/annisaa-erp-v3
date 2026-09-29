@@ -162,7 +162,6 @@ export async function PATCH(
     const { link, promoted, noActiveGuardian } = await changeGuardianLinkStatus(prisma, {
       linkId: id,
       studentId: guardian.studentId,
-      wasPrimary: guardian.isPrimary,
       status: newStatus,
       newPrimaryId: parsedNewPrimaryId,
     });

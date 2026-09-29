@@ -16,6 +16,12 @@ import type { PrismaClient } from "@/lib/generated/prisma/client";
  *   say so;
  * - reactivate a guardian while the student has no ACTIVE primary → it becomes
  *   the primary again.
+ *
+ * Whether the link was the primary is read inside every transaction attempt,
+ * never taken from the caller: a concurrent deactivation can promote this very
+ * link between the route's read and the transaction (or between a P2034 retry
+ * and the first attempt), and a stale `false` would skip the promotion and
+ * leave the remaining guardians without a primary.
  */
 export class GuardianPrimaryError extends Error {}
 
@@ -51,7 +57,6 @@ export async function changeGuardianLinkStatus(
   args: {
     linkId: string;
     studentId: string;
-    wasPrimary: boolean;
     status: "ACTIVE" | "INACTIVE";
     newPrimaryId?: string;
   },
@@ -60,6 +65,11 @@ export async function changeGuardianLinkStatus(
     db.$transaction(
       async (tx) => {
         if (args.status === "INACTIVE") {
+          const current = await tx.studentGuardian.findUnique({
+            where: { id: args.linkId },
+            select: { isPrimary: true },
+          });
+          const wasPrimary = current?.isPrimary ?? false;
           // T2: an INACTIVE guardian must never stay billed/contacted as primary.
           const link = await tx.studentGuardian.update({
             where: { id: args.linkId },
@@ -71,7 +81,7 @@ export async function changeGuardianLinkStatus(
             select: { id: true, relationship: true, isPrimary: true, parent: { select: { name: true } } },
           });
           let promoted: GuardianStatusChange["promoted"] = null;
-          if (args.wasPrimary || args.newPrimaryId) {
+          if (wasPrimary || args.newPrimaryId) {
             // Only reassign when no other ACTIVE primary already exists.
             const stillPrimary = others.find((o) => o.isPrimary);
             if (!stillPrimary) {

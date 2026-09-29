@@ -163,4 +163,15 @@ describe("POST reverse payment", () => {
     expect((await POST(req({ reason: "Salah input nominal" }), ctx)).status).toBe(403);
     expect($transaction).not.toHaveBeenCalled();
   });
+
+  it("429 after 20 reversals a minute by one user; no transaction opened for the 21st", async () => {
+    vi.mocked(getSession).mockResolvedValue({ ...ADMIN, id: "u-ratelimit" } as never);
+    for (let i = 0; i < 20; i++) {
+      expect((await POST(req({ reason: "Salah input nominal" }), ctx)).status).toBe(200);
+    }
+    $transaction.mockClear();
+    const res = await POST(req({ reason: "Salah input nominal" }), ctx);
+    expect(res.status).toBe(429);
+    expect($transaction).not.toHaveBeenCalled();
+  });
 });
