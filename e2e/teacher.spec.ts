@@ -39,9 +39,11 @@ test.describe("Teacher flows", () => {
     await expect(personal).toBeVisible();
     // Assert the actual saved times in the browser's locale. Indonesian time
     // punctuation varies between local and CI ICU builds (07:30 vs 07.30).
+    // The app renders every time in Asia/Jakarta (lib/format.ts), whatever the
+    // runner's or device's zone, so the expectation must pin the same zone.
     const displayTimes = await page.evaluate((record) => {
       const format = (iso: string | null | undefined) => iso
-        ? new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+        ? new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jakarta" })
         : null;
       return { checkIn: format(record?.checkInTime), checkOut: format(record?.checkOutTime) };
     }, saved ?? null);

@@ -62,7 +62,8 @@ The 2026-09-29 full E2E review (`docs/uat/reports/2026-09-29-full-e2e.md`) found
 - Task 7: `monitoring/__tests__/page.test.tsx` (KB 4 entries / 0% counts as filled: "2 / 3", belum isi 1) + `admin/classes/__tests__/route.test.ts`.
 
 - Existing tests updated for the new contracts: `tests/student-journal/api-notes-thread.test.ts` ("zero unread with no watermark" now asserts the X-3 behaviour) and `app/api/__tests__/payroll-variables-tx.test.ts` (tx mock gains `payrollItemLine.findMany`). The employees stat-card test stubs `DataTableRowActions` because the Base UI row menu swallowed a click right after opening ~1 run in 4.
-- Playwright: full local suite run by the lead on `67e0630` (staging merged in) against a production build (`DEMO_MODE=true`) and a fresh copy of the seed: **154 passed, 0 failed, 8 skipped**, the same as baseline. Vitest after the merge: 432 files passed (2 skipped), 4100 tests. No e2e spec changed. CI `Playwright E2E` also gates the merge.
+- Playwright: full local suite run by the lead on `67e0630` (staging merged in) against a production build (`DEMO_MODE=true`) and a fresh copy of the seed: **154 passed, 0 failed, 8 skipped**, the same as baseline. Vitest after the merge: 432 files passed (2 skipped), 4100 tests. CI `Playwright E2E` also gates the merge.
+- CI fix: `e2e/teacher.spec.ts` computed the expected personal-attendance time in the runner's timezone (UTC in CI), so it expected "Masuk 00.13" and was encoding TCH-1. The expectation now pins `Asia/Jakarta`, the same zone the app renders in. Reproduced on a freshly seeded DB: the original spec fails with the CI error and the pinned spec passes. The earlier local full-suite pass had used a restored snapshot, which is why it missed this.
 - Ship route: **local demo-auth verification**. No login, OAuth, session, cookie or auth-guard change.
 - End-of-cycle gate at source SHA 20adec5 (+ this doc): `npm run build` exit 0; `npx vitest run` tail:
   ```
