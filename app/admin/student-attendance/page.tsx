@@ -10,6 +10,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -351,6 +352,8 @@ export default function StudentAttendancePage() {
     {
       accessorKey: "date",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Tanggal" />,
+      // The date follows the student's name below `md`, so Status stays on screen (ACAD-10).
+      meta: { priority: "low" },
       cell: ({ row }) => (
         <span className="text-sm font-medium">{formatDate(row.original.date)}</span>
       ),
@@ -361,7 +364,18 @@ export default function StudentAttendancePage() {
       cell: ({ row }) => {
         const s = row.original.student;
         return (
-          <DataTableLinkCell href={`/admin/students/${s.id}`} description={s.nickname}>
+          <DataTableLinkCell
+            href={`/admin/students/${s.id}`}
+            className="whitespace-normal"
+            description={
+              <>
+                {s.nickname}
+                <DataTableMobileMeta className="mt-0.5">
+                  <span>{`${formatDate(row.original.date)} · ${row.original.classSection.name}`}</span>
+                </DataTableMobileMeta>
+              </>
+            }
+          >
             {s.name}
           </DataTableLinkCell>
         );

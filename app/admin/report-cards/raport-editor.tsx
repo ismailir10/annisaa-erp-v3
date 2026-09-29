@@ -419,7 +419,7 @@ export function RaportEditor({
       ) : null}
 
       {/* Narrative sections */}
-      <Card className="p-card mb-6 space-y-6">
+      <Card className="p-4 sm:p-card mb-6 space-y-6">
         <h2 className="text-h2 font-semibold">Narasi Perkembangan</h2>
         {BUCKETED_SECTIONS.map((s) => (
           <SectionField
@@ -452,7 +452,7 @@ export function RaportEditor({
       </Card>
 
       {/* Attendance + measurements + hafalan */}
-      <Card className="p-card mb-6">
+      <Card className="p-4 sm:p-card mb-6">
         <h2 className="text-h2 font-semibold mb-1">Kehadiran & Catatan</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Kehadiran terisi otomatis dari data presensi pada rentang triwulan — sunting bila perlu.
@@ -557,9 +557,11 @@ function SectionField({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <FieldLabel htmlFor={`narr-${section}`}>{SECTION_LABELS[section]}</FieldLabel>
         {hasLevel ? (
-          <div className="flex items-center gap-2">
+          // Below `sm` the suggestion and the select stack full-width instead of
+          // one non-wrapping row that pushed the select off the card (DOC-5).
+          <div className="flex w-full min-w-0 flex-col items-stretch gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             {suggestion && suggestion.counts.total > 0 ? (
-              <span className="text-xs text-muted-foreground">
+              <span className="min-w-0 text-xs text-muted-foreground">
                 Saran:{" "}
                 {suggestion.suggested ? LEVEL_LABELS[suggestion.suggested] : "—"} (
                 {LEVEL_ORDER.map((l) => `${suggestion.counts[l]}${LEVEL_SHORT[l]}`).join(" · ")})
@@ -569,6 +571,7 @@ function SectionField({
             )}
             <NativeSelect
               size="sm"
+              className="w-full sm:w-auto"
               aria-label={`Capaian ${SECTION_LABELS[section]}`}
               value={level}
               onChange={(e) => onLevel(e.target.value)}

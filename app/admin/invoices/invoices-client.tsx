@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -72,12 +73,22 @@ const columns: ColumnDef<Invoice>[] = [
       const inv = row.original;
       return (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+          <div className="hidden w-8 h-8 rounded-full bg-muted items-center justify-center shrink-0 md:flex">
             <FileText size={14} className="text-primary" />
           </div>
           <DataTableLinkCell
             href={`/admin/invoices/${inv.id}`}
-            description={<span className="font-currency">{inv.invoiceNumber}</span>}
+            className="whitespace-normal"
+            description={
+              <>
+                <span className="font-currency">{inv.invoiceNumber}</span>
+                {/* Status + due date follow the name below `md` (FIN-21). */}
+                <DataTableMobileMeta className="mt-1">
+                  <StatusBadge status={inv.status} />
+                  <span>Tempo {formatDateShort(inv.dueDate)}</span>
+                </DataTableMobileMeta>
+              </>
+            }
           >
             {inv.student.name}
           </DataTableLinkCell>
@@ -106,7 +117,7 @@ const columns: ColumnDef<Invoice>[] = [
       const remaining = Number(inv.totalDue) - Number(inv.totalPaid);
       return (
         <div className="text-right">
-          <p className="font-currency text-sm font-bold">
+          <p className="font-currency text-sm font-bold whitespace-nowrap">
             {formatRupiah(Number(inv.totalDue))}
           </p>
           {Number(inv.totalPaid) > 0 && Number(inv.totalPaid) < Number(inv.totalDue) && (
@@ -140,6 +151,7 @@ const columns: ColumnDef<Invoice>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -686,6 +698,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           loading={loading}
           emptyTitle="Belum ada tagihan"
           emptyDescription="Buat tagihan bulanan untuk semua siswa aktif"
+          isFiltered={search.trim() !== "" || statusFilter !== "all"}
         />
       )}
 

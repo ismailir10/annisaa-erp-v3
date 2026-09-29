@@ -64,6 +64,31 @@ export function ResponsiveFormDialog({
     if (!open) setRenderMobile(isMobile);
   }, [open, isMobile]);
 
+  // CORE-12: these dialogs are opened by state from a plain button (no Trigger
+  // element), so nothing hands focus back when they close and it fell to <body>
+  // — keyboard users restarted from the top of the page. Remember what had
+  // focus when the dialog opened and put it back afterwards. A layout effect
+  // runs before the popup's own (passive) focus move, so this reads the opener.
+  const returnFocusRef = React.useRef<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    if (open) {
+      const active = document.activeElement;
+      returnFocusRef.current =
+        active instanceof HTMLElement && active !== document.body ? active : null;
+      return;
+    }
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    if (!target) return;
+    // After the popup has unmounted and released its focus trap.
+    const id = window.setTimeout(() => {
+      if (target.isConnected && (document.activeElement === document.body || !document.activeElement)) {
+        target.focus();
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [open]);
+
   if (renderMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>

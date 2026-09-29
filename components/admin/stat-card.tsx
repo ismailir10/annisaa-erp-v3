@@ -35,7 +35,16 @@ export function StatCard({
             <p className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
               {label}
             </p>
-            <p className="mt-1.5 font-currency text-display font-bold tracking-tight tabular-nums">
+            {/* A long figure ("Rp 12.345.678") at display size wraps to three lines
+                in a half-width card at 390px — scale it down there, and never
+                break inside the amount (FIN-21). */}
+            <p
+              className={`mt-1.5 font-currency font-bold tracking-tight tabular-nums ${
+                typeof value === "string" && value.length > 8
+                  ? "whitespace-nowrap text-h2 sm:text-display"
+                  : "text-display"
+              }`}
+            >
               {value}
             </p>
             {sublabel && (

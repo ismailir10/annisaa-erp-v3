@@ -11,6 +11,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -369,7 +370,20 @@ const columns: ColumnDef<Student>[] = [
     cell: ({ row }) => {
       const s = row.original;
       return (
-        <DataTableLinkCell href={`/admin/students/${s.id}`} className="gap-3">
+        <DataTableLinkCell
+          href={`/admin/students/${s.id}`}
+          className="gap-3"
+          description={
+            <DataTableMobileMeta>
+              <span>
+                {s.enrollments.length === 0
+                  ? "Belum terdaftar"
+                  : s.enrollments.map((e) => `${e.classSection.program.name} · ${e.classSection.name}`).join(" + ")}
+              </span>
+              <StatusBadge status={s.status} />
+            </DataTableMobileMeta>
+          }
+        >
           <span className="flex items-center gap-3">
             <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
               {s.photoUrl ? (
@@ -387,7 +401,7 @@ const columns: ColumnDef<Student>[] = [
                 </span>
               )}
             </span>
-            <span>
+            <span className="whitespace-normal">
               {s.name}
               {s.nickname && (
                 <span className="text-xs text-muted-foreground ml-1.5">
@@ -403,6 +417,7 @@ const columns: ColumnDef<Student>[] = [
   {
     id: "program",
     header: "Program / Kelas",
+    meta: { priority: "low" },
     cell: ({ row }) => {
       const enrollments = row.original.enrollments;
       if (enrollments.length === 0) {
@@ -480,6 +495,8 @@ const columns: ColumnDef<Student>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    // Status sits under the name below `md` (DataTableMobileMeta above).
+    meta: { priority: "low" },
     cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
 ];
@@ -709,7 +726,7 @@ export default function StudentsPage() {
     <>
       <PageHeader
         title="Siswa"
-        description={`${pagination.total} siswa terdaftar`}
+        description={search.trim() !== "" || status !== "all" ? `${pagination.total} siswa cocok` : `${pagination.total} siswa terdaftar`}
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
@@ -755,6 +772,7 @@ export default function StudentsPage() {
         loading={loading}
         emptyTitle="Belum ada siswa terdaftar"
         emptyDescription="Mulai dengan menambahkan siswa baru."
+        isFiltered={search.trim() !== "" || status !== "all"}
       />
 
       {/* Deactivate / Activate ConfirmDialog */}
