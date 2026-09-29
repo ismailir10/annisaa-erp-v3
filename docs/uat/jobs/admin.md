@@ -1,6 +1,6 @@
 # Admin Portal — Jobs to be Done
 
-> Last audited: 2026-09-29 in cycle `journal-ux` (new admission inquiries — status Pertanyaan, last 14 days — join the Dasbor tiles and `/admin/work-queue?kind=inquiry`). Prior: 2026-09-26 in cycle `admin-dmmt-overhaul` (sidebar cut to daily work + `/admin/settings` hub; one-screen Dasbor replaces the full home queue, with the full list moved to `/admin/work-queue?kind=`; `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`; job steps updated accordingly — engineering review, representative-user UAT remains pending).
+> Last audited: 2026-09-29 in cycles `finance-safety` (payment review step, reversal of manual payments, cancel overdue invoices, Rupiah KPIs on `/admin/invoices`) and `journal-ux` (new admission inquiries — status Pertanyaan, last 14 days — join the Dasbor tiles and `/admin/work-queue?kind=inquiry`). Prior: 2026-09-26 in cycle `admin-dmmt-overhaul` (sidebar cut to daily work + `/admin/settings` hub; one-screen Dasbor replaces the full home queue, with the full list moved to `/admin/work-queue?kind=`; `/admin/penilaian` → `/admin/assessments` and `/admin/raport` → `/admin/report-cards`; job steps updated accordingly — engineering review, representative-user UAT remains pending).
 
 > Prior reviews: 2026-09-25 in cycle `role-redesign-completion` (engineering review and acceptance-job updates; representative-user UAT remains pending). Prior: 2026-09-25 in cycle `intuitive-ui-foundation` (manual invoice scroll/keyboard/reflow acceptance added to JTBD-ADMIN-INV-01; engineering regression verification). Prior: 2026-09-24 in cycle `guardian-primary-fix` (guardian card gained a one-click **Jadikan wali utama** action, confirm-gated, replacing the buried Edit Wali switch as the only way to promote; new JTBD-ADMIN-GUARD-04). Prior: 2026-08-21 in cycle `siswa-wali-linking` (one Parent record is shared across siblings — Tambah Wali opens on a search and links an existing wali, retyping an existing one raises an overridable duplicate warning; siswa ↔ wali navigation is bidirectional and a Saudara row lists siblings; wali bio saves through the parent route so an unlinked wali is editable; new JTBD-ADMIN-GUARD-02 and -03, GUARD-01 updated). Prior: 2026-08-18 in cycle `admin-ui-copy-consistency` (admissions conversion action is gated to `ADMITTED` applicants, with actionable Indonesian fallback errors; JTBD-ADMIN-ADM-01 updated). Prior: 2026-08-14 in cycle `billing-run-wizard-b2` (step 2 of the Billing Run wizard is now editable — per-line amount edits, ad-hoc potongan, extra catalog components, line removal; step 3 gained "Hitung Ulang" and the resume banner gained a discard; JTBD-ADMIN-INV-05 updated). Prior: 2026-08-14 in cycle `billing-run-wizard` (bulk generate is now a three-step Billing Run wizard on a persisted draft — scope by class/student, review rows with keringanan applied, commit; the three-field dialog is retired; new JTBD-ADMIN-INV-05). Prior: 2026-08-13 in cycle `keringanan-fee-adjustments` (Keringanan tab on `/admin/fees` — durable per-student fee adjustments applied automatically by bulk generation; new JTBD-ADMIN-INV-04). Prior: 2026-08-05 in cycle `admin-ui-audit-fixes` (interface-audit remediation across Kesiswaan/Akademik/Penilaian/Kelas Harian: form controls given accessible names, raport editor unsaved-changes guard, glossary + label corrections; `/admin/penilaian` H1 is now "Pemantauan"). Prior: 2026-07-29 in cycle `class-picker-year-scoping` (enroll/promote pickers year-scoped to ACTIVE/PLANNING, searchable, grouped by kampus; archived-year targets rejected server-side; class names campus-free). Prior: 2026-06-23 in cycle `ui-shadcn-audit` (Penerimaan payments-received ledger on /admin/payments — date-range, search, method filter, pagination, invoice view action, per-method summary, CSV export)
 > Portal root: `app/admin/`
@@ -157,6 +157,19 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Why this job matters:** When a parent disputes a charge, Ibu Nur needs the full story in one place — not three queries. If payment history is hidden, she defaults to WhatsApp.
 - **Known friction (from last UAT):** <filled by /uat reports>
 
+### JTBD-ADMIN-INV-06 — Cancel an overdue invoice and see what is owed in Rupiah
+- **Persona:** Ibu Nur
+- **Role:** either
+- **Expected perf:** invoices list + KPI cards <2s
+- **Preconditions:** Logged in as SUPER_ADMIN, ≥1 `OVERDUE` invoice with no payments and ≥1 with a manual payment
+- **Steps:**
+  1. Open `/admin/invoices` — read "Piutang" and "Diterima Bulan Ini" next to the counts
+  2. Open the row menu on the unpaid overdue invoice and choose "Batalkan"; confirm
+  3. On the overdue invoice that has a payment, choose "Batalkan Tagihan" from the detail `⋯` menu
+- **Done when:** The unpaid overdue invoice becomes Dibatalkan (no red "Sisa"). The invoice with payments explains, in Indonesian, that the payments must be reversed first. Piutang equals the sum of remaining on Link Dibuat / Dibayar Sebagian / Lewat Tempo invoices; Diterima Bulan Ini equals the non-reversed payments of the current Jakarta month.
+- **Why this job matters:** A wrong or withdrawn-student invoice used to sit as overdue forever, and the treasurer had to add rows by hand to know what is owed.
+- **Known friction (from last UAT):** <filled by /uat reports>
+
 ### JTBD-ADMIN-INV-03 — Mark an invoice as paid manually (offline cash/transfer)
 - **Persona:** Ibu Nur
 - **Role:** either
@@ -164,9 +177,10 @@ Each job declares `Role:` (`SUPER_ADMIN` | `SCHOOL_ADMIN` | `either`) so once ro
 - **Preconditions:** Logged in as SUPER_ADMIN, ≥1 invoice with status `SENT` or `OVERDUE` for a guardian who paid via bank transfer outside Xendit
 - **Steps:**
   1. Open the invoice detail
-  2. Record an offline payment (amount, date, method, reference note)
-  3. Confirm the invoice moves to `PAID`
-- **Done when:** Invoice status is `PAID`. Payment shows in the payment trail with the recorded method + reference. Parent portal reflects `PAID` within one refresh.
+  2. "Catat Pembayaran" — amount (prefilled with the balance), method (Tunai / Transfer Bank / Lainnya), reference note; press "Tinjau Pembayaran"
+  3. Read the review (invoice, student, Rp amount, method, date, resulting status) and press "Catat Rp …"; if it was a mistake, use "Batalkan pembayaran" on that payment row and give a reason
+  4. Confirm the invoice moves to `PAID` (and back to its previous state after a reversal)
+- **Done when:** Nothing is saved until the review is confirmed. Invoice status is `PAID`. Payment shows in the payment trail with the recorded method + reference and "Dicatat oleh <nama>". A reversed payment stays visible struck-through as "Dibatalkan", is excluded from the invoice total, the penerimaan ledger and the parent view; gateway payments cannot be reversed. Parent portal reflects `PAID` within one refresh.
 - **Why this job matters:** Many An Nisaa' parents still transfer via BSI mobile outside Xendit. Without manual mark-paid, Ibu Nur's books and the ERP diverge.
 - **Known friction (from last UAT):** <filled by /uat reports>
 

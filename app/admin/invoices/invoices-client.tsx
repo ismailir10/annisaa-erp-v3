@@ -20,11 +20,12 @@ import { ManualInvoiceDialog } from "@/components/admin/invoices/manual-invoice-
 import { PendingLinkBreakdownPopover } from "@/components/admin/invoices/pending-link-breakdown-popover";
 import { BillingRunWizard } from "@/components/admin/invoices/billing-run-wizard/billing-run-wizard";
 import { type AcademicYear } from "@/components/admin/invoices/billing-run-wizard/billing-defaults";
-import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2 } from "lucide-react";
+import { Plus, FileText, Receipt, CheckCircle, Clock, AlertTriangle, AlertCircle, LinkIcon, CircleDashed, RefreshCw, FilePlus2, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { userMessage, ApiError } from "@/lib/api/client-errors";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
 import { formatRupiah, formatDateShort } from "@/lib/format";
+import { VOIDABLE_INVOICE_STATUSES } from "@/lib/constants/invoice-status";
 import {
   runBulkRetry,
   type BulkRetrySnapshot,
@@ -125,7 +126,7 @@ const columns: ColumnDef<Invoice>[] = [
               Dibayar: {formatRupiah(Number(inv.totalPaid))}
             </p>
           )}
-          {remaining > 0 && inv.status !== "DRAFT" && (
+          {remaining > 0 && inv.status !== "DRAFT" && inv.status !== "CANCELLED" && (
             <p className="font-currency text-xs text-destructive">
               Sisa: {formatRupiah(remaining)}
             </p>
@@ -273,6 +274,8 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
     overdue: 0,
     cancelled: 0,
     pendingPaymentLink: 0,
+    outstanding: 0,
+    collectedThisMonth: 0,
   });
 
   const fetchStats = useCallback(() => {
@@ -290,6 +293,8 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
           overdue: s.overdue ?? 0,
           cancelled: s.cancelled ?? 0,
           pendingPaymentLink: s.pendingPaymentLink ?? 0,
+          outstanding: Number(s.outstanding ?? 0),
+          collectedThisMonth: Number(s.collectedThisMonth ?? 0),
         });
       })
       .catch(() => setStatsState("error"));
@@ -490,7 +495,7 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
       fetchInvoices();
       fetchStats();
     } else {
-      const d = await res.json();
+      const d = await res.json().catch(() => ({}));
       toast.error(d.error || "Gagal membatalkan tagihan");
     }
   }
@@ -503,7 +508,13 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
         header: "",
         cell: ({ row }) => {
           const inv = row.original;
-          const canVoid = capabilities.void && ["DRAFT", "SENT", "PENDING_PAYMENT_LINK"].includes(inv.status);
+          // Overdue invoices can be cancelled too (FIN-9) — but only while no
+          // money sits on them; with payments, the detail page explains that
+          // they must be reversed first.
+          const canVoid =
+            capabilities.void &&
+            (VOIDABLE_INVOICE_STATUSES as readonly string[]).includes(inv.status) &&
+            Number(inv.totalPaid) === 0;
           const isRetryRow = capabilities.create && inv.status === "PENDING_PAYMENT_LINK";
           const isRetryingThisRow = retryingRowId === inv.id;
           return (
@@ -648,6 +659,25 @@ export function InvoicesClient({ gatewayId, capabilities }: { gatewayId: "xendit
         {stats.pendingPaymentLink > 0 && (
           <StatCard label="Link Gagal" value={stats.pendingPaymentLink} icon={LinkIcon} color="warning" index={5} />
         )}
+      </StatsCardsRow>}
+      {/* FIN-13: Rupiah next to the counts — what is still owed, and what came in this month. */}
+      {statsState === "ready" && <StatsCardsRow cols={2}>
+        <StatCard
+          label="Piutang"
+          value={formatRupiah(stats.outstanding)}
+          sublabel={`${stats.sent + stats.partiallyPaid + stats.overdue} tagihan belum lunas`}
+          icon={Wallet}
+          color="warning"
+          index={6}
+        />
+        <StatCard
+          label="Diterima Bulan Ini"
+          value={formatRupiah(stats.collectedThisMonth)}
+          sublabel="Pembayaran tercatat, tanpa yang dibatalkan"
+          icon={Banknote}
+          color="success"
+          index={7}
+        />
       </StatsCardsRow>}
 
       <DataTableToolbar

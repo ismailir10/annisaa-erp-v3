@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { sumDecimals } from "@/lib/finance/invoice-numbers";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 
 /**
  * Gateway-agnostic webhook core, extracted from `app/api/xendit/webhook/route.ts`
@@ -282,7 +283,8 @@ async function handleSessionCompleted(
       },
     });
 
-    const allPayments = await tx.payment.findMany({ where: { invoiceId } });
+    // REVERSED manual payments must not count toward the paid total.
+    const allPayments = await tx.payment.findMany({ where: { invoiceId, ...ACTIVE_PAYMENT_FILTER } });
     const totalPaid = sumDecimals(allPayments.map((p) => p.amount));
     const totalDue = new Prisma.Decimal(invoice.totalDue as never);
     const status = totalPaid.greaterThanOrEqualTo(totalDue) ? "PAID" : "PARTIALLY_PAID";

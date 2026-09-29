@@ -20,10 +20,12 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { FormDialogFooter, FormField, FormRootError } from "@/components/ui/form";
 import { PaymentActivityCard } from "@/components/admin/invoices/payment-activity-card";
 import { parsePaymentLinkError } from "@/lib/payments/error-prefix";
-import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Ban, CreditCard, Phone, Mail, AlertTriangle, RefreshCw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatRupiah, formatDateShort } from "@/lib/format";
-import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/constants/payment-methods";
+import { MANUAL_PAYMENT_METHODS, isGatewayPayment, paymentMethodLabel } from "@/lib/constants/payment-methods";
+import { cn } from "@/lib/utils";
 import { invoicePaymentFormSchema } from "@/lib/validations/invoice";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { applyServerErrors } from "@/lib/forms/server-errors";
@@ -35,7 +37,10 @@ import { sendJson } from "@/lib/api/send-json";
 type PaymentFormControl = ReturnType<typeof useZodForm<typeof invoicePaymentFormSchema>>["control"];
 
 type InvoiceLine = { id: string; labelSnapshot: string; amount: number; adjustmentAmount: number; adjustmentNote: string | null; finalAmount: number; feeComponent: { code: string; category: string } };
-type Payment = { id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string };
+type Payment = {
+  id: string; amount: number; method: string; reference: string | null; notes: string | null; paidAt: string;
+  status: string; xenditPaymentId?: string | null; createdBy: string | null; createdByName: string | null;
+};
 type InvoiceDetail = {
   capabilities: import("@/lib/finance/invoice-capabilities").InvoiceCapabilities;
   id: string; invoiceNumber: string; periodLabel: string; dueDate: string;
@@ -78,7 +83,7 @@ function PaymentFormBody({
           <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
             <SelectTrigger {...controlProps} onBlur={field.onBlur}><SelectValue /></SelectTrigger>
             <SelectContent>
-              {PAYMENT_METHODS.map((m) => (
+              {MANUAL_PAYMENT_METHODS.map((m) => (
                 <SelectItem key={m} value={m}>
                   {paymentMethodLabel(m)}
                 </SelectItem>
@@ -110,12 +115,77 @@ function PaymentFormBody({
   );
 }
 
+// ------------------------------------------------------------------
+// Review step — the mandatory confirmation before a payment is recorded.
+// ------------------------------------------------------------------
+
+function ReviewRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-3 py-2.5 text-sm">
+      <dt className="text-muted-foreground shrink-0">{label}</dt>
+      <dd className="text-right font-medium min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+function PaymentReview({
+  invoice,
+  amount,
+  method,
+  reference,
+  notes,
+  remaining,
+}: {
+  invoice: Pick<InvoiceDetail, "invoiceNumber" | "student">;
+  amount: number;
+  method: string;
+  reference: string;
+  notes: string;
+  remaining: number;
+}) {
+  const settles = amount >= remaining;
+  return (
+    <div className="space-y-field" data-testid="payment-review">
+      <p className="text-sm text-muted-foreground">
+        Periksa kembali sebelum dicatat. Pembayaran yang salah catat masih bisa dibatalkan dengan alasan, tetapi tercatat di riwayat.
+      </p>
+      <dl className="divide-y divide-border rounded-lg border border-border">
+        <ReviewRow label="Tagihan"><span className="font-currency">{invoice.invoiceNumber}</span></ReviewRow>
+        <ReviewRow label="Siswa">{invoice.student.name}</ReviewRow>
+        <ReviewRow label="Jumlah">
+          <span className="font-currency text-base font-bold" data-testid="payment-review-amount">{formatRupiah(amount)}</span>
+        </ReviewRow>
+        <ReviewRow label="Metode">{paymentMethodLabel(method)}</ReviewRow>
+        <ReviewRow label="Tanggal">{formatDateShort(new Date().toISOString())}</ReviewRow>
+        {reference.trim() && <ReviewRow label="Referensi">{reference.trim()}</ReviewRow>}
+        {notes.trim() && <ReviewRow label="Catatan">{notes.trim()}</ReviewRow>}
+        <ReviewRow label="Status setelah dicatat">
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            <StatusBadge status={settles ? "PAID" : "PARTIALLY_PAID"} />
+            {!settles && (
+              <span className="text-xs text-muted-foreground">Sisa <span className="font-currency">{formatRupiah(remaining - amount)}</span></span>
+            )}
+          </span>
+        </ReviewRow>
+      </dl>
+    </div>
+  );
+}
+
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
+  // "form" -> "review": recording a payment is a two-step action; nothing is
+  // POSTed until the admin has read the review and pressed the confirm button.
+  const [payStep, setPayStep] = useState<"form" | "review">("form");
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [reverseTarget, setReverseTarget] = useState<Payment | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseError, setReverseError] = useState<string | null>(null);
+  const [voidBlockedOpen, setVoidBlockedOpen] = useState(false);
   const paymentFormId = useId();
   const payForm = useZodForm(invoicePaymentFormSchema, {
     defaultValues: { amount: null, method: "CASH", reference: "", notes: "" },
@@ -145,16 +215,67 @@ export default function InvoiceDetailPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchInvoice(); }, [fetchInvoice]);
 
-  const handlePayment = payForm.handleSubmit(async (values) => {
+  // Step 1 -> 2: validate the form, then show the review. No request yet.
+  const handleReviewPayment = payForm.handleSubmit((values) => {
+    const due = invoice ? Number(invoice.totalDue) - Number(invoice.totalPaid) : 0;
+    if (values.amount !== null && values.amount > due) {
+      payForm.setError(
+        "amount",
+        { type: "validate", message: `Jumlah pembayaran (${formatRupiah(values.amount)}) melebihi sisa tagihan (${formatRupiah(due)})` },
+        { shouldFocus: true },
+      );
+      return;
+    }
+    setPayStep("review");
+  });
+
+  // Step 2: the only place the POST happens.
+  async function handleConfirmPayment() {
+    if (submittingPayment) return;
+    setSubmittingPayment(true);
     try {
-      await sendJson(`/api/invoices/${id}/payments`, { method: "POST", body: values }, "Gagal mencatat pembayaran");
+      await sendJson(`/api/invoices/${id}/payments`, { method: "POST", body: payForm.getValues() }, "Gagal mencatat pembayaran");
       toast.success("Pembayaran dicatat");
-      setPaymentDialog(false);
+      closePaymentDialog();
       fetchInvoice();
     } catch (err) {
+      // Back to the form so the server's field error (e.g. overpayment) is
+      // shown next to the field it belongs to.
+      setPayStep("form");
       applyServerErrors(payForm, err, "Gagal mencatat pembayaran");
+    } finally {
+      setSubmittingPayment(false);
     }
-  });
+  }
+
+  function closePaymentDialog() {
+    setPaymentDialog(false);
+    setPayStep("form");
+  }
+
+  async function handleReversePayment() {
+    if (!reverseTarget) return;
+    const reason = reverseReason.trim();
+    if (reason.length < 5) {
+      setReverseError("Alasan wajib diisi (minimal 5 karakter)");
+      throw new Error("reason required"); // keep the confirm dialog open
+    }
+    try {
+      await sendJson(
+        `/api/invoices/${id}/payments/${reverseTarget.id}/reverse`,
+        { method: "POST", body: { reason } },
+        "Gagal membatalkan pembayaran",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membatalkan pembayaran");
+      setReverseError(err instanceof Error ? err.message : "Gagal membatalkan pembayaran");
+      throw err; // keep the confirm dialog open so the reason is not lost
+    }
+    toast.success("Pembayaran dibatalkan");
+    setReverseTarget(null);
+    setActivityKey((k) => k + 1);
+    fetchInvoice();
+  }
 
   async function handleCreateXenditLink() {
     setCreatingXendit(true);
@@ -272,15 +393,22 @@ export default function InvoiceDetailPage() {
   const guardianEntry = invoice.student.guardians[0];
   const guardian = guardianEntry?.parent;
   const remaining = Number(invoice.totalDue) - Number(invoice.totalPaid);
-  const canVoid = invoice.capabilities?.void && (
-    invoice.status === "DRAFT" ||
-    invoice.status === "SENT" ||
-    invoice.status === "PENDING_PAYMENT_LINK");
+  // Money already on the invoice blocks a cancel (the API enforces it too): the
+  // menu item stays visible so the admin gets the reason instead of a missing
+  // action, but it opens an explanation rather than the confirm (FIN-9).
+  const activePayments = invoice.payments.filter((p) => p.status !== "REVERSED" && Number(p.amount) > 0);
+  const paidOnInvoice = Math.max(
+    activePayments.reduce((sum, p) => sum + Number(p.amount), 0),
+    Number(invoice.totalPaid),
+  );
+  const hasActivePayments = paidOnInvoice > 0;
+  const canVoid = invoice.capabilities?.void && invoice.status !== "CANCELLED";
   // Only meaningful once a checkout exists at the gateway. A CANCELLED
   // invoice is terminal — the processor refuses to credit it either way, so
   // offering the action would only produce a confusing no-op.
+  // Nor is there anything left to fetch once it is Lunas (FIN-20).
   const canRefreshPayment = invoice.capabilities?.recordPayment &&
-    !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED";
+    !!invoice.xenditPaymentUrl && invoice.status !== "CANCELLED" && invoice.status !== "PAID";
 
   return (
     <>
@@ -298,7 +426,7 @@ export default function InvoiceDetailPage() {
           ...(canRefreshPayment
             ? [
                 {
-                  label: refreshingPayment ? "Memeriksa..." : "Perbarui pembayaran",
+                  label: refreshingPayment ? "Memeriksa..." : "Cek status di gateway",
                   icon: (
                     <RefreshCw
                       size={14}
@@ -330,7 +458,10 @@ export default function InvoiceDetailPage() {
                   label: "Catat Pembayaran",
                   icon: <CreditCard size={14} aria-hidden="true" />,
                   onClick: () => {
+                    // Prefilled with the whole balance for convenience — the
+                    // review step is what stops a stray click from booking it.
                     payForm.reset({ amount: remaining, method: "CASH", reference: "", notes: "" });
+                    setPayStep("form");
                     setPaymentDialog(true);
                   },
                   // The header's one filled (non-outline) action — recording
@@ -346,7 +477,7 @@ export default function InvoiceDetailPage() {
                 {
                   label: "Batalkan Tagihan",
                   icon: <Ban size={14} aria-hidden="true" />,
-                  onClick: () => setVoidConfirmOpen(true),
+                  onClick: () => (hasActivePayments ? setVoidBlockedOpen(true) : setVoidConfirmOpen(true)),
                   destructive: true,
                   testId: "invoice-void-btn",
                 },
@@ -365,6 +496,50 @@ export default function InvoiceDetailPage() {
         confirmLabel={voiding ? "Membatalkan..." : "Ya, Batalkan"}
         destructive
       />
+
+      {/* Void blocked — explains instead of failing with a 409 */}
+      <ConfirmDialog
+        open={voidBlockedOpen}
+        onOpenChange={setVoidBlockedOpen}
+        title="Tagihan sudah menerima pembayaran"
+        description={`Tagihan ${invoice.invoiceNumber} sudah menerima ${formatRupiah(paidOnInvoice)}. Batalkan pembayarannya lebih dulu di Riwayat Pembayaran, lalu batalkan tagihan.${activePayments.some((p) => isGatewayPayment(p)) ? " Pembayaran lewat gateway (Virtual Account) tidak bisa dibatalkan dari sini." : ""}`}
+        onConfirm={() => undefined}
+        confirmLabel="Mengerti"
+        cancelLabel="Tutup"
+      />
+
+      {/* Reverse a manual payment — reason is mandatory */}
+      <ConfirmDialog
+        open={!!reverseTarget}
+        onOpenChange={(o) => { if (!o) { setReverseTarget(null); setReverseError(null); setReverseReason(""); } }}
+        title="Batalkan pembayaran?"
+        description={
+          reverseTarget
+            ? `Pembayaran ${formatRupiah(reverseTarget.amount)} (${paymentMethodLabel(reverseTarget.method)}, ${formatDateShort(reverseTarget.paidAt)}) tidak dihitung lagi dan sisa tagihan bertambah. Riwayat tetap tersimpan sebagai Dibatalkan.`
+            : undefined
+        }
+        onConfirm={handleReversePayment}
+        confirmLabel="Ya, Batalkan Pembayaran"
+        destructive
+      >
+        <div className="space-y-1.5">
+          <label htmlFor="reverse-reason" className="text-sm font-medium">
+            Alasan pembatalan <span className="text-destructive" aria-hidden="true">*</span>
+          </label>
+          <Textarea
+            id="reverse-reason"
+            value={reverseReason}
+            onChange={(e) => { setReverseReason(e.target.value); setReverseError(null); }}
+            placeholder="Contoh: salah input nominal"
+            rows={3}
+            maxLength={300}
+            aria-required="true"
+            aria-invalid={!!reverseError}
+            aria-describedby={reverseError ? "reverse-reason-error" : undefined}
+          />
+          {reverseError && <p id="reverse-reason-error" role="alert" className="text-sm text-destructive">{reverseError}</p>}
+        </div>
+      </ConfirmDialog>
 
       {invoice.paymentLinkError && (
         <Card className="border-warning/40 bg-warning/5 p-4 mb-4">
@@ -420,7 +595,7 @@ export default function InvoiceDetailPage() {
           <div className="border-t border-border mt-3 pt-3 space-y-1">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Tagihan</span><span className="font-currency font-bold">{formatRupiah(invoice.totalDue)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-currency font-bold text-status-present">{formatRupiah(invoice.totalPaid)}</span></div>
-            {remaining > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
+            {remaining > 0 && invoice.status !== "CANCELLED" && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Sisa</span><span className="font-currency font-bold text-destructive">{formatRupiah(remaining)}</span></div>}
           </div>
         </Card>
 
@@ -438,7 +613,7 @@ export default function InvoiceDetailPage() {
           )}
 
           {/* Payment link */}
-          {invoice.xenditPaymentUrl && (
+          {invoice.xenditPaymentUrl && invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
             <Card className="p-card">
               <SectionHeading label="Link Pembayaran" />
               <a href={invoice.xenditPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-text hover:underline break-all">{invoice.xenditPaymentUrl}</a>
@@ -455,19 +630,40 @@ export default function InvoiceDetailPage() {
               <EmptyState title="Belum ada pembayaran" description="Pembayaran yang dicatat manual atau diterima via link akan tampil di sini." />
             ) : (
               <div className="space-y-2">
-                {invoice.payments.map(p => (
-                  <div key={p.id} className="border-b border-border/50 last:border-0 pb-2">
-                    <div className="flex justify-between">
-                      <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method)}</Badge>
-                      <span className="font-currency text-sm font-bold text-status-present">{formatRupiah(p.amount)}</span>
+                {invoice.payments.map(p => {
+                  const reversed = p.status === "REVERSED";
+                  const canReverse =
+                    invoice.capabilities?.recordPayment && !reversed && !isGatewayPayment(p) && invoice.status !== "CANCELLED";
+                  return (
+                    <div key={p.id} data-testid={`payment-row-${p.id}`} data-status={p.status} className="border-b border-border/50 last:border-0 pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant="outline" className="text-xs">{paymentMethodLabel(p.method)}</Badge>
+                          {reversed && <StatusBadge status="REVERSED" />}
+                        </span>
+                        <span className={cn("font-currency text-sm font-bold", reversed ? "text-muted-foreground line-through" : "text-status-present")}>
+                          {formatRupiah(p.amount)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDateShort(p.paidAt)}
+                        {p.reference && ` · Ref: ${p.reference}`}
+                        {p.createdByName && ` · Dicatat oleh ${p.createdByName}`}
+                      </p>
+                      {p.notes && <p className="text-xs text-muted-foreground whitespace-pre-line">{p.notes}</p>}
+                      {canReverse && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-1 h-7 px-2 text-xs text-destructive hover:text-destructive"
+                          onClick={() => { setReverseReason(""); setReverseError(null); setReverseTarget(p); }}
+                        >
+                          <Undo2 size={12} aria-hidden="true" /> Batalkan pembayaran
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatDateShort(p.paidAt)}
-                      {p.reference && ` · Ref: ${p.reference}`}
-                    </p>
-                    {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
@@ -477,25 +673,49 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Payment Dialog — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch */}
+      {/* Payment Dialog — ResponsiveFormDialog owns the Dialog/Sheet breakpoint switch.
+          Two steps: fill (Tinjau Pembayaran) -> review (Catat Rp ...). */}
       <ResponsiveFormDialog
         open={paymentDialog}
-        onOpenChange={setPaymentDialog}
+        onOpenChange={(o) => { if (!submittingPayment) { setPaymentDialog(o); if (!o) setPayStep("form"); } }}
         title="Catat Pembayaran"
         size="lg"
         footer={
-          <FormDialogFooter
-            formId={paymentFormId}
-            pending={payForm.formState.isSubmitting}
-            onCancel={() => setPaymentDialog(false)}
-            submitLabel="Catat Pembayaran"
-          />
+          payStep === "form" ? (
+            <FormDialogFooter
+              formId={paymentFormId}
+              pending={payForm.formState.isSubmitting}
+              onCancel={closePaymentDialog}
+              submitLabel="Tinjau Pembayaran"
+              pendingLabel="Memeriksa..."
+            />
+          ) : (
+            <div className="contents">
+              <Button type="button" variant="ghost" onClick={() => setPayStep("form")} disabled={submittingPayment}>
+                Ubah
+              </Button>
+              <Button type="button" onClick={handleConfirmPayment} disabled={submittingPayment} aria-busy={submittingPayment || undefined}>
+                {submittingPayment ? "Mencatat..." : `Catat ${formatRupiah(Number(payForm.getValues("amount") ?? 0))}`}
+              </Button>
+            </div>
+          )
         }
       >
-        <form id={paymentFormId} onSubmit={handlePayment} noValidate className="space-y-field">
-          <FormRootError formState={payForm.formState} />
-          <PaymentFormBody control={payForm.control} remaining={remaining} />
-        </form>
+        {payStep === "form" ? (
+          <form id={paymentFormId} onSubmit={handleReviewPayment} noValidate className="space-y-field">
+            <FormRootError formState={payForm.formState} />
+            <PaymentFormBody control={payForm.control} remaining={remaining} />
+          </form>
+        ) : (
+          <PaymentReview
+            invoice={invoice}
+            amount={Number(payForm.getValues("amount") ?? 0)}
+            method={payForm.getValues("method") ?? "CASH"}
+            reference={payForm.getValues("reference") ?? ""}
+            notes={payForm.getValues("notes") ?? ""}
+            remaining={remaining}
+          />
+        )}
       </ResponsiveFormDialog>
     </>
   );

@@ -9,10 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findUnique = vi.fn();
+const userFindMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     invoice: { findUnique },
+    user: { findMany: userFindMany },
   },
 }));
 
@@ -71,6 +73,39 @@ describe("GET /api/invoices/[id]", () => {
         include: expect.any(Object),
       }),
     );
+  });
+
+  it("FIN-7: resolves payment.createdBy to a tenant-scoped actor name; gateway rows stay null", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(adminSession());
+    findUnique.mockResolvedValueOnce({
+      id: "inv-1",
+      tenantId: "tnt-1",
+      status: "PAID",
+      lines: [],
+      payments: [
+        { id: "p1", createdBy: "u-9", status: "RECORDED" },
+        { id: "p2", createdBy: null, status: "RECORDED" },
+        { id: "p3", createdBy: "u-gone", status: "REVERSED" },
+      ],
+      student: { guardians: [] },
+    });
+    userFindMany.mockResolvedValueOnce([{ id: "u-9", name: "Bu Nur", email: "nur@x.id" }]);
+
+    const { GET } = await import("../invoices/[id]/route");
+    const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+    const json = await res.json();
+
+    expect(userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["u-9", "u-gone"] }, tenantId: "tnt-1" } }),
+    );
+    expect(json.payments.map((p: { createdByName: string | null }) => p.createdByName)).toEqual([
+      "Bu Nur",
+      null,
+      null,
+    ]);
+    // reversed rows are still returned (admin history shows them struck through)
+    expect(json.payments[2].status).toBe("REVERSED");
   });
 
   it("only resolves an ACTIVE primary guardian as the billing contact", async () => {

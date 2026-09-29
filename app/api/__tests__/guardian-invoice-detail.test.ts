@@ -101,6 +101,41 @@ describe("GET /api/guardian/invoices/[id]", () => {
     );
   });
 
+  it("PAR-7: exposes the optional school contact phone from SCHOOL_CONTACT_PHONE", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    const prev = process.env.SCHOOL_CONTACT_PHONE;
+    process.env.SCHOOL_CONTACT_PHONE = "0812-8877-4402";
+    try {
+      parentFindFirst.mockResolvedValueOnce({ guardians: [{ studentId: "stu-1" }] });
+      invoiceFindUnique.mockResolvedValueOnce({
+        id: "inv-1", tenantId: "t-1", studentId: "stu-1", invoiceNumber: "INV-0001",
+        periodLabel: "April 2026", dueDate: "2026-04-30", totalDue: 1, totalPaid: 0, status: "OVERDUE",
+        xenditPaymentUrl: null, sentAt: null, paidAt: null, lines: [], payments: [],
+        student: { name: "Anak", nickname: null, enrollments: [] },
+      });
+      const { GET } = await import("../guardian/invoices/[id]/route");
+      const res = await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+      expect((await res.json()).schoolContactPhone).toBe("0812-8877-4402");
+    } finally {
+      if (prev === undefined) delete process.env.SCHOOL_CONTACT_PHONE;
+      else process.env.SCHOOL_CONTACT_PHONE = prev;
+    }
+  });
+
+  it("asks Prisma for non-reversed payments only (a reversed payment is not money received)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    vi.mocked(getSession).mockResolvedValue(guardianSession());
+    parentFindFirst.mockResolvedValueOnce({ guardians: [{ studentId: "stu-1" }] });
+    invoiceFindUnique.mockResolvedValueOnce(null);
+
+    const { GET } = await import("../guardian/invoices/[id]/route");
+    await GET(makeReq() as never, { params: Promise.resolve({ id: "inv-1" }) });
+
+    const args = invoiceFindUnique.mock.calls[0][0];
+    expect(args.select.payments.where).toEqual({ status: { not: "REVERSED" } });
+  });
+
   it("names the SEMESTER (sekolah) class, never the daycare one, for a dual-enrolled student", async () => {
     const { getSession } = await import("@/lib/auth");
     vi.mocked(getSession).mockResolvedValue(guardianSession());

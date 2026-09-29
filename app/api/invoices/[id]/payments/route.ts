@@ -6,6 +6,12 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { recordPaymentSchema } from "@/lib/validations/invoice";
 import { hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
+import { fieldErrorResponse } from "@/lib/api/field-errors";
+import { recordAudit } from "@/lib/audit";
+import { recomputeInvoiceFromPayments } from "@/lib/finance/invoice-payment-state";
+import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { isGatewayPayment } from "@/lib/constants/payment-methods";
+import { formatRupiah } from "@/lib/format";
 
 // Record a manual payment for an invoice
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,6 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const result = await validateBody(recordPaymentSchema, rawBody);
   if (result.error) return result.error;
   const parsed = { data: result.data } as const;
+  // FIN-23: gateway rails are written by the webhook, never hand-recorded —
+  // a typed-in "Virtual Account" row would pass for a gateway delivery.
+  if (isGatewayPayment({ method: parsed.data.method })) {
+    return fieldErrorResponse(
+      "method",
+      "Pembayaran Virtual Account masuk otomatis lewat link pembayaran. Pilih Tunai, Transfer Bank, atau Lainnya.",
+      400,
+    );
+  }
   const amountDec = new Prisma.Decimal(parsed.data.amount.toString());
 
   // Quick tenant-scope check outside the tx so a cross-tenant id bails early.
@@ -51,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const remainingDec = totalDueDec.sub(currentPaidDec);
       if (amountDec.gt(remainingDec)) {
         throw Object.assign(new Error("OVERPAYMENT"), {
-          msg: `Jumlah pembayaran (${amountDec.toString()}) melebihi sisa tagihan (${remainingDec.toString()})`,
+          msg: `Jumlah pembayaran (${formatRupiah(amountDec.toString())}) melebihi sisa tagihan (${formatRupiah(remainingDec.toString())})`,
         });
       }
 
@@ -62,30 +77,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           method: parsed.data.method,
           reference: parsed.data.reference?.trim() || null,
           notes: parsed.data.notes?.trim() || null,
+          // FIN-7: who took this money. Gateway rows (webhook) stay null.
+          createdBy: session.id,
         },
       });
 
-      const allPayments = await tx.payment.findMany({
-        where: { invoiceId },
-        select: { amount: true },
-      });
-      const totalPaidDec = allPayments.reduce(
-        (acc, pay) => acc.add(new Prisma.Decimal(pay.amount.toString())),
-        new Prisma.Decimal(0)
+      // Shared with the reversal route — REVERSED rows never count.
+      const after = await recomputeInvoiceFromPayments(tx, fresh, getTodayInTimezone("Asia/Jakarta"));
+
+      await recordAudit(
+        {
+          tenantId: session.tenantId!,
+          actorId: session.id,
+          entity: "Payment",
+          entityId: p.id,
+          action: "record",
+          before: { invoiceStatus: fresh.status, totalPaid: fresh.totalPaid.toString() },
+          after: {
+            invoiceId,
+            amount: amountDec.toString(),
+            method: p.method,
+            invoiceStatus: after.status,
+            totalPaid: after.totalPaid.toString(),
+          },
+        },
+        tx,
       );
-
-      let newStatus = fresh.status;
-      if (totalPaidDec.gte(totalDueDec)) newStatus = "PAID";
-      else if (totalPaidDec.gt(0)) newStatus = "PARTIALLY_PAID";
-
-      await tx.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          totalPaid: totalPaidDec,
-          status: newStatus,
-          paidAt: newStatus === "PAID" ? new Date() : null,
-        },
-      });
 
       return p;
     });
@@ -101,8 +118,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (e.message === "NOT_FOUND") return NextResponse.json({ error: "Not found" }, { status: 404 });
       if (e.message === "CANCELLED") return NextResponse.json({ error: "Tidak bisa mencatat pembayaran untuk tagihan yang dibatalkan" }, { status: 400 });
       if (e.message === "PAID") return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (e.message === "OVERPAYMENT") return NextResponse.json({ error: (e as any).msg }, { status: 400 });
+      // Land the message on the Jumlah field, not just a banner (FIN-8).
+      if (e.message === "OVERPAYMENT") {
+        return fieldErrorResponse("amount", (e as Error & { msg: string }).msg, 400);
+      }
     }
     throw e;
   }
