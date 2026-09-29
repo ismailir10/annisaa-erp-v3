@@ -9,6 +9,10 @@ import { reconcileSessions } from "@/lib/sessions/reconcile";
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  // HR-16: capacity / enrollment counts are read by admin screens only; the
+  // teacher and parent portals use their own scoped /api/teacher and
+  // /api/parent endpoints.
+  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const programId = searchParams.get("programId");

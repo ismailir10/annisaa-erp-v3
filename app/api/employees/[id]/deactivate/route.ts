@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
+import { invalidateUserCache } from "@/lib/auth";
 import { requirePermission } from "@/lib/auth-guards";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -25,6 +26,11 @@ import { recordAudit } from "@/lib/audit";
  *   - Idempotent: deactivating an already-INACTIVE employee returns 200 with
  *     no audit row written (avoids audit noise from retries).
  *   - Optional `{reason: string}` body lands in the audit metadata.
+ *   - Revokes login (HR-4): the linked `User` (by `employeeId`) is set INACTIVE
+ *     in the same transaction and its cached session is dropped. The acting
+ *     admin's own User and SUPER_ADMIN Users are never touched, so an owner
+ *     cannot be locked out through an employee record. The idempotent path
+ *     still syncs the User, which heals employees deactivated before this fix.
  */
 export async function POST(
   req: NextRequest,
@@ -59,7 +65,27 @@ export async function POST(
   if (result.error) return result.error;
   const { reason } = result.data;
 
+  const revokedEmails: string[] = [];
   const updated = await prisma.$transaction(async (tx) => {
+    const revokeLogin = async () => {
+      const linked = await tx.user.findMany({
+        where: {
+          employeeId: id,
+          tenantId: session.tenantId,
+          status: "ACTIVE",
+          role: { not: "SUPER_ADMIN" },
+          id: { not: session.id },
+        },
+        select: { id: true, email: true },
+      });
+      if (linked.length === 0) return;
+      await tx.user.updateMany({
+        where: { id: { in: linked.map((u) => u.id) } },
+        data: { status: "INACTIVE" },
+      });
+      revokedEmails.push(...linked.map((u) => u.email));
+    };
+
     const before = await tx.employee.findUnique({
       where: { id },
       select: { status: true },
@@ -71,6 +97,7 @@ export async function POST(
 
     // Idempotency: already INACTIVE → no-op, no audit row.
     if (before.status === "INACTIVE") {
+      await revokeLogin();
       return tx.employee.findUnique({ where: { id } });
     }
 
@@ -78,6 +105,7 @@ export async function POST(
       where: { id },
       data: { status: "INACTIVE" },
     });
+    await revokeLogin();
 
     await recordAudit(
       {
@@ -99,6 +127,7 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  invalidateUserCache(...revokedEmails);
   revalidateTag("employees-count", { expire: 0 });
   return NextResponse.json(updated);
 }

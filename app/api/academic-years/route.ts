@@ -12,6 +12,8 @@ export const revalidate = 86400; // 24h — academic years rarely change
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  // HR-16: only admin screens fetch academic years over the API.
+  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
   const years = await prisma.academicYear.findMany({
     where: { tenantId: session.tenantId },

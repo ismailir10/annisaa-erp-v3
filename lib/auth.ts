@@ -92,6 +92,16 @@ function setCachedEntry(
 }
 
 /**
+ * Drop cached session entries so a role/status change applies on the next
+ * request instead of after USER_CACHE_TTL_MS. The cache is per server
+ * instance, so on serverless this only guarantees the instance that handled
+ * the write; other instances still converge within the TTL.
+ */
+export function invalidateUserCache(...emails: Array<string | null | undefined>): void {
+  for (const email of emails) if (email) userCache.delete(email);
+}
+
+/**
  * Derive the effective permission set + custom-role code for a loaded user.
  *
  * Precedence:
@@ -299,6 +309,14 @@ async function _getSession(): Promise<SessionUser | null> {
           where: { employeeId: employee.id },
           include: { customRole: true },
         });
+        // A linked User that is not ACTIVE was deliberately deactivated
+        // (users page, or employee deactivate). The ACTIVE-only lookup above
+        // missed it, so without this guard the reconcile path would hand the
+        // session back and the deactivation would be a no-op (HR-4). An
+        // INACTIVE Employee with no User yet must not be auto-provisioned.
+        if (linked ? linked.status !== "ACTIVE" : employee.status !== "ACTIVE") {
+          return null;
+        }
         user = (linked
           ? linked.email === authUser.email
             ? linked

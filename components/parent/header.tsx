@@ -1,8 +1,10 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { PortalHeader } from "@/components/portal/portal-header";
 import { parentHref, resolveParentChildId } from "@/lib/parent/navigation";
+import { signOut } from "@/lib/sign-out";
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -20,15 +22,17 @@ export function ParentHeader({
   childCount?: number;
   childIds?: string[];
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const detailChildId = pathname.match(/^\/parent\/perkembangan\/([^/]+)$/)?.[1];
   const childId = resolveParentChildId(childIds, detailChildId ?? searchParams.get("child"));
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
+    try {
+      await signOut();
+    } catch {
+      toast.error("Tidak bisa keluar. Coba lagi sebentar ya.");
+    }
   }
 
   return (

@@ -12,6 +12,8 @@ export const revalidate = 3600;
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  // HR-16: fee catalog is only used by admin finance screens.
+  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
   const components = await prisma.feeComponentDef.findMany({
     where: { tenantId: session.tenantId },

@@ -1,20 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { signOut } from "@/lib/sign-out";
 
 export function LogoutButton() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function handleLogout() {
     setBusy(true);
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
-      if (!res.ok) throw new Error();
-      router.push("/");
+      await signOut();
     } catch {
       toast.error("Tidak bisa keluar. Coba lagi sebentar ya.");
       setBusy(false);
