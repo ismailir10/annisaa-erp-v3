@@ -72,6 +72,20 @@ export async function POST(
     }
   }
 
+  // X-1: sibling detection stamped `detectedParentId` on the admission and the
+  // dialog offered "Gabungkan dengan wali". Honour it: link the new Student to
+  // THAT Parent (tenant-checked) instead of upserting by email — the detected
+  // parent usually has a different email or none, so the email upsert created
+  // a second Parent and the family's login never saw the new child. A stale id
+  // (parent deleted / other tenant) falls back to the email path below.
+  const detectedParent =
+    mergeWithDetected && admission.detectedParentId
+      ? await prisma.parent.findFirst({
+          where: { id: admission.detectedParentId, tenantId: session.tenantId },
+          select: { id: true },
+        })
+      : null;
+
   // T11 field-parity audit — every transferable Admission column maps to:
   //   childName            → Student.name
   //   childGender          → Student.gender
@@ -115,7 +129,11 @@ export async function POST(
     // already returned 409 if a Parent with that email exists, so reaching
     // here on the no-merge branch implies the email is unique OR the admin
     // explicitly accepted creating a brand-new parent without email merge.
-    if (parentEmail && mergeWithDetected) {
+    if (detectedParent) {
+      // Existing guardian record stays untouched — the admission's contact
+      // details may be a different relative's; only the link is added below.
+      parent = detectedParent;
+    } else if (parentEmail && mergeWithDetected) {
       parent = await tx.parent.upsert({
         where: { tenantId_email: { tenantId: session.tenantId!, email: parentEmail } },
         create: {

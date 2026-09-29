@@ -241,6 +241,58 @@ describe("RaportEditor unsaved-changes guard", () => {
   });
 });
 
+describe("RaportEditor attendance validation (ACAD-1)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("blocks save and marks Sakit invalid when it exceeds Hari sekolah", async () => {
+    const fetchMock = stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    const total = screen.getByLabelText(/^Hari sekolah/);
+    await user.clear(total);
+    await user.type(total, "4");
+    const sick = screen.getByLabelText(/^Sakit/);
+    await user.clear(sick);
+    await user.type(sick, "10");
+
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(await screen.findByText("Sakit (10) tidak boleh melebihi hari sekolah (4)")).toBeInTheDocument();
+    expect(sick).toHaveAttribute("aria-invalid", "true");
+    expect(toast.error).toHaveBeenCalledWith("Periksa kolom kehadiran yang ditandai.");
+    // Only the initial GET — the PUT never went out.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("clears the message once the count is edited and saves when valid", async () => {
+    stubFetchOnce();
+    const user = userEvent.setup();
+    render(<RaportEditor studentId="stu-1" termId="term-1" onBack={vi.fn()} />);
+
+    await screen.findByText("Rapor — Aisyah Nuraini");
+    await user.clear(screen.getByLabelText(/^Hari sekolah/));
+    await user.type(screen.getByLabelText(/^Hari sekolah/), "4");
+    const sick = screen.getByLabelText(/^Sakit/);
+    await user.clear(sick);
+    await user.type(sick, "10");
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+    await screen.findByText("Sakit (10) tidak boleh melebihi hari sekolah (4)");
+
+    await user.clear(sick);
+    await user.type(sick, "3");
+    expect(screen.queryByText(/tidak boleh melebihi hari sekolah/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Rapor disimpan."));
+  });
+});
+
 describe("RaportEditor unpublish confirm", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

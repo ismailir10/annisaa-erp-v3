@@ -27,7 +27,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     data: {
       name: body.name?.trim(),
-      description: body.description?.trim() || null,
+      // Key-present only: a status-only PUT (Nonaktifkan / Aktifkan kembali)
+      // used to wipe the description. Explicit null / blank still clears.
+      description: body.description === undefined ? undefined : body.description?.trim() || null,
       type: body.type,
       ageMin: body.ageMin,
       ageMax: body.ageMax,

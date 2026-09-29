@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { componentCodeSchema } from "./component-code";
 
 /**
  * SalaryComponentDef.category — canonical enum. The payroll engine filters
@@ -19,7 +20,7 @@ export const salaryCalcTypeSchema = z.enum(["FIXED", "PCT_OF_BASE", "ATTENDANCE_
 });
 
 export const createSalaryComponentSchema = z.object({
-  code: z.string().trim().min(1, "Code wajib diisi"),
+  code: componentCodeSchema,
   label: z.string().trim().min(1, "Label wajib diisi"),
   category: salaryCategorySchema,
   calcType: salaryCalcTypeSchema,

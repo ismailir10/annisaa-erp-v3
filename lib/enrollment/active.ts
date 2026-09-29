@@ -85,3 +85,28 @@ export function pickPrimaryEnrollment<T extends PrimaryEnrollmentCandidate>(
     return current.id < best.id ? current : best;
   });
 }
+
+/**
+ * Find a previous WITHDRAWN row for the exact (student, class) pair.
+ *
+ * `StudentEnrollment` is `@@unique([studentId, classSectionId])`, and
+ * deactivating a student flips their enrollments to WITHDRAWN instead of
+ * deleting them. After reactivation the student reads "Belum terdaftar", but a
+ * plain `create` into the same class hit the unique index and surfaced the
+ * contradictory "Siswa sudah terdaftar di kelas ini" (CORE-2, cycle
+ * 2026-09-29 data-integrity). Enrollment doors use this to reactivate that row
+ * (status ACTIVE + fresh enrollDate) instead of inserting a duplicate.
+ *
+ * Only WITHDRAWN qualifies — an ACTIVE row is a real duplicate and a GRADUATED
+ * row is history that must not silently come back to life.
+ */
+export async function findWithdrawnEnrollment(
+  tx: Prisma.TransactionClient,
+  params: { studentId: string; classSectionId: string }
+): Promise<{ id: string } | null> {
+  const row = await tx.studentEnrollment.findUnique({
+    where: { studentId_classSectionId: params },
+    select: { id: true, status: true },
+  });
+  return row && row.status === "WITHDRAWN" ? { id: row.id } : null;
+}
