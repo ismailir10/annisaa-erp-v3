@@ -53,3 +53,4 @@ Non-goals: resizing photos at upload, the other audit items (connection cap, log
 - No migrations, no env vars.
 - Browsers keep student photos and revalidate them. Repeat views cost one small authorised request and no Storage egress.
 - Rollback: revert the PR.
+- Task 2 committed with header-context 3/3 and campus route 6/6 green.

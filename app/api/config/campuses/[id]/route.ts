@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { verifyTenantOwnership } from "@/lib/auth-guard";
 import { validateBody } from "@/lib/api/validate";
@@ -37,6 +38,7 @@ export async function PUT(
     },
   });
 
+  invalidateAdminHeaderContext();
   return NextResponse.json(campus);
 }
 
@@ -71,5 +73,6 @@ export async function DELETE(
     where: { id },
     data: { status: "INACTIVE" },
   });
+  invalidateAdminHeaderContext();
   return NextResponse.json({ ok: true });
 }

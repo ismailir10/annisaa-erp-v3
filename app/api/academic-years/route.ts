@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
             return tx.academicYear.create({ data });
           })
         : await prisma.academicYear.create({ data });
+    invalidateAdminHeaderContext();
     return NextResponse.json(year, { status: 201 });
   } catch (error) {
     // @@unique([tenantId, name]) — a repeated name was an unhandled 500 with a

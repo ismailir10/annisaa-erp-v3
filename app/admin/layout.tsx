@@ -1,5 +1,5 @@
 import { getSession, isAdminRole, homePathForRole } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getAdminHeaderContext } from "@/lib/admin/header-context";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/admin/sidebar";
 import { AdminBreadcrumb } from "@/components/admin/admin-breadcrumb";
@@ -16,12 +16,11 @@ export default async function AdminLayout({
   if (!session) redirect("/");
   if (!isAdminRole(session.role)) redirect(homePathForRole(session.role));
 
-  const [campuses, years] = session.tenantId ? await Promise.all([
-    prisma.campus.findMany({ where: { tenantId: session.tenantId, status: "ACTIVE" }, select: { name: true }, orderBy: { name: "asc" } }).catch(() => null),
-    prisma.academicYear.findMany({ where: { tenantId: session.tenantId, status: "ACTIVE" }, select: { name: true }, orderBy: { startDate: "desc" } }).catch(() => null),
-  ]) : [null, null];
-  const campusContext = campuses === null ? "Kampus belum tersedia" : campuses.length === 1 ? campuses[0].name : campuses.length ? `Semua kampus (${campuses.length})` : "Kampus belum diatur";
-  const yearContext = years === null ? "Tahun ajaran belum tersedia" : years.length ? years.map(year => year.name).join(", ") : "Belum ada tahun ajaran aktif";
+  const header = session.tenantId ? await getAdminHeaderContext(session.tenantId).catch(() => null) : null;
+  const campuses = header?.campuses ?? null;
+  const years = header?.years ?? null;
+  const campusContext = campuses === null ? "Kampus belum tersedia" : campuses.length === 1 ? campuses[0] : campuses.length ? `Semua kampus (${campuses.length})` : "Kampus belum diatur";
+  const yearContext = years === null ? "Tahun ajaran belum tersedia" : years.length ? years.join(", ") : "Belum ada tahun ajaran aktif";
 
   return (
     <UnsavedChangesProvider>
