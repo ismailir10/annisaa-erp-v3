@@ -61,21 +61,23 @@ export function CountUp({
   const rounded = useTransform(mv, (v) => v.toFixed(decimals));
   const inView = useInView(ref, { once: true });
 
-  // Once the count lands, collapse back to the bare text node so textContent and copy-paste read
-  // "12", not the ticking span plus its sr-only twin. Later value changes then just update the text.
-  const [done, setDone] = useState(false);
+  // The value the last count landed on. While it equals `value`, render the bare text node so
+  // textContent and copy-paste read "12", not the ticking span plus its sr-only twin. A new value
+  // (e.g. a 0 placeholder replaced by fetched data) re-enters the animated path and counts from
+  // the previous number to the new one.
+  const [settled, setSettled] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!animating || done || !inView) return;
+    if (!animating || !inView || settled === value) return;
     const controls = animate(mv, value, {
       duration,
       ease: [0.22, 1, 0.36, 1],
-      onComplete: () => setDone(true),
+      onComplete: () => setSettled(value),
     });
     return () => controls.stop();
-  }, [animating, done, inView, value, duration, mv]);
+  }, [animating, inView, settled, value, duration, mv]);
 
-  if (!animating || done) return <>{String(value)}</>;
+  if (!animating || settled === value) return <>{String(value)}</>;
 
   return (
     <>

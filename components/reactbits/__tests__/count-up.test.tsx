@@ -79,4 +79,26 @@ describe("CountUp", () => {
     expect(container.querySelector(".sr-only")).toHaveTextContent("2.5");
     await waitFor(() => expect(screen.getByTestId("p").textContent).toBe("2.5"));
   });
+
+  it("counts again when a settled value is replaced (0 placeholder, then fetched data)", async () => {
+    vi.stubGlobal("IntersectionObserver", VisibleObserver);
+    const { rerender, container } = render(
+      <p data-testid="p">
+        <CountUp value={0} duration={0.05} />
+      </p>,
+    );
+    await waitFor(() => expect(container.querySelector("[aria-hidden]")).toBeNull());
+    expect(screen.getByTestId("p").textContent).toBe("0");
+
+    rerender(
+      <p data-testid="p">
+        <CountUp value={37} duration={0.05} />
+      </p>,
+    );
+    // Back on the animated path: ticking span plus the sr-only final value.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    expect(container.querySelector(".sr-only")).toHaveTextContent("37");
+    await waitFor(() => expect(screen.getByTestId("p").textContent).toBe("37"));
+    expect(container.querySelector("[aria-hidden]")).toBeNull();
+  });
 });
