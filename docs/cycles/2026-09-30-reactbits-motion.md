@@ -82,3 +82,9 @@ Assumptions (the user waived the spec gate: "dont need to ask me, just get them 
 - Task 3: `npx vitest run components/reactbits/__tests__/blur-text.test.tsx` passed 5/5, and eslint and tsc were clean for these files. Full gate after Task 4 (same reason).
 
 ## Ship Notes
+
+- **Migrations:** none. **Env vars:** none. **Dependencies:** none added; `framer-motion` was already installed.
+- **Verification route:** Local (demo-auth browser + disposable local Postgres). `app/page.tsx` changes only the presentational brand `h2` in `SignInPage` (markup, no logic); no auth handler, session, cookie, guard or dependency is touched, so there is no auth impact and no `needs-staging-verify`. After merge, check on staging that the sign-in brand headline blurs in and the admin tiles count up after a client-side navigation.
+- **Licence:** React Bits is MIT + Commons Clause. Shipping adapted components inside Talib is permitted; reselling the components themselves is not. The attribution header is in each `components/reactbits/*.tsx`.
+- **Rollback:** revert the squash commit. The change is purely presentational, and each integration is a one-line swap back to `{value}`, `{item.count}` or the plain `h2`.
+
