@@ -1,0 +1,66 @@
+# React Bits motion layer: count-up, spotlight, blur-in headline
+
+## Context
+
+The user asked for [React Bits](https://reactbits.dev) (open-source animated React components, upstream `DavidHDev/react-bits` @ `e1bbb696`) to be used to lift Talib's UI, leaving the calls to frontend judgement. React Bits is a copy-paste catalogue, not a package. Most of its "wow" pieces (Aurora, Galaxy, Ballpit, DotGrid, AnimatedContent) pull in `ogl`, `three` or `gsap`. That is a WebGL canvas or a 25–70 KB dependency on screens that parents open on low-end Android phones. Talib is a daily-use ERP, so motion has to earn its place. Prior cycles already set that bar. `docs/archive/superpowers-legacy/specs/2026-05-03-dashboard-shadcn-rebuild-design.md` dropped a dashboard stagger. `2026-08-03-teacher-portal-interface.md` requires `prefers-reduced-motion` on dashboards. So this cycle vendors three small React Bits components. Each is rewritten to Talib's constraints: `framer-motion` (already installed; the repo never imports `motion/react`), no new dependencies, SSR-correct, reduced-motion safe, and zero layout shift. They go where they add feedback, not decoration:
+
+- **CountUp** on admin KPI numbers (dashboard queue tiles and the shared `StatCard`).
+- **SpotlightCard** as a pointer-following brand glow on those same clickable/stat cards (desktop mouse only).
+- **BlurText** for the sign-in brand headline.
+
+Survey inputs: `components/admin/dashboard/queue-summary-tiles.tsx` (server, int counts), `components/admin/stat-card.tsx` (client, `string | number`, used by 8 admin list pages), `app/page.tsx` (`SignInPage` brand `h2` "Sahabat belajar anak"; `DemoLoginPage` tagline is asserted by `e2e/branding.spec.ts` and stays untouched). No UAT report covers these surfaces.
+
+## Spec
+
+Acceptance criteria:
+
+- [ ] `components/reactbits/` holds the adapted components. Each file's header cites its upstream path, upstream sha and licence (MIT + Commons Clause: use in a product is permitted, reselling the components is not).
+- [ ] **CountUp**
+  - [ ] It renders the exact final text on the server and during hydration. It never shows a blank or `0` flash on a hard load.
+  - [ ] It animates only on a fresh client mount or on a value change, when the element is in view, and when motion is allowed.
+  - [ ] It never animates under `prefers-reduced-motion: reduce` or without `IntersectionObserver`.
+  - [ ] The animation is one-shot, about 0.9s with an ease-out curve, and uses `tabular-nums`, so there is no width jitter.
+  - [ ] While it animates, screen readers get the final value (sr-only) and the ticking digits are `aria-hidden`.
+  - [ ] When static, it renders the value as a bare text node, so the existing `getByText` tests keep matching the parent `<p>`.
+- [ ] **Spotlight**
+  - [ ] It is a decorative child layer (`aria-hidden`, `pointer-events-none`) that follows the pointer inside its parent card.
+  - [ ] It sets CSS custom properties through a ref, with no React re-render per `pointermove`.
+  - [ ] It reacts only to `pointerType === "mouse"`, so touch and pen get no effect.
+  - [ ] The colour is derived from the `--primary` token. There is no hard-coded hex.
+  - [ ] It paints behind the card content, so text contrast is unchanged.
+- [ ] **BlurText**
+  - [ ] It staggers a per-word blur, fade and rise with CSS keyframes. It is server-renderable and runs before hydration.
+  - [ ] The animation is gated by `motion-safe`. Under reduced motion the text is static.
+  - [ ] The full string stays available as one sr-only text node, and the animated word spans are `aria-hidden`.
+  - [ ] Line wrapping and `text-balance` still work.
+- [ ] Integrations:
+  - [ ] `QueueSummaryTiles` ready tiles use CountUp and Spotlight. The unavailable tile keeps its static em dash, and the tile keeps its aria-label and focus ring.
+  - [ ] `StatCard` uses Spotlight, and CountUp for numeric `value` only. Strings (`"Rp 1.550.000"`, `"…"`, `"—"`) stay static, so the FIN-21 sizing logic is unchanged.
+  - [ ] The `SignInPage` brand `h2` uses BlurText.
+- [ ] Existing unit and e2e assertions pass unchanged. That covers `queue-summary-tiles`, `stat-card-long-value`, `invoices-client`, `branding.spec`, and the `admin-dashboard` one-screen fit.
+
+Non-goals:
+
+- No WebGL, canvas or GSAP components (Aurora, Galaxy, DotGrid, Particles and similar). No new npm dependency.
+- No motion on parent money figures (`Amount`). A bill total counting upward reads as "your debt is growing".
+- No change to `DemoLoginPage`, the teacher home or the parent home.
+- No animation on currency strings in `StatCard`. They would need the sizing logic reworked.
+
+Assumptions (the user waived the spec gate: "dont need to ask me, just get them done and merge"):
+
+1. `framer-motion` v13 exposes `animate`, `useInView`, `useMotionValue` and `useReducedMotion` with the same API as `motion/react`. Imports are adapted, not the behaviour.
+2. On a hard load the server-rendered tiles do not count up (hydration renders the final value). They count up on client-side navigation and when client pages receive fetched stats. This trade avoids an SSR `12 → 0 → 12` flash.
+3. `motion-safe:` Tailwind v4 variants plus a `blur-in` keyframe in `app/globals.css` are an acceptable home for the CSS animation token.
+
+## Tasks
+
+- [ ] **Task 1 — CountUp.** Add `components/reactbits/count-up.tsx` and `components/reactbits/__tests__/count-up.test.tsx`. Accept: the static path renders the bare final text; the animated path (IO stubbed, in view) ends at the exact final text with an sr-only final value; reduced motion renders static. Independent.
+- [ ] **Task 2 — Spotlight.** Add `components/reactbits/spotlight.tsx` and its test. Accept: a mouse `pointermove` on the parent sets `--spot-x`/`--spot-y` and shows the layer; touch does nothing; the layer is `aria-hidden`. Independent.
+- [ ] **Task 3 — BlurText.** Add `components/reactbits/blur-text.tsx`, a `blur-in` keyframe and animation token in `app/globals.css`, and a test. Accept: one sr-only full-text node; the word spans are `aria-hidden` with increasing `animationDelay`; the classes are gated by `motion-safe:`. Independent.
+- [ ] **Task 4 — Wire into the UI.** Integrate into `queue-summary-tiles.tsx`, `stat-card.tsx` and the `SignInPage` `h2` in `app/page.tsx`; add a README line. Accept: every existing test listed in the Spec passes unchanged, and the build is green. Depends on 1–3.
+
+## Implementation
+
+## Verification
+
+## Ship Notes
