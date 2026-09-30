@@ -46,7 +46,7 @@ Non-goals: resizing photos at upload, the other audit items (connection cap, log
   - A full photo download cannot run locally (Storage is Supabase-only; the unconditional GET 404s without it). It is covered by the route tests.
 - Checked against design-system.html: no visual change. The layout diff only changes where the header strings come from.
 - Gates on base cefa932 plus this diff: `npm run build` exit 0; `npx vitest run` → `Tests  4374 passed | 42 todo (4416)`; eslint on touched files clean; audit-docs 0 fail.
-- Playwright: full suite run locally before the PR (result below); CI `Playwright E2E` gates the merge.
+- Playwright: full local suite at source SHA 144bde6 on a freshly seeded disposable Postgres (demo build): `expected 163, skipped 1, unexpected 0, flaky 0`. CI `Playwright E2E` gates the merge.
 
 ## Ship Notes
 
