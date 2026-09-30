@@ -24,7 +24,8 @@ The skills are the source of truth for procedure. Below are only the rules that 
 
 **Non-negotiable ship rules:**
 - **No direct pushes to `staging` or `main`, ever.** Use `/ship`.
-- Self-merge only when the verification route selected from the actual diff is clean and all four required checks are green — never on red or pending. Auth-impacting or uncertain changes require signed-in preview verification; other app changes may use local demo-auth browser verification with disposable local Postgres.
+- Self-merge only when the verification route selected from the actual diff is clean and all four required checks are green — never on red or pending. App changes use local demo-auth browser verification with disposable local Postgres. Auth-impacting or uncertain changes also get a signed-in check on the **staging deployment** after merge; the PR is labelled `needs-staging-verify` before it merges and keeps it until that check passes, and `/ship --to-main` refuses to promote while any does.
+- **Vercel builds only `staging` and `main`.** `vercel.json` `ignoreCommand` → `scripts/vercel-ignore.sh` skips every other branch, so PRs get no preview deployment. This keeps the project inside the free tier; do not re-enable per-PR previews without the user's say-so.
 - `/ship --to-main` merges with **`gh pr merge <n> --merge`**. A promotion must be a merge commit — a squash makes staging stop being an ancestor of main and the branches diverge permanently. This has cost us two reconciliations (#381, #465).
 - Playwright status must be recorded in the cycle doc's Verification before `/ship`: a local pass, or an explicit deferral to the required CI `Playwright E2E` check.
 
@@ -46,7 +47,7 @@ Running a cycle:
 3. Invoke `spec`.
 4. **Stop.** Present Context / Spec / Tasks and your assumptions, and wait. This is the only human gate in the cycle — place it well, because nothing after it will ask again.
 5. On approval, invoke `build`, then `ship`, without asking again. Approving the Spec is durable authorization for that cycle's PR and its self-merge to `staging` — and for nothing beyond it.
-6. **Never chain past a red gate**, a blocked preview-verify, or a failing required check. Stop and report what failed.
+6. **Never chain past a red gate**, a failed signed-in staging check, or a failing required check. Stop and report what failed.
 7. Re-enter the gate if the work changes shape underneath you. A task that turns out to need a schema migration, a new dependency, a production write, or a change the Spec ruled a non-goal is no longer the thing that was approved — say so and ask.
 8. `/ship --to-main` is **never** self-invoked. Promotion to production stays a typed instruction.
 
@@ -60,9 +61,9 @@ Invoke `/caveman` and `/using-superpowers` by default.
 |------|---------|------|
 | Between-task | `npm run build && npx vitest run` | Before every commit during `/build` |
 | End-of-cycle | the above **+** `npx playwright test` (local best-effort; harnesses that cannot run it defer to the required CI check) | After the last task |
-| Ship verification | `/ship` classifies the actual PR diff. App behavior uses a local demo-auth browser with disposable local Postgres; scope `DEMO_MODE` to the app process, and use localhost-only E2E fixture identity for local production builds. Google login, OAuth callback, session, cookie, auth-guard, auth-dependency, or uncertain auth impact requires a signed-in Vercel preview. Documentation-only diffs skip browser/database verification. | After the PR opens, before merge |
+| Ship verification | `/ship` classifies the actual PR diff. App behavior uses a local demo-auth browser with disposable local Postgres; scope `DEMO_MODE` to the app process, and use localhost-only E2E fixture identity for local production builds. Google login, OAuth callback, session, cookie, auth-guard, auth-dependency, or uncertain auth impact additionally requires a signed-in check on the staging deployment after merge (no PR previews exist). Documentation-only diffs skip browser/database verification. | Local: after the PR opens, before merge. Signed-in staging: right after merge, before any promotion |
 
-**Why three tiers.** Playwright cold-spin is ~2 min, so running it between tasks adds 10+ min to a 5-task cycle. Keep the e2e suite lean and cross-module (auth shell, admin dashboard, students, invoices/payment, attendance, teacher daily, parent invoice/report, tenant boundaries) — prefer Vitest for business logic, permissions and validation. Local browser verification with demo auth and disposable local Postgres covers non-auth app changes. Signed-in preview catches auth and deployment behavior that demo mode cannot replay. Both supplement the required CI checks. Documentation-only diffs may skip local Playwright and browser/database verification only when every changed file is documentation; record the changed paths and compared SHA in Verification. Package, lock, build/CI/config, schema, migration, generated, or runtime files disqualify the skip.
+**Why three tiers.** Playwright cold-spin is ~2 min, so running it between tasks adds 10+ min to a 5-task cycle. Keep the e2e suite lean and cross-module (auth shell, admin dashboard, students, invoices/payment, attendance, teacher daily, parent invoice/report, tenant boundaries) — prefer Vitest for business logic, permissions and validation. Local browser verification with demo auth and disposable local Postgres covers non-auth app changes. The signed-in staging check catches auth and deployment behavior that demo mode cannot replay. Both supplement the required CI checks. Documentation-only diffs may skip local Playwright and browser/database verification only when every changed file is documentation; record the changed paths and compared SHA in Verification. Package, lock, build/CI/config, schema, migration, generated, or runtime files disqualify the skip.
 
 E2E runs against a production build (`DEMO_MODE=true npm run start`), Chromium-only, workers: 1.
 
@@ -284,14 +285,14 @@ scripts/                      audit-docs, setup-worktree, install-hooks, link-ag
 <!-- generated:counts — regenerate with `bash scripts/audit-docs.sh --write` -->
 | Surface | Count |
 |---|---|
-| `app/api/**/route.ts` | 197 |
+| `app/api/**/route.ts` | 199 |
 | `app/admin` pages | 43 |
-| `app/teacher` pages | 13 |
+| `app/teacher` pages | 14 |
 | `app/parent` pages | 8 |
-| `components/ui/*.tsx` | 68 |
+| `components/ui/*.tsx` | 69 |
 | `e2e/*.spec.ts` | 35 |
 | `.claude/standards/*` | 10 |
-| `docs/cycles` active / archived | 54 / 233 |
+| `docs/cycles` active / archived | 65 / 233 |
 <!-- /generated:counts -->
 
 Demo-mode auth means E2E and local dev need no live Supabase. Lint: `npm run lint`.

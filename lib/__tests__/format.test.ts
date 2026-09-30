@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { formatRupiah, formatWeekRangeLabel, maskBankAccount } from "@/lib/format";
+import {
+  formatDateTime,
+  formatRelativeTime,
+  formatRupiah,
+  formatTime,
+  formatWeekRangeLabel,
+  maskBankAccount,
+} from "@/lib/format";
 
 describe("formatRupiah", () => {
   it("formats integer amount with Indonesian thousand separators", () => {
@@ -75,5 +82,53 @@ describe("formatWeekRangeLabel", () => {
 
   it("returns an empty string for an empty range so callers can fall back", () => {
     expect(formatWeekRangeLabel("", "")).toBe("");
+  });
+});
+
+describe("formatTime / formatDateTime — pinned to Asia/Jakarta (TCH-1)", () => {
+  // These assertions hold whatever TZ the runner uses; that is the point —
+  // the SSR (UTC) and browser (WIB) renders of the same instant must match.
+  it("renders 00:02 UTC as 07.02 WIB", () => {
+    expect(formatTime("2026-09-29T00:02:00.000Z")).toBe("07.02");
+  });
+
+  it("renders 09:19 UTC as 16.19 WIB", () => {
+    expect(formatTime("2026-09-29T09:19:00.000Z")).toBe("16.19");
+  });
+
+  it("rolls past midnight WIB and never prints 24.xx", () => {
+    expect(formatTime("2026-09-29T17:05:00.000Z")).toBe("00.05");
+  });
+
+  it("returns the placeholder for null and unparseable input", () => {
+    expect(formatTime(null)).toBe("--:--");
+    expect(formatTime("not-a-date")).toBe("--:--");
+  });
+
+  it("gives the same string under UTC and WIB process zones", () => {
+    const iso = "2026-09-29T00:02:00.000Z";
+    const original = process.env.TZ;
+    try {
+      const out = ["UTC", "Asia/Jakarta", "America/Los_Angeles"].map((tz) => {
+        process.env.TZ = tz;
+        return formatTime(iso);
+      });
+      expect(new Set(out).size).toBe(1);
+      expect(out[0]).toBe("07.02");
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+
+  it("formatDateTime uses the WIB calendar day, not the UTC one", () => {
+    // 17:30 UTC on 28 Sep is already 00:30 on 29 Sep in Jakarta.
+    expect(formatDateTime("2026-09-28T17:30:00.000Z")).toBe("29 Sep 2026 · 00.30");
+    expect(formatDateTime(null)).toBe("—");
+  });
+
+  it("formatRelativeTime's old-date fallback uses the WIB calendar day", () => {
+    const now = new Date("2026-12-31T00:00:00.000Z");
+    expect(formatRelativeTime("2026-09-28T17:30:00.000Z", now)).toBe("29 Sep 2026");
   });
 });

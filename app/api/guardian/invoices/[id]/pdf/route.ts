@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ACTIVE_PAYMENT_FILTER } from "@/lib/finance/invoice-payment-state";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -68,6 +69,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         orderBy: { feeComponent: { sortOrder: "asc" } },
       },
       payments: {
+        // A reversed manual payment is not money received — keep it out of the
+        // parent's history and the receipt, consistent with totalPaid.
+        where: ACTIVE_PAYMENT_FILTER,
         select: {
           id: true,
           amount: true,
@@ -129,9 +133,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://talib.annisaasekolahku.com";
 
   const fmtIdDate = (d: Date | string) =>
-    new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" });
   const fmtIdDateShort = (d: Date | string) =>
-    new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta" });
 
   const totalDue = Number(invoice.totalDue);
   const totalPaid = Number(invoice.totalPaid);

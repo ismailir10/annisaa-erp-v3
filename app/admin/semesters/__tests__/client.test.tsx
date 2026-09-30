@@ -12,6 +12,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 
 import { SemestersClient } from "@/app/admin/semesters/client";
+import { toast } from "sonner";
 
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -19,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
 const semester = {
@@ -172,5 +173,65 @@ describe("SemestersClient — Tambah Semester dialog (T3 rhf migration)", () => 
       startDate: "2026-07-14",
       endDate: "2026-12-19",
     });
+  });
+
+  it("DOC-3: offers PLANNING years (not ARCHIVED ones) in the year picker", async () => {
+    mockCoarsePointer();
+    const base = stubFetch();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/academic-years")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              { id: "ay1", name: "2026/2027", status: "ACTIVE" },
+              { id: "ay2", name: "2027/2028", status: "PLANNING" },
+              { id: "ay0", name: "2024/2025", status: "ARCHIVED" },
+            ],
+          } as Response);
+        }
+        return base(input, init);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<SemestersClient canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Semester" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Semester" });
+    await user.click(within(dialog).getByRole("combobox", { name: /Tahun ajaran/ }));
+
+    expect(await screen.findByRole("option", { name: "2027/2028 (perencanaan)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "2026/2027" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /2024\/2025/ })).not.toBeInTheDocument();
+  });
+
+  it("DOC-3: says so when the new semester was created inactive because another one stays active", async () => {
+    mockCoarsePointer();
+    vi.mocked(toast.info).mockClear();
+    const base = stubFetch();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          return Promise.resolve({ ok: true, status: 201, json: async () => ({ id: "sem2", number: 2, status: "INACTIVE" }) } as Response);
+        }
+        return base(input, init);
+      }),
+    );
+    const user = userEvent.setup();
+    render(<SemestersClient canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Semester" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tambah Semester" });
+    await user.click(within(dialog).getByRole("combobox", { name: /Tahun ajaran/ }));
+    await user.click(await screen.findByRole("option", { name: "2026/2027" }));
+    fireEvent.change(within(dialog).getByLabelText("Tanggal mulai", { exact: false }), { target: { value: "2027-01-04" } });
+    fireEvent.change(within(dialog).getByLabelText("Tanggal selesai", { exact: false }), { target: { value: "2027-06-19" } });
+    await user.click(within(dialog).getByRole("button", { name: "Tambah Semester" }));
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(vi.mocked(toast.info).mock.calls[0][0]).toContain("belum aktif");
   });
 });

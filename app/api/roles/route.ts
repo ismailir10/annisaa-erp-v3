@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
+import { escalationForbidden, permissionsActorLacks } from "@/lib/security/role-escalation";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { validateBody } from "@/lib/api/validate";
 import { createRoleSchema } from "@/lib/validations/role";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "users.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -55,6 +56,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  // HR-1: never hand out a permission the actor does not hold themselves.
+  const missing = permissionsActorLacks(session, permissions);
+  if (missing.length > 0) return escalationForbidden(missing);
 
   const role = await prisma.role.create({
     data: {

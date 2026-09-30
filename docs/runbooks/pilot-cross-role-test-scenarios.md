@@ -6,12 +6,12 @@
 
 1. Pilih modul di bawah, jalankan skenario sesuai fase pilot saat ini (lihat kolom **Fase**).
 2. Login pakai akun sesuai peran (lihat tabel akun).
-3. Ikuti Langkah, cocokkan Hasil Diharapkan. Kalau beda → catat sebagai temuan (blocker/minor) dan lapor ke CTO harness yang jalan (`/ship` preview-verify flow atau langsung ke owner).
+3. Ikuti Langkah, cocokkan Hasil Diharapkan. Kalau beda → catat sebagai temuan (blocker/minor) dan lapor ke CTO harness yang jalan (`/ship` signed-in staging check atau langsung ke owner).
 4. Fase pilot saat ini: **staff-only** (admin + guru aktif, wali murid/parent belum diundang). Skenario bertanda **Fase: parent-live** ditunda sampai wali murid diundang — tetap dicatat di sini sebagai referensi lengkap.
 
 ### Akun uji per peran
 
-Sumber: `.claude/verify-accounts.json`. Pakai akun ini di staging/preview, bukan akun pribadi murid/wali asli.
+Sumber: `.claude/verify-accounts.json`. Pakai akun ini di staging, bukan akun pribadi murid/wali asli.
 
 | Peran | Akun | Catatan |
 |---|---|---|

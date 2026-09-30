@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession, isAdminRole } from "@/lib/auth";
+import { getSession, invalidateUserCache, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, hasPermission } from "@/lib/permissions";
+import {
+  escalationForbidden,
+  parseRolePermissions,
+  permissionsActorLacks,
+} from "@/lib/security/role-escalation";
 import { validateBody } from "@/lib/api/validate";
 import { updateRoleSchema } from "@/lib/validations/role";
 
@@ -36,7 +41,7 @@ export async function PUT(
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "users.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -49,6 +54,17 @@ export async function PUT(
 
   if (existing.isSystem) {
     return NextResponse.json({ error: "Peran bawaan tidak bisa diedit" }, { status: 403 });
+  }
+
+  // HR-1: a non-SUPER_ADMIN may only edit a role whose permissions — before
+  // and after the edit — all sit inside their own. This also covers the role
+  // currently assigned to the actor (they cannot widen their own grant).
+  const held = permissionsActorLacks(session, parseRolePermissions(existing.permissions));
+  if (held.length > 0) {
+    return NextResponse.json(
+      { error: `Anda tidak bisa mengubah peran yang memuat izin di luar izin Anda: ${held.join(", ")}`, missing: held },
+      { status: 403 },
+    );
   }
 
   const body = await req.json();
@@ -70,6 +86,8 @@ export async function PUT(
         { status: 400 }
       );
     }
+    const missing = permissionsActorLacks(session, body.permissions);
+    if (missing.length > 0) return escalationForbidden(missing);
     data.permissions = JSON.stringify(body.permissions);
   }
 
@@ -77,6 +95,16 @@ export async function PUT(
     where: { id },
     data,
   });
+
+  // Holders of this role must see the new permission set on their next
+  // request, not after the session cache TTL.
+  if (data.permissions !== undefined) {
+    const holders = await prisma.user.findMany({
+      where: { customRoleId: id },
+      select: { email: true },
+    });
+    invalidateUserCache(...holders.map((u) => u.email));
+  }
 
   return NextResponse.json(role);
 }
@@ -89,7 +117,7 @@ export async function DELETE(
   if (!success) return NextResponse.json({ error: "Terlalu banyak permintaan" }, { status: 429 });
 
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role)) {
+  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "users.edit")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { TeacherHomeClient } from "./home-client";
 import { countUnreadNotesByStudent } from "@/lib/student-journal/note-reads";
+import { leaveDecisionSince, toLeaveDecisions } from "@/lib/teacher/leave-decisions";
 import { getJournalProgress, teacherSlotRank, compareTeacherClasses, type TeacherClassSummary } from "@/lib/teacher/home-progress";
 
 export default async function TeacherHome() {
@@ -14,7 +15,7 @@ export default async function TeacherHome() {
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Jakarta", hour:"2-digit", hourCycle:"h23"}).format(now));
   const greeting = hour < 12 ? "pagi" : hour < 15 ? "siang" : hour < 18 ? "sore" : "malam";
-  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult] = await Promise.allSettled([
+  const [attendanceResult, assignmentsResult, sessionsResult, indicatorsResult, leaveResult] = await Promise.allSettled([
     session.employeeId ? prisma.attendanceRecord.findUnique({where:{employeeId_date:{employeeId:session.employeeId,date:today}}}) : Promise.resolve(null),
     session.employeeId && session.tenantId ? prisma.teachingAssignment.findMany({
       where:{employeeId:session.employeeId,classSection:{tenantId:session.tenantId,status:"ACTIVE",academicYear:{status:"ACTIVE"}}},
@@ -28,7 +29,15 @@ export default async function TeacherHome() {
     session.tenantId ? prisma.studentJournalIndicator.findMany({
       where:{status:"ACTIVE",category:{scope:"SCHOOL",status:"ACTIVE",template:{tenantId:session.tenantId}}},select:{id:true},
     }) : Promise.resolve([]),
+    // Recent admin decisions on this teacher's own leave (X-21) — derived from reviewedAt, no new table.
+    session.employeeId && session.tenantId ? prisma.leaveRequest.findMany({
+      where:{employeeId:session.employeeId,employee:{tenantId:session.tenantId},status:{in:["APPROVED","REJECTED"]},reviewedAt:{gte:leaveDecisionSince(now)}},
+      orderBy:{reviewedAt:"desc"},take:10,
+      select:{id:true,leaveType:true,startDate:true,endDate:true,status:true,reviewNote:true,reviewedAt:true},
+    }) : Promise.resolve([]),
   ]);
+  // A failed lookup only hides this heads-up; it must never take the home page down.
+  const leaveDecisions = leaveResult.status === "fulfilled" ? toLeaveDecisions(leaveResult.value, now) : [];
   const assignments = assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
   const sessions = sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
   const indicatorIds = indicatorsResult.status === "fulfilled" ? indicatorsResult.value.map(i=>i.id) : null;
@@ -53,6 +62,6 @@ export default async function TeacherHome() {
     todayRecord={record ? {status:record.status,checkInTime:record.checkInTime?.toISOString()??null,checkOutTime:record.checkOutTime?.toISOString()??null}:null}
     attendanceUnavailable={attendanceResult.status==="rejected"} classesUnavailable={assignmentsResult.status==="rejected"}
     sessionsUnavailable={sessionsResult.status==="rejected"} classes={classes}
-    homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
+    leaveDecisions={leaveDecisions} homeroomClassSectionName={assignments.find(a=>a.role==="HOMEROOM")?.classSection.name}
     todaySessions={sessions.sort((a,b)=>teacherSlotRank(a.slot,hour)-teacherSlotRank(b.slot,hour)).map(s=>({id:s.id,slot:s.slot,className:s.classSection.name,rosterCount:s.classSection._count.enrollments}))} />;
 }

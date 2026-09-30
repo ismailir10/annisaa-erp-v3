@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getYmdInTimezone } from "@/lib/attendance/timezone";
+import { partialWithoutDefaults } from "./zod-helpers";
 
 export const scopeSchema = z.enum(["SCHOOL", "HOME"]);
 
@@ -27,7 +28,8 @@ export const createCategorySchema = z.object({
   scope: scopeSchema,
   order: z.number().int().nonnegative().default(0),
 });
-export const updateCategorySchema = createCategorySchema.partial().extend({
+export const updateCategorySchema = // partialWithoutDefaults: a status-only toggle must not reset `order` to 0 (DRV-1).
+partialWithoutDefaults(createCategorySchema).extend({
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -36,7 +38,7 @@ export const createIndicatorSchema = z.object({
   label: z.string().trim().min(1, "Label indikator wajib diisi"),
   order: z.number().int().nonnegative().default(0),
 });
-export const updateIndicatorSchema = createIndicatorSchema.partial().extend({
+export const updateIndicatorSchema = partialWithoutDefaults(createIndicatorSchema).extend({
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
@@ -53,14 +55,24 @@ export const indicatorFormSchema = createIndicatorSchema.pick({ label: true });
 export type CategoryFormInput = z.infer<typeof categoryFormSchema>;
 export type IndicatorFormInput = z.infer<typeof indicatorFormSchema>;
 
+/**
+ * Hard bound on one batch write. A class-level bulk fill (roster x indicators)
+ * is chunked by the client well below this; the cap exists so a single request
+ * cannot hold an interactive transaction (upsert + audit per entry) open long
+ * enough to time out, whoever sends it.
+ */
+export const JOURNAL_BATCH_MAX_ENTRIES = 500;
+
 export const entryBatchSchema = z.object({
   classSectionId: z.string().min(1),
   date: ymd,
-  entries: z.array(z.object({
-    studentId: z.string().min(1),
-    indicatorId: z.string().min(1),
-    checked: z.boolean(),
-  })),
+  entries: z
+    .array(z.object({
+      studentId: z.string().min(1),
+      indicatorId: z.string().min(1),
+      checked: z.boolean(),
+    }))
+    .max(JOURNAL_BATCH_MAX_ENTRIES, `Maksimal ${JOURNAL_BATCH_MAX_ENTRIES} entri per permintaan`),
 });
 
 export const homeEntryBatchSchema = z.object({

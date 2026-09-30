@@ -80,6 +80,8 @@ export function KeluargaSection({
   const [savingGuardian, setSavingGuardian] = useState(false);
   const [deleteGuardianTarget, setDeleteGuardianTarget] = useState<Guardian | null>(null);
   const [setPrimaryTarget, setSetPrimaryTarget] = useState<Guardian | null>(null);
+  // CORE-4: which remaining guardian takes over when the primary is deactivated.
+  const [replacementId, setReplacementId] = useState("");
 
   // Tambah Wali has three mutually exclusive steps inside one overlay, the
   // same shape the enroll dialog uses for its picker → 409-advisory flow:
@@ -241,16 +243,46 @@ export function KeluargaSection({
     });
   }
 
+  // CORE-4: deactivating the primary must not leave the student without one.
+  const deactivatingPrimary =
+    !!deleteGuardianTarget && deleteGuardianTarget.status !== "INACTIVE" && deleteGuardianTarget.isPrimary;
+  const replacementCandidates = deactivatingPrimary
+    ? activeGuardians.filter((g) => g.id !== deleteGuardianTarget!.id)
+    : [];
+
+  function openToggleGuardian(g: Guardian | null) {
+    setDeleteGuardianTarget(g);
+    if (g && g.status !== "INACTIVE" && g.isPrimary) {
+      setReplacementId(activeGuardians.find((x) => x.id !== g.id)?.id ?? "");
+    } else {
+      setReplacementId("");
+    }
+  }
+
   async function deactivateGuardian() {
     if (!deleteGuardianTarget) return;
     const newStatus = deleteGuardianTarget.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
     const res = await fetch(`/api/guardians/${deleteGuardianTarget.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
+      body: JSON.stringify({
+        status: newStatus,
+        ...(newStatus === "INACTIVE" && replacementCandidates.length > 0 && replacementId
+          ? { newPrimaryId: replacementId }
+          : {}),
+      }),
     });
     if (res.ok) {
-      toast.success(newStatus === "INACTIVE" ? "Wali dinonaktifkan" : "Wali diaktifkan kembali");
+      const d = await res.json().catch(() => ({}));
+      if (newStatus === "ACTIVE") {
+        toast.success("Wali diaktifkan kembali");
+      } else if (d?.promotedPrimary?.name) {
+        toast.success(`Wali dinonaktifkan. ${d.promotedPrimary.name} kini wali utama`);
+      } else if (d?.noActiveGuardian) {
+        toast.warning("Wali dinonaktifkan. Siswa belum punya wali aktif — tambahkan wali agar tagihan punya penerima");
+      } else {
+        toast.success("Wali dinonaktifkan");
+      }
       setDeleteGuardianTarget(null);
       onSaved();
     } else {
@@ -474,7 +506,7 @@ export function KeluargaSection({
                 key={g.id}
                 guardian={g}
                 onEdit={openEditGuardian}
-                onToggleStatus={setDeleteGuardianTarget}
+                onToggleStatus={openToggleGuardian}
                 onSetPrimary={setSetPrimaryTarget}
               />
             ))}
@@ -522,11 +554,49 @@ export function KeluargaSection({
         open={!!deleteGuardianTarget}
         onOpenChange={(o) => !o && setDeleteGuardianTarget(null)}
         title={deleteGuardianTarget?.status === "INACTIVE" ? `Aktifkan wali ${deleteGuardianTarget?.parent?.name}?` : `Nonaktifkan wali ${deleteGuardianTarget?.parent?.name}?`}
-        description={deleteGuardianTarget?.status === "INACTIVE" ? "Wali akan ditampilkan kembali di daftar wali aktif." : "Wali tidak akan ditampilkan. Data tetap tersimpan dan bisa diaktifkan kembali."}
+        description={
+          deleteGuardianTarget?.status === "INACTIVE"
+            ? "Wali akan ditampilkan kembali di daftar wali aktif."
+            : !deactivatingPrimary
+              ? "Wali tidak akan ditampilkan. Data tetap tersimpan dan bisa diaktifkan kembali."
+              : replacementCandidates.length > 0
+                ? "Ini wali utama siswa. Pilih wali utama pengganti; tagihan dan tautan pembayaran akan dikirim ke wali utama yang baru."
+                : undefined
+        }
         confirmLabel={deleteGuardianTarget?.status === "INACTIVE" ? "Aktifkan" : "Nonaktifkan"}
         destructive={deleteGuardianTarget?.status !== "INACTIVE"}
         onConfirm={deactivateGuardian}
-      />
+      >
+        {deactivatingPrimary && replacementCandidates.length === 0 && (
+          <Alert variant="destructive">
+            <AlertTitle>Tidak ada wali aktif lain</AlertTitle>
+            <AlertDescription>
+              Setelah dinonaktifkan, siswa ini tidak punya wali utama. Tagihan dan tautan pembayarannya tidak akan
+              punya penerima sampai wali baru ditambahkan.
+            </AlertDescription>
+          </Alert>
+        )}
+        {deactivatingPrimary && replacementCandidates.length > 0 && (
+          <Field>
+            <FieldLabel htmlFor="guardian-replacement-primary">Wali utama pengganti</FieldLabel>
+            <Select value={replacementId} onValueChange={(v) => v && setReplacementId(v)}>
+              <SelectTrigger id="guardian-replacement-primary">
+                <SelectValue>
+                  {(() => {
+                    const g = replacementCandidates.find((c) => c.id === replacementId);
+                    return g ? `${g.parent.name} (${g.relationship})` : "Pilih wali";
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {replacementCandidates.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>{g.parent.name} ({g.relationship})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={!!setPrimaryTarget}

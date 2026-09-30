@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { DataTablePagination } from "./data-table-pagination";
 import { EmptyState } from "./empty-state";
 import { Skeleton } from "./skeleton";
-import { Inbox } from "lucide-react";
+import { Inbox, SearchX } from "lucide-react";
 
 /**
  * Mobile contract for every DataTable consumer (cycle 2026-09-26,
@@ -130,6 +130,13 @@ interface DataTableProps<TData extends RowData> {
    * `href`, not both.
    */
   emptyAction?: { label: string; onClick?: () => void; href?: string };
+  /**
+   * True while a search or filter is narrowing the list. An empty result then
+   * means "nothing matches", not "nothing exists yet" — so the first-run copy
+   * and CTA (`emptyTitle` / `emptyDescription` / `emptyAction`) are replaced by
+   * a no-match message (CORE-9 / FIN-12).
+   */
+  isFiltered?: boolean;
   loading?: boolean;
 }
 
@@ -144,6 +151,7 @@ export function DataTable<TData extends RowData>({
   emptyTitle = "Belum ada data untuk ditampilkan",
   emptyDescription,
   emptyAction,
+  isFiltered = false,
   loading = false,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>(
@@ -258,12 +266,14 @@ export function DataTable<TData extends RowData>({
   if (data.length === 0 && !loading) {
     return (
       <EmptyState
-        icon={Inbox}
-        title={emptyTitle}
-        description={emptyDescription}
-        actionLabel={emptyAction?.label}
-        actionHref={emptyAction?.href}
-        onAction={emptyAction?.onClick}
+        icon={isFiltered ? SearchX : Inbox}
+        title={isFiltered ? "Tidak ada hasil yang cocok" : emptyTitle}
+        description={
+          isFiltered ? "Coba kata kunci lain, atau atur ulang pencarian dan filter." : emptyDescription
+        }
+        actionLabel={isFiltered ? undefined : emptyAction?.label}
+        actionHref={isFiltered ? undefined : emptyAction?.href}
+        onAction={isFiltered ? undefined : emptyAction?.onClick}
       />
     );
   }

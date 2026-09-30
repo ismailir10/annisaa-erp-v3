@@ -171,7 +171,7 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("surfaces the 422 missing-rekening list as a single toast, without going through inline field errors", async () => {
+  it("keeps the 422 missing-rekening list on screen as an inline alert with a link per employee (HR-3)", async () => {
     mockCoarsePointer();
     fixture({
       postStatus: 422,
@@ -186,13 +186,11 @@ describe("PayrollListPage — Buat Penggajian Baru dialog", () => {
     const dialog = await screen.findByRole("dialog", { name: "Buat Penggajian Baru" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Buat Draft Penggajian" }));
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        "Beberapa karyawan belum memiliki No. Rekening lengkap: K-01 Budi",
-        { duration: 8000 },
-      ),
-    );
-    // Dialog stays open for retry, and no inline field error is shown for this domain-shaped error.
+    const alert = await within(dialog).findByTestId("payroll-generate-blockers");
+    expect(alert).toHaveTextContent("Beberapa karyawan belum memiliki No. Rekening lengkap");
+    expect(within(alert).getByRole("link", { name: "Lengkapi rekening" })).toHaveAttribute("href", "/admin/employees/e1#profile");
+    // Not a vanishing toast, and the dialog stays open for retry.
+    expect(toast.error).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Buat Penggajian Baru" })).toBeInTheDocument();
   });
 });

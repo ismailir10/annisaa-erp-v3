@@ -126,7 +126,11 @@ export default function MonitoringPage() {
   // as 1. `hariKosong` was dead (computed, never rendered) and is gone.
   const stats = useMemo(() => {
     const totalEntries = data.reduce((sum, c) => sum + c.checkedCount, 0);
-    const kelasSudahIsi = data.filter((c) => c.completionPct > 0).length;
+    // "Filled" is the same fact the "Terakhir diisi" column shows: the class has
+    // at least one checked entry this week. It used to test the ROUNDED
+    // completionPct, so a class with 4 entries in a big roster (0%) read as
+    // "belum isi" next to a real last-filled date (ACAD-8).
+    const kelasSudahIsi = data.filter((c) => c.checkedCount > 0).length;
     return { totalEntries, kelasSudahIsi };
   }, [data]);
 

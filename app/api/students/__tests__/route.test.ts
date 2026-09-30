@@ -104,6 +104,26 @@ describe("GET /api/students — Wali column source", () => {
   });
 });
 
+describe("GET /api/students — class picker filters (CORE-3)", () => {
+  it("searches name, nickname and NIS", async () => {
+    await GET(new Request("http://x/api/students?search=2025001") as never);
+    const where = state.lastFindMany?.where as { OR: Record<string, unknown>[] };
+    expect(where.OR.map((c) => Object.keys(c)[0])).toEqual(["name", "nickname", "nis"]);
+  });
+
+  it("excludes students already ACTIVE in the given class, server-side", async () => {
+    await GET(new Request("http://x/api/students?status=ACTIVE&notEnrolledInClass=class-9") as never);
+    const where = state.lastFindMany?.where as Record<string, unknown>;
+    expect(where.enrollments).toEqual({ none: { classSectionId: "class-9", status: "ACTIVE" } });
+    expect(where.status).toBe("ACTIVE");
+  });
+
+  it("adds no enrollment filter when the param is absent", async () => {
+    await GET(new Request("http://x/api/students?status=ACTIVE") as never);
+    expect((state.lastFindMany?.where as Record<string, unknown>).enrollments).toBeUndefined();
+  });
+});
+
 describe("POST /api/students — full field set (T2)", () => {
   it("persists every supplied schema-editable field, not just the legacy 7", async () => {
     const res = await POST(postReq({

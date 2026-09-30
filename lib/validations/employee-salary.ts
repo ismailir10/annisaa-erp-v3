@@ -3,9 +3,11 @@ import { z } from "zod";
 /**
  * Body schema for `PUT /api/employees/[id]/salary`.
  *
- * Each entry sets a single salary-component value for the employee.
- * Empty arrays are permitted — that is the canonical way to clear all
- * component values for an employee (the upsert loop is a no-op).
+ * Each entry sets a single salary-component value for the employee, or
+ * removes it: `value: null` deletes the stored row, so the component is
+ * "Belum diatur" again. That is distinct from 0, which is a real value and
+ * still counts as a salary row for payroll's "no salary structure" guard.
+ * Components not in the array are left untouched (an empty array is a no-op).
  *
  * Validation rules:
  *   - body must be an array (top-level non-array → 400)
@@ -23,7 +25,8 @@ export const updateEmployeeSalarySchema = z.array(
     value: z
       .number({ message: "Nilai harus berupa angka" })
       .nonnegative("Nilai tidak boleh kurang dari 0")
-      .finite("Nilai harus berupa angka yang valid"),
+      .finite("Nilai harus berupa angka yang valid")
+      .nullable(),
   })
 );
 

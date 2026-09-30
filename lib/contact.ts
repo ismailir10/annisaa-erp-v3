@@ -38,3 +38,24 @@ export function whatsappHref(phone: string | null | undefined): string | null {
   if (d.startsWith("0")) d = `62${d.slice(1)}`;
   return `https://wa.me/${d}`;
 }
+
+/**
+ * `https://wa.me/…` href with a prefilled message, or null when the number is
+ * unusable. Same normalisation as `whatsappHref`.
+ */
+export function whatsappHrefWithText(phone: string | null | undefined, text: string): string | null {
+  const base = whatsappHref(phone);
+  return base ? `${base}?text=${encodeURIComponent(text)}` : null;
+}
+
+/**
+ * The school's finance/admin contact number shown to parents when an invoice
+ * has no payment link. There is no school phone in OrgConfig/Tenant/Campus
+ * (a schema change is out of scope), so it comes from the optional
+ * `SCHOOL_CONTACT_PHONE` env var; unset -> null and the UI falls back to
+ * "hubungi admin sekolah" plus the invoice number to quote.
+ */
+export function schoolContactPhone(): string | null {
+  const v = process.env.SCHOOL_CONTACT_PHONE?.trim();
+  return v ? v : null;
+}

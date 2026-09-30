@@ -9,7 +9,9 @@ import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session?.tenantId || !isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
+  // HR-16: anonymous callers get a real 401, not an empty 200.
+  if (!session?.tenantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isAdminRole(session.role) || !hasPermission(session, "admissions.view")) {
     return NextResponse.json({ data: [], pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
   }
 

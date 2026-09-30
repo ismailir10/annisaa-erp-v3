@@ -13,6 +13,26 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+// The row-action dropdown is Base UI; its open/close timing is not what these
+// tests are about (a pointer click right after open is sometimes swallowed, a
+// ~1-in-4 flake). Render the actions as plain buttons wired to the same props.
+vi.mock("@/components/ui/data-table-row-actions", () => ({
+  DataTableRowActions: ({ onDeactivate, onActivate }: { onDeactivate?: () => void; onActivate?: () => void }) => (
+    <div>
+      {onDeactivate && <button type="button" onClick={onDeactivate}>Nonaktifkan baris</button>}
+      {onActivate && <button type="button" onClick={onActivate}>Aktifkan baris</button>}
+    </div>
+  ),
+}));
+
+// Flatten each card to one "label: value" line so a card can be read exactly
+// ("Aktif" also appears as a status badge / filter option elsewhere on the page).
+vi.mock("@/components/admin/stat-card", () => ({
+  StatCard: ({ label, value }: { label: string; value: string | number }) => (
+    <p data-testid={`stat-${label}`}>{label}: {value}</p>
+  ),
+}));
+
 // Desktop Dialog branch — same precedent as the holidays worked example.
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 
@@ -149,6 +169,76 @@ describe("EmployeesPage list", () => {
     expect(link).toHaveAttribute("href", "/admin/employees/emp-1");
     expect(screen.queryByRole("button", { name: /Lihat/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Lihat")).not.toBeInTheDocument();
+  });
+});
+
+describe("EmployeesPage stat cards (HR-13)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("refreshes TOTAL / AKTIF / TIDAK AKTIF after a deactivate without a reload", async () => {
+    let deactivated = false;
+    const employee = {
+      id: "emp-1",
+      kode: "K-001",
+      nama: "Alya Putri",
+      email: "alya@example.com",
+      jabatan: "Guru Kelas",
+      status: "ACTIVE",
+      campusId: "c1",
+      bankAccountNo: null,
+      bpjsEnrolled: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      campus: { name: "Taman Aster" },
+    };
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input.startsWith("/api/config/campuses")) return Promise.resolve(jsonResponse([]));
+      if (input.startsWith("/api/employees/positions")) return Promise.resolve(jsonResponse([]));
+      if (input.startsWith("/api/employees/stats")) {
+        return Promise.resolve(
+          jsonResponse(deactivated ? { total: 3, active: 1, inactive: 2 } : { total: 3, active: 2, inactive: 1 }),
+        );
+      }
+      if (input.endsWith("/deactivate") && init?.method === "POST") {
+        deactivated = true;
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (input.startsWith("/api/employees?")) {
+        return Promise.resolve(
+          jsonResponse({
+            data: [{ ...employee, status: deactivated ? "INACTIVE" : "ACTIVE" }],
+            pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<EmployeesPage />);
+
+    const card = (label: string) => screen.getByTestId(`stat-${label}`);
+    await waitFor(() => expect(card("Aktif")).toHaveTextContent("Aktif: 2"));
+    expect(card("Tidak Aktif")).toHaveTextContent("Tidak Aktif: 1");
+
+    // The list renders more than once while its fetches settle, so a button
+    // found early can be detached by the time it is clicked (the click is then
+    // a no-op and the dialog never opens — a ~1-in-3 flake). Re-query and
+    // click the live button until the confirm dialog is open.
+    await waitFor(() => {
+      if (!screen.queryByRole("alertdialog")) {
+        fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan baris" }));
+      }
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+    const dialog = screen.getByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Nonaktifkan" }));
+
+    await waitFor(() => expect(card("Aktif")).toHaveTextContent("Aktif: 1"));
+    expect(card("Tidak Aktif")).toHaveTextContent("Tidak Aktif: 2");
   });
 });
 

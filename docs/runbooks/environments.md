@@ -10,7 +10,7 @@ Moved out of README.md 2026-08-20. README is the repo's public front page; this 
 | Staging | `staging` | Supabase Singapore, staging project | Pre-production verification |
 | Production | `main` | Supabase Singapore, production project | Real users |
 
-Vercel builds via [`scripts/vercel-build.sh`](../../scripts/vercel-build.sh). `prisma migrate deploy` runs on `staging` and `main`; preview branches use the staging database and skip migrate-deploy.
+Vercel builds via [`scripts/vercel-build.sh`](../../scripts/vercel-build.sh). `prisma migrate deploy` runs on `staging` and `main`. Those are the only two branches Vercel builds: `vercel.json` `ignoreCommand` ([`scripts/vercel-ignore.sh`](../../scripts/vercel-ignore.sh)) skips every other branch, so PRs get no preview deployment. The staging deployment still uses Vercel's *Preview* environment for its env vars.
 
 CI runs four required checks per PR: `Docs sync` (includes `scripts/audit-docs.sh`), `Lint, Typecheck & Test` (includes the RLS and API-auth coverage guards), `Build`, `Playwright E2E`.
 

@@ -48,6 +48,7 @@ type AcademicYear = { id: string; name: string; status: string };
 type StatusFilter = "ACTIVE" | "INACTIVE" | "all";
 
 const NUMBER_LABEL: Record<number, string> = { 1: "Semester 1", 2: "Semester 2" };
+const YEAR_STATUS_SUFFIX: Record<string, string> = { PLANNING: " (perencanaan)", ARCHIVED: " (diarsipkan)" };
 
 const EMPTY_SEMESTER_FORM = {
   academicYearId: "",
@@ -151,8 +152,16 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
           endDate: values.endDate,
         };
     try {
-      await sendJson(url, { method, body }, "Gagal menyimpan");
-      toast.success(editing ? "Semester diperbarui" : "Semester ditambahkan");
+      const saved = await sendJson<{ status?: string; number?: number } | null>(url, { method, body }, "Gagal menyimpan");
+      if (!editing && saved?.status === "INACTIVE") {
+        // DOC-3: the year already has an active semester and creating another
+        // must not silently take over. Say so, and show it (the default list
+        // filter is "Aktif", which would otherwise hide the new row).
+        toast.info(`${NUMBER_LABEL[saved.number ?? Number(values.number)]} ditambahkan tetapi belum aktif. Semester yang sedang aktif tidak berubah; aktifkan dari menu baris bila perlu.`);
+        setStatusFilter("all");
+      } else {
+        toast.success(editing ? "Semester diperbarui" : "Semester ditambahkan");
+      }
       setCreateOpen(false);
       resetForm();
       fetchAll();
@@ -360,14 +369,15 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears
-                    // When editing, always include the row's existing AY even
-                    // if it has been deactivated since — otherwise the dialog
-                    // would show an empty Select trigger.
-                    .filter((ay) => ay.status === "ACTIVE" || ay.id === field.value)
+                    // DOC-3: next year's semesters are set up while that year is
+                    // still PLANNING, so PLANNING years are offered too. Only
+                    // ARCHIVED years are hidden — except when editing, where the
+                    // row's own year must stay so the trigger is never empty.
+                    .filter((ay) => ay.status !== "ARCHIVED" || ay.id === field.value)
                     .map((ay) => (
                       <SelectItem key={ay.id} value={ay.id}>
                         {ay.name}
-                        {ay.status !== "ACTIVE" ? " (nonaktif)" : ""}
+                        {YEAR_STATUS_SUFFIX[ay.status] ?? ""}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -449,7 +459,7 @@ export function SemestersClient({ canWrite }: { canWrite: boolean }) {
         title="Aktifkan kembali semester?"
         description={
           reactivateTarget
-            ? `${reactivateTarget.academicYear.name} · ${NUMBER_LABEL[reactivateTarget.number]} akan muncul kembali di daftar aktif.`
+            ? `${reactivateTarget.academicYear.name} · ${NUMBER_LABEL[reactivateTarget.number]} akan menjadi semester aktif tahun ajaran ini. Semester lain yang sedang aktif di tahun ajaran yang sama akan dinonaktifkan.`
             : ""
         }
         confirmLabel="Aktifkan"

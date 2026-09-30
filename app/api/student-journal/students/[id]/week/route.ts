@@ -134,14 +134,32 @@ export async function GET(
 
   if (!tmpl) {
     return NextResponse.json({
-      data: { weekStart: ws, dates, student, categories: [], entries: [], notes: [] },
+      data: {
+        weekStart: ws,
+        dates,
+        student,
+        categories: [],
+        entries: [],
+        homeCategories: [],
+        homeEntries: [],
+        notes: [],
+      },
     });
   }
 
-  // 10. Parallel fetch: SCHOOL categories + entries + notes
-  const [categories, entries, notes] = await Promise.all([
+  // 10. Parallel fetch: categories + entries of BOTH scopes, and notes.
+  //     SCHOOL is what the teacher fills; HOME is what the wali ticked in
+  //     "Di rumah" ("bantu Ustadzah memantau ibadah dan rutinitas di rumah").
+  //     The parent's ticks were readable by admin but never by the class
+  //     teacher the wali wrote them for (X-5). Same student and tenant as the
+  //     school rows, so the assignment check above already covers it.
+  const [allCategories, allEntries, notes] = await Promise.all([
     prisma.studentJournalCategory.findMany({
-      where: { templateId: tmpl.id, scope: "SCHOOL", status: JournalStatus.ACTIVE },
+      where: {
+        templateId: tmpl.id,
+        scope: { in: ["SCHOOL", "HOME"] },
+        status: JournalStatus.ACTIVE,
+      },
       include: {
         indicators: {
           where: { status: JournalStatus.ACTIVE },
@@ -154,7 +172,7 @@ export async function GET(
       where: {
         tenantId: session.tenantId,
         studentId,
-        scope: "SCHOOL",
+        scope: { in: ["SCHOOL", "HOME"] },
         date: { gte: ws, lte: dateEnd },
       },
       select: {
@@ -185,6 +203,14 @@ export async function GET(
     }),
   ]);
 
+  const categories = allCategories.filter((c) => c.scope === "SCHOOL");
+  // A HOME category with no active indicator has nothing to show.
+  const homeCategories = allCategories.filter(
+    (c) => c.scope === "HOME" && c.indicators.length > 0,
+  );
+  const entries = allEntries.filter((e) => e.scope === "SCHOOL");
+  const homeEntries = allEntries.filter((e) => e.scope === "HOME");
+
   const lastEditByEntryId = await resolveLastAdminEditByEntryId(
     session.tenantId,
     entries.map((e) => e.id),
@@ -203,6 +229,13 @@ export async function GET(
       student,
       categories,
       entries: entriesWithAudit,
+      homeCategories,
+      homeEntries: homeEntries.map(({ id, indicatorId, date, checked }) => ({
+        id,
+        indicatorId,
+        date,
+        checked,
+      })),
       notes: notesWithAuthor,
     },
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
@@ -78,9 +78,15 @@ export function NoteComposeDialog({
   // not describe what it recomputed for.
   const today = getTodayInTimezone(PORTAL_TIMEZONE);
   const dateOptions = useMemo(() => {
-    if (mode === "edit") return weekDates;
+    // An edited note may predate the week on screen (the thread is not
+    // week-scoped), so its own date must stay selectable/displayed.
+    if (mode === "edit") {
+      return initialDate && !weekDates.includes(initialDate)
+        ? [initialDate, ...weekDates]
+        : weekDates;
+    }
     return weekDates.filter((d) => d <= today);
-  }, [mode, weekDates, today]);
+  }, [mode, weekDates, today, initialDate]);
 
   const [date, setDate] = useState<string>(() =>
     pickDefaultDate(dateOptions, today, initialDate),
@@ -88,6 +94,8 @@ export function NoteComposeDialog({
   const [body, setBody] = useState<string>(initialBody ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const keepWritingRef = useRef<HTMLButtonElement>(null);
 
   // Reset form whenever the dialog reopens or its inputs change
   useEffect(() => {
@@ -96,6 +104,7 @@ export function NoteComposeDialog({
       setBody(initialBody ?? "");
       setError(null);
       setSubmitting(false);
+      setConfirmDiscard(false);
     }
   }, [open, initialDate, initialBody, dateOptions, today]);
 
@@ -105,6 +114,35 @@ export function NoteComposeDialog({
     trimmedLen <= MAX_LEN &&
     !submitting &&
     (mode === "edit" || dateOptions.includes(date));
+
+  // A half-written catatan is the one thing in this dialog that cannot be
+  // recovered, and the dimmed backdrop is easy to hit one-handed (TCH-3). Every
+  // way of dismissing — outside tap, Escape, Batal — goes through here; only a
+  // saved note or an explicit "Buang" closes over a changed draft.
+  //
+  // The "Buang catatan?" question is asked inside this dialog's footer, not in
+  // a second overlay on top of it (ui.md: one overlay at a time). While it is
+  // showing, Escape / outside tap mean "keep writing".
+  const dirty = body.trim() !== (initialBody ?? "").trim();
+  useEffect(() => {
+    if (confirmDiscard) keepWritingRef.current?.focus();
+  }, [confirmDiscard]);
+  function requestClose(nextOpen: boolean) {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+    if (submitting) return;
+    if (confirmDiscard) {
+      setConfirmDiscard(false);
+      return;
+    }
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onOpenChange(false);
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -161,25 +199,47 @@ export function NoteComposeDialog({
   return (
     <ResponsiveFormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={requestClose}
       title={title ?? (mode === "create" ? "Tulis catatan" : "Edit catatan")}
       description={audience ? AUDIENCE_HINT[audience] : undefined}
       size="sm"
       contentClassName="p-card"
       footer={
-        <>
-          <Button
-            variant="ghost"
-            className="tap-target"
-            onClick={() => onOpenChange(false)}
-            disabled={submitting}
-          >
-            Batal
-          </Button>
-          <Button className="tap-target" onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? "Menyimpan…" : "Simpan"}
-          </Button>
-        </>
+        confirmDiscard ? (
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div role="alert" className="text-sm">
+              <p className="font-medium">Buang catatan?</p>
+              <p className="text-muted-foreground">Catatan yang belum disimpan akan hilang.</p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                ref={keepWritingRef}
+                variant="ghost"
+                className="tap-target"
+                onClick={() => setConfirmDiscard(false)}
+              >
+                Lanjut menulis
+              </Button>
+              <Button variant="destructive" className="tap-target" onClick={() => onOpenChange(false)}>
+                Buang
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              className="tap-target"
+              onClick={() => requestClose(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button className="tap-target" onClick={handleSubmit} disabled={!canSubmit}>
+              {submitting ? "Menyimpan…" : "Simpan"}
+            </Button>
+          </>
+        )
       }
     >
       <Field>

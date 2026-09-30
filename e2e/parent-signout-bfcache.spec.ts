@@ -98,3 +98,57 @@ test.describe("Sign-out bfcache header guard (UAT U6 — 2026-05-03)", () => {
     expect(res.headers()["expires"]).toBe("0");
   });
 });
+
+// PAR-1 (2026-09-29 full E2E): after Keluar the app used router.push("/"), so
+// browser Back re-rendered the signed-in /parent/profile (name, phone, email,
+// children) from Next's CLIENT router cache with zero server requests — the
+// Cache-Control assertions above cannot see that. Sign-out now ends in a full
+// document navigation (window.location.replace), so Back must reach the server
+// and land on the login page.
+//
+// History for each test: [/parent (document load), /parent/profile (client
+// navigation)]. Before the fix Keluar pushed "/", making Back return to the
+// cached profile. After it, "/" replaces the profile entry and Back hits
+// /parent, which redirects a signed-out visitor to "/".
+test.describe("Back after sign-out does not restore the signed-in page (PAR-1)", () => {
+  test.beforeAll(async ({ request }) => {
+    const users = (await (await request.get("/api/auth/users")).json()) as Array<{ id: string; role: string }>;
+    const guardian = users.find((u) => u.role === "GUARDIAN");
+    if (!guardian) throw new Error("No GUARDIAN user found in demo DB");
+    guardianUserId = guardian.id;
+  });
+
+  async function openProfileInApp(page: import("@playwright/test").Page, userId: string) {
+    await page.context().addCookies([
+      { name: "school-erp-session", value: userId, domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" },
+    ]);
+    await page.goto("/parent");
+    // In-app (client-side) navigation, so the profile lands in the router cache.
+    await page.locator("a[href^='/parent/profile']").first().click();
+    await expect(page).toHaveURL(/\/parent\/profile/);
+    await expect(page.getByRole("heading", { name: "Profil" })).toBeVisible();
+  }
+
+  async function expectSignedOutAfterBack(page: import("@playwright/test").Page) {
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 10_000 });
+    await page.goBack();
+    // Back must not resurrect the profile: it lands on the login page.
+    await page.waitForURL((url) => url.pathname === "/", { timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Profil" })).toHaveCount(0);
+    await expect(page.getByText(/Wali murid/)).toHaveCount(0);
+    await expect(page.locator("text=An Nisaa").first()).toBeVisible();
+  }
+
+  test("profile-page Keluar button", async ({ page }) => {
+    await openProfileInApp(page, guardianUserId);
+    await page.locator("button", { hasText: /^Keluar$/ }).click();
+    await expectSignedOutAfterBack(page);
+  });
+
+  test("header Keluar (confirm dialog)", async ({ page }) => {
+    await openProfileInApp(page, guardianUserId);
+    await page.click("[aria-label='Keluar']");
+    await page.getByRole("button", { name: "Keluar dari akun", exact: true }).click();
+    await expectSignedOutAfterBack(page);
+  });
+});

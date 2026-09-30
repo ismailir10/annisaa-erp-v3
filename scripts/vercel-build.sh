@@ -3,9 +3,9 @@
 #
 # Applies Prisma migrations on the `staging` and `main` branches. Both
 # deploy targets are now live: staging gets migrations on every push,
-# main gets them on the staging→main promote PR. Preview branches (feat/*)
-# never run migrate deploy — they use the staging DB or ephemeral Supabase
-# branches.
+# main gets them on the staging→main promote PR. No other branch reaches
+# this script: vercel.json's ignoreCommand (scripts/vercel-ignore.sh) skips
+# every non-staging/main build. The `*)` arm below is a safety net only.
 #
 # This is the enforcement arm for the staging→main promote flow:
 # `prisma migrate deploy` is idempotent (only applies new migrations)

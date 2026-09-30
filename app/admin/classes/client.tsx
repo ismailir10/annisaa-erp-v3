@@ -8,6 +8,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTableRowActions } from "@/components/ui/data-table-row-actions";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -256,7 +257,23 @@ export function ClassesClient({ canWrite }: { canWrite: boolean }) {
           <DataTableColumnHeader column={column} title="Nama" />
         ),
         cell: ({ row }) => (
-          <DataTableLinkCell href={`/admin/classes/${row.original.id}`}>
+          <DataTableLinkCell
+            href={`/admin/classes/${row.original.id}`}
+            description={
+              // Two "KB" classes at different campuses look identical without
+              // these; the Kampus / Program / Wali Kelas columns are hidden
+              // below `md` (CORE-7).
+              <DataTableMobileMeta>
+                <span>
+                  {[
+                    row.original.campus.name,
+                    row.original.program.name,
+                    row.original.teachingAssignments[0]?.employee?.nama ?? "Belum ada wali kelas",
+                  ].join(" · ")}
+                </span>
+              </DataTableMobileMeta>
+            }
+          >
             {row.original.name}
           </DataTableLinkCell>
         ),

@@ -8,6 +8,7 @@ import { paginatedResponse } from "@/lib/api/response";
 import { validateBody } from "@/lib/api/validate";
 import { createEmployeeSchema } from "@/lib/validations/employee";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { fieldErrorResponse } from "@/lib/api/field-errors";
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission("hr.view");
@@ -93,8 +94,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const email = body.email.trim();
+
   // Auto-generate employee code: initials + sequence number (atomic)
-  const employee = await prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     // F-25: advisory lock per tenant to serialize employee code generation.
     // Use single-arg `pg_advisory_xact_lock(hashtext(...))` for parity with
     // invoice/webhook locks (`hashtext(invoiceId)`); namespacing by string
@@ -103,6 +106,31 @@ export async function POST(req: NextRequest) {
     // employee creation. `hashtext` returns int4; Postgres implicitly widens
     // it to int8 for the `pg_advisory_xact_lock(bigint)` overload.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"employee_create_" + tenantId}))`;
+
+    // HR-5: the email is the login identity. Refuse (inside the tenant-wide
+    // advisory lock, so two concurrent creates cannot both pass) when another
+    // Employee already carries it, or when a User with that email is already
+    // linked to a different employee or holds a different role — the old
+    // upsert silently rewrote that user's role and orphaned their employee.
+    const emailTaken = await tx.employee.findFirst({
+      where: { tenantId, email: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (emailTaken) {
+      return { conflict: "Email sudah dipakai karyawan lain" } as const;
+    }
+    const existingUser = await tx.user.findFirst({
+      where: { tenantId, email: { equals: email, mode: "insensitive" } },
+      select: { id: true, role: true, employeeId: true },
+    });
+    if (existingUser?.employeeId) {
+      return { conflict: "Email sudah terhubung ke karyawan lain" } as const;
+    }
+    if (existingUser && existingUser.role !== body.role) {
+      return {
+        conflict: `Email sudah terdaftar sebagai pengguna dengan peran ${existingUser.role}. Gunakan email lain atau samakan perannya.`,
+      } as const;
+    }
 
     const initials = body.nama
       .trim()
@@ -127,7 +155,7 @@ export async function POST(req: NextRequest) {
         kode,
         nama: body.nama.trim(),
         formalName: body.formalName?.trim() || null,
-        email: body.email.trim(),
+        email,
         noHp: body.noHp?.trim() || null,
         jabatan: body.jabatan.trim(),
         campusId: body.campusId,
@@ -143,28 +171,31 @@ export async function POST(req: NextRequest) {
     });
 
     // F-26: role from validated body (defaults to TEACHER for legacy callers).
-    // Upsert keyed on the composite (tenantId, email) unique index so HR
-    // onboarding can attach an Employee row to a User that already exists
-    // (preserved auth login, manually invited user, etc.) without hitting
-    // the unique-key conflict.
-    await tx.user.upsert({
-      where: { tenantId_email: { tenantId, email: body.email.trim() } },
-      create: {
-        tenantId,
-        email: body.email.trim(),
-        role: body.role,
-        name: body.nama.trim(),
-        employeeId: emp.id,
-      },
-      update: {
-        employeeId: emp.id,
-        role: body.role,
-        name: body.nama.trim(),
-      },
-    });
+    // An existing User with this email (manually invited, preserved auth
+    // login) is only *linked* — and only when it is unlinked and already has
+    // the requested role (checked above); its role/name are never rewritten.
+    if (existingUser) {
+      await tx.user.update({
+        where: { id: existingUser.id },
+        data: { employeeId: emp.id },
+      });
+    } else {
+      await tx.user.create({
+        data: {
+          tenantId,
+          email,
+          role: body.role,
+          name: body.nama.trim(),
+          employeeId: emp.id,
+        },
+      });
+    }
 
-    return emp;
+    return { employee: emp } as const;
   });
+
+  if (outcome.conflict !== undefined) return fieldErrorResponse("email", outcome.conflict);
+  const employee = outcome.employee;
 
   revalidateTag("employees-count", {});
   return NextResponse.json(employee, { status: 201 });

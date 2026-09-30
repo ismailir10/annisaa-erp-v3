@@ -5,8 +5,36 @@ import { reconcileSessions } from "@/lib/sessions/reconcile";
 import { employees } from "./data/employees";
 import { salaryComponents } from "./data/salary-components";
 import { salaryValues } from "./data/salary-values";
-import { holidays } from "./data/holidays";
+import { allHolidays } from "./data/holidays";
 import { students } from "./data/students";
+import {
+  academicYearFor,
+  academicYearStartingIn,
+  activeSemesterOf,
+  addDays,
+  createRng,
+  firstOfMonthShifted,
+  isSchoolDay,
+  jakartaInstant,
+  latestSchoolDay,
+  monthLabelId,
+  schoolDaysEndingAt,
+  seedToday,
+  termsOfSemester,
+  weeksOfSemester,
+} from "./data/calendar";
+import {
+  ACTIVITY_BY_CENTER,
+  BUCKETED_SECTIONS,
+  CLOSING_SECTIONS,
+  CLOSING_TEXT,
+  CURRICULUM_ELEMENTS,
+  DEMO_LEVELS,
+  OBJECTIVES,
+  THEMES_SEMESTER_1,
+  THEMES_SEMESTER_2,
+  narrativeFor,
+} from "./data/curriculum";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is not configured");
@@ -14,10 +42,45 @@ if (!connectionString) throw new Error("DATABASE_URL is not configured");
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
+// ── The seed's calendar, anchored on ONE date ───────────────────────────────
+// Everything time-dependent below derives from TODAY (Asia/Jakarta; override
+// with SEED_TODAY=YYYY-MM-DD to rehearse another day). The academic year, the
+// semesters, the curriculum weeks, the sessions, the invoices and the payroll
+// periods all move with it, so a fresh seed on ANY day is a live, current
+// school. Anything a spec needs "today" for anchors on LATEST_SCHOOL_DAY (the
+// most recent non-weekend, non-holiday day) so nothing depends on the weekday.
+const TODAY = seedToday();
+const HOLIDAY_DATES: ReadonlySet<string> = new Set(allHolidays.map((h) => h.date));
+const CAL = academicYearFor(TODAY);
+const PREV_CAL = academicYearStartingIn(Number(CAL.name.slice(0, 4)) - 1);
+const ACTIVE_SEMESTER = activeSemesterOf(CAL, TODAY);
+const LATEST_SCHOOL_DAY = (() => {
+  const d = latestSchoolDay(TODAY, HOLIDAY_DATES);
+  return d < CAL.start ? CAL.start : d;
+})();
+/** The last five school days (ascending, ending at LATEST_SCHOOL_DAY), inside this academic year. */
+const RECENT_DAYS = schoolDaysEndingAt(LATEST_SCHOOL_DAY, 5, HOLIDAY_DATES, CAL.start);
+const rand = createRng(Number(TODAY.replace(/-/g, "")));
+const utcMidnight = (ymd: string) => new Date(`${ymd}T00:00:00Z`);
+
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log(`🌱 Seeding database... (today = ${TODAY}, academic year ${CAL.name}, latest school day ${LATEST_SCHOOL_DAY})`);
 
   // Clear existing data — order matters: children before parents to respect FK constraints.
+  // Raport + assessment + billing-run tables reference Week/Semester/Student/
+  // FeeComponentDef with Restrict, so they go first.
+  await prisma.assessmentEntry.deleteMany();
+  await prisma.reportCardEntry.deleteMany();
+  await prisma.studentMeasurement.deleteMany();
+  await prisma.reportNarrativeTemplate.deleteMany();
+  await prisma.reportClosingTemplate.deleteMany();
+  await prisma.term.deleteMany();
+  await prisma.billingRunLine.deleteMany();
+  await prisma.billingRunRow.deleteMany();
+  await prisma.billingRun.deleteMany();
+  await prisma.studentFeeAdjustment.deleteMany();
+  await prisma.enrollmentApplication.deleteMany();
+  await prisma.studentJournalNoteRead.deleteMany();
   await prisma.studentJournalAudit.deleteMany();
   await prisma.studentJournalNote.deleteMany();
   await prisma.studentJournalEntry.deleteMany();
@@ -123,12 +186,12 @@ async function main() {
   console.log(`✅ Org config`);
 
   // 4. Holidays
-  for (const h of holidays) {
+  for (const h of allHolidays) {
     await prisma.holiday.create({
       data: { tenantId: tenant.id, date: h.date, name: h.name, type: h.type },
     });
   }
-  console.log(`✅ Holidays: ${holidays.length}`);
+  console.log(`✅ Holidays: ${allHolidays.length}`);
 
   // 5. Salary components
   const componentMap: Record<string, string> = {};
@@ -283,121 +346,157 @@ async function main() {
 
   // ── 7b. ACADEMIC YEAR, PROGRAMS, CLASS SECTIONS, STUDENTS ──
 
-  // 7b-1. Academic Year
+  // 7b-1. Academic years. The year containing TODAY is the ACTIVE one; the
+  // year before it is ARCHIVED (its semesters INACTIVE, no classes). Year and
+  // semester boundaries are contiguous Mondays (see prisma/data/calendar.ts),
+  // so exactly one semester contains TODAY whatever day the seed runs.
+  const previousYear = await prisma.academicYear.create({
+    data: {
+      tenantId: tenant.id,
+      name: PREV_CAL.name,
+      startDate: PREV_CAL.start,
+      endDate: PREV_CAL.end,
+      status: "ARCHIVED",
+    },
+  });
+  for (const sem of PREV_CAL.semesters) {
+    await prisma.semester.create({
+      data: {
+        tenantId: tenant.id,
+        academicYearId: previousYear.id,
+        number: sem.number,
+        startDate: utcMidnight(sem.start),
+        endDate: utcMidnight(sem.end),
+        status: "INACTIVE",
+      },
+    });
+  }
   const academicYear = await prisma.academicYear.create({
     data: {
       tenantId: tenant.id,
-      name: "2025/2026",
-      startDate: "2025-07-14",
-      endDate: "2026-06-20",
+      name: CAL.name,
+      startDate: CAL.start,
+      endDate: CAL.end,
       status: "ACTIVE",
     },
   });
-  console.log(`✅ Academic year: ${academicYear.name}`);
+  console.log(`✅ Academic years: ${CAL.name} (ACTIVE), ${PREV_CAL.name} (ARCHIVED)`);
 
-  // 7b-1b. Curriculum example (C1) — one Semester with two Themes, four
-  // SubThemes, eight Weeks. PROMES TPs + IKTPs land in C2/C3. Mon–Fri
-  // ranges at UTC-midnight per the curriculum storage contract.
-  // Re-runnable because `main()` wipes curriculum tables above.
-  const semester = await prisma.semester.create({
-    data: {
-      tenantId: tenant.id,
-      academicYearId: academicYear.id,
-      number: 1,
-      startDate: new Date("2025-07-14T00:00:00Z"),
-      endDate: new Date("2025-12-19T00:00:00Z"),
-      status: "ACTIVE",
-    },
-  });
-  const themesData = [
-    { name: "Saya Anak Sehat", order: 0 },
-    { name: "Lingkunganku", order: 1 },
-  ];
-  const subThemesByTheme: Record<string, { name: string; order: number }[]> = {
-    "Saya Anak Sehat": [
-      { name: "Tubuhku", order: 0 },
-      { name: "Makanan Sehat", order: 1 },
-    ],
-    Lingkunganku: [
-      { name: "Rumahku", order: 0 },
-      { name: "Sekolahku", order: 1 },
-    ],
-  };
-  // 8 weeks, Mon → Fri each, starting 2025-07-14.
-  const weekStarts = [
-    "2025-07-14",
-    "2025-07-21",
-    "2025-07-28",
-    "2025-08-04",
-    "2025-08-11",
-    "2025-08-18",
-    "2025-08-25",
-    "2025-09-01",
-  ];
-  let weekCursor = 0;
+  // 7b-1b. Curriculum for BOTH semesters of the active year — themes, sub-themes,
+  // Mon–Fri Weeks covering every week of the semester, learning objectives (TP)
+  // with achievement indicators (IKTP) for TK A and TK B, and the
+  // IndicatorThemeLink rows that make weekly (walas) and sentra assessment
+  // usable for whichever week "today" falls in. Only the semester containing
+  // TODAY is ACTIVE (one ACTIVE semester per year — demoteOtherActiveSemesters),
+  // but the other still carries a curriculum so admin curriculum screens and the
+  // objectives/theme-link specs have data whichever semester the API lists first.
+  // Storage contract: Semester/Week dates are UTC-midnight of the Jakarta day.
+  type SeededWeek = { id: string; number: number; start: string; end: string; themeId: string };
+  const semesterIds: Record<number, string> = {};
+  const weeksBySemester: Record<number, SeededWeek[]> = {};
+  const indicatorsByThemeAge: Record<string, string[]> = {}; // `${themeId}|${ageGroup}` → indicator ids
   let themeCount = 0;
   let subThemeCount = 0;
   let weekCount = 0;
-  for (const t of themesData) {
-    const theme = await prisma.theme.create({
+  let objectiveCount = 0;
+  let indicatorCount = 0;
+  for (const semSpan of CAL.semesters) {
+    const semester = await prisma.semester.create({
       data: {
         tenantId: tenant.id,
-        semesterId: semester.id,
-        name: t.name,
-        order: t.order,
+        academicYearId: academicYear.id,
+        number: semSpan.number,
+        startDate: utcMidnight(semSpan.start),
+        endDate: utcMidnight(semSpan.end),
+        status: semSpan.number === ACTIVE_SEMESTER.number ? "ACTIVE" : "INACTIVE",
       },
     });
-    themeCount++;
-    for (const st of subThemesByTheme[t.name]) {
-      const subTheme = await prisma.subTheme.create({
+    semesterIds[semSpan.number] = semester.id;
+
+    // Themes → sub-themes (12 per semester).
+    const themePlans = semSpan.number === 1 ? THEMES_SEMESTER_1 : THEMES_SEMESTER_2;
+    const subThemes: { id: string; themeId: string }[] = [];
+    const themeIds: string[] = [];
+    for (const [ti, tp] of themePlans.entries()) {
+      const theme = await prisma.theme.create({
+        data: { tenantId: tenant.id, semesterId: semester.id, name: tp.name, order: ti },
+      });
+      themeIds.push(theme.id);
+      themeCount++;
+      for (const [si, stName] of tp.subThemes.entries()) {
+        const st = await prisma.subTheme.create({
+          data: { tenantId: tenant.id, themeId: theme.id, name: stName, order: si },
+        });
+        subThemes.push({ id: st.id, themeId: theme.id });
+        subThemeCount++;
+      }
+    }
+
+    // Weeks: spread the semester's Mon–Fri weeks evenly over the sub-themes.
+    const weekSpans = weeksOfSemester(semSpan);
+    const seededWeeks: SeededWeek[] = [];
+    for (const [wi, w] of weekSpans.entries()) {
+      const sub = subThemes[Math.floor((wi * subThemes.length) / weekSpans.length)];
+      const week = await prisma.week.create({
         data: {
           tenantId: tenant.id,
-          themeId: theme.id,
-          name: st.name,
-          order: st.order,
+          subThemeId: sub.id,
+          number: w.number,
+          startDate: utcMidnight(w.start),
+          endDate: utcMidnight(w.end),
+          status: "ACTIVE",
         },
       });
-      subThemeCount++;
-      // Two weeks per SubTheme = 8 total.
-      for (let i = 0; i < 2; i++) {
-        const startYmd = weekStarts[weekCursor];
-        weekCursor++;
-        const start = new Date(`${startYmd}T00:00:00Z`);
-        const end = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000); // Fri
-        await prisma.week.create({
-          data: {
-            tenantId: tenant.id,
-            subThemeId: subTheme.id,
-            number: weekCount + 1,
-            startDate: start,
-            endDate: end,
-            status: "ACTIVE",
-          },
-        });
-        weekCount++;
+      seededWeeks.push({ id: week.id, number: w.number, start: w.start, end: w.end, themeId: sub.themeId });
+      weekCount++;
+    }
+    weeksBySemester[semSpan.number] = seededWeeks;
+
+    // Objectives + indicators per age group, then link each indicator to two
+    // themes so every theme (hence every week) has IKTP to assess.
+    for (const ageGroup of ["A", "B"] as const) {
+      const indicatorIds: string[] = [];
+      for (const element of CURRICULUM_ELEMENTS) {
+        for (const [oi, obj] of OBJECTIVES[element].entries()) {
+          const created = await prisma.learningObjective.create({
+            data: {
+              tenantId: tenant.id,
+              semesterId: semester.id,
+              ageGroup,
+              element,
+              number: oi + 1,
+              competencyText: obj.competencyText,
+              content: obj.content,
+              indicators: {
+                create: obj.indicators.map((content, ii) => ({
+                  tenantId: tenant.id,
+                  content,
+                  order: ii + 1,
+                })),
+              },
+            },
+            include: { indicators: { orderBy: { order: "asc" } } },
+          });
+          objectiveCount++;
+          for (const ind of created.indicators) {
+            indicatorIds.push(ind.id);
+            indicatorCount++;
+          }
+        }
       }
+      const links: { indicatorId: string; themeId: string }[] = [];
+      indicatorIds.forEach((indicatorId, idx) => {
+        for (const themeIdx of new Set([idx % themeIds.length, (idx + 3) % themeIds.length])) {
+          links.push({ indicatorId, themeId: themeIds[themeIdx] });
+          (indicatorsByThemeAge[`${themeIds[themeIdx]}|${ageGroup}`] ??= []).push(indicatorId);
+        }
+      });
+      await prisma.indicatorThemeLink.createMany({ data: links });
     }
   }
   console.log(
-    `✅ Curriculum: 1 semester, ${themeCount} themes, ${subThemeCount} subthemes, ${weekCount} weeks`,
+    `✅ Curriculum: 2 semesters (Semester ${ACTIVE_SEMESTER.number} ACTIVE), ${themeCount} themes, ${subThemeCount} subthemes, ${weekCount} weeks, ${objectiveCount} objectives, ${indicatorCount} indicators`,
   );
-
-  // 7b-1c. Semester 2 — same academic year, covers "today" (2026-05-15) so the
-  // teacher today's-sessions page + ClassSession generation below have live
-  // data. UTC-midnight DateTimes per the Semester storage contract; no
-  // curriculum (Themes/Weeks) attached — Semester 1 carries the curriculum
-  // example, Semester 2 exists purely for session-calendar coverage.
-  await prisma.semester.create({
-    data: {
-      tenantId: tenant.id,
-      academicYearId: academicYear.id,
-      number: 2,
-      startDate: new Date("2026-01-05T00:00:00Z"),
-      endDate: new Date("2026-06-20T00:00:00Z"),
-      status: "ACTIVE",
-    },
-  });
-  console.log(`✅ Semester 2: 2026-01-05 → 2026-06-20 (covers today)`);
 
   // 7b-2. Programs
   const programDefs = [
@@ -424,9 +523,11 @@ async function main() {
 
   // 7b-3. Class Sections
   const classSectionDefs = [
-    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 20, ageGroup: "A" as const },
-    // TKIT B capacity 21 (not 20): seed inserts 20 base students + Fatimah as rightjetParent's third child.
-    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 21, ageGroup: "B" as const },
+    // Every class keeps a few open seats (base roster + rightjetParent's third
+    // child Fatimah in TKIT B fit with room to spare) so the enrollment
+    // add/remove specs and the admin "Tambah Siswa" flow have somewhere to go.
+    { name: "TKIT A", programCode: "TKIT", campusSlug: "taman-aster", capacity: 24, ageGroup: "A" as const },
+    { name: "TKIT B", programCode: "TKIT", campusSlug: "taman-aster", capacity: 25, ageGroup: "B" as const },
     // Non-TK programs (KB / D'Care / POPUP) all map to ageGroup A as the
     // curriculum default — the 4-5 yo cohort that overlaps with TK A.
     // A real PAUD tenant typically uploads one PROMES set for the whole
@@ -437,9 +538,9 @@ async function main() {
     // campusId too (2026-07-29 class-picker-year-scoping), so "KB" at both
     // campuses below is a legitimate, non-colliding pair — the campusSlug
     // still differentiates each row, it just no longer rides in the name.
-    { name: "KB", programCode: "KB", campusSlug: "taman-aster", capacity: 15, ageGroup: "A" as const },
-    { name: "KB", programCode: "KB", campusSlug: "metland-cibitung", capacity: 15, ageGroup: "A" as const },
-    { name: "D'Care", programCode: "DCARE", campusSlug: "taman-aster", capacity: 10, ageGroup: "A" as const },
+    { name: "KB", programCode: "KB", campusSlug: "taman-aster", capacity: 18, ageGroup: "A" as const },
+    { name: "KB", programCode: "KB", campusSlug: "metland-cibitung", capacity: 18, ageGroup: "A" as const },
+    { name: "D'Care", programCode: "DCARE", campusSlug: "taman-aster", capacity: 13, ageGroup: "A" as const },
     { name: "POPUP Weekend", programCode: "POPUP", campusSlug: "taman-aster", capacity: 25, ageGroup: "A" as const },
   ];
   const classSectionMap: Record<string, string> = {};
@@ -473,6 +574,9 @@ async function main() {
   console.log(`✅ Class sections: ${classSectionDefs.length}`);
 
   // 7b-4. Students with Guardians and Enrollments
+  // NIS (Nomor Induk Siswa): school-assigned, "<YY of the intake year><4-digit running number>".
+  let nisSequence = 0;
+  const nextNis = () => `${CAL.start.slice(2, 4)}${String(++nisSequence).padStart(4, "0")}`;
   let studentCount = 0;
   for (const s of students) {
     const student = await prisma.student.create({
@@ -484,10 +588,11 @@ async function main() {
         gender: s.gender,
         address: s.address,
         status: "ACTIVE",
+        nis: nextNis(),
         enrollments: {
           create: {
             classSectionId: classSectionMap[s.classCode],
-            enrollDate: "2025-07-14",
+            enrollDate: CAL.start,
             status: "ACTIVE",
           },
         },
@@ -624,13 +729,12 @@ async function main() {
 
   // ── 7c-2. CLASS SESSIONS (reactive generation) ─────────────
   // Generate daily ClassSession rows for every seeded ClassSection across both
-  // Semesters of the academic year. reconcileSessions is idempotent and the
-  // single source of truth for session lifecycle — same call the API routes
-  // use. Run AFTER teaching assignments so it resolves each section's HOMEROOM
-  // teacher onto teacherId/defaultTeacherId. The two ACTIVE semesters
-  // (2025-07-14→2025-12-19 and 2026-01-05→2026-06-20) mean the generated set
-  // spans today (2026-05-15), giving the teacher dashboard + session pages
-  // real data.
+  // Semesters of the (date-relative, ACTIVE) academic year. reconcileSessions is
+  // idempotent and the single source of truth for session lifecycle — same call
+  // the API routes use. Run AFTER teaching assignments so it resolves each
+  // section's HOMEROOM teacher onto teacherId/defaultTeacherId (session teacher
+  // = homeroom). It skips weekends and every seeded Holiday, so the generated
+  // set spans TODAY on any school day and the teacher home has a session for it.
   let classSessionCount = 0;
   const reconcileErrors: string[] = [];
   for (const sectionId of Object.values(classSectionMap)) {
@@ -649,113 +753,148 @@ async function main() {
     : "";
   console.log(`✅ Class sessions: ${classSessionCount} generated across ${successCount} sections${failureSuffix}`);
 
-  // ── 7d. STUDENT ATTENDANCE (last 5 school days) ───────────
-  // Get all students with their enrollments for class linking
+  // ── 7d. STUDENT ATTENDANCE (last 5 school days, session-linked) ─────
+  // One row per enrolled student per recent school day, tied to the class's
+  // ClassSession (sessionId) so class health, KPIs and the teacher roster all
+  // see it. The MOST RECENT school day (today on a weekday, the last Friday on
+  // a weekend) is deliberately partial — ~60% of each class is marked and the
+  // rest is still waiting for a tap-in — so the teacher roster always has fresh
+  // rows to work and the admin "today" views show a class mid-morning.
   const allStudents = await prisma.student.findMany({
     where: { tenantId: tenant.id, status: "ACTIVE" },
+    orderBy: { name: "asc" },
     include: { enrollments: { where: { status: "ACTIVE" }, select: { classSectionId: true } } },
   });
-
-  let studentAttCount = 0;
-  const todayDate = new Date();
-  for (let dayOffset = 5; dayOffset >= 1; dayOffset--) {
-    const d = new Date(todayDate);
-    d.setDate(d.getDate() - dayOffset);
-    const dow = d.getDay();
-    if (dow === 0 || dow === 6) continue; // skip weekends
-
-    const dateStr = d.toISOString().split("T")[0];
-
-    for (const student of allStudents) {
-      if (student.enrollments.length === 0) continue;
-      const classSectionId = student.enrollments[0].classSectionId;
-
-      // Find the teacher for this class
-      const ta = teacherClassMap.find(t => classSectionMap[t.classKey] === classSectionId);
-      const checkedInBy = ta ? employeeIds[ta.empKode] : null;
-
-      // Randomize: 75% PRESENT, 10% ABSENT, 10% SICK, 5% PERMISSION
-      const rand = Math.random();
-      let status: string;
-      if (rand < 0.75) status = "PRESENT";
-      else if (rand < 0.85) status = "ABSENT";
-      else if (rand < 0.95) status = "SICK";
-      else status = "PERMISSION";
-
-      await prisma.studentAttendance.create({
-        data: {
-          studentId: student.id,
-          classSectionId,
-          date: dateStr,
-          status,
-          checkedInBy,
-        },
-      });
-      studentAttCount++;
+  const homeroomByClassId = new Map<string, string>(); // classSectionId → employeeId
+  for (const ta of teacherClassMap) {
+    if (employeeIds[ta.empKode] && classSectionMap[ta.classKey]) {
+      homeroomByClassId.set(classSectionMap[ta.classKey], employeeIds[ta.empKode]);
     }
   }
-  console.log(`✅ Student attendance: ${studentAttCount} records`);
+  const recentSessions = await prisma.classSession.findMany({
+    where: { classSectionId: { in: Object.values(classSectionMap) }, date: { in: RECENT_DAYS } },
+    select: { id: true, classSectionId: true, date: true },
+  });
+  const sessionIdByKey = new Map(recentSessions.map((x) => [`${x.classSectionId}|${x.date}`, x.id]));
+  const studentsByClass = new Map<string, typeof allStudents>();
+  for (const st of allStudents) {
+    const classSectionId = st.enrollments[0]?.classSectionId;
+    if (!classSectionId) continue;
+    if (!studentsByClass.has(classSectionId)) studentsByClass.set(classSectionId, []);
+    studentsByClass.get(classSectionId)!.push(st);
+  }
+
+  const attendanceRows: {
+    studentId: string;
+    classSectionId: string;
+    sessionId: string;
+    date: string;
+    status: string;
+    checkInTime: Date | null;
+    checkOutTime: Date | null;
+    checkedInBy: string | null;
+    pickedUpByRelation: string | null;
+    pickedUpByName: string | null;
+  }[] = [];
+  for (const day of RECENT_DAYS) {
+    for (const [classSectionId, roster] of studentsByClass) {
+      const sessionId = sessionIdByKey.get(`${classSectionId}|${day}`);
+      if (!sessionId) continue; // holiday / not generated — nothing to mark against
+      const isLatest = day === LATEST_SCHOOL_DAY;
+      // Latest day: mark the first ~60% of the roster, leave the rest unmarked.
+      const marked = isLatest ? roster.slice(0, Math.ceil(roster.length * 0.6)) : roster;
+      for (const student of marked) {
+        const r = rand();
+        // 88% PRESENT, 4% ABSENT, 5% SICK, 3% PERMISSION
+        const status = r < 0.88 ? "PRESENT" : r < 0.92 ? "ABSENT" : r < 0.97 ? "SICK" : "PERMISSION";
+        const present = status === "PRESENT";
+        const inMinute = 5 + Math.floor(rand() * 55); // 07:05–07:59 WIB
+        attendanceRows.push({
+          studentId: student.id,
+          classSectionId,
+          sessionId,
+          date: day,
+          status,
+          checkInTime: present ? jakartaInstant(day, `07:${String(inMinute).padStart(2, "0")}`) : null,
+          // Still in class on the latest day; earlier days were picked up by a parent.
+          checkOutTime: present && !isLatest ? jakartaInstant(day, `11:${String(30 + Math.floor(rand() * 25))}`) : null,
+          checkedInBy: homeroomByClassId.get(classSectionId) ?? null,
+          pickedUpByRelation: present && !isLatest ? "PARENT" : null,
+          pickedUpByName: null,
+        });
+      }
+    }
+  }
+  await prisma.studentAttendance.createMany({ data: attendanceRows });
+  console.log(`✅ Student attendance: ${attendanceRows.length} records over ${RECENT_DAYS.length} school days (latest ${LATEST_SCHOOL_DAY} partial)`);
 
   // ── 8. SEED ATTENDANCE RECORDS (last 30 days) ──────────────
-  const today = new Date();
   const activeEmployeeIds = employees
     .filter((e) => !("status" in e && e.status === "INACTIVE"))
     .map((e) => employeeIds[e.kode]);
 
-  let attendanceCount = 0;
+  const attendanceRecords: {
+    employeeId: string;
+    date: string;
+    status: string;
+    checkInTime: Date | null;
+    checkOutTime: Date | null;
+    checkInLat: number | null;
+    checkInLng: number | null;
+  }[] = [];
   for (let dayOffset = 30; dayOffset >= 0; dayOffset--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - dayOffset);
-    const dow = d.getDay();
-    if (dow === 0 || dow === 6) continue; // skip weekends
-
-    const dateStr = d.toISOString().split("T")[0];
+    const dateStr = addDays(TODAY, -dayOffset);
+    if (!isSchoolDay(dateStr, HOLIDAY_DATES)) continue; // weekends + holidays
 
     for (const empId of activeEmployeeIds) {
       // Randomize: 80% present on time, 10% late, 5% absent, 5% leave
-      const rand = Math.random();
+      const r = rand();
       let status: string;
       let checkInTime: Date | null = null;
       let checkOutTime: Date | null = null;
+      const pad2 = (n: number) => String(n).padStart(2, "0");
 
-      if (rand < 0.80) {
+      if (r < 0.80) {
         status = "PRESENT";
-        const mins = Math.floor(Math.random() * 14); // 0-13 min after 07:00
-        checkInTime = new Date(`${dateStr}T07:${String(mins).padStart(2, "0")}:00+07:00`);
-        checkOutTime = new Date(`${dateStr}T16:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00+07:00`);
-      } else if (rand < 0.90) {
+        checkInTime = jakartaInstant(dateStr, `07:${pad2(Math.floor(rand() * 14))}`); // 0-13 min after 07:00
+        checkOutTime = dayOffset === 0 ? null : jakartaInstant(dateStr, `16:${pad2(Math.floor(rand() * 30))}`); // still at work today
+      } else if (r < 0.90) {
         status = "LATE";
-        const mins = 15 + Math.floor(Math.random() * 30); // 15-44 min late
-        checkInTime = new Date(`${dateStr}T07:${String(mins).padStart(2, "0")}:00+07:00`);
-        checkOutTime = new Date(`${dateStr}T16:${String(Math.floor(Math.random() * 30)).padStart(2, "0")}:00+07:00`);
-      } else if (rand < 0.95) {
+        checkInTime = jakartaInstant(dateStr, `07:${pad2(15 + Math.floor(rand() * 30))}`); // 15-44 min late
+        checkOutTime = dayOffset === 0 ? null : jakartaInstant(dateStr, `16:${pad2(Math.floor(rand() * 30))}`);
+      } else if (r < 0.95) {
         status = "ABSENT";
       } else {
         status = "LEAVE";
       }
 
-      await prisma.attendanceRecord.create({
-        data: {
-          employeeId: empId,
-          date: dateStr,
-          status,
-          checkInTime,
-          checkOutTime,
-          checkInLat: status !== "ABSENT" && status !== "LEAVE" ? -6.2234 + (Math.random() - 0.5) * 0.001 : null,
-          checkInLng: status !== "ABSENT" && status !== "LEAVE" ? 106.8432 + (Math.random() - 0.5) * 0.001 : null,
-        },
+      const located = status !== "ABSENT" && status !== "LEAVE";
+      attendanceRecords.push({
+        employeeId: empId,
+        date: dateStr,
+        status,
+        checkInTime,
+        checkOutTime,
+        checkInLat: located ? -6.2234 + (rand() - 0.5) * 0.001 : null,
+        checkInLng: located ? 106.8432 + (rand() - 0.5) * 0.001 : null,
       });
-      attendanceCount++;
     }
   }
-  console.log(`✅ Attendance records: ${attendanceCount}`);
+  await prisma.attendanceRecord.createMany({ data: attendanceRecords });
+  console.log(`✅ Attendance records: ${attendanceRecords.length}`);
 
-  // ── 9. SEED PAYROLL RUN (last month, SLIPS_SENT) ──────────
-  // Period: last month's 21st to this month's 20th
-  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const periodStart = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}-21`;
-  const periodEndMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 1);
-  const periodEnd = `${periodEndMonth.getFullYear()}-${String(periodEndMonth.getMonth() + 1).padStart(2, "0")}-20`;
+  // ── 9. SEED PAYROLL RUN (previous period, SLIPS_SENT) ──────
+  // Payroll periods run from the 21st to the 20th of the next month. The
+  // CURRENT period is the one containing TODAY; the SLIPS_SENT run is the
+  // period before it and the DRAFT run (section 10) is the current one.
+  const currentStartMonth = firstOfMonthShifted(TODAY, Number(TODAY.slice(8, 10)) >= 21 ? 0 : -1);
+  const at21 = (firstOfMonth: string) => `${firstOfMonth.slice(0, 8)}21`;
+  const at20 = (firstOfMonth: string) => `${firstOfMonth.slice(0, 8)}20`;
+  const previousStartMonth = firstOfMonthShifted(currentStartMonth, -1);
+  const periodStart = at21(previousStartMonth);
+  const periodEnd = at20(currentStartMonth);
+  const slipsDate = [addDays(periodEnd, 4), TODAY].sort()[0]; // slips go out a few days after the period closes
+  const slipsSentInstant = jakartaInstant(slipsDate, "10:00");
 
   // Count working days in period (approx 22)
   const actualWorkDays = 22;
@@ -769,9 +908,9 @@ async function main() {
       status: "SLIPS_SENT",
       createdBy: adminUser.id,
       approvedBy: adminUser.id,
-      approvedAt: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-      exportedAt: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000),
-      slipsSentAt: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000),
+      approvedAt: slipsSentInstant,
+      exportedAt: slipsSentInstant,
+      slipsSentAt: slipsSentInstant,
     },
   });
 
@@ -784,11 +923,11 @@ async function main() {
     if (!sv) continue;
 
     // Simulate: most employees present all 22 days, a few with 20
-    const daysPresent = Math.random() < 0.8 ? 22 : 20;
-    const overtimeHours = Math.random() < 0.3 ? Math.floor(Math.random() * 15) : 0;
-    const outdoorDays = Math.random() < 0.3 ? Math.floor(Math.random() * 5) : 0;
-    const holidayWorkedDays = Math.random() < 0.15 ? Math.floor(Math.random() * 3) : 0;
-    const dcDays = Math.random() < 0.2 ? Math.floor(Math.random() * 5) : 0;
+    const daysPresent = rand() < 0.8 ? 22 : 20;
+    const overtimeHours = rand() < 0.3 ? Math.floor(rand() * 15) : 0;
+    const outdoorDays = rand() < 0.3 ? Math.floor(rand() * 5) : 0;
+    const holidayWorkedDays = rand() < 0.15 ? Math.floor(rand() * 3) : 0;
+    const dcDays = rand() < 0.2 ? Math.floor(rand() * 5) : 0;
 
     // Calculate component lines
     const lines: { componentDefId: string; labelSnapshot: string; categorySnapshot: string; calculatedAmount: number; finalAmount: number }[] = [];
@@ -866,13 +1005,11 @@ async function main() {
   console.log(`✅ Payroll run: ${periodStart} → ${periodEnd} (${payrollItemCount} items, SLIPS_SENT)`);
 
   // ── 10. SEED A DRAFT PAYROLL (current period) ─────────────
-  const currentPeriodStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-21`;
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const currentPeriodEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-20`;
+  const currentPeriodStart = at21(currentStartMonth);
+  const currentPeriodEnd = at20(firstOfMonthShifted(currentStartMonth, 1));
 
-  // Only create draft if start date is in the past
-  const startDate = new Date(currentPeriodStart);
-  if (startDate <= today) {
+  // The current period always contains TODAY, so the DRAFT run always exists.
+  {
     const draftRun = await prisma.payrollRun.create({
       data: {
         tenantId: tenant.id,
@@ -891,7 +1028,7 @@ async function main() {
       const sv = salaryValues[emp.kode];
       if (!sv) continue;
 
-      const daysPresent = 15 + Math.floor(Math.random() * 7); // partial month
+      const daysPresent = 15 + Math.floor(rand() * 7); // partial month
       const lines: { componentDefId: string; labelSnapshot: string; categorySnapshot: string; calculatedAmount: number; finalAmount: number }[] = [];
       let gajiPokokAmount = 0;
 
@@ -986,10 +1123,11 @@ async function main() {
         gender: "P",
         address: "Perum Taman Aster Blok B2/8, Bekasi",
         status: "ACTIVE",
+        nis: nextNis(),
         enrollments: {
           create: {
             classSectionId: classSectionMap["TKIT_B"],
-            enrollDate: "2025-07-14",
+            enrollDate: CAL.start,
             status: "ACTIVE",
           },
         },
@@ -1013,6 +1151,48 @@ async function main() {
     console.log(`✅ Multi-child: rightjetParent has ${rightjetChildCount} kids`);
   }
 
+  // 11a-2. New applicants who are ACTIVE students but not yet placed in a class
+  // (so "Daftarkan ke Kelas" / "Tambah Siswa" and the enrollment add/remove
+  // spec have someone to enroll). Two constraints shape them:
+  //  - names sort early alphabetically: the enrollment spec probes the first 20
+  //    students of the name-sorted list;
+  //  - enrollment is age-gated per program (Day Care 24–36 months, KB 36–60,
+  //    TK 48–84, measured at the start of the academic year), so one applicant
+  //    fits each age band and there is a fit for whichever class is listed first.
+  const bornMonthsBeforeYearStart = (months: number) =>
+    `${firstOfMonthShifted(CAL.start, -months).slice(0, 8)}01`;
+  const unplacedApplicants = [
+    { name: "Aaliyah Nur Azzahra", nickname: "Aaliyah", dob: bornMonthsBeforeYearStart(30), gender: "P", parent: "Nuraini Azzahra", phone: "081290000101" }, // Day Care age
+    { name: "Abdullah Faiz Ramadhan", nickname: "Faiz", dob: bornMonthsBeforeYearStart(48), gender: "L", parent: "Hendra Ramadhan", phone: "081290000102" }, // KB age
+    { name: "Adzkia Naura Putri", nickname: "Naura", dob: bornMonthsBeforeYearStart(60), gender: "P", parent: "Ratna Dewi Putri", phone: "081290000103" }, // TK age
+  ];
+  for (const a of unplacedApplicants) {
+    const applicant = await prisma.student.create({
+      data: {
+        tenantId: tenant.id,
+        name: a.name,
+        nickname: a.nickname,
+        dateOfBirth: a.dob,
+        gender: a.gender,
+        address: "Bekasi, Jawa Barat",
+        status: "ACTIVE",
+        nis: nextNis(),
+      },
+    });
+    const applicantParent = await prisma.parent.create({
+      data: { tenantId: tenant.id, name: a.parent, phone: a.phone, whatsapp: a.phone },
+    });
+    await prisma.studentGuardian.create({
+      data: {
+        studentId: applicant.id,
+        parentId: applicantParent.id,
+        relationship: a.gender === "P" ? "IBU" : "AYAH",
+        isPrimary: true,
+      },
+    });
+  }
+  console.log(`✅ Unplaced applicants (ACTIVE, no class yet): ${unplacedApplicants.length}`);
+
   // 11b. Mark one non-rightjet student as WITHDRAWN (lifecycle coverage).
   const withdrawTarget = studentsAll.find(
     (s) =>
@@ -1026,7 +1206,7 @@ async function main() {
       where: { id: withdrawTarget.id },
       data: {
         status: "WITHDRAWN",
-        withdrawalDate: new Date().toISOString().split("T")[0],
+        withdrawalDate: TODAY,
         withdrawalReason: "Pindah domisili (demo fixture)",
       },
     });
@@ -1078,19 +1258,31 @@ async function main() {
   }
   console.log(`✅ Fees: ${feeDefs.length} components + ${feeStructureCount} program fee structures`);
 
-  // 11d. INVOICES — 5 scenarios on rightjet primary child.
+  // 11d. INVOICES + PAYMENTS — relative to TODAY.
+  //  (1) five scenarios on the rightjet primary child (PAID / PARTIALLY_PAID /
+  //      OVERDUE / SENT / SENT with a Xendit link) — the long-standing fixtures
+  //      the parent-portal specs and demos lean on, now labelled with the last
+  //      five months so the newest is the CURRENT month;
+  //  (2) one paid + one unpaid invoice per rightjet sibling;
+  //  (3) SPP invoices for every other active, enrolled student for the current
+  //      month and the two before it, with a mix of statuses (incl. DRAFT so the
+  //      void spec has something to void) and payments spread through each month
+  //      — including a few dated TODAY so Penerimaan / the dashboard are never
+  //      empty on the first day.
   let invoiceCount = 0;
   let paymentCount = 0;
   if (rightjetPrimaryChild && rightjetParent) {
-    const todayISO = new Date();
-    const yyyyMMdd = (d: Date) => d.toISOString().split("T")[0];
-    const addDays = (d: Date, n: number) => {
-      const r = new Date(d);
-      r.setDate(r.getDate() + n);
-      return r;
-    };
     const sppId = feeMap["spp"];
     const sppAmount = 850_000;
+    const invoiceYear = TODAY.slice(0, 4);
+    const monthStart = (monthsBack: number) => firstOfMonthShifted(TODAY, -monthsBack);
+    const at = (offsetDays: number) => jakartaInstant(addDays(TODAY, offsetDays), "09:00");
+    const sppLine = [{
+      feeComponentId: sppId,
+      labelSnapshot: "SPP Bulanan",
+      amount: sppAmount,
+      finalAmount: sppAmount,
+    }];
 
     const invoiceScenarios: Array<{
       number: string;
@@ -1104,51 +1296,51 @@ async function main() {
       payments: Array<{ amount: number; method: string; reference?: string; paidAt: Date }>;
     }> = [
       {
-        number: "INV-2026-0001",
-        periodLabel: "Januari 2026",
-        dueDate: yyyyMMdd(addDays(todayISO, -75)),
+        number: `INV-${invoiceYear}-0001`,
+        periodLabel: monthLabelId(monthStart(4)),
+        dueDate: addDays(TODAY, -75),
         status: "PAID",
-        sentAt: addDays(todayISO, -85),
-        paidAt: addDays(todayISO, -70),
+        sentAt: at(-85),
+        paidAt: at(-70),
         totalPaid: sppAmount,
-        payments: [{ amount: sppAmount, method: "CASH", reference: "TT-Jan-2026", paidAt: addDays(todayISO, -70) }],
+        payments: [{ amount: sppAmount, method: "CASH", reference: "TT-Bulan-1", paidAt: at(-70) }],
       },
       {
-        number: "INV-2026-0002",
-        periodLabel: "Februari 2026",
-        dueDate: yyyyMMdd(addDays(todayISO, -45)),
+        number: `INV-${invoiceYear}-0002`,
+        periodLabel: monthLabelId(monthStart(3)),
+        dueDate: addDays(TODAY, -45),
         status: "PARTIALLY_PAID",
-        sentAt: addDays(todayISO, -55),
+        sentAt: at(-55),
         paidAt: null,
         totalPaid: 400_000,
-        payments: [{ amount: 400_000, method: "CASH", reference: "Cicilan-1", paidAt: addDays(todayISO, -40) }],
+        payments: [{ amount: 400_000, method: "CASH", reference: "Cicilan-1", paidAt: at(-40) }],
       },
       {
-        number: "INV-2026-0003",
-        periodLabel: "Maret 2026",
-        dueDate: yyyyMMdd(addDays(todayISO, -10)),
+        number: `INV-${invoiceYear}-0003`,
+        periodLabel: monthLabelId(monthStart(2)),
+        dueDate: addDays(TODAY, -10),
         status: "OVERDUE",
-        sentAt: addDays(todayISO, -25),
+        sentAt: at(-25),
         paidAt: null,
         totalPaid: 0,
         payments: [],
       },
       {
-        number: "INV-2026-0004",
-        periodLabel: "April 2026",
-        dueDate: yyyyMMdd(addDays(todayISO, 10)),
+        number: `INV-${invoiceYear}-0004`,
+        periodLabel: monthLabelId(monthStart(1)),
+        dueDate: addDays(TODAY, 10),
         status: "SENT",
-        sentAt: addDays(todayISO, -3),
+        sentAt: at(-3),
         paidAt: null,
         totalPaid: 0,
         payments: [],
       },
       {
-        number: "INV-2026-0005",
-        periodLabel: "Mei 2026",
-        dueDate: yyyyMMdd(addDays(todayISO, 25)),
+        number: `INV-${invoiceYear}-0005`,
+        periodLabel: monthLabelId(monthStart(0)),
+        dueDate: addDays(TODAY, 25),
         status: "SENT",
-        sentAt: addDays(todayISO, -1),
+        sentAt: at(-1),
         paidAt: null,
         totalPaid: 0,
         xenditUrl: "https://checkout.xendit.co/v2/demo-session-annisaa-inv-0005",
@@ -1168,19 +1360,13 @@ async function main() {
           totalPaid: sc.totalPaid,
           status: sc.status,
           createdBy: adminUser.id,
+          createdAt: sc.sentAt ?? undefined,
           sentAt: sc.sentAt,
           paidAt: sc.paidAt,
           parentId: rightjetParent.id,
           xenditPaymentUrl: sc.xenditUrl ?? null,
           xenditSessionId: sc.xenditUrl ? `xendit-demo-${sc.number}` : null,
-          lines: {
-            create: [{
-              feeComponentId: sppId,
-              labelSnapshot: "SPP Bulanan",
-              amount: sppAmount,
-              finalAmount: sppAmount,
-            }],
-          },
+          lines: { create: sppLine },
         },
       });
       for (const p of sc.payments) {
@@ -1200,102 +1386,197 @@ async function main() {
       invoiceCount++;
     }
 
-    // Extra XENDIT payment against the PAID invoice history — gives parent portal a XENDIT method example.
-    const paidInv = await prisma.invoice.findFirst({
-      where: { tenantId: tenant.id, invoiceNumber: "INV-2026-0001" },
-    });
-    if (paidInv) {
-      // Convert that paid invoice's payment to a XENDIT payment by adding a second record
-      // (keeps the partial scenario separate and guarantees ≥1 XENDIT method).
-      await prisma.payment.create({
-        data: {
-          invoiceId: paidInv.id,
-          amount: 0,
-          method: "XENDIT",
-          reference: "XENDIT-DEMO-RECON",
-          notes: "Demo reconciliation entry (XENDIT method coverage)",
-          status: "APPROVED",
-          createdBy: adminUser.id,
-          xenditPaymentId: "xendit-demo-pay-0001",
-          paidAt: new Date(),
-        },
-      });
-      paymentCount++;
-    }
-
-    // Extra coverage: every rightjet sibling (second + third child) gets 1 paid + 1 unpaid invoice.
-    const siblingInvoices: Array<{ studentId: string; prefix: string }> = [];
-    if (secondChildId) siblingInvoices.push({ studentId: secondChildId, prefix: "INV-2026-1" });
-    if (thirdChildId) siblingInvoices.push({ studentId: thirdChildId, prefix: "INV-2026-2" });
+    // Every rightjet sibling (second + third child) gets 1 paid + 1 unpaid invoice.
+    // The first sibling's payment is a XENDIT one — the parent portal's
+    // "Xendit method" example (a real amount, never an Rp 0 reconciliation row).
+    const siblingInvoices: Array<{ studentId: string; prefix: string; method: string }> = [];
+    if (secondChildId) siblingInvoices.push({ studentId: secondChildId, prefix: `INV-${invoiceYear}-1`, method: "XENDIT" });
+    if (thirdChildId) siblingInvoices.push({ studentId: thirdChildId, prefix: `INV-${invoiceYear}-2`, method: "CASH" });
     for (const sib of siblingInvoices) {
-      // Paid invoice
       const paidSib = await prisma.invoice.create({
         data: {
           tenantId: tenant.id,
           studentId: sib.studentId,
           invoiceNumber: `${sib.prefix}001`,
-          periodLabel: "Februari 2026",
-          dueDate: yyyyMMdd(addDays(todayISO, -45)),
+          periodLabel: monthLabelId(monthStart(3)),
+          dueDate: addDays(TODAY, -45),
           totalDue: sppAmount,
           totalPaid: sppAmount,
           status: "PAID",
           createdBy: adminUser.id,
-          sentAt: addDays(todayISO, -55),
-          paidAt: addDays(todayISO, -40),
+          createdAt: at(-55),
+          sentAt: at(-55),
+          paidAt: at(-40),
           parentId: rightjetParent.id,
-          lines: {
-            create: [{
-              feeComponentId: sppId,
-              labelSnapshot: "SPP Bulanan",
-              amount: sppAmount,
-              finalAmount: sppAmount,
-            }],
-          },
+          lines: { create: sppLine },
         },
       });
       await prisma.payment.create({
         data: {
           invoiceId: paidSib.id,
           amount: sppAmount,
-          method: "CASH",
-          reference: `TT-Feb-${sib.prefix}`,
+          method: sib.method,
+          reference: sib.method === "XENDIT" ? "XENDIT-DEMO-SIBLING" : `TT-${sib.prefix}`,
           status: "APPROVED",
           createdBy: adminUser.id,
-          paidAt: addDays(todayISO, -40),
+          xenditPaymentId: sib.method === "XENDIT" ? "xendit-demo-pay-0001" : null,
+          paidAt: at(-40),
         },
       });
       invoiceCount++;
       paymentCount++;
 
-      // Unpaid (SENT) invoice
       await prisma.invoice.create({
         data: {
           tenantId: tenant.id,
           studentId: sib.studentId,
           invoiceNumber: `${sib.prefix}002`,
-          periodLabel: "April 2026",
-          dueDate: yyyyMMdd(addDays(todayISO, 10)),
+          periodLabel: monthLabelId(monthStart(1)),
+          dueDate: addDays(TODAY, 10),
           totalDue: sppAmount,
           totalPaid: 0,
           status: "SENT",
           createdBy: adminUser.id,
-          sentAt: addDays(todayISO, -3),
+          createdAt: at(-3),
+          sentAt: at(-3),
           paidAt: null,
           parentId: rightjetParent.id,
-          lines: {
-            create: [{
-              feeComponentId: sppId,
-              labelSnapshot: "SPP Bulanan",
-              amount: sppAmount,
-              finalAmount: sppAmount,
-            }],
-          },
+          lines: { create: sppLine },
         },
       });
       invoiceCount++;
     }
+
+    // (3) Bulk SPP history for everyone else who is active and enrolled.
+    const classKeyById = new Map(Object.entries(classSectionMap).map(([key, id]) => [id, key]));
+    const programCodeByClassKey: Record<string, string> = {
+      TKIT_A: "TKIT", TKIT_B: "TKIT", KB_ASTER: "KB", KB_METLAND: "KB", DCARE: "DCARE", POPUP: "POPUP",
+    };
+    const rightjetKids = new Set([rightjetPrimaryChild.id, secondChildId, thirdChildId]);
+    const billable = await prisma.student.findMany({
+      where: { tenantId: tenant.id, status: "ACTIVE", enrollments: { some: { status: "ACTIVE" } } },
+      orderBy: { name: "asc" },
+      include: {
+        guardians: { orderBy: { isPrimary: "desc" }, take: 1, select: { parentId: true } },
+        enrollments: { where: { status: "ACTIVE" }, select: { classSectionId: true }, take: 1 },
+      },
+    });
+
+    // Invoice numbers run per calendar year off a counter starting at 0100 so
+    // they never collide with the fixtures above; the sequence table is synced
+    // to the per-year maximum at the end of the seed.
+    const nextNumberByYear = new Map<string, number>();
+    const numberFor = (createdYmd: string) => {
+      const year = createdYmd.slice(0, 4);
+      const n = nextNumberByYear.get(year) ?? 100;
+      nextNumberByYear.set(year, n + 1);
+      return `INV-${year}-${String(n).padStart(4, "0")}`;
+    };
+    const dayOfMonthToday = Number(TODAY.slice(8, 10));
+    const methodFor = (r: number) => (r < 0.3 ? "CASH" : r < 0.7 ? "BANK_TRANSFER" : r < 0.9 ? "XENDIT" : "DOKU");
+
+    type BulkInvoice = {
+      id: string; tenantId: string; studentId: string; invoiceNumber: string; periodLabel: string;
+      dueDate: string; totalDue: number; totalPaid: number; status: string; createdBy: string;
+      createdAt: Date; sentAt: Date | null; paidAt: Date | null; parentId: string | null;
+    };
+    type BulkPayment = {
+      id: string; invoiceId: string; amount: number; method: string; reference: string;
+      status: string; createdBy: string; xenditPaymentId: string | null; paidAt: Date; createdAt: Date;
+    };
+    const bulkInvoices: BulkInvoice[] = [];
+    const bulkPayments: BulkPayment[] = [];
+    const bulkLines: { id: string; invoiceId: string; feeComponentId: string; labelSnapshot: string; amount: number; finalAmount: number }[] = [];
+    let paymentSeq = 0;
+    let todaysPayments = 0;
+
+    // Older month first so invoice numbers ascend with time.
+    for (const monthsBack of [2, 1, 0]) {
+      const first = monthStart(monthsBack);
+      const isCurrent = monthsBack === 0;
+      const billedOn = addDays(first, 1);
+      // Due the 10th of a past month; the current month is due the 25th (or a
+      // week out if that has already gone by) so a SENT invoice is never past due.
+      const dueDate = isCurrent
+        ? (TODAY <= `${first.slice(0, 8)}25` ? `${first.slice(0, 8)}25` : addDays(TODAY, 7))
+        : `${first.slice(0, 8)}10`;
+      let idx = 0;
+      for (const student of billable) {
+        if (rightjetKids.has(student.id)) continue;
+        idx++;
+        const classKey = classKeyById.get(student.enrollments[0].classSectionId) ?? "TKIT_A";
+        const fee = feeAmounts[programCodeByClassKey[classKey]]?.spp ?? sppAmount;
+
+        // Status mix: history mostly settled; the current month is a live billing cycle.
+        const r = rand();
+        let status: string;
+        if (monthsBack === 2) status = r < 0.94 ? "PAID" : r < 0.98 ? "PARTIALLY_PAID" : "OVERDUE";
+        else if (monthsBack === 1) status = r < 0.80 ? "PAID" : r < 0.90 ? "PARTIALLY_PAID" : "OVERDUE";
+        else status = idx % 10 <= 3 ? "PAID" : idx % 10 === 4 ? "PARTIALLY_PAID" : idx % 10 <= 8 ? "SENT" : "DRAFT";
+
+        const createdAt = jakartaInstant(billedOn <= TODAY ? billedOn : TODAY, "08:00");
+        const invoiceId = crypto.randomUUID();
+        const paidFraction = status === "PAID" ? 1 : status === "PARTIALLY_PAID" ? 0.5 : 0;
+        const totalPaid = Math.round(fee * paidFraction);
+        // Payment date: current month → between the 1st and TODAY (the first few
+        // paid invoices land TODAY); past months → somewhere in the first 3 weeks.
+        const payDay = isCurrent
+          ? (todaysPayments < 4 && status === "PAID" ? TODAY : addDays(first, Math.floor(rand() * dayOfMonthToday)))
+          : addDays(first, 2 + Math.floor(rand() * 18));
+        const paidOn = payDay > TODAY ? TODAY : payDay;
+        if (status === "PAID" && paidOn === TODAY) todaysPayments++;
+
+        bulkInvoices.push({
+          id: invoiceId,
+          tenantId: tenant.id,
+          studentId: student.id,
+          invoiceNumber: numberFor(billedOn <= TODAY ? billedOn : TODAY),
+          periodLabel: monthLabelId(first),
+          dueDate,
+          totalDue: fee,
+          totalPaid,
+          status,
+          createdBy: adminUser.id,
+          createdAt,
+          sentAt: status === "DRAFT" ? null : jakartaInstant(billedOn <= TODAY ? billedOn : TODAY, "09:00"),
+          paidAt: status === "PAID" ? jakartaInstant(paidOn, "10:30") : null,
+          parentId: student.guardians[0]?.parentId ?? null,
+        });
+        bulkLines.push({
+          id: crypto.randomUUID(),
+          invoiceId,
+          feeComponentId: sppId,
+          labelSnapshot: "SPP Bulanan",
+          amount: fee,
+          finalAmount: fee,
+        });
+        if (totalPaid > 0) {
+          paymentSeq++;
+          const method = methodFor(rand());
+          const hh = 8 + Math.floor(rand() * 4); // 08:00–11:59 WIB
+          const paidInstant = jakartaInstant(paidOn, `${String(hh).padStart(2, "0")}:${String(Math.floor(rand() * 60)).padStart(2, "0")}`);
+          bulkPayments.push({
+            id: crypto.randomUUID(),
+            invoiceId,
+            amount: totalPaid,
+            method,
+            reference: method === "CASH" ? `KW-${paymentSeq}` : method === "BANK_TRANSFER" ? `TRF-${paymentSeq}` : `${method}-${paymentSeq}`,
+            status: "APPROVED",
+            createdBy: adminUser.id,
+            xenditPaymentId: method === "XENDIT" ? `xendit-seed-pay-${paymentSeq}` : null,
+            paidAt: paidInstant,
+            createdAt: paidInstant,
+          });
+        }
+      }
+    }
+    await prisma.invoice.createMany({ data: bulkInvoices });
+    await prisma.invoiceLine.createMany({ data: bulkLines });
+    await prisma.payment.createMany({ data: bulkPayments });
+    invoiceCount += bulkInvoices.length;
+    paymentCount += bulkPayments.length;
   }
-  console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/xendit) + ${paymentCount} payments`);
+  console.log(`✅ Invoices: ${invoiceCount} (paid/partial/overdue/sent/draft) + ${paymentCount} payments`);
 
   // 11e. ADMISSIONS — INQUIRY + ADMITTED linked to converted student (studentId
   // is the "converted" signal; status stays ADMITTED post-conversion per cycle
@@ -1339,17 +1620,16 @@ async function main() {
   // 11f. LEAVE REQUESTS — 3 statuses across 3 employees.
   const empForLeave = Object.values(employeeIds).slice(0, 3);
   if (empForLeave.length >= 3) {
-    const todayLv = new Date();
-    const fmt = (d: Date) => d.toISOString().split("T")[0];
-    const future = (n: number) => { const d = new Date(todayLv); d.setDate(d.getDate() + n); return d; };
-    const past = (n: number) => { const d = new Date(todayLv); d.setDate(d.getDate() - n); return d; };
+    const future = (n: number) => addDays(TODAY, n);
+    const past = (n: number) => addDays(TODAY, -n);
+    const pastInstant = (n: number) => jakartaInstant(past(n), "10:00");
 
     await prisma.leaveRequest.create({
       data: {
         employeeId: empForLeave[0],
         leaveType: "ANNUAL",
-        startDate: fmt(future(5)),
-        endDate: fmt(future(6)),
+        startDate: future(5),
+        endDate: future(6),
         days: 2,
         reason: "Urusan keluarga.",
         status: "PENDING",
@@ -1359,13 +1639,13 @@ async function main() {
       data: {
         employeeId: empForLeave[1],
         leaveType: "SICK",
-        startDate: fmt(past(10)),
-        endDate: fmt(past(9)),
+        startDate: past(10),
+        endDate: past(9),
         days: 2,
         reason: "Demam tinggi, surat dokter terlampir.",
         status: "APPROVED",
         reviewedBy: adminUser.id,
-        reviewedAt: past(8),
+        reviewedAt: pastInstant(8),
         reviewNote: "Disetujui.",
       },
     });
@@ -1373,84 +1653,96 @@ async function main() {
       data: {
         employeeId: empForLeave[2],
         leaveType: "PERMISSION",
-        startDate: fmt(past(20)),
-        endDate: fmt(past(20)),
+        startDate: past(20),
+        endDate: past(20),
         days: 1,
         reason: "Izin tanpa alasan rinci.",
         status: "REJECTED",
         reviewedBy: adminUser.id,
-        reviewedAt: past(19),
+        reviewedAt: pastInstant(19),
         reviewNote: "Tidak memenuhi syarat.",
       },
     });
     console.log(`✅ Leave requests: 3 (PENDING/APPROVED/REJECTED)`);
   }
 
-  // 11h. STUDENT JOURNAL ENTRIES + NOTES — 3 students × last 3 weekdays × scope mix.
+  // 11h. STUDENT JOURNAL ENTRIES + NOTES — every recently-marked-present student
+  // over the last five school days (SCHOOL scope), the rightjet household and
+  // the KB-Aster D4 child also get HOME entries filled by their parent.
   const teacherUser = await prisma.user.findUnique({ where: { id: "u_teacher" } });
   const journalCategories = await prisma.studentJournalCategory.findMany({
     where: { templateId: tmpl.id },
-    include: { indicators: true },
+    include: { indicators: { orderBy: { order: "asc" } } },
+    orderBy: { order: "asc" },
   });
   const schoolInd = journalCategories.filter((c) => c.scope === "SCHOOL").flatMap((c) => c.indicators);
   const homeInd = journalCategories.filter((c) => c.scope === "HOME").flatMap((c) => c.indicators);
-  const journalStudents = studentsAll.filter((s) => s.status === "ACTIVE").slice(0, 3);
   let journalEntryCount = 0;
-  if (teacherUser && schoolInd.length && homeInd.length && journalStudents.length) {
-    const todayJ = new Date();
-    for (let dayOffset = 3; dayOffset >= 1; dayOffset--) {
-      const d = new Date(todayJ);
-      d.setDate(d.getDate() - dayOffset);
-      if (d.getDay() === 0 || d.getDay() === 6) continue;
-      const dateStr = d.toISOString().split("T")[0];
-      for (const student of journalStudents) {
-        const classSectionId = student.enrollments[0]?.classSectionId ?? null;
-        // SCHOOL scope — first 4 indicators
-        for (const ind of schoolInd.slice(0, 4)) {
-          await prisma.studentJournalEntry.create({
-            data: {
-              tenantId: tenant.id,
-              studentId: student.id,
-              classSectionId,
-              indicatorId: ind.id,
-              date: dateStr,
-              scope: "SCHOOL",
-              checked: Math.random() > 0.2,
-              recordedByUserId: teacherUser.id,
-            },
-          });
-          journalEntryCount++;
-        }
-        // HOME scope — first 3 indicators (recorded by parent if available, else teacher)
-        const homeRecorder = student.guardians.some((g) => g.parentId === rightjetParent?.id)
-          ? "u_rightjet"
-          : teacherUser.id;
+  if (teacherUser && schoolInd.length && homeInd.length) {
+    // Teacher user per class — the homeroom's own login when it has one.
+    const teacherUserByClassId = new Map<string, string>();
+    for (const [classSectionId, employeeId] of homeroomByClassId) {
+      const u = await prisma.user.findFirst({ where: { employeeId }, select: { id: true } });
+      teacherUserByClassId.set(classSectionId, u?.id ?? teacherUser.id);
+    }
+    const journalRows: {
+      tenantId: string; studentId: string; classSectionId: string | null; indicatorId: string;
+      date: string; scope: string; checked: boolean; recordedByUserId: string;
+    }[] = [];
+    // SCHOOL scope — first 4 indicators for each student marked PRESENT that day.
+    for (const row of attendanceRows) {
+      if (row.status !== "PRESENT") continue;
+      const recorder = teacherUserByClassId.get(row.classSectionId) ?? teacherUser.id;
+      for (const ind of schoolInd.slice(0, 4)) {
+        journalRows.push({
+          tenantId: tenant.id,
+          studentId: row.studentId,
+          classSectionId: row.classSectionId,
+          indicatorId: ind.id,
+          date: row.date,
+          scope: "SCHOOL",
+          checked: rand() > 0.2,
+          recordedByUserId: recorder,
+        });
+      }
+    }
+    // HOME scope — filled by the parent, for the days BEFORE the latest one
+    // (the household reports on yesterday morning's routine).
+    const bilalStudent = studentsAll.find((s) => s.name === "Bilal Hafidzh Rahman");
+    const rightjetKidIds = [rightjetPrimaryChild?.id, secondChildId, thirdChildId].filter((id): id is string => !!id);
+    const homeFamily = await prisma.student.findMany({
+      where: { id: { in: [...rightjetKidIds, ...(bilalStudent ? [bilalStudent.id] : [])] }, status: "ACTIVE" },
+      include: { enrollments: { where: { status: "ACTIVE" }, select: { classSectionId: true }, take: 1 } },
+    });
+    for (const day of RECENT_DAYS.filter((d) => d < LATEST_SCHOOL_DAY)) {
+      for (const student of homeFamily) {
+        const recorder = rightjetKidIds.includes(student.id) ? "u_rightjet" : "u_kbaster_parent_d4";
         for (const ind of homeInd.slice(0, 3)) {
-          await prisma.studentJournalEntry.create({
-            data: {
-              tenantId: tenant.id,
-              studentId: student.id,
-              classSectionId,
-              indicatorId: ind.id,
-              date: dateStr,
-              scope: "HOME",
-              checked: Math.random() > 0.3,
-              recordedByUserId: homeRecorder,
-            },
+          journalRows.push({
+            tenantId: tenant.id,
+            studentId: student.id,
+            classSectionId: student.enrollments[0]?.classSectionId ?? null,
+            indicatorId: ind.id,
+            date: day,
+            scope: "HOME",
+            checked: rand() > 0.3,
+            recordedByUserId: recorder,
           });
-          journalEntryCount++;
         }
       }
     }
-    // Notes — one teacher note + one parent note on rightjet primary child
+    await prisma.studentJournalEntry.createMany({ data: journalRows });
+    journalEntryCount = journalRows.length;
+
+    // Notes — one teacher note (previous school day) + one parent note (latest
+    // school day) on the rightjet primary child.
+    const previousSchoolDay = RECENT_DAYS[RECENT_DAYS.length - 2] ?? LATEST_SCHOOL_DAY;
     if (rightjetPrimaryChild) {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const yStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
       await prisma.studentJournalNote.create({
         data: {
           tenantId: tenant.id,
           studentId: rightjetPrimaryChild.id,
-          date: yStr,
+          date: previousSchoolDay,
           authorUserId: teacherUser.id,
           authorRole: "TEACHER",
           body: "Hari ini sangat aktif di kelas, menyelesaikan tugas dengan baik.",
@@ -1460,7 +1752,7 @@ async function main() {
         data: {
           tenantId: tenant.id,
           studentId: rightjetPrimaryChild.id,
-          date: todayStr,
+          date: LATEST_SCHOOL_DAY,
           authorUserId: "u_rightjet",
           authorRole: "GUARDIAN",
           body: "Terima kasih Ustadzah, di rumah sudah sholat subuh berjama'ah.",
@@ -1471,8 +1763,8 @@ async function main() {
     // KB-Aster student so JTBD-TEACHER-JOURNAL-03 has real data. We resolve
     // the student's first guardian → Parent row, then upsert a User with
     // role GUARDIAN linked to that Parent to use as authorUserId. authorRole
-    // "GUARDIAN" drives the "Orang Tua" badge in NoteThread. Date = yesterday
-    // to land in the current visible week.
+    // "GUARDIAN" drives the "Orang Tua" badge in NoteThread. Date = the
+    // previous school day so it lands in the current visible week.
     const kbAsterStudent = studentsAll.find(
       (s) => s.status === "ACTIVE" && s.enrollments[0]?.classSectionId === classSectionMap["KB_ASTER"]
     );
@@ -1495,12 +1787,11 @@ async function main() {
               parentId: kbAsterParent.id,
             },
           });
-          const d4DateStr = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split("T")[0]; })();
           await prisma.studentJournalNote.create({
             data: {
               tenantId: tenant.id,
               studentId: kbAsterStudent.id,
-              date: d4DateStr,
+              date: previousSchoolDay,
               authorUserId: kbAsterParentUser.id,
               authorRole: "GUARDIAN",
               body: `${kbAsterStudent.name.split(" ")[0]} tadi pagi tidak sarapan banyak, mohon dipantau ketika makan siang ya Ustadzah. Jazakillah khayran.`,
@@ -1511,6 +1802,210 @@ async function main() {
     }
     console.log(`✅ Journal: ${journalEntryCount} entries + 2 notes + 1 KB-Aster parent note (D4)`);
   }
+
+  // 11i. ASSESSMENT ENTRIES — weekly (walas) entries for the current curriculum
+  // week and the two before it, plus a couple of sentra sessions last week, for
+  // the TK A / TK B / KB-Aster homerooms. Entries stop the school day BEFORE
+  // the latest one, so "today" still has assessing to do; the indicators are
+  // exactly those linked to each week's theme for the class's age group.
+  const ageGroupByClassKey = Object.fromEntries(classSectionKeys.map((k, i) => [k, classSectionDefs[i].ageGroup]));
+  const allWeeks = [...(weeksBySemester[1] ?? []), ...(weeksBySemester[2] ?? [])];
+  const currentWeekIdx = allWeeks.findIndex((w) => LATEST_SCHOOL_DAY >= w.start && LATEST_SCHOOL_DAY <= w.end);
+  const assessmentRows: {
+    tenantId: string; studentId: string; indicatorId: string; date: Date; weekId: string;
+    source: "HOMEROOM" | "CENTER"; center: "WORSHIP" | "ART" | null; activity: string | null;
+    level: "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT"; note: string | null; recordedById: string;
+  }[] = [];
+  const levelFor = (): "CONSISTENT" | "EMERGING" | "NEEDS_REINFORCEMENT" => {
+    const r = rand();
+    return r < 0.55 ? "CONSISTENT" : r < 0.87 ? "EMERGING" : "NEEDS_REINFORCEMENT";
+  };
+  if (currentWeekIdx >= 0) {
+    for (const classKey of ["TKIT_A", "TKIT_B", "KB_ASTER"]) {
+      const classSectionId = classSectionMap[classKey];
+      const roster = studentsByClass.get(classSectionId) ?? [];
+      const recordedById = homeroomByClassId.get(classSectionId);
+      if (!recordedById) continue;
+      for (let wi = Math.max(0, currentWeekIdx - 2); wi <= currentWeekIdx; wi++) {
+        const week = allWeeks[wi];
+        const isCurrent = wi === currentWeekIdx;
+        const cutoff = isCurrent ? addDays(LATEST_SCHOOL_DAY, -1) : week.end;
+        const days = [0, 1, 2, 3, 4]
+          .map((d) => addDays(week.start, d))
+          .filter((d) => d <= cutoff && isSchoolDay(d, HOLIDAY_DATES));
+        if (days.length === 0) continue;
+        const indicators = indicatorsByThemeAge[`${week.themeId}|${ageGroupByClassKey[classKey]}`] ?? [];
+        indicators.forEach((indicatorId, j) => {
+          const date = utcMidnight(days[j % days.length]);
+          for (const student of roster) {
+            const level = levelFor();
+            assessmentRows.push({
+              tenantId: tenant.id,
+              studentId: student.id,
+              indicatorId,
+              date,
+              weekId: week.id,
+              source: "HOMEROOM",
+              center: null,
+              activity: null,
+              level,
+              note: level === "NEEDS_REINFORCEMENT" && rand() < 0.5 ? "Perlu diulang dengan pendampingan." : null,
+              recordedById,
+            });
+          }
+        });
+        // Sentra (CENTER) — last week only: Worship on the 2nd day, Art on the 4th.
+        if (wi === currentWeekIdx - 1) {
+          for (const [dayIdx, center] of [[1, "WORSHIP"], [3, "ART"]] as const) {
+            if (!days[dayIdx]) continue;
+            for (const indicatorId of indicators.slice(0, 3)) {
+              for (const student of roster) {
+                assessmentRows.push({
+                  tenantId: tenant.id,
+                  studentId: student.id,
+                  indicatorId,
+                  date: utcMidnight(days[dayIdx]),
+                  weekId: week.id,
+                  source: "CENTER",
+                  center,
+                  activity: ACTIVITY_BY_CENTER[center],
+                  level: levelFor(),
+                  note: null,
+                  recordedById,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    await prisma.assessmentEntry.createMany({ data: assessmentRows });
+  }
+  console.log(`✅ Assessment entries: ${assessmentRows.length} (weekly + sentra, current week and the two before)`);
+
+  // 11j. TERMS (triwulan) + RAPORT — two Terms for the ACTIVE semester, the
+  // narrative bank (kisi-kisi) for both age groups, and report cards for the
+  // rightjet household: one PUBLISHED (first child, Term 1) and one DRAFT
+  // (second child, the term containing TODAY).
+  const termSpans = termsOfSemester(ACTIVE_SEMESTER);
+  const termRows = [];
+  for (const t of termSpans) {
+    termRows.push(
+      await prisma.term.create({
+        data: {
+          tenantId: tenant.id,
+          semesterId: semesterIds[ACTIVE_SEMESTER.number],
+          number: t.number,
+          startDate: utcMidnight(t.start),
+          endDate: utcMidnight(t.end),
+        },
+      }),
+    );
+  }
+  const levels = ["CONSISTENT", "EMERGING", "NEEDS_REINFORCEMENT"] as const;
+  for (const term of termRows) {
+    await prisma.reportNarrativeTemplate.createMany({
+      data: (["A", "B"] as const).flatMap((ageGroup) =>
+        BUCKETED_SECTIONS.flatMap((section) =>
+          levels.map((level) => ({
+            tenantId: term.tenantId,
+            termId: term.id,
+            ageGroup,
+            section,
+            level,
+            content: narrativeFor(section, level),
+          })),
+        ),
+      ),
+    });
+    await prisma.reportClosingTemplate.createMany({
+      data: (["A", "B"] as const).flatMap((ageGroup) =>
+        CLOSING_SECTIONS.map((section) => ({
+          tenantId: term.tenantId,
+          termId: term.id,
+          ageGroup,
+          section,
+          content: CLOSING_TEXT[section],
+        })),
+      ),
+    });
+  }
+  const currentTermIdx = Math.max(0, termSpans.findIndex((t) => TODAY >= t.start && TODAY <= t.end));
+  const raportTargets: { studentId: string | null; term: (typeof termRows)[number]; span: (typeof termSpans)[number]; state: "published" | "draft" }[] = [
+    { studentId: rightjetPrimaryChild?.id ?? null, term: termRows[0], span: termSpans[0], state: "published" },
+    { studentId: secondChildId, term: termRows[currentTermIdx], span: termSpans[currentTermIdx], state: "draft" },
+  ];
+  let reportCardCount = 0;
+  for (const target of raportTargets) {
+    if (!target.studentId) continue;
+    const enrollment = await prisma.studentEnrollment.findFirst({
+      where: { studentId: target.studentId, status: "ACTIVE" },
+      select: { classSectionId: true },
+    });
+    const windowEnd = target.span.end < LATEST_SCHOOL_DAY ? target.span.end : LATEST_SCHOOL_DAY;
+    let totalSchoolDays = 0;
+    for (let d = target.span.start; d <= windowEnd; d = addDays(d, 1)) if (isSchoolDay(d, HOLIDAY_DATES)) totalSchoolDays++;
+    const published = target.state === "published";
+    const demo = DEMO_LEVELS[target.state];
+    await prisma.reportCardEntry.create({
+      data: {
+        tenantId: tenant.id,
+        studentId: target.studentId,
+        termId: target.term.id,
+        homeroomTeacherId: enrollment ? homeroomByClassId.get(enrollment.classSectionId) ?? null : null,
+        sectionLevels: demo,
+        sectionNarratives: {
+          ...Object.fromEntries(
+            BUCKETED_SECTIONS.map((section) => [
+              section,
+              narrativeFor(section, section === "INTRODUCTION" ? "CONSISTENT" : demo[section]),
+            ]),
+          ),
+          ...CLOSING_TEXT,
+        },
+        sickDays: published ? 2 : 1,
+        permittedAbsenceDays: published ? 1 : 0,
+        unexcusedAbsenceDays: 0,
+        totalSchoolDays,
+        memorizationNotes: published ? "Hafal Surah An-Nas, Al-Falaq, dan Al-Ikhlas." : null,
+        status: published ? "PUBLISHED" : "DRAFT",
+        publishedAt: published ? jakartaInstant(LATEST_SCHOOL_DAY, "10:00") : null,
+      },
+    });
+    await prisma.studentMeasurement.create({
+      data: {
+        tenantId: tenant.id,
+        studentId: target.studentId,
+        termId: target.term.id,
+        heightCm: published ? 104.5 : 101.0,
+        weightKg: published ? 16.2 : 15.1,
+      },
+    });
+    reportCardCount++;
+  }
+  console.log(`✅ Terms: ${termRows.length} (Semester ${ACTIVE_SEMESTER.number}), raport narrative bank + ${reportCardCount} report cards (1 PUBLISHED, 1 DRAFT)`);
+
+  // 11k. CUSTOM ROLE — a non-system RBAC role (Kepala Keuangan) so /admin roles
+  // and the user-role picker have a custom row next to the built-ins.
+  await prisma.role.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Admin Keuangan",
+      code: "FINANCE_ADMIN",
+      description: "Mengelola tagihan, pembayaran, dan struktur biaya.",
+      isSystem: false,
+      permissions: JSON.stringify([
+        "students.view",
+        "invoices.view",
+        "invoices.create",
+        "invoices.void",
+        "fees.view",
+        "fees.edit",
+        "payments.record",
+      ]),
+    },
+  });
+  console.log(`✅ Custom role: FINANCE_ADMIN`);
 
   // Sync InvoiceNumberSequence to the highest seeded invoice number per
   // (tenant, year). Without this, the atomic allocator in
@@ -1560,6 +2055,39 @@ async function main() {
       .map((s) => `${s.name}: ${s._count.enrollments}/${s.capacity}`)
       .join(", ");
     throw new Error(`Seed invariant failed — class section(s) over capacity: ${detail}`);
+  }
+
+  // Invariant: the calendar must be LIVE for the day the seed ran. A fresh seed
+  // on any date has exactly one ACTIVE year + semester containing today, a
+  // curriculum week for the latest school day with IKTP for both age groups,
+  // and a homeroom-taught session for every class on that school day.
+  const invariantErrors: string[] = [];
+  const activeYears = await prisma.academicYear.findMany({ where: { status: "ACTIVE" }, select: { name: true, startDate: true, endDate: true } });
+  if (activeYears.length !== 1 || TODAY < activeYears[0].startDate || TODAY > activeYears[0].endDate) {
+    invariantErrors.push(`expected exactly one ACTIVE academic year containing ${TODAY}, got ${JSON.stringify(activeYears)}`);
+  }
+  const activeSemesters = await prisma.semester.count({
+    where: { status: "ACTIVE", startDate: { lte: utcMidnight(TODAY) }, endDate: { gte: utcMidnight(TODAY) } },
+  });
+  if (activeSemesters !== 1) invariantErrors.push(`expected exactly one ACTIVE semester containing ${TODAY}, got ${activeSemesters}`);
+  const latestWeek = await prisma.week.findFirst({
+    where: { startDate: { lte: utcMidnight(LATEST_SCHOOL_DAY) }, endDate: { gte: utcMidnight(LATEST_SCHOOL_DAY) } },
+    select: { subTheme: { select: { theme: { select: { links: { select: { indicator: { select: { objective: { select: { ageGroup: true } } } } } } } } } } },
+  });
+  const linkedAgeGroups = new Set(latestWeek?.subTheme.theme.links.map((l) => l.indicator.objective.ageGroup) ?? []);
+  if (!latestWeek || !linkedAgeGroups.has("A") || !linkedAgeGroups.has("B")) {
+    invariantErrors.push(`no curriculum week with IKTP for both age groups on ${LATEST_SCHOOL_DAY}`);
+  }
+  const sessionsOnLatest = await prisma.classSession.count({ where: { date: LATEST_SCHOOL_DAY, teacherId: { not: null } } });
+  if (sessionsOnLatest < Object.keys(classSectionMap).length) {
+    invariantErrors.push(`expected a homeroom-taught session per class on ${LATEST_SCHOOL_DAY}, got ${sessionsOnLatest}`);
+  }
+  if ((await prisma.invoice.count({ where: { status: "DRAFT" } })) < 1) invariantErrors.push("no DRAFT invoice seeded");
+  if ((await prisma.student.count({ where: { nis: null } })) > 0) invariantErrors.push("some students have no NIS");
+  const unplaced = await prisma.student.count({ where: { status: "ACTIVE", enrollments: { none: {} } } });
+  if (unplaced < 1) invariantErrors.push("no ACTIVE unenrolled student seeded");
+  if (invariantErrors.length > 0) {
+    throw new Error(`Seed invariant failed — ${invariantErrors.join("; ")}`);
   }
 
   console.log("\n🎉 Seed complete!");

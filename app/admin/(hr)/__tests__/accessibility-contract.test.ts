@@ -41,7 +41,9 @@ describe("HR form accessibility contract", () => {
     expect(formFieldBlock(detailPage, "employee-detail-position")).toContain("required");
     expect(formFieldBlock(detailPage, "employee-detail-campus")).toContain("required");
     expect(formFieldBlock(detailPage, "employee-detail-phone")).not.toContain("required");
-    expect(detailPage).toContain('aria-label={`Nilai ${sv.componentDef.label}`}');
+    // The salary inputs moved to `components/admin/employees/salary-editor.tsx` (HR-3).
+    const salaryEditor = readFileSync(resolve(process.cwd(), "components/admin/employees/salary-editor.tsx"), "utf8");
+    expect(salaryEditor).toContain('aria-label={`Nilai ${row.label}`}');
   });
 
   it("pairs salary component labels with controls and exposes required fields", () => {

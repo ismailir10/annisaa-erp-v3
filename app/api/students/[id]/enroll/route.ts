@@ -7,7 +7,7 @@ import { validateBody } from "@/lib/api/validate";
 import { enrollStudentSchema } from "@/lib/validations/student";
 import { ensureYearWritableById } from "@/lib/classes/year-guard";
 import { evaluateAgeFit } from "@/lib/enrollment/age-fit";
-import { findStreamConflict } from "@/lib/enrollment/active";
+import { findStreamConflict, findWithdrawnEnrollment } from "@/lib/enrollment/active";
 import { recordAudit } from "@/lib/audit";
 import { isUniqueViolation } from "@/app/api/admin/classes/_helpers";
 
@@ -137,9 +137,18 @@ export async function POST(
         throw new EnrollError(`Kelas penuh (${activeCount}/${section[0].capacity})`);
       }
 
-      const created = await tx.studentEnrollment.create({
-        data: { studentId, classSectionId, enrollDate: today },
-      });
+      // CORE-2: a WITHDRAWN row left by an earlier deactivation occupies the
+      // (studentId, classSectionId) unique key — reactivate it rather than
+      // insert (which 409'd with a misleading "sudah terdaftar").
+      const withdrawn = await findWithdrawnEnrollment(tx, { studentId, classSectionId });
+      const created = withdrawn
+        ? await tx.studentEnrollment.update({
+            where: { id: withdrawn.id },
+            data: { status: "ACTIVE", enrollDate: today },
+          })
+        : await tx.studentEnrollment.create({
+            data: { studentId, classSectionId, enrollDate: today },
+          });
 
       // The age band was out of range and the admin supplied an override
       // reason — persist it. The `tx` form of recordAudit re-throws on

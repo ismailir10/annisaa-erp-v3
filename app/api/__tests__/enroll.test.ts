@@ -99,6 +99,9 @@ function makeTx(opts: {
   sectionRow?: Array<{ id: string; capacity: number }>;
   activeCount?: number;
   createResult?: { id: string; studentId: string; classSectionId: string };
+  // Existing (studentId, classSectionId) row returned by findUnique — used by
+  // findWithdrawnEnrollment (CORE-2).
+  existingRow?: { id: string; status: string } | null;
 }) {
   const conflicts = opts.conflicts ?? [];
   return {
@@ -118,6 +121,8 @@ function makeTx(opts: {
         };
       }),
       count: vi.fn().mockResolvedValue(opts.activeCount ?? 0),
+      findUnique: vi.fn().mockResolvedValue(opts.existingRow ?? null),
+      update: vi.fn().mockResolvedValue({ id: opts.existingRow?.id ?? "e1", status: "ACTIVE" }),
       create: vi.fn().mockResolvedValue(opts.createResult ?? { id: "e1", studentId: "s1", classSectionId: "cs1" }),
     },
     $queryRaw: vi.fn().mockResolvedValue(opts.sectionRow ?? [{ id: "cs1", capacity: 10 }]),
@@ -260,6 +265,43 @@ describe("POST /api/students/[id]/enroll", () => {
     expect(tx.studentEnrollment.create).toHaveBeenCalledWith({
       data: { studentId: "s1", classSectionId: "cs1", enrollDate: expect.any(String) },
     });
+  });
+
+  it("reactivates a WITHDRAWN row for the same class instead of inserting (CORE-2)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
+    const tx = makeTx({ existingRow: { id: "e-withdrawn", status: "WITHDRAWN" }, activeCount: 2 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => cb(tx));
+
+    const res = await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+    expect(res.status).toBe(201);
+    expect(tx.studentEnrollment.update).toHaveBeenCalledWith({
+      where: { id: "e-withdrawn" },
+      data: { status: "ACTIVE", enrollDate: expect.any(String) },
+    });
+    expect(tx.studentEnrollment.create).not.toHaveBeenCalled();
+    expect(tx.studentEnrollment.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { studentId_classSectionId: { studentId: "s1", classSectionId: "cs1" } } }),
+    );
+  });
+
+  it("does not resurrect a GRADUATED row — falls through to create (unique violation stays a 409)", async () => {
+    const { getSession } = await import("@/lib/auth");
+    const { prisma } = await import("@/lib/db");
+    vi.mocked(getSession).mockResolvedValue(makeSession());
+    vi.mocked(prisma.student.findFirst).mockResolvedValue({ id: "s1", tenantId: "t1", dateOfBirth: null } as never);
+    vi.mocked(prisma.classSection.findFirst).mockResolvedValue(makeSectionInfo() as never);
+    const tx = makeTx({ existingRow: { id: "e-grad", status: "GRADUATED" } });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => cb(tx));
+
+    await POST(makeReq({ classSectionId: "cs1" }) as never, { params });
+    expect(tx.studentEnrollment.update).not.toHaveBeenCalled();
+    expect(tx.studentEnrollment.create).toHaveBeenCalledOnce();
   });
 
   it("returns 409 with code AGE_OUT_OF_RANGE when the child's age at year start is below ageMin", async () => {

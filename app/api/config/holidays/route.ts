@@ -8,6 +8,8 @@ import { reconcileSectionsForHoliday } from "@/lib/sessions/holiday-fanout";
 export async function GET() {
   const session = await getSession();
   if (!session?.tenantId) return NextResponse.json([], { status: 401 });
+  // HR-16: only the admin holiday / employee-attendance screens call this.
+  if (!isAdminRole(session.role)) return NextResponse.json([], { status: 403 });
 
   const holidays = await prisma.holiday.findMany({
     where: { tenantId: session.tenantId },

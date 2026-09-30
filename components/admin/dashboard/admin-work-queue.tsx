@@ -14,9 +14,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { AdminWorkItem, AdminWorkKind } from "@/lib/dashboard/admin-work-queue";
 
-const ALL_KINDS: AdminWorkKind[] = ["enrollment", "leave", "invoice", "payroll"];
-const kindLabels: Record<AdminWorkKind, string> = { enrollment: "Formulir pendaftaran", leave: "Pengajuan cuti", invoice: "Link pembayaran", payroll: "Draf penggajian" };
-const stateLabels: Record<string, string> = { SUBMITTED: "Baru dikirim", UNDER_REVIEW: "Ditinjau", PENDING: "Menunggu", PENDING_PAYMENT_LINK: "Link belum tersedia", DRAFT: "Draf" };
+const ALL_KINDS: AdminWorkKind[] = ["inquiry", "enrollment", "leave", "invoice", "payroll"];
+const kindLabels: Record<AdminWorkKind, string> = { inquiry: "Pertanyaan pendaftaran", enrollment: "Formulir pendaftaran", leave: "Pengajuan cuti", invoice: "Link pembayaran", payroll: "Draf penggajian" };
+const stateLabels: Record<string, string> = { INQUIRY: "Pertanyaan baru", SUBMITTED: "Baru dikirim", UNDER_REVIEW: "Ditinjau", PENDING: "Menunggu", PENDING_PAYMENT_LINK: "Link belum tersedia", DRAFT: "Draf" };
 
 export function DashboardRetry({ label = "Coba lagi" }: { label?: string }) {
   const router = useRouter();
@@ -53,7 +53,7 @@ export function AdminWorkQueue({ items, unavailable, initialKind, totalCount }: 
     <CardContent className="min-w-0 space-y-field">
       {unavailable.map(k => <Alert key={k}><AlertTitle>{kindLabels[k]} belum dapat dimuat</AlertTitle><AlertDescription><p>Jumlah pekerjaan dari sumber ini belum diketahui.</p><DashboardRetry label={`Muat ulang ${kindLabels[k].toLowerCase()}`} /></AlertDescription></Alert>)}
       <DataTableToolbar value={search} onValueChange={setSearch} searchPlaceholder="Cari pekerjaan, nama, atau nomor…" filters={[{ key: "kind", label: "jenis", value: kind, onChange: setKind, options: [{ value: "all", label: "Semua jenis" }, ...ALL_KINDS.filter(k => items.some(i => i.kind === k) || k === kind).map(k => ({ value: k, label: kindLabels[k] }))] }]} />
-      {(items.length > 0 || unavailable.length === 0) && <DataTable columns={columns} data={filtered} pagination={{ page: 1, pageSize: 10, total: filtered.length, totalPages: Math.ceil(filtered.length / 10) }} emptyTitle={search || kind !== "all" ? "Tidak ada pekerjaan yang cocok" : "Tidak ada pekerjaan yang menunggu"} emptyDescription={search || kind !== "all" ? "Atur ulang pencarian dan jenis untuk melihat pekerjaan lain." : "Formulir, cuti, link pembayaran, dan draf penggajian akan muncul sesuai akses Anda."} />}
+      {(items.length > 0 || unavailable.length === 0) && <DataTable columns={columns} data={filtered} pagination={{ page: 1, pageSize: 10, total: filtered.length, totalPages: Math.ceil(filtered.length / 10) }} emptyTitle={search || kind !== "all" ? "Tidak ada pekerjaan yang cocok" : "Tidak ada pekerjaan yang menunggu"} emptyDescription={search || kind !== "all" ? "Atur ulang pencarian dan jenis untuk melihat pekerjaan lain." : "Pertanyaan pendaftaran, formulir, cuti, link pembayaran, dan draf penggajian akan muncul sesuai akses Anda."} />}
     </CardContent>
   </Card>;
 }

@@ -97,6 +97,10 @@ vi.mock("@/lib/generated/prisma/client", () => {
 
 const txProxy = {
   studentGuardian: {
+    // changeGuardianLinkStatus re-reads isPrimary inside the transaction.
+    findUnique: vi.fn(async () => ({ isPrimary: state.guardian?.isPrimary ?? false })),
+    findMany: vi.fn(async () => [] as unknown[]),
+    count: vi.fn(async () => 1),
     updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
       state.lastUpdateMany = data;
       // Apply the demotion in our in-memory other-guardian set so the
@@ -107,7 +111,8 @@ const txProxy = {
       return { count: state.otherGuardians.length };
     }),
     update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
-      state.lastJunctionUpdate = data;
+      if ("status" in data) state.lastPatchUpdate = data;
+      else state.lastJunctionUpdate = data;
       const g = state.guardian;
       if (!g) throw new Error("no guardian");
       const merged: GuardianRow = { ...g, parent: { ...g.parent } };

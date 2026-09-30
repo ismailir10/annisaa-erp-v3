@@ -1,6 +1,6 @@
 # Parent Portal — Jobs to be Done
 
-> Last audited: 2026-06-23 in cycle `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
+> Last audited: 2026-09-29 in cycle `finance-safety` (invoice sheet shows Total / Sudah dibayar / Sisa and a school-contact affordance when there is no payment link). Prior: 2026-06-23 `ui-shadcn-audit` (checked invoice search/filter/sort affordances for long lists)
 > Role-redesign acceptance jobs updated: 2026-09-25; new browser verification pending, not representative-user UAT.
 > Code and regression review: 2026-09-25 (child continuity, payment return, WIB week boundaries); this is not a new user UAT session.
 > Portal root: `app/parent/`
@@ -51,8 +51,9 @@ This file is the living catalog of what a parent user can and should be able to 
 - **Steps:**
   1. Open the parent portal → Tagihan
   2. Tap into an invoice
-  3. See every line item with its label and amount, plus the total
-- **Done when:** Pak Budi can tell his wife exactly what the Rp X amount is made of, component by component. No opaque "Tagihan bulan Maret" with just a total.
+  3. See every line item with its label and amount, plus Total tagihan, Sudah dibayar and Sisa tagihan
+  4. On an unpaid invoice without a payment link, see how to reach the school (WhatsApp/telephone when configured, and the invoice number to quote)
+- **Done when:** Pak Budi can tell his wife exactly what the Rp X amount is made of, component by component. No opaque "Tagihan bulan Maret" with just a total. A payment the school later reversed does not appear in his history or in "Sudah dibayar".
 - **Why this job matters:** Trust builder. When SPP goes up or a new fee appears, parents compare notes in WhatsApp. If the breakdown is hidden, the school looks shady.
 - **Expected perf:** detail page load <1.5s; all line items visible without horizontal scroll on 375px viewport.
 

@@ -46,3 +46,29 @@ export function optionalEnum<T extends z.ZodTypeAny>(inner: T) {
     inner.optional(),
   );
 }
+
+type StripDefaults<Shape extends z.ZodRawShape> = {
+  [K in keyof Shape]: Shape[K] extends z.ZodDefault<infer Inner> ? Inner : Shape[K];
+};
+
+/**
+ * Derive a partial-update schema from a create schema WITHOUT its defaults.
+ *
+ * Zod 4 (4.3.x) applies `.default()` values inside `.partial()`: an update
+ * body that omits `source` still parses to `{ source: "WALK_IN" }`, so a
+ * status-only PATCH silently overwrites the stored column with the create-time
+ * default (admission source, journal order, employee bpjsEnrolled — cycle
+ * 2026-09-29 data-integrity). Every update schema built from a create schema
+ * that carries `.default()` fields must go through this helper instead of a
+ * bare `.partial()`.
+ *
+ * Each top-level `ZodDefault` field is replaced by its inner type first, then
+ * the object is made partial, so an omitted key stays omitted.
+ */
+export function partialWithoutDefaults<Shape extends z.ZodRawShape>(schema: z.ZodObject<Shape>) {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [key, field] of Object.entries(schema.shape)) {
+    shape[key] = field instanceof z.ZodDefault ? (field.unwrap() as z.ZodTypeAny) : (field as z.ZodTypeAny);
+  }
+  return z.object(shape as unknown as StripDefaults<Shape>).partial();
+}

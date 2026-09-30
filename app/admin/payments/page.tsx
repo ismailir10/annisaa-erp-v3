@@ -8,6 +8,7 @@ import { StatsCardsRow } from "@/components/admin/stats-cards-row";
 import { DataTable } from "@/components/ui/data-table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTableMobileMeta } from "@/components/ui/data-table-mobile-meta";
 import { DataTableLinkCell } from "@/components/ui/data-table-link-cell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,8 @@ export default function PaymentsLedgerPage() {
       {
         accessorKey: "paidAt",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Tanggal" />,
+        // The date follows the student's name below `md` (FIN-21).
+        meta: { priority: "low" },
         cell: ({ row }) => (
           <span className="text-sm whitespace-nowrap">{formatJakartaDateTime(row.original.paidAt)}</span>
         ),
@@ -160,7 +163,15 @@ export default function PaymentsLedgerPage() {
         cell: ({ row }) => (
           <DataTableLinkCell
             href={`/admin/invoices/${row.original.invoiceId}`}
-            description={row.original.invoiceNumber}
+            className="whitespace-normal"
+            description={
+              <>
+                {row.original.invoiceNumber}
+                <DataTableMobileMeta className="mt-0.5">
+                  <span>{`${formatJakartaDateTime(row.original.paidAt)} · ${row.original.methodLabel}`}</span>
+                </DataTableMobileMeta>
+              </>
+            }
           >
             {row.original.studentName}
           </DataTableLinkCell>
