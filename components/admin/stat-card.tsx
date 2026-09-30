@@ -2,6 +2,8 @@
 
 import { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { CountUp } from "@/components/reactbits/count-up";
+import { Spotlight } from "@/components/reactbits/spotlight";
 
 export function StatCard({
   label,
@@ -28,7 +30,7 @@ export function StatCard({
   const c = colorMap[color];
 
   return (
-    <Card className="transition-shadow hover:shadow-md" data-index={index}>
+    <Card className="relative isolate transition-shadow hover:shadow-md" data-index={index}>
       <CardContent>
         <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-field">
           <div className="min-w-0 wrap-break-word">
@@ -45,7 +47,8 @@ export function StatCard({
                   : "text-display"
               }`}
             >
-              {value}
+              {/* Only numbers count up; pre-formatted strings ("Rp …", "…", "—") stay static. */}
+              {typeof value === "number" ? <CountUp value={value} /> : value}
             </p>
             {sublabel && (
               <p className="mt-1 text-small text-muted-foreground">{sublabel}</p>
@@ -56,6 +59,7 @@ export function StatCard({
           </div>
         </div>
       </CardContent>
+      <Spotlight />
     </Card>
   );
 }
