@@ -55,12 +55,20 @@ Assumptions (the user waived the spec gate: "dont need to ask me, just get them 
 ## Tasks
 
 - [ ] **Task 1 — CountUp.** Add `components/reactbits/count-up.tsx` and `components/reactbits/__tests__/count-up.test.tsx`. Accept: the static path renders the bare final text; the animated path (IO stubbed, in view) ends at the exact final text with an sr-only final value; reduced motion renders static. Independent.
-- [ ] **Task 2 — Spotlight.** Add `components/reactbits/spotlight.tsx` and its test. Accept: a mouse `pointermove` on the parent sets `--spot-x`/`--spot-y` and shows the layer; touch does nothing; the layer is `aria-hidden`. Independent.
-- [ ] **Task 3 — BlurText.** Add `components/reactbits/blur-text.tsx`, a `blur-in` keyframe and animation token in `app/globals.css`, and a test. Accept: one sr-only full-text node; the word spans are `aria-hidden` with increasing `animationDelay`; the classes are gated by `motion-safe:`. Independent.
+- [x] **Task 2 — Spotlight.** Add `components/reactbits/spotlight.tsx` and its test. Accept: a mouse `pointermove` on the parent sets `--spot-x`/`--spot-y` and shows the layer; touch does nothing; the layer is `aria-hidden`. Independent.
+- [x] **Task 3 — BlurText.** Add `components/reactbits/blur-text.tsx`, a `blur-in` keyframe and animation token in `app/globals.css`, and a test. Accept: one sr-only full-text node; the word spans are `aria-hidden` with increasing `animationDelay`; the classes are gated by `motion-safe:`. Independent.
 - [ ] **Task 4 — Wire into the UI.** Integrate into `queue-summary-tiles.tsx`, `stat-card.tsx` and the `SignInPage` `h2` in `app/page.tsx`; add a README line. Accept: every existing test listed in the Spec passes unchanged, and the build is green. Depends on 1–3.
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5-5, dirty-work=Sonnet; tasks [1,2,3] parallel (disjoint files), task [4] sequential after them. Driver reviewed each diff and ran the gates.
+- Task 2: Spotlight — `components/reactbits/spotlight.tsx`, `__tests__/spotlight.test.tsx` — a decorative `aria-hidden` layer. It listens on its parent for mouse-only `pointermove`, coalesces updates into one rAF, and writes `--spot-x`/`--spot-y` straight to the layer's style (no React state). It paints a `color-mix(in oklch, var(--primary) 10%, transparent)` radial glow at `-z-10` under an `isolate` parent.
+- Task 3: BlurText — `components/reactbits/blur-text.tsx`, `__tests__/blur-text.test.tsx`, `app/globals.css` (`--animate-blur-in` + `@keyframes blur-in` inside `@theme inline`). A server component with a pure-CSS stagger, gated by `motion-safe:`. It renders one sr-only full-text node and `aria-hidden` word spans separated by real spaces, so wrapping and `text-balance` still work. The Tailwind v4 compile was checked to emit the class inside `@media (prefers-reduced-motion: no-preference)`.
+
 ## Verification
+
+- design-system: motion follows `design-system.html` restraint. Hover and colour stay at 120–200ms ease-out; the only entrance is one headline; no looping animation; everything is opt-out under reduced motion. No colour tokens were added, and the glow is derived from `--primary`.
+- Task 2: `npx vitest run components/reactbits/__tests__/spotlight.test.tsx` passed 4/4, and eslint was clean. The full build + vitest gate runs after Task 4. The parallel subagents were still writing files, so a whole-tree build between tasks would have raced them.
+- Task 3: `npx vitest run components/reactbits/__tests__/blur-text.test.tsx` passed 5/5, and eslint and tsc were clean for these files. Full gate after Task 4 (same reason).
 
 ## Ship Notes
