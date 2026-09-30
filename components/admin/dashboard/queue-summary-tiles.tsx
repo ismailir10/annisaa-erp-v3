@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { DashboardRetry } from "@/components/admin/dashboard/admin-work-queue";
+import { CountUp } from "@/components/reactbits/count-up";
+import { Spotlight } from "@/components/reactbits/spotlight";
 import type { QueueSummaryItem } from "@/lib/dashboard/admin-work-queue";
 
 const tileLabel: Record<QueueSummaryItem["kind"], string> = {
@@ -45,10 +47,13 @@ export function QueueSummaryTiles({ items }: { items: QueueSummaryItem[] }) {
             key={item.kind}
             href={`/admin/work-queue?kind=${item.kind}`}
             aria-label={`${item.count} ${tileLabel[item.kind]}`}
-            className="block rounded-lg border p-card outline-none transition-shadow hover:shadow-sm hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative isolate block overflow-hidden rounded-lg border p-card outline-none transition-shadow hover:shadow-sm hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <p className="font-currency text-display font-bold tabular-nums">{item.count}</p>
+            <p className="font-currency text-display font-bold tabular-nums">
+              <CountUp value={item.count} />
+            </p>
             <p className="mt-1 text-small text-muted-foreground">{tileLabel[item.kind]}</p>
+            <Spotlight />
           </Link>
         ),
       )}
