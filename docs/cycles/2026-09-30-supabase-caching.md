@@ -22,6 +22,7 @@ Non-goals: resizing photos at upload, the other audit items (connection cap, log
 
 - [x] 1. Photo ETag/304 revalidation.
 - [x] 2. Cached admin header context with write-side invalidation.
+- [x] 3. (Codex on #586) Photo upload/delete update the row before deleting the old object.
 
 ## Implementation
 
@@ -32,6 +33,8 @@ Non-goals: resizing photos at upload, the other audit items (connection cap, log
   - `app/admin/layout.tsx` uses the reader.
   - Invalidation added in `app/api/config/campuses/route.ts`, `app/api/config/campuses/[id]/route.ts`, `app/api/academic-years/route.ts`, `app/api/academic-years/[id]/route.ts` and `app/api/admin/seed/route.ts`.
   - Tests: `lib/admin/__tests__/header-context.test.ts`, plus invalidation assertions in `app/api/__tests__/campus-soft-delete.test.ts`.
+
+- Task 3: `app/api/students/[id]/photo/route.ts` POST and DELETE now update `Student.photoUrl` first, then best-effort `deleteFile`. The old order (delete, then update) could leave the row naming a deleted object if the update failed, and the new ETag/304 would keep revalidating the stale photo instead of a 404. The worst case is now an orphaned bucket object. Test: "a failed row update never deletes the object the row still names". It fails against the old order and passes after.
 
 ## Verification
 
@@ -45,7 +48,7 @@ Non-goals: resizing photos at upload, the other audit items (connection cap, log
   - `/admin/students`: 200.
   - A full photo download cannot run locally (Storage is Supabase-only; the unconditional GET 404s without it). It is covered by the route tests.
 - Checked against design-system.html: no visual change. The layout diff only changes where the header strings come from.
-- Gates on base cefa932 plus this diff: `npm run build` exit 0; `npx vitest run` → `Tests  4374 passed | 42 todo (4416)`; eslint on touched files clean; audit-docs 0 fail.
+- Gates on base cefa932 plus this diff: `npm run build` exit 0; `npx vitest run` → `Tests  4374 passed | 42 todo (4416)` (after task 3: `4375 passed`); eslint on touched files clean; audit-docs 0 fail.
 - Playwright: full local suite at source SHA 144bde6 on a freshly seeded disposable Postgres (demo build): `expected 163, skipped 1, unexpected 0, flaky 0`. CI `Playwright E2E` gates the merge.
 
 ## Ship Notes

@@ -378,6 +378,23 @@ describe("DELETE /api/students/[id]/photo", () => {
     expect(state.lastUpdate?.photoUrl).toBe(null);
   });
 
+  it("a failed row update never deletes the object the row still names (no stale 304)", async () => {
+    state.session = adminSession();
+    const fd = new FormData();
+    fd.set("file", makeFile(JPEG_BYTES, "p.jpg", "image/jpeg"));
+    await runPost(makeReq(fd, JPEG_BYTES.length));
+    const { prisma } = await import("@/lib/db");
+    const storage = await import("@/lib/storage");
+    vi.mocked(storage.deleteFile).mockClear();
+    vi.mocked(prisma.student.update).mockRejectedValueOnce(new Error("db down"));
+
+    await expect(runDelete()).rejects.toThrow("db down");
+    expect(storage.deleteFile).not.toHaveBeenCalled();
+    expect(state.student?.photoUrl).toMatch(/^supabase:v1:/);
+    // The row still names a live object, so the photo still serves.
+    expect((await runGet()).status).toBe(200);
+  });
+
   it("is a no-op when no photoUrl exists (returns 204)", async () => {
     state.session = adminSession();
     const res = await runDelete();

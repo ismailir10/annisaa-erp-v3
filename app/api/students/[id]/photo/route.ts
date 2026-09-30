@@ -111,17 +111,19 @@ export async function POST(
     file: { bytes, mimeType: mime.mimeType, ext: mime.ext },
   });
 
-  // Best-effort delete of the old photo if the new token differs (the
-  // adapter is content-addressed by hash — same bytes → same token →
-  // no orphan).
-  if (student.photoUrl && student.photoUrl !== token) {
-    await deleteFile(student.photoUrl).catch(() => undefined);
-  }
-
+  // Point the row at the new object first, then best-effort delete the old
+  // one (content-addressed: same bytes → same token → nothing to delete).
+  // In this order a failed update never leaves the row naming a deleted
+  // object, which GET's ETag/304 would otherwise keep "revalidating" as the
+  // stale photo; the worst case is an orphaned object in the bucket.
   await prisma.student.update({
     where: { id: student.id },
     data: { photoUrl: token },
   });
+
+  if (student.photoUrl && student.photoUrl !== token) {
+    await deleteFile(student.photoUrl).catch(() => undefined);
+  }
 
   return NextResponse.json({ photoUrl: token });
 }
@@ -227,12 +229,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Clear the row before deleting the object (see POST): a failed update
+  // must not leave a token that points at a deleted object.
   if (student.photoUrl) {
-    await deleteFile(student.photoUrl).catch(() => undefined);
     await prisma.student.update({
       where: { id: student.id },
       data: { photoUrl: null },
     });
+    await deleteFile(student.photoUrl).catch(() => undefined);
   }
 
   return new Response(null, { status: 204 });
