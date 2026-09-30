@@ -77,6 +77,24 @@ Assumptions (the user waived the spec gate: "dont need to ask me, just get them 
   - `npx tsc --noEmit`: exit 0.
   - `npm run lint`: 0 errors. There are 55 warnings, none in the changed files; `npx eslint` on the changed files is clean.
 - Review fix (CountUp collapse): `DEMO_MODE=true npm run build` exit 0. `npx vitest run components/reactbits components/admin/__tests__/stat-card-long-value.test.tsx components/admin/dashboard/__tests__ app/admin/invoices/__tests__/invoices-client.test.tsx` gave `Tests 35 passed (35)`.
+- Playwright (local, end-of-cycle): `npx playwright test -c playwright.local.config.ts`, where `playwright.local.config.ts` is a git-excluded override that only sets `executablePath: /opt/pw-browsers/chromium`, because this container ships Chromium 1194 rather than the pinned headless shell. It ran against a `DEMO_MODE=true` production build and a freshly seeded disposable Postgres, giving **`163 passed, 1 skipped (3.6m)`, exit 0**. The first attempt failed at `browserType.launch` (missing executable) before any test body ran, so it was re-run with the override.
+- Ship verification, route = **Local (demo-auth browser + disposable local Postgres)**, source SHA `4f4d2af0`.
+  - Changed paths: `CLAUDE.md`, `README.md`, `app/globals.css`, `app/page.tsx`, `components/admin/dashboard/queue-summary-tiles.tsx`, `components/admin/stat-card.tsx`, `components/reactbits/{blur-text,count-up,spotlight}.tsx` + `__tests__/*`, and this doc.
+  - Not auth-impacting: `app/page.tsx` swaps only the presentational brand `h2`.
+  - `/admin` hard load as SUPER_ADMIN via the localhost fixture cookie, at 1440×900 with motion allowed and with `reducedMotion: "reduce"`:
+    - The tiles render final text `8|0|1|0|1`, with no animated spans (the hydrated path).
+    - The page still fits one screen (`scrollHeight <= innerHeight + 1`).
+    - Mouse hover puts the spotlight at `opacity 1`, `--spot-x 60px`, `--spot-y 30px`.
+  - Soft navigation to `/admin/guardians` (a client-fetched `StatCard`) with motion allowed: sampled values climbed 186 → 202 → 208 → 210, then `textContent` settled to exactly `"210"` with no `[aria-hidden]` left. Under reduced motion it stayed `210` throughout. The soft nav back to `/admin` animated and then settled to `8|0|1|0|1`.
+  - Console: no hydration errors. The only errors were `/_vercel/{insights,speed-insights}/script.js` 404s, which are expected off Vercel.
+  - `SignInPage` (a `next dev` process with a dummy `NEXT_PUBLIC_SUPABASE_URL`, because demo mode renders `DemoLoginPage`):
+    - The heading is found by `getByRole("heading", { level: 2, name: "Sahabat belajar anak" })`.
+    - Just after load, the word spans run `blur-in` with a stagger (opacity 0.87 / 0.68 / 0.32, blur 1.1 / 2.5 / 5.5px), and all three settle to opacity 1 and `blur(0px)` by 1.5s.
+    - Under reduced motion: `animation-name: none`, static.
+    - The `h2` height is unchanged at 40px (one line at 1280px).
+  - Findings: blockers 0, minors 0 from this diff.
+  - Pre-existing issue, not this PR's: under reduced motion, `next dev` logs a hydration attribute mismatch on the **existing** sign-in form `motion.div`. `initial={prefersReducedMotion ? false : …}` renders `opacity: 0` on the server but `initial={false}` on the client. The form is still visible (screenshot checked). Candidate follow-up: CSS `motion-safe:` or a mount-gated initial.
+- Screenshots are local only (scratchpad), not committed: `dash-hover-motion.png`, `guardians-motion.png`, `login-motion.png` and `login-reduced.png`.
 - Task 1: `npx vitest run components/reactbits/__tests__/count-up.test.tsx` passed 4/4 (static, reduced motion, animated with sr-only copy, decimals), and eslint was clean. Full gate after Task 4.
 - Task 2: `npx vitest run components/reactbits/__tests__/spotlight.test.tsx` passed 4/4, and eslint was clean. The full build + vitest gate runs after Task 4. The parallel subagents were still writing files, so a whole-tree build between tasks would have raced them.
 - Task 3: `npx vitest run components/reactbits/__tests__/blur-text.test.tsx` passed 5/5, and eslint and tsc were clean for these files. Full gate after Task 4 (same reason).
