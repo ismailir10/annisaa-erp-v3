@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
 import { getSession, isSuperAdmin } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { students } from "../../../../prisma/data/students";
@@ -438,6 +439,7 @@ export async function POST(req: NextRequest) {
     leaveCount++;
   }
 
+  invalidateAdminHeaderContext();
   return NextResponse.json({
     ok: true,
     seeded: {

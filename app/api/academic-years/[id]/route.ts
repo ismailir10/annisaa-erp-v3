@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { demoteOtherActiveYears } from "@/lib/academic-year/activate";
 import { validateBody } from "@/lib/api/validate";
@@ -67,6 +68,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             return tx.academicYear.update({ where: { id }, data });
           })
         : await prisma.academicYear.update({ where: { id }, data });
+    invalidateAdminHeaderContext();
     return NextResponse.json(year);
   } catch (error) {
     // Renaming onto an existing (tenantId, name) — same field error as create.
@@ -97,5 +99,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   // Soft delete — set status to ARCHIVED instead of hard delete
   await prisma.academicYear.update({ where: { id }, data: { status: "ARCHIVED" } });
+  invalidateAdminHeaderContext();
   return NextResponse.json({ ok: true });
 }
