@@ -55,7 +55,7 @@ describe("CountUp", () => {
   it("animates to the final value with an sr-only copy for screen readers", async () => {
     vi.stubGlobal("IntersectionObserver", VisibleObserver);
     const { container } = render(
-      <p>
+      <p data-testid="p">
         <CountUp value={42} duration={0.05} className="tabular-nums" />
       </p>,
     );
@@ -63,18 +63,20 @@ describe("CountUp", () => {
     const sr = container.querySelector(".sr-only") as HTMLElement;
     expect(hidden).toHaveClass("tabular-nums");
     expect(sr).toHaveTextContent("42");
-    await waitFor(() => expect(hidden).toHaveTextContent("42"));
+    // Settles back to a single bare text node: no ticking span, no sr-only twin.
+    await waitFor(() => expect(screen.getByTestId("p").textContent).toBe("42"));
+    expect(screen.getByText("42")).toBe(screen.getByTestId("p"));
+    expect(container.querySelector("[aria-hidden]")).toBeNull();
   });
 
   it("keeps the decimal places of the value", async () => {
     vi.stubGlobal("IntersectionObserver", VisibleObserver);
     const { container } = render(
-      <p>
+      <p data-testid="p">
         <CountUp value={2.5} duration={0.05} />
       </p>,
     );
-    const hidden = container.querySelector('[aria-hidden="true"]') as HTMLElement;
     expect(container.querySelector(".sr-only")).toHaveTextContent("2.5");
-    await waitFor(() => expect(hidden).toHaveTextContent("2.5"));
+    await waitFor(() => expect(screen.getByTestId("p").textContent).toBe("2.5"));
   });
 });

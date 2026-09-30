@@ -28,7 +28,7 @@ function decimalPlaces(value: number): number {
  *
  * Server output, hydration, reduced motion and browsers without IntersectionObserver all render
  * the bare final number (no wrapper element), so the text matches `{value}` exactly. Only a fresh
- * client mount animates; screen readers get the final value from an sr-only span.
+ * client mount animates; screen readers get the final value from an sr-only span while it runs.
  */
 export function CountUp({
   value,
@@ -61,13 +61,21 @@ export function CountUp({
   const rounded = useTransform(mv, (v) => v.toFixed(decimals));
   const inView = useInView(ref, { once: true });
 
-  useEffect(() => {
-    if (!animating || !inView) return;
-    const controls = animate(mv, value, { duration, ease: [0.22, 1, 0.36, 1] });
-    return () => controls.stop();
-  }, [animating, inView, value, duration, mv]);
+  // Once the count lands, collapse back to the bare text node so textContent and copy-paste read
+  // "12", not the ticking span plus its sr-only twin. Later value changes then just update the text.
+  const [done, setDone] = useState(false);
 
-  if (!animating) return <>{String(value)}</>;
+  useEffect(() => {
+    if (!animating || done || !inView) return;
+    const controls = animate(mv, value, {
+      duration,
+      ease: [0.22, 1, 0.36, 1],
+      onComplete: () => setDone(true),
+    });
+    return () => controls.stop();
+  }, [animating, done, inView, value, duration, mv]);
+
+  if (!animating || done) return <>{String(value)}</>;
 
   return (
     <>
