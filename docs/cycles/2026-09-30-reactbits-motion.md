@@ -63,7 +63,7 @@ Assumptions (the user waived the spec gate: "dont need to ask me, just get them 
 
 - Subagent plan: driver=claude-opus-5-5, dirty-work=Sonnet; tasks [1,2,3] parallel (disjoint files), task [4] sequential after them. Driver reviewed each diff and ran the gates.
 - Task 2: Spotlight — `components/reactbits/spotlight.tsx`, `__tests__/spotlight.test.tsx` — a decorative `aria-hidden` layer. It listens on its parent for mouse-only `pointermove`, coalesces updates into one rAF, and writes `--spot-x`/`--spot-y` straight to the layer's style (no React state). It paints a `color-mix(in oklch, var(--primary) 10%, transparent)` radial glow at `-z-10` under an `isolate` parent.
-- Task 3: BlurText — `components/reactbits/blur-text.tsx`, `__tests__/blur-text.test.tsx`, `app/globals.css` (`--animate-blur-in` + `@keyframes blur-in` inside `@theme inline`). A server component with a pure-CSS stagger, gated by `motion-safe:`. It renders one sr-only full-text node and `aria-hidden` word spans separated by real spaces, so wrapping and `text-balance` still work. The Tailwind v4 compile was checked to emit the class inside `@media (prefers-reduced-motion: no-preference)`.
+- Task 3: BlurText — `components/reactbits/blur-text.tsx`, `__tests__/blur-text.test.tsx`, `app/globals.css` (`--animate-blur-in` + `@keyframes blur-in` inside `@theme inline`). A server component with a pure-CSS stagger, gated by `motion-safe:`. It renders one sr-only full-text node and `aria-hidden` word spans separated by real spaces, so wrapping and `text-balance` still work. The Tailwind v4 compile was checked to emit the class inside `@media (prefers-reduced-motion: no-preference)`. README Tech Stack UI row names `components/reactbits/`.
 
 ## Verification
 
