@@ -170,8 +170,8 @@ async function runPost(req: Request, id = "stu_1") {
     params: Promise.resolve({ id }),
   });
 }
-async function runGet(id = "stu_1") {
-  return GET({} as unknown as Parameters<typeof GET>[0], {
+async function runGet(id = "stu_1", headers: Record<string, string> = {}) {
+  return GET({ headers: new Headers(headers) } as unknown as Parameters<typeof GET>[0], {
     params: Promise.resolve({ id }),
   });
 }
@@ -276,9 +276,46 @@ describe("GET /api/students/[id]/photo", () => {
     const res = await runGet();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/jpeg");
-    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("cache-control")).toBe("private, no-cache");
+    expect(res.headers.get("etag")).toMatch(/^"[\w-]{27}"$/);
     const buf = Buffer.from(await res.arrayBuffer());
     expect(buf.equals(JPEG_BYTES)).toBe(true);
+  });
+
+  it("answers 304 with no body (no storage download) when the browser already has this photo", async () => {
+    state.session = adminSession();
+    const fd = new FormData();
+    fd.set("file", makeFile(JPEG_BYTES, "p.jpg", "image/jpeg"));
+    await runPost(makeReq(fd, JPEG_BYTES.length));
+    const etag = (await runGet()).headers.get("etag")!;
+    const storage = await import("@/lib/storage");
+    vi.mocked(storage.streamFile).mockClear();
+
+    const res = await runGet("stu_1", { "if-none-match": etag });
+    expect(res.status).toBe(304);
+    expect(res.headers.get("etag")).toBe(etag);
+    expect(await res.text()).toBe("");
+    expect(storage.streamFile).not.toHaveBeenCalled();
+  });
+
+  it("serves the new bytes when the stored photo changed (stale ETag)", async () => {
+    state.session = adminSession();
+    const fd = new FormData();
+    fd.set("file", makeFile(JPEG_BYTES, "p.jpg", "image/jpeg"));
+    await runPost(makeReq(fd, JPEG_BYTES.length));
+    const res = await runGet("stu_1", { "if-none-match": '"an-older-photo-etag-000000000"' });
+    expect(res.status).toBe(200);
+  });
+
+  it("still enforces authorisation on a conditional request (no 304 leak)", async () => {
+    state.session = adminSession();
+    const fd = new FormData();
+    fd.set("file", makeFile(JPEG_BYTES, "p.jpg", "image/jpeg"));
+    await runPost(makeReq(fd, JPEG_BYTES.length));
+    const etag = (await runGet()).headers.get("etag")!;
+
+    state.session = teacherSession();
+    expect((await runGet("stu_1", { "if-none-match": etag })).status).toBe(403);
   });
 
   it("returns 403 for a guardian NOT linked to the student", async () => {
@@ -339,6 +376,23 @@ describe("DELETE /api/students/[id]/photo", () => {
     const res = await runDelete();
     expect(res.status).toBe(204);
     expect(state.lastUpdate?.photoUrl).toBe(null);
+  });
+
+  it("a failed row update never deletes the object the row still names (no stale 304)", async () => {
+    state.session = adminSession();
+    const fd = new FormData();
+    fd.set("file", makeFile(JPEG_BYTES, "p.jpg", "image/jpeg"));
+    await runPost(makeReq(fd, JPEG_BYTES.length));
+    const { prisma } = await import("@/lib/db");
+    const storage = await import("@/lib/storage");
+    vi.mocked(storage.deleteFile).mockClear();
+    vi.mocked(prisma.student.update).mockRejectedValueOnce(new Error("db down"));
+
+    await expect(runDelete()).rejects.toThrow("db down");
+    expect(storage.deleteFile).not.toHaveBeenCalled();
+    expect(state.student?.photoUrl).toMatch(/^supabase:v1:/);
+    // The row still names a live object, so the photo still serves.
+    expect((await runGet()).status).toBe(200);
   });
 
   it("is a no-op when no photoUrl exists (returns 204)", async () => {

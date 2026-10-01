@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateAdminHeaderContext } from "@/lib/admin/header-context-tag";
 import { getSession, isAdminRole } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateBody } from "@/lib/api/validate";
@@ -60,5 +61,6 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  invalidateAdminHeaderContext();
   return NextResponse.json(campus, { status: 201 });
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, isAdminRole } from "@/lib/auth";
@@ -15,7 +16,13 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
  *
  * Surface:
  *   POST   — multipart upload (admin only, ≤ 2 MB, JPEG/PNG with magic-byte check)
- *   GET    — stream (admin OR a guardian linked to the student via active StudentGuardian)
+ *   GET    — stream (admin OR a guardian linked to the student via active StudentGuardian).
+ *            Revalidated with an ETag derived from the stored object path
+ *            (itself content-addressed), `private, no-cache`: the browser keeps
+ *            the bytes but asks every time, so the auth check below always
+ *            runs, and an unchanged photo answers 304 without downloading it
+ *            from Supabase Storage again (egress: the admin student list
+ *            shows ~20 of these per page view).
  *   DELETE — remove (admin only)
  */
 
@@ -104,23 +111,25 @@ export async function POST(
     file: { bytes, mimeType: mime.mimeType, ext: mime.ext },
   });
 
-  // Best-effort delete of the old photo if the new token differs (the
-  // adapter is content-addressed by hash — same bytes → same token →
-  // no orphan).
-  if (student.photoUrl && student.photoUrl !== token) {
-    await deleteFile(student.photoUrl).catch(() => undefined);
-  }
-
+  // Point the row at the new object first, then best-effort delete the old
+  // one (content-addressed: same bytes → same token → nothing to delete).
+  // In this order a failed update never leaves the row naming a deleted
+  // object, which GET's ETag/304 would otherwise keep "revalidating" as the
+  // stale photo; the worst case is an orphaned object in the bucket.
   await prisma.student.update({
     where: { id: student.id },
     data: { photoUrl: token },
   });
 
+  if (student.photoUrl && student.photoUrl !== token) {
+    await deleteFile(student.photoUrl).catch(() => undefined);
+  }
+
   return NextResponse.json({ photoUrl: token });
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getSession();
@@ -167,6 +176,15 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // A new upload writes a new content-hashed path, so the ETag changes with
+  // the photo. Checked only after authorisation above.
+  const etag = `"${createHash("sha256").update(student.photoUrl).digest("base64url").slice(0, 27)}"`;
+  const cacheHeaders = { ETag: etag, "Cache-Control": "private, no-cache" };
+  const ifNoneMatch = req.headers.get("if-none-match");
+  if (ifNoneMatch && ifNoneMatch.split(",").some((tag) => tag.trim() === etag)) {
+    return new Response(null, { status: 304, headers: cacheHeaders });
+  }
+
   try {
     const { stream, mimeType, filename } = await streamFile(student.photoUrl);
     // RFC 5987 filename* — defends against header injection if filename
@@ -177,7 +195,7 @@ export async function GET(
     return new Response(stream as unknown as BodyInit, {
       headers: {
         "Content-Type": mimeType,
-        "Cache-Control": "private, no-store",
+        ...cacheHeaders,
         "Content-Disposition": `inline; filename*=UTF-8''${safeFilename}`,
       },
     });
@@ -211,12 +229,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Clear the row before deleting the object (see POST): a failed update
+  // must not leave a token that points at a deleted object.
   if (student.photoUrl) {
-    await deleteFile(student.photoUrl).catch(() => undefined);
     await prisma.student.update({
       where: { id: student.id },
       data: { photoUrl: null },
     });
+    await deleteFile(student.photoUrl).catch(() => undefined);
   }
 
   return new Response(null, { status: 204 });

@@ -9,7 +9,6 @@ import { ResponsiveFormDialog } from "@/components/ui/responsive-form-dialog";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -22,6 +21,11 @@ import { formatDate as formatDateLong } from "@/lib/format";
 import { swapClassSessionTeacherFormSchema } from "@/lib/validations/class-session";
 
 import { SLOT_LABELS, type SessionRow } from "@/components/admin/class-sessions-calendar";
+import {
+  TeacherOptionItems,
+  TeacherOptionsError,
+  type TeacherOptionsStatus,
+} from "./teacher-option-items";
 import type { Employee } from "./types";
 
 /**
@@ -40,6 +44,8 @@ export function SwapSessionDialog({
   writeAllowed,
   employeeOptions,
   employeesTruncated,
+  employeesStatus,
+  onRetryEmployees,
   onClose,
   onSaved,
 }: {
@@ -47,6 +53,8 @@ export function SwapSessionDialog({
   writeAllowed: boolean;
   employeeOptions: Employee[];
   employeesTruncated: boolean;
+  employeesStatus: TeacherOptionsStatus;
+  onRetryEmployees: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -191,15 +199,12 @@ export function SwapSessionDialog({
                       <SelectValue placeholder="Pilih guru" />
                     </SelectTrigger>
                     <SelectContent>
-                      {employeeOptions.map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.nama}
-                        </SelectItem>
-                      ))}
+                      <TeacherOptionItems status={employeesStatus} options={employeeOptions} />
                     </SelectContent>
                   </Select>
                 )}
               />
+              <TeacherOptionsError status={employeesStatus} onRetry={onRetryEmployees} />
               {employeesTruncated && (
                 <p className="text-xs text-muted-foreground">
                   Daftar guru dipotong pada 100 nama — jika guru yang

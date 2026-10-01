@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
+import { BlurText } from "@/components/reactbits/blur-text";
 import { createClient } from "@/lib/supabase/client";
 import { CalendarCheck2, CreditCard, Loader2, NotebookPen } from "lucide-react";
 import { TalibWordmark } from "@/components/brand/talib-wordmark";
@@ -204,9 +205,12 @@ function SignInPage() {
         </div>
 
         <div>
-          <h2 className="max-w-[16ch] text-h1 leading-tight font-semibold tracking-tight text-balance lg:text-display">
-            Sahabat belajar anak
-          </h2>
+          <BlurText
+            as="h2"
+            text="Sahabat belajar anak"
+            delay={150}
+            className="max-w-[16ch] text-h1 leading-tight font-semibold tracking-tight text-balance lg:text-display"
+          />
           <p className="mt-2 max-w-[38ch] text-body leading-relaxed text-muted-foreground text-pretty">
             Kehadiran, jurnal harian, dan tagihan sekolah dalam satu pintu.
           </p>

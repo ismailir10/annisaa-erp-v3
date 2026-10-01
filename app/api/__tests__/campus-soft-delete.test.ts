@@ -88,6 +88,9 @@ describe("Campus Cat A soft-delete", () => {
       where: { id: "camp1" },
       data: { status: "INACTIVE" },
     });
+    // The admin header lists active campuses from a cache; the write drops it.
+    const { revalidateTag } = await import("next/cache");
+    expect(revalidateTag).toHaveBeenCalledWith("admin-header-context", { expire: 0 });
   });
 
   it("DELETE returns 400 when employees still reference the campus", async () => {
@@ -138,6 +141,8 @@ describe("Campus Cat A soft-delete", () => {
         data: expect.objectContaining({ status: "ACTIVE" }),
       }),
     );
+    const { revalidateTag } = await import("next/cache");
+    expect(revalidateTag).toHaveBeenCalledWith("admin-header-context", { expire: 0 });
   });
 
   it("PUT rejects unknown status values with 400 (Zod enum guard)", async () => {

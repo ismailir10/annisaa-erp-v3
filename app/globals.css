@@ -116,6 +116,22 @@
   --spacing-section: var(--space-section);
   --spacing-card: var(--space-card);
   --spacing-field: var(--space-field);
+
+  /* Per-word blur-to-sharp reveal — used by components/reactbits/blur-text.tsx (opt-in via motion-safe:animate-blur-in) */
+  --animate-blur-in: blur-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes blur-in {
+    from {
+      opacity: 0;
+      filter: blur(8px);
+      transform: translateY(0.25em);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+  }
 }
 
 /*
