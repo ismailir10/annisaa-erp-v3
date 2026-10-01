@@ -41,11 +41,24 @@ Assumptions:
 
 ## Tasks
 
-- [ ] **Task 1 — teacher-options route.** Add `app/api/admin/classes/[id]/teacher-options/route.ts` and `__tests__/route.test.ts`. Accept: tests cover SCHOOL_ADMIN real permissions → 200 with only `{id,nama,formalName}`; no `academic.edit` → 403; cross-tenant or unknown class → 404; the query is tenant- and ACTIVE-scoped with a minimal `select`; `search` filters. `verify-api-auth.sh` passes. Independent.
+- [x] **Task 1 — teacher-options route.** Add `app/api/admin/classes/[id]/teacher-options/route.ts` and `__tests__/route.test.ts`. Accept: tests cover SCHOOL_ADMIN real permissions → 200 with only `{id,nama,formalName}`; no `academic.edit` → 403; cross-tenant or unknown class → 404; the query is tenant- and ACTIVE-scoped with a minimal `select`; `search` filters. `verify-api-auth.sh` passes. Independent.
 - [ ] **Task 2 — class page uses it, with honest states.** Change `app/admin/classes/[id]/client.tsx`, `components/admin/classes/detail/add-teacher-dialog.tsx` and `swap-session-dialog.tsx`, plus `app/admin/classes/[id]/__tests__/client.test.tsx`. Accept: the fetch targets the new URL; tests cover the loading / error with retry / empty / list states, and that retry refetches. Depends on the Task 1 URL contract only.
 
 ## Implementation
 
+- Subagent plan: driver=claude-opus-5-5, dirty-work=Sonnet; tasks [1,2] parallel (disjoint files, shared only the URL/response contract fixed in the Spec). The driver reviewed each diff, did the security review of the route, and ran the gates.
+- Task 1: teacher-options route — `app/api/admin/classes/[id]/teacher-options/route.ts` + `__tests__/route.test.ts`.
+  - It uses `requirePermission("academic.edit")`, then checks that the class is in the tenant (404 "Kelas tidak ditemukan", same as its sibling).
+  - It queries ACTIVE employees in the tenant with `select { id, nama, formalName }`, `orderBy nama asc`, `parsePagination` (max 100), an optional insensitive `search`, and returns `paginatedResponse`.
+  - The tests mock only `getSession` and `prisma`, so the real `requirePermission` and the real `getSystemRolePermissions("SCHOOL_ADMIN" | "TEACHER")` run. That is exactly the integration that broke.
+  - Security review (driver), against the `security.md` checklist:
+    - The session and permission gate come before any query.
+    - Every query filters on the tenant.
+    - There is no write, so neither Zod validation nor a rate limit applies; `GET /api/employees` has neither either.
+    - No HR field is selected: no email, phone, salary or bank.
+
 ## Verification
+
+- Task 1: `npx vitest run "app/api/admin/classes/[id]/teacher-options"` gave 6/6, covering SCHOOL_ADMIN 200 with the exact `where`/`select`/`orderBy`, TEACHER 403 with no employee query, no session 401, a cross-tenant class 404, `search`, and `pageSize=500` capped at 100. `bash scripts/verify-api-auth.sh` reported `API auth coverage OK: 200 / 200 routes`, and eslint and tsc were clean for these files. The full build + vitest gate runs after Task 2: the parallel implementer is still editing the class page, so a whole-tree build now would race it.
 
 ## Ship Notes
