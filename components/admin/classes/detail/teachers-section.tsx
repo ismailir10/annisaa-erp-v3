@@ -13,6 +13,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 
 import { AddTeacherDialog } from "./add-teacher-dialog";
+import type { TeacherOptionsStatus } from "./teacher-option-items";
 import { formatDate, ROLE_LABEL, SECTION_TEACHERS, type ClassDetail, type Employee } from "./types";
 
 type Assignment = ClassDetail["teachingAssignments"][number];
@@ -29,6 +30,8 @@ export function TeachersSection({
   teachingAssignments,
   employeeOptions,
   employeesTruncated,
+  employeesStatus,
+  onRetryEmployees,
   writeAllowed,
   open,
   onOpenChange,
@@ -39,6 +42,8 @@ export function TeachersSection({
   teachingAssignments: Assignment[];
   employeeOptions: Employee[];
   employeesTruncated: boolean;
+  employeesStatus: TeacherOptionsStatus;
+  onRetryEmployees: () => void;
   writeAllowed: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -162,6 +167,8 @@ export function TeachersSection({
         classId={classId}
         employeeOptions={employeeOptions}
         employeesTruncated={employeesTruncated}
+        employeesStatus={employeesStatus}
+        onRetryEmployees={onRetryEmployees}
         onAdded={onChanged}
       />
 

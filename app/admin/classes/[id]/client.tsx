@@ -11,6 +11,7 @@ import { EditClassDialog } from "@/components/admin/classes/detail/edit-class-di
 import { RosterSection } from "@/components/admin/classes/detail/roster-section";
 import { TeachersSection } from "@/components/admin/classes/detail/teachers-section";
 import { SessionsSection } from "@/components/admin/classes/detail/sessions-section";
+import type { TeacherOptionsStatus } from "@/components/admin/classes/detail/teacher-option-items";
 import { SwapSessionDialog } from "@/components/admin/classes/detail/swap-session-dialog";
 import { SECTION_ROSTER, SECTION_TEACHERS, SECTION_SESSIONS, type ClassDetail, type Employee } from "@/components/admin/classes/detail/types";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,9 @@ export function ClassDetailClient({
   const [sessionsError, setSessionsError] = useState(false);
   const [employeeOptions, setEmployeeOptions] = useState<Employee[]>([]);
   const [employeesTruncated, setEmployeesTruncated] = useState(false);
+  const [employeesStatus, setEmployeesStatus] = useState<TeacherOptionsStatus>(
+    canWrite ? "loading" : "ready",
+  );
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(
     null,
   );
@@ -142,16 +146,19 @@ export function ClassDetailClient({
     fetchSessions();
   }, [fetchSessions]);
 
-  // ── Employees fetch (for swap drawer + add-teacher dialog) ──────
-  useEffect(() => {
-    if (!canWrite) return;
-    fetch("/api/employees?status=ACTIVE&pageSize=100")
+  // ── Teacher options (for swap drawer + add-teacher dialog) ──────
+  // Deliberately NOT `/api/employees`: that endpoint needs `hr.view`, which
+  // SCHOOL_ADMIN lacks, so the picker 403'd into a false "no teachers" state.
+  // The class-scoped endpoint is gated on `academic.edit` — the same
+  // permission as the assignment write it feeds — and returns only
+  // id/nama/formalName. See docs/cycles/2026-10-01-teacher-picker-access.md.
+  const loadTeacherOptions = useCallback(() => {
+    setEmployeesStatus("loading");
+    fetch(`/api/admin/classes/${classId}/teacher-options?pageSize=100`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((json) => {
-        const list: Employee[] = Array.isArray(json) ? json : json?.data ?? [];
-        const total = Array.isArray(json)
-          ? list.length
-          : json?.total ?? list.length;
+        const list: Employee[] = json?.data ?? [];
+        const total: number = json?.pagination?.total ?? list.length;
         setEmployeeOptions(
           list.map((e) => ({
             id: e.id,
@@ -160,13 +167,19 @@ export function ClassDetailClient({
           })),
         );
         setEmployeesTruncated(total > list.length);
+        setEmployeesStatus("ready");
       })
       .catch(() => {
         setEmployeeOptions([]);
         setEmployeesTruncated(false);
-        toast.error("Gagal memuat daftar guru");
+        setEmployeesStatus("error");
       });
-  }, [canWrite]);
+  }, [classId]);
+
+  useEffect(() => {
+    if (!canWrite) return;
+    loadTeacherOptions();
+  }, [canWrite, loadTeacherOptions]);
 
   // ── Header actions ──────────────────────────────────────────────
   function openEdit() {
@@ -352,6 +365,8 @@ export function ClassDetailClient({
             teachingAssignments={data.teachingAssignments}
             employeeOptions={employeeOptions}
             employeesTruncated={employeesTruncated}
+            employeesStatus={employeesStatus}
+            onRetryEmployees={loadTeacherOptions}
             writeAllowed={writeAllowed}
             open={openSections[SECTION_TEACHERS] ?? true}
             onOpenChange={(o) => setSectionOpen(SECTION_TEACHERS, o)}
@@ -429,6 +444,8 @@ export function ClassDetailClient({
         writeAllowed={writeAllowed}
         employeeOptions={employeeOptions}
         employeesTruncated={employeesTruncated}
+        employeesStatus={employeesStatus}
+        onRetryEmployees={loadTeacherOptions}
         onClose={() => setSelectedSession(null)}
         onSaved={fetchSessions}
       />

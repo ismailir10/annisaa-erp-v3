@@ -103,6 +103,19 @@ const students = [
   { id: "stu-2", name: "Zahra Amalia", nis: "2025002", status: "ACTIVE", dateOfBirth: null, enrollments: [] },
 ];
 
+// Class-scoped teacher picker source (academic.edit) — NOT /api/employees,
+// which needs hr.view and 403s for SCHOOL_ADMIN. See
+// docs/cycles/2026-10-01-teacher-picker-access.md.
+const TEACHER_OPTIONS_URL = "/api/admin/classes/class-1/teacher-options";
+
+function teacherOptionsBody(
+  data: { id: string; nama: string; formalName: string | null }[] = [
+    { id: "emp-2", nama: "Ustadzah Fatimah", formalName: null },
+  ],
+) {
+  return { data, pagination: { page: 1, pageSize: 100, total: data.length, totalPages: 1 } };
+}
+
 const AGE_MESSAGE =
   "Usia anak 2 tahun 6 bulan (30 bulan) di bawah batas usia minimum program Kelompok Bermain (36–48 bulan), per awal tahun ajaran 14 Juli 2025.";
 const ALREADY_ENROLLED_MESSAGE =
@@ -173,14 +186,8 @@ function stubFetchWithSession({ archived = false }: { archived?: boolean } = {})
     if (url.includes("/api/admin/class-sessions?")) {
       return Promise.resolve({ ok: true, json: async () => [sessionRow] } as Response);
     }
-    if (url.includes("/api/employees?status=ACTIVE")) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }],
-          total: 1,
-        }),
-      } as Response);
+    if (url.includes(TEACHER_OPTIONS_URL)) {
+      return Promise.resolve({ ok: true, json: async () => teacherOptionsBody() } as Response);
     }
     if (url === "/api/admin/classes/class-1") {
       return Promise.resolve({
@@ -363,11 +370,8 @@ function stubFetchForAddTeacher(teachingAssignmentResponse: { status: number; bo
         json: async () => teachingAssignmentResponse.body,
       } as Response);
     }
-    if (url.includes("/api/employees?status=ACTIVE")) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({ data: [{ id: "emp-2", nama: "Ustadzah Fatimah", formalName: null }], total: 1 }),
-      } as Response);
+    if (url.includes(TEACHER_OPTIONS_URL)) {
+      return Promise.resolve({ ok: true, json: async () => teacherOptionsBody() } as Response);
     }
     if (url === "/api/admin/classes/class-1") {
       return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
@@ -422,6 +426,105 @@ describe("ClassDetailClient — Tambah Guru dialog (T3 rhf migration)", () => {
       employeeId: "emp-2",
       role: "HOMEROOM",
     });
+  });
+});
+
+describe("ClassDetailClient — teacher picker source and states", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function urlsOf(fetchMock: ReturnType<typeof vi.fn>) {
+    return fetchMock.mock.calls.map(([i]) => (typeof i === "string" ? i : String(i)));
+  }
+
+  it("loads teachers from the class-scoped teacher-options endpoint, never /api/employees", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetchForAddTeacher({ status: 201, body: {} });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    expect(await screen.findByRole("option", { name: /Ustadzah Fatimah/ })).toBeInTheDocument();
+
+    const urls = urlsOf(fetchMock);
+    expect(urls).toContain(`${TEACHER_OPTIONS_URL}?pageSize=100`);
+    expect(urls.some((u) => u.startsWith("/api/employees"))).toBe(false);
+  });
+
+  it("shows an inline error with retry (not an empty state) when the options request 403s, and retry recovers", async () => {
+    const user = userEvent.setup();
+    let optionsCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes(TEACHER_OPTIONS_URL)) {
+        optionsCalls += 1;
+        if (optionsCalls === 1) {
+          return Promise.resolve({ ok: false, status: 403, json: async () => ({ error: "Forbidden" }) } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => teacherOptionsBody() } as Response);
+      }
+      if (url === "/api/admin/classes/class-1") {
+        return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    expect(await screen.findByText("Daftar guru gagal dimuat.")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada guru aktif")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tidak ada guru tersedia")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Ustadzah Fatimah/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Coba lagi" }));
+
+    expect(await screen.findByRole("option", { name: /Ustadzah Fatimah/ })).toBeInTheDocument();
+    expect(optionsCalls).toBe(2);
+    expect(screen.queryByText("Daftar guru gagal dimuat.")).not.toBeInTheDocument();
+  });
+
+  it("says 'Belum ada guru aktif' when the tenant genuinely has no active teachers", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes(TEACHER_OPTIONS_URL)) {
+          return Promise.resolve({ ok: true, json: async () => teacherOptionsBody([]) } as Response);
+        }
+        if (url === "/api/admin/classes/class-1") {
+          return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }),
+    );
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    expect(await screen.findByText("Belum ada guru aktif")).toBeInTheDocument();
+    expect(screen.queryByText("Daftar guru gagal dimuat.")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Memuat daftar guru…' while the options request is in flight", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes(TEACHER_OPTIONS_URL)) return new Promise<Response>(() => {});
+        if (url === "/api/admin/classes/class-1") {
+          return Promise.resolve({ ok: true, json: async () => classDetail } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+      }),
+    );
+    render(<ClassDetailClient classId="class-1" canWrite />);
+
+    await user.click(await screen.findByRole("button", { name: "Tambah Guru Pengajar" }));
+    expect(await screen.findByText("Memuat daftar guru…")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada guru aktif")).not.toBeInTheDocument();
   });
 });
 

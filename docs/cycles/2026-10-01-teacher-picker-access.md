@@ -42,7 +42,7 @@ Assumptions:
 ## Tasks
 
 - [x] **Task 1 — teacher-options route.** Add `app/api/admin/classes/[id]/teacher-options/route.ts` and `__tests__/route.test.ts`. Accept: tests cover SCHOOL_ADMIN real permissions → 200 with only `{id,nama,formalName}`; no `academic.edit` → 403; cross-tenant or unknown class → 404; the query is tenant- and ACTIVE-scoped with a minimal `select`; `search` filters. `verify-api-auth.sh` passes. Independent.
-- [ ] **Task 2 — class page uses it, with honest states.** Change `app/admin/classes/[id]/client.tsx`, `components/admin/classes/detail/add-teacher-dialog.tsx` and `swap-session-dialog.tsx`, plus `app/admin/classes/[id]/__tests__/client.test.tsx`. Accept: the fetch targets the new URL; tests cover the loading / error with retry / empty / list states, and that retry refetches. Depends on the Task 1 URL contract only.
+- [x] **Task 2 — class page uses it, with honest states.** Change `app/admin/classes/[id]/client.tsx`, `components/admin/classes/detail/add-teacher-dialog.tsx` and `swap-session-dialog.tsx`, plus `app/admin/classes/[id]/__tests__/client.test.tsx`. Accept: the fetch targets the new URL; tests cover the loading / error with retry / empty / list states, and that retry refetches. Depends on the Task 1 URL contract only.
 
 ## Implementation
 
@@ -56,9 +56,25 @@ Assumptions:
     - Every query filters on the tenant.
     - There is no write, so neither Zod validation nor a rate limit applies; `GET /api/employees` has neither either.
     - No HR field is selected: no email, phone, salary or bank.
+- Task 2: class page uses it, with honest states.
+  - Files: `app/admin/classes/[id]/client.tsx`, `components/admin/classes/detail/{add-teacher-dialog,swap-session-dialog,teachers-section}.tsx`, new `teacher-option-items.tsx`, and `app/admin/classes/[id]/__tests__/client.test.tsx`.
+  - `loadTeacherOptions` (a `useCallback`, gated on `canWrite`) fetches `/api/admin/classes/${classId}/teacher-options?pageSize=100` and tracks `employeesStatus: loading | ready | error`. The page-load toast is removed, because the dialog now reports the failure inline.
+  - `TeacherOptionItems` and `TeacherOptionsError` hold the shared copy, so both pickers say the same thing:
+    - loading: "Memuat daftar guru…"
+    - empty: "Belum ada guru aktif"
+    - error: a disabled "Daftar guru belum tersedia" option, plus `role="alert"` "Daftar guru gagal dimuat." and a "Coba lagi" link button that re-runs the loader
+  - The swap dialog gained the empty state it never had.
+  - `teachers-section.tsx` only forwards the two new props to the add dialog it renders.
+  - `CLAUDE.md` counts were regenerated: 199 → 200 routes, 67 → 68 active cycles.
+  - Driver review: no bugs. Low note, not fixed: overlapping retries could resolve out of order, but every request hits the same URL and returns the same data, so the final state is the same.
 
 ## Verification
 
+- design-system: copy and states follow `design-system.html` and `voice.md`. The inline destructive error text plus a link-style "Coba lagi" matches the existing `DashboardRetry` idiom, and no new tokens or components were added.
+- Task 2 (whole-tree gate, covers Tasks 1–2; local disposable Postgres):
+  - `DEMO_MODE=true npm run build`: exit 0.
+  - `npx vitest run`: exit 0, `Test Files 478 passed | 2 skipped (480)`, `Tests 4399 passed | 42 todo (4441)`. That includes `client.test.tsx` 20/20, with the new "teacher picker source and states" block: the URL is the new endpoint and never `/api/employees`; a 403 shows the error, not the empty copy, and retry refetches and then lists the teacher; empty shows "Belum ada guru aktif"; loading shows "Memuat daftar guru…".
+  - `npx tsc --noEmit`: exit 0. eslint on the touched dirs: clean.
 - Task 1: `npx vitest run "app/api/admin/classes/[id]/teacher-options"` gave 6/6, covering SCHOOL_ADMIN 200 with the exact `where`/`select`/`orderBy`, TEACHER 403 with no employee query, no session 401, a cross-tenant class 404, `search`, and `pageSize=500` capped at 100. `bash scripts/verify-api-auth.sh` reported `API auth coverage OK: 200 / 200 routes`, and eslint and tsc were clean for these files. The full build + vitest gate runs after Task 2: the parallel implementer is still editing the class page, so a whole-tree build now would race it.
 
 ## Ship Notes
