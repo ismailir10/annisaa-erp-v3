@@ -18,6 +18,11 @@ import { applyServerErrors } from "@/lib/forms/server-errors";
 import { useZodForm } from "@/lib/forms/use-zod-form";
 import { teachingAssignmentAddSchema } from "@/lib/validations/class";
 
+import {
+  TeacherOptionItems,
+  TeacherOptionsError,
+  type TeacherOptionsStatus,
+} from "./teacher-option-items";
 import type { Employee } from "./types";
 
 /**
@@ -33,6 +38,8 @@ export function AddTeacherDialog({
   classId,
   employeeOptions,
   employeesTruncated,
+  employeesStatus,
+  onRetryEmployees,
   onAdded,
 }: {
   open: boolean;
@@ -40,6 +47,8 @@ export function AddTeacherDialog({
   classId: string;
   employeeOptions: Employee[];
   employeesTruncated: boolean;
+  employeesStatus: TeacherOptionsStatus;
+  onRetryEmployees: () => void;
   onAdded: () => void;
 }) {
   const formId = useId();
@@ -174,21 +183,12 @@ export function AddTeacherDialog({
                   <SelectValue placeholder="Pilih guru..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {employeeOptions.length === 0 ? (
-                    <SelectItem value="__empty" disabled>
-                      Tidak ada guru tersedia
-                    </SelectItem>
-                  ) : (
-                    employeeOptions.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.nama}
-                      </SelectItem>
-                    ))
-                  )}
+                  <TeacherOptionItems status={employeesStatus} options={employeeOptions} />
                 </SelectContent>
               </Select>
             )}
           />
+          <TeacherOptionsError status={employeesStatus} onRetry={onRetryEmployees} />
           {employeesTruncated && (
             <p className="text-xs text-muted-foreground">
               Daftar guru dipotong pada 100 nama — jika guru yang dicari
