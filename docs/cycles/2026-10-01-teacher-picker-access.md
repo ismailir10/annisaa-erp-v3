@@ -75,6 +75,24 @@ Assumptions:
   - `DEMO_MODE=true npm run build`: exit 0.
   - `npx vitest run`: exit 0, `Test Files 478 passed | 2 skipped (480)`, `Tests 4399 passed | 42 todo (4441)`. That includes `client.test.tsx` 20/20, with the new "teacher picker source and states" block: the URL is the new endpoint and never `/api/employees`; a 403 shows the error, not the empty copy, and retry refetches and then lists the teacher; empty shows "Belum ada guru aktif"; loading shows "Memuat daftar guru…".
   - `npx tsc --noEmit`: exit 0. eslint on the touched dirs: clean.
+- Ship verification, route = **Local (demo-auth browser + disposable local Postgres)**, source SHA `a923d33`.
+  - Changed paths: `CLAUDE.md` (generated counts), `app/api/admin/classes/[id]/teacher-options/{route.ts,__tests__/route.test.ts}`, `app/admin/classes/[id]/{client.tsx,__tests__/client.test.tsx}`, `components/admin/classes/detail/{add-teacher-dialog,swap-session-dialog,teachers-section,teacher-option-items}.tsx`, and this doc.
+  - Why not auth-impacting: no login, session, cookie or guard code changed. The new route uses the existing `requirePermission`. Demo and real sessions derive permissions through the same `derivePermissions` in `lib/auth.ts`, and the reporting staging account has no `customRoleId`, so it gets exactly `getSystemRolePermissions("SCHOOL_ADMIN")`, the same set as demo `u_school_admin`.
+  - As `u_school_admin` (fixture cookie, localhost only) on a freshly seeded DB, `/admin/classes/cmup4t9n300iv1t7d14za6dnc`:
+    - **Reproduced the bug:** `GET /api/employees?status=ACTIVE&pageSize=100` returns **403**.
+    - **Fix:** `GET …/teacher-options?pageSize=100` returns **200** with keys `id, nama, formalName` only, `pagination.total` 27.
+    - The page requests only the new endpoint.
+    - "Tambah Guru Pengajar" → Guru lists **27** options (Guru Dua, Guru Empat, …), with no "Tidak ada guru tersedia" and no "gagal dimuat", and no page errors.
+    - Picking Guru Enam with role Asisten → `POST teaching-assignments` returns **201**, the toast "Guru ditambahkan" appears, and Guru Enam is listed on the page.
+  - Findings: blockers 0, minors 0 from this diff. Screenshots (local scratchpad, not committed): `school-admin-picker.png`, `school-admin-assigned.png`.
+  - Pre-existing, out of scope: the Guru field shows "Guru wajib dipilih" in red as soon as the Select opens (blur validation). It is visible in the reporter's screenshot too.
 - Task 1: `npx vitest run "app/api/admin/classes/[id]/teacher-options"` gave 6/6, covering SCHOOL_ADMIN 200 with the exact `where`/`select`/`orderBy`, TEACHER 403 with no employee query, no session 401, a cross-tenant class 404, `search`, and `pageSize=500` capped at 100. `bash scripts/verify-api-auth.sh` reported `API auth coverage OK: 200 / 200 routes`, and eslint and tsc were clean for these files. The full build + vitest gate runs after Task 2: the parallel implementer is still editing the class page, so a whole-tree build now would race it.
 
 ## Ship Notes
+
+- **Migrations:** none. **Env vars:** none. **Dependencies:** none.
+- **Permissions:** unchanged. No role gains `hr.view`, and `/api/employees` is untouched. The new read is gated on `academic.edit`, the same permission as the write it feeds, and returns only `id`, `nama` and `formalName`.
+- **Verification route:** Local. Not auth-impacting (see Verification), so no `needs-staging-verify`.
+- **After merge:** on staging, the SCHOOL_ADMIN who reported it should reopen "Tambah Guru Pengajar" on `/admin/classes/cms41ag12001wi5x7zx5cnve5` and see the teacher list.
+- **Rollback:** revert the squash commit. The old picker behaviour (HR endpoint) returns, with no data impact.
+
