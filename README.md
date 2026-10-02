@@ -64,6 +64,8 @@ Role homes apply "Don't Make Me Think": teachers see their class and unfinished 
 
 ## Setup
 
+Use Node.js 24 (≥ 22.12 works); CI and Vercel both run 24.
+
 ```bash
 git clone https://github.com/ismailir10/annisaa-erp-v3.git
 cd annisaa-erp-v3
