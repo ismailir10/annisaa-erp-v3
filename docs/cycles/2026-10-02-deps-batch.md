@@ -42,12 +42,20 @@ Assumptions:
 
 ## Implementation
 
-- Subagent plan: driver=claude-opus-5-5, no fan-out. This is one mechanical task: a few `npm` commands plus a version check. A subagent would need the whole version table as context, and the fan-out exception applies.
+- Subagent plan: driver=claude-opus-5-5, dirty-work=Sonnet (independent verifier); no fan-out for the edit itself. This is one mechanical task: a few `npm` commands plus a version check. A subagent would need the whole version table as context, and the fan-out exception applies.
 - Task 1: `package.json`, `package-lock.json`.
   - Problem: npm 10.9.7 (the local npm) crashed in `buildIdealTree` → `#loadPeerSet` with `Cannot read properties of null (reading 'edgesOut')` on the vitest → jsdom → `canvas` optional-peer chain. It crashed on every attempt, even after removing the stale vitest lock entries.
   - Fix: the lockfile was resolved with `npx npm@11 install` / `npm@11 update`.
   - It stays `lockfileVersion: 3`, and a clean **npm 10 `npm ci` succeeds** on it, which is the path CI uses.
   - Final versions: vitest 4.1.11, coverage-v8 4.1.11, @types/node 26.6.4, bundle-analyzer 16.3.8, user-event 14.6.7, eslint-config-next 16.3.6, sonner 2.0.8, next 16.3.6, react/react-dom 19.3.0, @types/react{,-dom} 19.3.0, @react-pdf/renderer 4.9.0, @tanstack/react-table 9.2.4. Every transitive package was checked at or above its dependabot target.
+- Independent verification (Sonnet subagent, prompted by the Codex P1 review on #598), from a fresh clone of `516f82a`, all PASS:
+  1. The branch sits directly on `staging` `68d6865`.
+  2. The diff touches only `package.json`, `package-lock.json`, the `CLAUDE.md` counts line, and this doc.
+  3. All 12 `package.json` values match the Spec, and nothing else changed.
+  4. Lockfile v3; all 14 transitive floors are met.
+  5. npm 10.9.7 `npm ci` exits 0, with vitest 4.1.11, next 16.3.6 and react 19.3.0.
+
+  One expected transitive downgrade: `hyphen` 1.14.1 → 1.6.6. `@react-pdf/renderer` 4.9's `@react-pdf/hyphenate` 0.1.0 pins `hyphen ~1.6.4`. It is not a major drop, and PDFs render (see Verification).
 
 ## Verification
 
