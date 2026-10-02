@@ -12,7 +12,7 @@ The only major is **Vitest 5**: #527, a prepared migration that also moves CI to
 
 ## Spec
 
-- [ ] One branch moves every non-major dependabot target to at least its proposed version.
+- [x] One branch moves every non-major dependabot target to at least its proposed version.
   - Direct dependencies:
     - `next` 16.3.0 → 16.3.6 (#549) and `react` 19.2.8 → 19.3.0, both kept exact-pinned, with `react-dom` ^19.3.0 and `@types/react{,-dom}` 19.3.0 (#551)
     - `eslint-config-next` 16.3.6 (#593), exact
@@ -24,8 +24,8 @@ The only major is **Vitest 5**: #527, a prepared migration that also moves CI to
     - `@types/node` ^26.6.3 (#594)
     - `vitest` ^4.1.11 (#547), with `@vitest/coverage-v8` ^4.1.11 because it peers vitest at an exact version
   - Lockfile-only: ip-address (#571), undici (#570), js-yaml (#550), sharp (#548), baseline-browser-mapping (#546), hono (#545), browserslist (#542), fflate (#540), @humanfs/node (#539), qs (#538), fast-uri (#535), postcss-selector-parser (#534).
-- [ ] The lockfile stays at v3 and installs cleanly with CI's `npm ci` (npm 10).
-- [ ] The end-of-cycle gate is green: build, vitest, typecheck, lint, and Playwright.
+- [x] The lockfile stays at v3 and installs cleanly with CI's `npm ci` (npm 10).
+- [x] The end-of-cycle gate is green: build, vitest, typecheck, lint, and Playwright.
 - [ ] After merge, the superseded dependabot PRs are closed with a pointer to this PR.
 
 Non-goals:
@@ -57,6 +57,18 @@ Assumptions:
   - `npx tsc --noEmit`: exit 0.
   - `npm run lint`: 0 errors and 55 warnings, the same count as `staging` before this change.
   - `npx vitest run`: exit 0, `Test Files 478 passed | 2 skipped (480)`, `Tests 4399 passed | 42 todo (4441)`.
+- Playwright (local, end-of-cycle): `npx playwright test -c playwright.local.config.ts`, a git-excluded override that only sets `executablePath: /opt/pw-browsers/chromium` (this container ships Chromium 1194). It ran against a `DEMO_MODE=true` production build of `af712b6` on a freshly seeded disposable Postgres: **`163 passed, 1 skipped (3.4m)`, exit 0**.
+- Ship verification, route = **auth-impacting (uncertain), pre-merge local half**, source SHA `af712b6`.
+  - Changed paths: `package.json`, `package-lock.json`, `CLAUDE.md` (generated counts), and this doc.
+  - On a local `next start` (Next 16.3.6, `DEMO_MODE` scoped to the server process) with the disposable DB:
+    - The **auth guard under the new runtime** behaves correctly: anonymous `/admin` returns **307** to `/`; anonymous `GET /api/employees` returns **401** JSON; `/admin` with the SUPER_ADMIN fixture cookie returns **200**.
+    - **react-pdf 4.9 renders:**
+      - `GET /api/slips/<payrollItemId>/pdf` as SUPER_ADMIN returns **200 `application/pdf`**, a valid `%PDF-1.3` with producer `react-pdf`.
+      - `GET /api/guardian/invoices/<PAID invoice>/pdf` as guardian `u_rightjet` returns **200 `application/pdf`**, `%PDF-1.3`.
+      - The first attempt used an unpaid invoice and got the route's deliberate paid-only **404**, which is correct behaviour.
+    - The report-card PDF is covered by `e2e/parent-raport.spec.ts` in the passing suite.
+  - Findings: blockers 0, minors 0.
+  - The **signed-in half** (real Google OAuth and Supabase session cookies) cannot run here. It is left to the post-merge staging check in Ship Notes, and the PR carries `needs-staging-verify` until then.
 
 ## Ship Notes
 
